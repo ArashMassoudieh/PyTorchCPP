@@ -3,6 +3,7 @@
 #include <torch/torch.h>
 #include <iomanip>
 #include <cmath>
+#include "TimeSeries.h"
 
 // Simple feedforward network for regression
 struct RegressionNet : torch::nn::Module {
@@ -22,13 +23,113 @@ struct RegressionNet : torch::nn::Module {
     }
 };
 
+#include <torch/torch.h>
+#include <iostream>
+#include <iomanip>
+
+// Utility function to print comprehensive tensor information
+void printTensorInfo(const torch::Tensor& tensor, const std::string& name = "Tensor") {
+    std::cout << "=== " << name << " Information ===" << std::endl;
+
+    // Basic properties
+    std::cout << "Shape/Sizes:     " << tensor.sizes() << std::endl;
+    std::cout << "Dimensions:      " << tensor.dim() << std::endl;
+    std::cout << "Total elements:  " << tensor.numel() << std::endl;
+
+    // Data type and device
+    std::cout << "Data type:       " << tensor.dtype() << std::endl;
+    std::cout << "Device:          " << tensor.device() << std::endl;
+
+    // Memory layout
+    std::cout << "Strides:         " << tensor.strides() << std::endl;
+    std::cout << "Is contiguous:   " << (tensor.is_contiguous() ? "Yes" : "No") << std::endl;
+
+    // Gradient information
+    std::cout << "Requires grad:   " << (tensor.requires_grad() ? "Yes" : "No") << std::endl;
+    std::cout << "Has grad_fn:     " << (tensor.grad_fn() ? "Yes" : "No") << std::endl;
+
+    // Storage information
+    std::cout << "Storage offset:  " << tensor.storage_offset() << std::endl;
+
+    // Memory usage (approximate)
+    size_t memory_bytes = tensor.numel() * tensor.element_size();
+    std::cout << "Memory usage:    " << memory_bytes << " bytes";
+    if (memory_bytes > 1024) {
+        std::cout << " (" << std::fixed << std::setprecision(2)
+        << static_cast<double>(memory_bytes) / 1024.0 << " KB)";
+    }
+    if (memory_bytes > 1024 * 1024) {
+        std::cout << " (" << std::fixed << std::setprecision(2)
+        << static_cast<double>(memory_bytes) / (1024.0 * 1024.0) << " MB)";
+    }
+    std::cout << std::endl;
+
+    // Value range (for small tensors or summary for large ones)
+    if (tensor.numel() > 0) {
+        if (tensor.numel() <= 20) {
+            std::cout << "Values:          " << tensor << std::endl;
+        } else {
+            // Statistical summary for large tensors
+            auto flattened = tensor.flatten();
+            std::cout << "Min value:       " << torch::min(flattened).item<double>() << std::endl;
+            std::cout << "Max value:       " << torch::max(flattened).item<double>() << std::endl;
+            std::cout << "Mean value:      " << torch::mean(flattened.to(torch::kFloat)).item<double>() << std::endl;
+            std::cout << "First 5 values:  " << flattened.slice(0, 0, 5) << std::endl;
+            std::cout << "Last 5 values:   " << flattened.slice(0, -5, flattened.size(0)) << std::endl;
+        }
+    }
+
+    std::cout << "=================================" << std::endl << std::endl;
+}
+
+// Compact version for quick debugging
+void tensorInfo(const torch::Tensor& tensor, const std::string& name = "") {
+    std::cout << (name.empty() ? "Tensor" : name)
+    << ": shape=" << tensor.sizes()
+    << ", dtype=" << tensor.dtype()
+    << ", device=" << tensor.device()
+    << ", numel=" << tensor.numel() << std::endl;
+}
+
+// Comparison function for two tensors
+void compareTensors(const torch::Tensor& tensor1, const torch::Tensor& tensor2,
+                    const std::string& name1 = "Tensor1", const std::string& name2 = "Tensor2") {
+    std::cout << "=== Tensor Comparison ===" << std::endl;
+    std::cout << name1 << " shape: " << tensor1.sizes() << std::endl;
+    std::cout << name2 << " shape: " << tensor2.sizes() << std::endl;
+    std::cout << "Same shape: " << (tensor1.sizes() == tensor2.sizes() ? "Yes" : "No") << std::endl;
+    std::cout << "Same dtype: " << (tensor1.dtype() == tensor2.dtype() ? "Yes" : "No") << std::endl;
+    std::cout << "Same device: " << (tensor1.device() == tensor2.device() ? "Yes" : "No") << std::endl;
+
+    if (tensor1.sizes() == tensor2.sizes() && tensor1.dtype() == tensor2.dtype()) {
+        std::cout << "Tensors equal: " << (torch::equal(tensor1, tensor2) ? "Yes" : "No") << std::endl;
+        if (!torch::equal(tensor1, tensor2)) {
+            auto diff = tensor1 - tensor2;
+            std::cout << "Max difference: " << torch::max(torch::abs(diff)).item<double>() << std::endl;
+        }
+    }
+    std::cout << "=========================" << std::endl << std::endl;
+}
+
+
 // Generate synthetic data: output = f(input)
 std::pair<torch::Tensor, torch::Tensor> generateData(int num_samples) {
-    torch::Tensor inputs = torch::randn({num_samples, 1}) * 2.0;  // Random inputs
+
+    TimeSeries<double> inputTS;
+    inputTS.readfile("/home/arash/Dropbox/Aquifolium/input_for_pytorch.txt");
+
+
+    TimeSeries<double> outputTS;
+    outputTS.readfile("/home/arash/Dropbox/Aquifolium/output_for_pytorch.txt");
+
+    torch::Tensor inputs = inputTS.toTensor(false);
 
     // Define relationship: output = sin(input) + 0.5 * input^2 + noise
-    torch::Tensor outputs = torch::sin(inputs) + 0.5 * torch::pow(inputs, 2) +
-                            0.1 * torch::randn({num_samples, 1});  // Add noise
+    torch::Tensor outputs = outputTS.toTensor(false);
+
+    printTensorInfo(inputs,"Input");
+
+    printTensorInfo(outputs,"Output");
 
     return {inputs, outputs};
 }
@@ -50,12 +151,15 @@ int main(int argc, char *argv[])
         // Set random seed for reproducibility
         torch::manual_seed(42);
 
+        auto [train_inputs, train_outputs] = generateData(0);
+        auto [test_inputs, test_outputs] = generateData(0);
+
         // Parameters
         const int input_size = 1;
         const int hidden_size = 64;
         const int output_size = 1;
-        const int num_train_samples = 1000;
-        const int num_test_samples = 200;
+        const int num_train_samples = train_inputs.size(0);
+        const int num_test_samples = test_inputs.size(0);
 
         std::cout << "Network architecture: " << input_size << " -> "
                   << hidden_size << " -> " << hidden_size << " -> " << output_size << std::endl;
@@ -63,8 +167,7 @@ int main(int argc, char *argv[])
         std::cout << "Test samples: " << num_test_samples << std::endl;
 
         // Generate training and test data
-        auto [train_inputs, train_outputs] = generateData(num_train_samples);
-        auto [test_inputs, test_outputs] = generateData(num_test_samples);
+
 
         std::cout << "\nGenerated synthetic data" << std::endl;
         std::cout << "Relationship: output = sin(input) + 0.5 * input^2 + noise" << std::endl;
@@ -74,8 +177,8 @@ int main(int argc, char *argv[])
         std::cout << "Input  -> Output" << std::endl;
         std::cout << "-------|--------" << std::endl;
         for (int i = 0; i < 5; ++i) {
-            float input_val = train_inputs[i][0].item<float>();
-            float output_val = train_outputs[i][0].item<float>();
+            float input_val = train_inputs[i].item<float>();
+            float output_val = train_outputs[i].item<float>();
             std::cout << std::fixed << std::setprecision(3)
                       << std::setw(6) << input_val << " -> "
                       << std::setw(6) << output_val << std::endl;
@@ -175,9 +278,9 @@ int main(int argc, char *argv[])
             std::cout << "---------|-----------|-----------|----------" << std::endl;
 
             for (int i = 0; i < std::min(15, num_test_samples); ++i) {
-                float input_val = test_inputs[i][0].item<float>();
-                float predicted = test_predictions[i][0].item<float>();
-                float actual = test_outputs[i][0].item<float>();
+                float input_val = test_inputs[i].item<float>();
+                float predicted = test_predictions[i].item<float>();
+                float actual = test_outputs[i].item<float>();
                 float error = std::abs(predicted - actual);
 
                 std::cout << std::fixed << std::setprecision(3)
