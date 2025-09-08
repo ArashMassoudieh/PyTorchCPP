@@ -8,19 +8,29 @@
 NeuralNetworkWrapper::NeuralNetworkWrapper()
     : current_loss_(0.0), is_initialized_(false),
     activation_function_("relu"), input_size_(0), output_size_(0),
-    layers_(torch::nn::ModuleList()),  // Don't register here
+    layers_(torch::nn::ModuleList()),
     train_input_data_(torch::Tensor()), train_target_data_(torch::Tensor()),
-    test_input_data_(torch::Tensor()), test_target_data_(torch::Tensor()) {
+    test_input_data_(torch::Tensor()), test_target_data_(torch::Tensor()),
+    original_series_names_() {  // Initialize empty
 }
 
 // In clear method:
 void NeuralNetworkWrapper::clear() {
-    // ... existing code ...
+    lags_.clear();
+    hidden_layers_.clear();
+    training_history_.clear();
+    current_loss_ = 0.0;
+    is_initialized_ = false;
+    activation_function_ = "relu";
+    input_size_ = 0;
+    output_size_ = 0;
     train_input_data_ = torch::Tensor();
     train_target_data_ = torch::Tensor();
     test_input_data_ = torch::Tensor();
     test_target_data_ = torch::Tensor();
-    // ... rest of clear method ...
+    original_series_names_.clear();  // Clear series names
+
+    layers_ = torch::nn::ModuleList();
 }
 
 NeuralNetworkWrapper::~NeuralNetworkWrapper() {
@@ -361,6 +371,8 @@ void NeuralNetworkWrapper::setInputData(DataType data_type, const TimeSeriesSet<
         throw std::runtime_error("No lag configuration set. Use setLags() before setting input data.");
     }
 
+    setOriginalSeriesNames(time_series_set.getSeriesNames());
+
     // Calculate total number of features based on lags
     int total_features = 0;
     for (const auto& series_lags : lags_) {
@@ -682,4 +694,48 @@ double NeuralNetworkWrapper::calculateR2(DataType data_type) {
     double r_squared = 1.0 - (ss_res.item<double>() / ss_tot.item<double>());
 
     return r_squared;
+}
+
+void NeuralNetworkWrapper::setOriginalSeriesNames(const std::vector<std::string>& series_names) {
+    original_series_names_ = series_names;
+}
+
+const std::vector<std::string>& NeuralNetworkWrapper::getOriginalSeriesNames() const {
+    return original_series_names_;
+}
+
+std::vector<std::string> NeuralNetworkWrapper::generateInputFeatureNames() const {
+    std::vector<std::string> feature_names;
+
+    if (lags_.empty()) {
+        return feature_names; // No lags configured
+    }
+
+    // Calculate total number of features
+    int total_features = 0;
+    for (const auto& series_lags : lags_) {
+        total_features += series_lags.size();
+    }
+
+    feature_names.reserve(total_features);
+
+    // Generate names for each lag feature
+    for (size_t series_idx = 0; series_idx < lags_.size(); ++series_idx) {
+        // Get series name
+        std::string series_name;
+        if (series_idx < original_series_names_.size() && !original_series_names_[series_idx].empty()) {
+            series_name = original_series_names_[series_idx];
+        } else {
+            series_name = "series_" + std::to_string(series_idx);
+        }
+
+        // Generate name for each lag in this series
+        const auto& series_lags = lags_[series_idx];
+        for (int lag : series_lags) {
+            std::string feature_name = series_name + "_lag" + std::to_string(lag);
+            feature_names.push_back(feature_name);
+        }
+    }
+
+    return feature_names;
 }

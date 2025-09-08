@@ -67,6 +67,11 @@ int main(int argc, char *argv[]) {
         std::cout << "Training data: " << net.getInputData(DataType::Train).size(0) << " samples" << std::endl;
         std::cout << "Test data: " << net.getInputData(DataType::Test).size(0) << " samples" << std::endl;
 
+        // Writing the inputdata for check
+        // Checking the training data
+        TimeSeriesSet<double> training_data_for_check = TimeSeriesSet<double>::fromTensor(net.getInputData(DataType::Train),t_start, t_end, net.generateInputFeatureNames());
+        training_data_for_check.write("training_data_for_check.txt");
+
         // Step 4: Train the network
         std::cout << "\n4. Training network..." << std::endl;
 

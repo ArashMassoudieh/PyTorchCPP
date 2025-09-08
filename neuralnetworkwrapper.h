@@ -204,10 +204,29 @@ public:
      * @return R² value
      */
     double calculateR2(DataType data_type);
+
+    /**
+     * @brief Set the names of the original TimeSeries for feature naming.
+     * @param series_names Vector of original TimeSeries names
+     */
+    void setOriginalSeriesNames(const std::vector<std::string>& series_names);
+
+    /**
+     * @brief Get the names of the original TimeSeries.
+     * @return Vector of original TimeSeries names
+     */
+    const std::vector<std::string>& getOriginalSeriesNames() const;
+
+    /**
+     * @brief Generate feature names for lag-based input data.
+     * @return Vector of feature names in format "seriesname_lag"
+     */
+    std::vector<std::string> generateInputFeatureNames() const;
 private:
     // Member variables
     std::vector<std::vector<int>> lags_;                  ///< Lag configuration for each TimeSeries
     std::vector<int> hidden_layers_;                      ///< Number of nodes in each hidden layer
+    std::vector<std::string> original_series_names_;     ///< Names of original TimeSeries from input data
 
     // Training state
     std::vector<double> training_history_;               ///< Loss history during training
