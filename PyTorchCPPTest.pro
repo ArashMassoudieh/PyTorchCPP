@@ -20,7 +20,8 @@ SOURCES += \
     Utilities/QuickSort.cpp \
     Utilities/Utilities.cpp \
     Utilities/Vector.cpp \
-    Utilities/Vector_arma.cpp
+    Utilities/Vector_arma.cpp \
+    neuralnetworkwrapper.cpp
 
 
 HEADERS += \
@@ -36,6 +37,7 @@ HEADERS += \
     Utilities/Utilities.h \
     Utilities/Vector.h \
     Utilities/Vector_arma.h \
+    neuralnetworkwrapper.h
 
 DEFINES += QT_NO_KEYWORDS
 
