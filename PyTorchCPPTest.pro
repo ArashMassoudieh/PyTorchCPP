@@ -5,6 +5,8 @@ CONFIG -= app_bundle
 TEMPLATE = app
 TARGET = torch_qt_test
 
+DEFINES += Arash
+
 # =========================
 # Project Sources & Headers
 # =========================
@@ -52,7 +54,20 @@ DEFINES += QT_NO_KEYWORDS
 # =========================
 # LibTorch configuration
 # =========================
-LIBTORCH_PATH = /mnt/3rd900/Projects/libtorch
+
+# Default (fallback)
+LIBTORCH_PATH = /usr/local/libtorch
+
+# If "Arash" is defined in DEFINES += Arash
+contains(DEFINES, Arash) {
+    LIBTORCH_PATH = /usr/local/libtorch
+}
+
+# If "PowerEdge" is defined in DEFINES += PowerEdge
+contains(DEFINES, PowerEdge) {
+    LIBTORCH_PATH = /mnt/3rd900/Projects/libtorch
+}
+
 
 # Includes (order matters!)
 INCLUDEPATH += $$LIBTORCH_PATH/include/torch/csrc/api/include
