@@ -2,15 +2,12 @@ QT -= gui
 CONFIG += c++17 console
 CONFIG -= app_bundle
 
-TARGET = torch_qt_test
 TEMPLATE = app
+TARGET = torch_qt_test
 
-DEFINES += TORCH_SUPPORT
-DEFINES += _arma
-DEFINES += ARMA_USE_OPENMP
-
-INCLUDEPATH += Utilities/
-
+# =========================
+# Project Sources & Headers
+# =========================
 SOURCES += \
     hyperparameters.cpp \
     main_TimeSeries_Training.cpp \
@@ -23,7 +20,6 @@ SOURCES += \
     Utilities/Vector.cpp \
     Utilities/Vector_arma.cpp \
     neuralnetworkwrapper.cpp
-
 
 HEADERS += \
     Binary.h \
@@ -45,18 +41,40 @@ HEADERS += \
     hyperparameters.h \
     individual.h \
     neuralnetworkwrapper.h
+    Utilities/Vector_arma.h
 
+
+DEFINES += TORCH_SUPPORT
+DEFINES += _arma
+DEFINES += ARMA_USE_OPENMP
 DEFINES += QT_NO_KEYWORDS
 
+# =========================
 # LibTorch configuration
-LIBTORCH_PATH = /usr/local/libtorch
+# =========================
+LIBTORCH_PATH = /mnt/3rd900/Projects/libtorch
 
-INCLUDEPATH += $$LIBTORCH_PATH/include
+# Includes (order matters!)
 INCLUDEPATH += $$LIBTORCH_PATH/include/torch/csrc/api/include
+INCLUDEPATH += $$LIBTORCH_PATH/include
+INCLUDEPATH += Utilities
 
-LIBS += -L$$LIBTORCH_PATH/lib
-LIBS += -ltorch -ltorch_cpu -lc10
+
+# Libraries
+LIBS += -L$$LIBTORCH_PATH/lib -ltorch -ltorch_cpu -lc10
+
+# =========================
+# Extra Libraries
+# =========================
 LIBS += -lgomp -lpthread -larmadillo
 
-# Required for LibTorch
+# =========================
+# ABI Compatibility
+# =========================
+# PyTorch 2.8.0 (GCC ≥7) usually needs ABI=1
 QMAKE_CXXFLAGS += -D_GLIBCXX_USE_CXX11_ABI=1
+
+# =========================
+# Optional: embed RPATH so you don’t need LD_LIBRARY_PATH
+# =========================
+QMAKE_LFLAGS += -Wl,-rpath,$$LIBTORCH_PATH/lib
