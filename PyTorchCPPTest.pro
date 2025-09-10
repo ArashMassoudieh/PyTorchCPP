@@ -12,6 +12,7 @@ DEFINES += ARMA_USE_OPENMP
 INCLUDEPATH += Utilities/
 
 SOURCES += \
+    hyperparameters.cpp \
     main_TimeSeries_Training.cpp \
     Utilities/Distribution.cpp \
     Utilities/Matrix.cpp \
@@ -25,6 +26,7 @@ SOURCES += \
 
 
 HEADERS += \
+    TestHyperParameters.h \
     Utilities/TimeSeries.h \
     Utilities/TimeSeries.hpp \
     Utilities/TimeSeriesSet.h \
@@ -37,6 +39,7 @@ HEADERS += \
     Utilities/Utilities.h \
     Utilities/Vector.h \
     Utilities/Vector_arma.h \
+    hyperparameters.h \
     neuralnetworkwrapper.h
 
 DEFINES += QT_NO_KEYWORDS

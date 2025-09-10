@@ -15,6 +15,8 @@ enum class DataType {
     Test
 };
 
+class HyperParameters;
+
 /**
  * @brief A flexible wrapper class for neural networks that inherits from torch::nn::Module.
  *
@@ -76,6 +78,12 @@ public:
     std::map<std::string, double> evaluate(const torch::Tensor& test_inputs,
                                            const torch::Tensor& test_targets);
 
+
+    /**
+     * @brief Evaluate the network using internally stored test data.
+     * @return Dictionary of evaluation metrics
+     */
+    std::map<std::string, double> evaluate();
     /**
      * @brief Make predictions and return results as TimeSeriesSet.
      * @param data_type Specify whether to use training or test input data
@@ -222,10 +230,41 @@ public:
      * @return Vector of feature names in format "seriesname_lag"
      */
     std::vector<std::string> generateInputFeatureNames() const;
+
+    /**
+     * @brief Generate a string representation of the network parameters and configuration.
+     * @return String describing the network architecture and configuration
+     */
+    std::string parametersToString() const;
+
+    /**
+     * @brief Initialize the network using HyperParameters configuration.
+     * Uses the HyperParameters object to set up the complete network architecture,
+     * lag configuration, and other settings.
+     * @param hyperparams Pointer to HyperParameters object containing configuration
+     * @param output_size Number of output features
+     */
+    void initializeNetwork(HyperParameters* hyperparams, int output_size);
+
+    /**
+     * @brief Create input data tensor from TimeSeriesSet using HyperParameters configuration.
+     * Uses the selected series and lag configuration from hyperparameters to create
+     * the input tensor for training or testing.
+     * @param data_type Specify whether this is training or test data
+     * @param time_series_set Input TimeSeriesSet containing all available time series
+     * @param t_start Start time for data extraction
+     * @param t_end End time for data extraction
+     * @param dt Time step for uniform sampling
+     */
+    void setInputDataFromHyperParams(DataType data_type, const TimeSeriesSet<double>& time_series_set,
+                                     double t_start, double t_end, double dt);
+
+
 private:
     // Member variables
     std::vector<std::vector<int>> lags_;                  ///< Lag configuration for each TimeSeries
     std::vector<int> hidden_layers_;                      ///< Number of nodes in each hidden layer
+    HyperParameters *hyperparams_;
     std::vector<std::string> original_series_names_;     ///< Names of original TimeSeries from input data
 
     // Training state

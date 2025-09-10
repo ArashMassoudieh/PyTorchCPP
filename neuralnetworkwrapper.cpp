@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <cmath>
+#include "hyperparameters.h"
 
 // In constructor:
 NeuralNetworkWrapper::NeuralNetworkWrapper()
@@ -11,13 +12,10 @@ NeuralNetworkWrapper::NeuralNetworkWrapper()
     layers_(torch::nn::ModuleList()),
     train_input_data_(torch::Tensor()), train_target_data_(torch::Tensor()),
     test_input_data_(torch::Tensor()), test_target_data_(torch::Tensor()),
-    original_series_names_() {  // Initialize empty
+    original_series_names_(), hyperparams_(nullptr) {  // Initialize as nullptr
 }
 
-// In clear method:
 void NeuralNetworkWrapper::clear() {
-    lags_.clear();
-    hidden_layers_.clear();
     training_history_.clear();
     current_loss_ = 0.0;
     is_initialized_ = false;
@@ -28,7 +26,8 @@ void NeuralNetworkWrapper::clear() {
     train_target_data_ = torch::Tensor();
     test_input_data_ = torch::Tensor();
     test_target_data_ = torch::Tensor();
-    original_series_names_.clear();  // Clear series names
+    original_series_names_.clear();
+    hyperparams_ = nullptr;  // Reset pointer
 
     layers_ = torch::nn::ModuleList();
 }
@@ -82,6 +81,124 @@ void NeuralNetworkWrapper::initializeNetwork(int output_size,
     is_initialized_ = true;
 }
 
+void NeuralNetworkWrapper::initializeNetwork(HyperParameters* hyperparams, int output_size) {
+    if (hyperparams == nullptr) {
+        throw std::runtime_error("HyperParameters pointer cannot be null.");
+    }
+
+    if (!hyperparams->isValid()) {
+        throw std::runtime_error("Invalid HyperParameters configuration provided.");
+    }
+
+    if (output_size <= 0) {
+        throw std::runtime_error("Output size must be positive.");
+    }
+
+    // Copy hyperparameters to internal storage
+    hyperparams_ = hyperparams;
+
+    // Calculate input size based on selected series and their lags
+    const auto& selected_series = hyperparams->getSelectedSeriesIds();
+    const auto& all_lags = hyperparams->getLags();
+    const auto& lag_multipliers = hyperparams->getLagMultiplier();
+
+
+    if (selected_series.empty()) {
+        throw std::runtime_error("No time series selected in hyperparameters.");
+    }
+
+    // Validate that we have lag configuration for all potentially available series
+    if (all_lags.empty()) {
+        throw std::runtime_error("No lag configuration found in hyperparameters.");
+    }
+
+    // Calculate total input features from selected series only
+    int actual_input_size = 0;
+    for (int series_idx : selected_series) {
+        if (series_idx < 0 || series_idx >= static_cast<int>(all_lags.size())) {
+            throw std::runtime_error("Selected series index " + std::to_string(series_idx) +
+                                     " is out of range for lag configuration (size: " +
+                                     std::to_string(all_lags.size()) + ").");
+        }
+
+        // Add number of lags for this selected series
+        actual_input_size += all_lags[series_idx].size();
+    }
+
+    if (actual_input_size == 0) {
+        throw std::runtime_error("No lag features configured for selected time series.");
+    }
+
+    // Get network architecture from hyperparameters
+    const auto& hidden_layers = hyperparams->getHiddenLayers();
+    if (hidden_layers.empty()) {
+        throw std::runtime_error("No hidden layers configured in hyperparameters.");
+    }
+
+    // Store configuration
+    activation_function_ = hyperparams->getActivationFunction();
+    input_size_ = actual_input_size;
+    output_size_ = output_size;
+
+    // Create a new ModuleList
+    layers_ = torch::nn::ModuleList();
+
+    // Build layer sizes: [input] + [hidden_layers] + [output]
+    std::vector<int> layer_sizes;
+    layer_sizes.push_back(actual_input_size);
+    layer_sizes.insert(layer_sizes.end(), hidden_layers.begin(), hidden_layers.end());
+    layer_sizes.push_back(output_size);
+
+    // Create and add linear layers
+    for (size_t i = 0; i < layer_sizes.size() - 1; ++i) {
+        auto linear_layer = torch::nn::Linear(layer_sizes[i], layer_sizes[i + 1]);
+        layers_->push_back(linear_layer);
+    }
+
+    // Re-register the ModuleList
+    register_module("layers", layers_);
+
+    // Initialize weights
+    initializeWeights("xavier");
+
+    is_initialized_ = true;
+
+    // Print network summary
+    std::cout << "Network initialized with HyperParameters:" << std::endl;
+    std::cout << "  Selected series: [";
+    for (size_t i = 0; i < selected_series.size(); i++) {
+        std::cout << selected_series[i];
+        if (i < selected_series.size() - 1) std::cout << ", ";
+    }
+    std::cout << "]" << std::endl;
+
+    std::cout << "  Total input features: " << actual_input_size << std::endl;
+    std::cout << "  Hidden layers: [";
+    for (size_t i = 0; i < hidden_layers.size(); i++) {
+        std::cout << hidden_layers[i];
+        if (i < hidden_layers.size() - 1) std::cout << ", ";
+    }
+    std::cout << "]" << std::endl;
+    std::cout << "  Output size: " << output_size << std::endl;
+    std::cout << "  Activation: " << activation_function_ << std::endl;
+    std::cout << "  Total parameters: " << getTotalParameters() << std::endl;
+
+    std::cout << "]" << std::endl;
+
+    // Print lag details for selected series
+    std::cout << "  Lag configuration for selected series:" << std::endl;
+    for (int series_idx : selected_series) {
+        const auto& base_lags = all_lags[series_idx];
+        int multiplier = lag_multipliers[series_idx];
+        std::cout << "    Series " << series_idx << " (multiplier " << multiplier << "): [";
+        for (size_t j = 0; j < base_lags.size(); j++) {
+            int actual_lag = base_lags[j] * multiplier;  // This line is crucial
+            std::cout << actual_lag;  // Should print multiplied values
+            if (j < base_lags.size() - 1) std::cout << ", ";
+        }
+        std::cout << "] (" << base_lags.size() << " features)" << std::endl;
+    }
+}
 
 torch::Tensor NeuralNetworkWrapper::forward(DataType data_type) {
     if (!is_initialized_) {
@@ -738,4 +855,221 @@ std::vector<std::string> NeuralNetworkWrapper::generateInputFeatureNames() const
     }
 
     return feature_names;
+}
+
+std::map<std::string, double> NeuralNetworkWrapper::evaluate(const torch::Tensor& test_inputs,
+                                                             const torch::Tensor& test_targets) {
+    if (!is_initialized_) {
+        throw std::runtime_error("Network must be initialized before evaluation.");
+    }
+
+    // Validate input tensors
+    if (!test_inputs.defined() || !test_targets.defined()) {
+        throw std::runtime_error("Input tensors must be defined for evaluation.");
+    }
+
+    if (test_inputs.size(0) != test_targets.size(0)) {
+        throw std::runtime_error("Input and target tensors must have the same number of samples.");
+    }
+
+    // Ensure we're in evaluation mode and no gradients are computed
+    this->eval();
+
+    torch::Tensor predictions;
+    {
+        torch::NoGradGuard no_grad;  // Critical: disable gradients completely
+        predictions = forward_internal(test_inputs.detach());  // Detach inputs from computation graph
+    }
+
+    // Compute metrics without gradients
+    std::map<std::string, double> metrics;
+
+    // Detach all tensors before computing metrics
+    torch::Tensor pred_detached = predictions.detach();
+    torch::Tensor target_detached = test_targets.detach();
+
+    // Mean Squared Error
+    torch::Tensor mse = torch::mse_loss(pred_detached, target_detached);
+    metrics["mse"] = mse.item<double>();
+
+    // Root Mean Squared Error
+    metrics["rmse"] = std::sqrt(metrics["mse"]);
+
+    // Mean Absolute Error
+    torch::Tensor mae = torch::mean(torch::abs(pred_detached - target_detached));
+    metrics["mae"] = mae.item<double>();
+
+    // R-squared
+    torch::Tensor target_mean = torch::mean(target_detached);
+    torch::Tensor ss_res = torch::sum(torch::pow(target_detached - pred_detached, 2));
+    torch::Tensor ss_tot = torch::sum(torch::pow(target_detached - target_mean, 2));
+    double r_squared = 1.0 - (ss_res.item<double>() / ss_tot.item<double>());
+    metrics["r_squared"] = r_squared;
+
+    metrics["sample_count"] = static_cast<double>(test_inputs.size(0));
+
+    std::cout << "Evaluation completed on " << test_inputs.size(0) << " samples:" << std::endl;
+    std::cout << "  MSE:  " << std::fixed << std::setprecision(6) << metrics["mse"] << std::endl;
+    std::cout << "  RMSE: " << std::fixed << std::setprecision(6) << metrics["rmse"] << std::endl;
+    std::cout << "  MAE:  " << std::fixed << std::setprecision(6) << metrics["mae"] << std::endl;
+    std::cout << "  R²:   " << std::fixed << std::setprecision(6) << metrics["r_squared"] << std::endl;
+
+    return metrics;
+}
+
+// And add the convenience method:
+std::map<std::string, double> NeuralNetworkWrapper::evaluate() {
+    if (!hasInputData(DataType::Test) || !hasTargetData(DataType::Test)) {
+        throw std::runtime_error("No test data available for evaluation. Use setInputData() and setTargetData() with DataType::Test first.");
+    }
+
+    return evaluate(getInputData(DataType::Test), getTargetData(DataType::Test));
+}
+
+std::string NeuralNetworkWrapper::parametersToString() const {
+    std::string out;
+
+    // Number of hidden layers
+    out += "Number of hidden layers: " + std::to_string(hidden_layers_.size());
+
+    // Hidden layer nodes
+    out += ", Number of nodes: [";
+    for (size_t i = 0; i < hidden_layers_.size(); i++) {
+        out += std::to_string(hidden_layers_[i]);
+        if (i < hidden_layers_.size() - 1) {
+            out += ",";
+        }
+    }
+    out += "]";
+
+    // Input/Output sizes (if network is initialized)
+    if (is_initialized_) {
+        out += ", Input size: " + std::to_string(input_size_);
+        out += ", Output size: " + std::to_string(output_size_);
+    }
+
+    // Activation function
+    out += ", Activation: " + activation_function_;
+
+    // Lags configuration
+    out += ", Lags: [";
+    for (size_t i = 0; i < lags_.size(); i++) {
+        out += "[";
+        for (size_t j = 0; j < lags_[i].size(); j++) {
+            out += std::to_string(lags_[i][j]);
+            if (j < lags_[i].size() - 1) {
+                out += ",";
+            }
+        }
+        out += "]";
+        if (i < lags_.size() - 1) {
+            out += ",";
+        }
+    }
+    out += "]";
+
+    // Original series names (if available)
+    if (!original_series_names_.empty()) {
+        out += ", Series names: [";
+        for (size_t i = 0; i < original_series_names_.size(); i++) {
+            out += "\"" + original_series_names_[i] + "\"";
+            if (i < original_series_names_.size() - 1) {
+                out += ",";
+            }
+        }
+        out += "]";
+    }
+
+    // Total parameters (if network is initialized)
+    if (is_initialized_) {
+        out += ", Total parameters: " + std::to_string(getTotalParameters());
+    }
+
+    // Training status
+    out += ", Initialized: " + std::string(is_initialized_ ? "true" : "false");
+
+    return out;
+}
+
+void NeuralNetworkWrapper::setInputDataFromHyperParams(DataType data_type,
+                                                       const TimeSeriesSet<double>& time_series_set,
+                                                       double t_start, double t_end, double dt) {
+    if (!is_initialized_) {
+        throw std::runtime_error("Network must be initialized before setting input data.");
+    }
+
+    if (hyperparams_ == nullptr) {
+        throw std::runtime_error("HyperParameters pointer is null. Initialize network first.");
+    }
+
+    const auto& selected_series = hyperparams_->getSelectedSeriesIds();
+    const auto& all_lags = hyperparams_->getLags();
+    const auto& lag_multipliers = hyperparams_->getLagMultiplier();
+
+    if (selected_series.empty()) {
+        throw std::runtime_error("No time series selected in hyperparameters.");
+    }
+
+    // Validate that time_series_set has enough series
+    for (int series_idx : selected_series) {
+        if (series_idx >= static_cast<int>(time_series_set.size())) {
+            throw std::runtime_error("Selected series index " + std::to_string(series_idx) +
+                                     " exceeds TimeSeriesSet size (" + std::to_string(time_series_set.size()) + ").");
+        }
+    }
+
+    // Store original series names
+    setOriginalSeriesNames(time_series_set.getSeriesNames());
+
+    // Calculate total features from selected series
+    int total_features = 0;
+    for (int series_idx : selected_series) {
+        total_features += all_lags[series_idx].size();
+    }
+
+    if (total_features != input_size_) {
+        throw std::runtime_error("Calculated input features (" + std::to_string(total_features) +
+                                 ") don't match network input size (" + std::to_string(input_size_) + ").");
+    }
+
+    // Calculate number of time steps
+    int num_time_steps = static_cast<int>((t_end - t_start) / dt) + 1;
+
+    // Create input tensor [num_samples, total_features]
+    torch::Tensor input_tensor = torch::zeros({num_time_steps, total_features}, torch::kFloat32);
+
+    int feature_index = 0;
+
+    // Process each selected time series with its lags and multipliers
+    for (int series_idx : selected_series) {
+        const auto& current_series = time_series_set[series_idx];
+        const auto& base_lags = all_lags[series_idx];
+        int multiplier = lag_multipliers[series_idx];
+
+        // For each lag in this series, apply the multiplier
+        for (int base_lag : base_lags) {
+            int actual_lag = base_lag * multiplier;
+
+            // Fill the feature column for this actual lag
+            for (int time_idx = 0; time_idx < num_time_steps; ++time_idx) {
+                double current_time = t_start + time_idx * dt;
+                double lag_time = current_time - actual_lag * dt;  // Apply actual lag
+
+                // Interpolate value at lagged time
+                double lagged_value = current_series.interpol(lag_time);
+                input_tensor[time_idx][feature_index] = static_cast<float>(lagged_value);
+            }
+            feature_index++;
+        }
+    }
+
+    // Store the processed input data
+    if (data_type == DataType::Train) {
+        train_input_data_ = input_tensor;
+    } else {
+        test_input_data_ = input_tensor;
+    }
+
+    std::cout << "Input data created: " << num_time_steps << " samples, "
+              << total_features << " features" << std::endl;
 }

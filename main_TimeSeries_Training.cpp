@@ -4,17 +4,41 @@
 #include "neuralnetworkwrapper.h"
 #include "TimeSeriesSet.h"
 #include "TimeSeries.h"
+#include "TestHyperParameters.h"
+#include "hyperparameters.h"
 
 void createSyntheticData();
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
+    std::cout << "Running HyperParameters class tests...\n" << std::endl;
+
     try {
-        std::cout << "=== Neural Network Wrapper Example ===" << std::endl;
+        testConstructorAndDefaults();
+        testTimeSeriesSelection();
+        testNetworkArchitecture();
+        testLagConfiguration();
+        testTrainingParameters();
+        testValidation();
+        testErrorHandling();
+        testStringRepresentation();
+        testReset();
+
+        std::cout << "\n🎉 All tests passed successfully!" << std::endl;
+
+    } catch (const std::exception& e) {
+        std::cout << "❌ Test failed with exception: " << e.what() << std::endl;
+        return 1;
+    } catch (...) {
+        std::cout << "❌ Test failed with unknown exception" << std::endl;
+        return 1;
+    }
+
+    try {
+        std::cout << "=== Neural Network Wrapper with HyperParameters Example ===" << std::endl;
         std::cout << "\n1. Creating synthetic data..." << std::endl;
         createSyntheticData();
-
 
         // Step 1: Load your data
         std::cout << "\n1. Loading data..." << std::endl;
@@ -27,89 +51,124 @@ int main(int argc, char *argv[]) {
         std::cout << "Loaded " << input_data.size() << " input time series" << std::endl;
         std::cout << "Target series has " << target_series.size() << " points" << std::endl;
 
-        // Step 2: Create and configure the neural network
-        std::cout << "\n2. Configuring neural network..." << std::endl;
+        // Step 2: Configure hyperparameters
+        std::cout << "\n2. Configuring hyperparameters..." << std::endl;
+        HyperParameters hyperparams;
+
+        // Configure time series selection (select all 3 series: binary 111 = 7)
+        hyperparams.setSelectedSeriesFromBinary(7L, 3);  // Selects series {0, 1, 2}
+
+        // Configure lag structure for all potential series
+        hyperparams.setMaxLags(10);           // Lags numbered 0-9
+        hyperparams.setLagSelectionOdd(2);    // Base 2 for lag selection
+
+        // Set lag codes for each series (3 codes for 3 potential series)
+        std::vector<long int> lag_codes = {
+            0L,   // Series 0: all lags selected (0%2=0 for all)
+            6L,   // Series 1: binary 110 -> lags [1, 2] selected
+            10L   // Series 2: binary 1010 -> lags [1, 3] selected
+        };
+        hyperparams.setLagsFromVector(lag_codes);
+
+        // Configure lag multipliers (different time scales for each series)
+        std::vector<int> lag_multipliers = {1, 5, 2}; // Series 0: ×1, Series 1: ×5, Series 2: ×2
+        hyperparams.setLagMultiplier(lag_multipliers);
+        hyperparams.setMaxLagMultiplier(10);
+
+        // Configure network architecture using code-based generation
+        hyperparams.setMaxNumberOfHiddenNodes(128);
+        hyperparams.setMaxNumberOfHiddenLayers(4);
+        hyperparams.setHiddenLayersFromCode(16450L, 32);  // Generate architecture from code
+
+        // Configure training parameters
+        hyperparams.setActivationFunction("relu");
+        hyperparams.setNumEpochs(100);
+        hyperparams.setBatchSize(32);
+        hyperparams.setLearningRate(0.001);
+        hyperparams.setTrainTestSplit(0.8);
+
+        // Validate and display configuration
+        if (!hyperparams.isValid()) {
+            throw std::runtime_error("Invalid hyperparameter configuration");
+        }
+
+        std::cout << "HyperParameters configuration:" << std::endl;
+        std::cout << hyperparams.toString() << std::endl;
+
+        // Step 3: Create and initialize neural network
+        std::cout << "\n3. Initializing neural network..." << std::endl;
         NeuralNetworkWrapper net;
 
-        // Configure lag structure - use lags from multiple input series
-        std::vector<std::vector<int>> lags = {
-            {1, 2, 3},    // Series 0: use values from 1, 2, and 3 time steps ago
-            {1, 5, 10},   // Series 1: use values from 1, 5, and 10 time steps ago
-            {2, 4}        // Series 2: use values from 2 and 4 time steps ago
-        };
-        net.setLags(lags);
-
-        // Configure network architecture
-        std::vector<int> hidden_layers = {64, 32, 16};
-        net.setHiddenLayers(hidden_layers);
-
-        // Initialize network (8 inputs from lags: 3+3+2, 1 output)
-        net.initializeNetwork(1, "relu");
+        // Initialize network using hyperparameters (1 output)
+        net.initializeNetwork(&hyperparams, 1);
 
         std::cout << "Network initialized with " << net.getTotalParameters() << " parameters" << std::endl;
 
-        // Step 3: Prepare training and test data
-        std::cout << "\n3. Preparing data..." << std::endl;
+        // Step 4: Prepare training and test data using hyperparameters
+        std::cout << "\n4. Preparing data using hyperparameters..." << std::endl;
 
-        // Set training data (first 80% of time range)
         double t_start = 0.0;
         double t_end = 100.0;
         double dt = 0.1;
-        double split_time = 80.0;  // 80% for training, 20% for testing
+        double split_ratio = hyperparams.getTrainTestSplit();
+        double split_time = t_start + split_ratio * (t_end - t_start);
 
-        net.setInputData(DataType::Train, input_data, t_start, split_time, dt);
+        // Set training data using hyperparameter configuration
+        net.setInputDataFromHyperParams(DataType::Train, input_data, t_start, split_time, dt);
         net.setTargetData(DataType::Train, target_series, t_start, split_time, dt);
 
-        // Set test data (last 20% of time range)
-        net.setInputData(DataType::Test, input_data, split_time, t_end, dt);
+        // Set test data using hyperparameter configuration
+        net.setInputDataFromHyperParams(DataType::Test, input_data, split_time, t_end, dt);
         net.setTargetData(DataType::Test, target_series, split_time, t_end, dt);
 
         std::cout << "Training data: " << net.getInputData(DataType::Train).size(0) << " samples" << std::endl;
         std::cout << "Test data: " << net.getInputData(DataType::Test).size(0) << " samples" << std::endl;
 
-        // Writing the inputdata for check
-        // Checking the training data
-        TimeSeriesSet<double> training_data_for_check = TimeSeriesSet<double>::fromTensor(net.getInputData(DataType::Train),t_start, t_end, net.generateInputFeatureNames());
+        // Write input data for verification
+        TimeSeriesSet<double> training_data_for_check = TimeSeriesSet<double>::fromTensor(
+            net.getInputData(DataType::Train), t_start, split_time, net.generateInputFeatureNames());
         training_data_for_check.write("training_data_for_check.txt");
 
-        // Step 4: Train the network
-        std::cout << "\n4. Training network..." << std::endl;
+        // Step 5: Train the network using hyperparameters
+        std::cout << "\n5. Training network..." << std::endl;
 
-        int num_epochs = 100;
-        int batch_size = 32;
-        double learning_rate = 0.001;
-
-        std::vector<double> training_losses = net.train(num_epochs, batch_size, learning_rate);
+        std::vector<double> training_losses = net.train(
+            hyperparams.getNumEpochs(),
+            hyperparams.getBatchSize(),
+            hyperparams.getLearningRate()
+            );
 
         std::cout << "Training completed. Final loss: " << training_losses.back() << std::endl;
 
-        // Step 5: Evaluate performance
-        std::cout << "\n5. Evaluating performance..." << std::endl;
+        // Step 6: Evaluate performance
+        std::cout << "\n6. Evaluating performance..." << std::endl;
 
         // Make predictions on test data
-        TimeSeriesSet<double> test_predictions = net.predict(DataType::Test, split_time, t_end, dt, {"predicted_output"});
+        TimeSeriesSet<double> test_predictions = net.predict(
+            DataType::Test, split_time, t_end, dt, {"predicted_output"});
 
         std::cout << "Test predictions generated: " << test_predictions[0].size() << " points" << std::endl;
 
-        // You can also get raw tensor predictions for custom metrics
-        torch::Tensor test_pred_tensor = net.forward(DataType::Test);
-        torch::Tensor test_target_tensor = net.getTargetData(DataType::Test);
+        // Calculate metrics using the evaluate method
+        auto metrics = net.evaluate();
+        std::cout << "Test MSE: " << metrics["mse"] << std::endl;
+        std::cout << "Test RMSE: " << metrics["rmse"] << std::endl;
+        std::cout << "Test MAE: " << metrics["mae"] << std::endl;
+        std::cout << "Test R²: " << metrics["r_squared"] << std::endl;
 
-        // Calculate simple metrics
-        torch::Tensor mse = torch::mse_loss(test_pred_tensor, test_target_tensor);
-        torch::Tensor mae = torch::mean(torch::abs(test_pred_tensor - test_target_tensor));
-
-        std::cout << "Test MSE: " << mse.item<double>() << std::endl;
-        std::cout << "Test MAE: " << mae.item<double>() << std::endl;
-        std::cout << "Test R2:" << net.calculateR2(DataType::Test) << std::endl;
-        // Step 6: Save results
-        std::cout << "\n6. Saving results..." << std::endl;
+        // Step 7: Save results
+        std::cout << "\n7. Saving results..." << std::endl;
 
         // Save the trained model
         net.saveModel("trained_model.pt");
 
         // Save predictions
         test_predictions.write("test_predictions.csv");
+
+        // Save hyperparameters configuration
+        std::ofstream hyperparams_file("hyperparameters_config.txt");
+        hyperparams_file << hyperparams.toString() << std::endl;
+        hyperparams_file.close();
 
         // Save training history
         std::cout << "Training loss history (last 10 epochs):" << std::endl;
@@ -118,25 +177,79 @@ int main(int argc, char *argv[]) {
             std::cout << "  Epoch " << (i + 1) << ": " << training_losses[i] << std::endl;
         }
 
-        // Step 7: Demonstrate model loading (optional)
-        std::cout << "\n7. Demonstrating model save/load..." << std::endl;
+        // Step 8: Demonstrate hyperparameter optimization potential
+        std::cout << "\n8. Demonstrating optimization potential..." << std::endl;
 
-        // Create a new network with same architecture
+        // Show how to iterate through different configurations
+        std::cout << "Example optimization iterations:" << std::endl;
+
+        int max_series_selections = HyperParameters::getMaxSelectionCode(3);
+        std::cout << "  Possible series selections: 1 to " << max_series_selections << std::endl;
+
+        long int max_lag_code = hyperparams.getMaxLagCode();
+        std::cout << "  Max lag code per series: " << max_lag_code << std::endl;
+
+        long int max_arch_code = hyperparams.getMaxArchitectureCode();
+        std::cout << "  Max architecture code: " << max_arch_code << std::endl;
+
+        long int max_multiplier_code = hyperparams.getMaxLagMultiplierCode(3);
+        std::cout << "  Max lag multiplier code: " << max_multiplier_code << std::endl;
+
+        // Example: test a few different configurations
+        std::cout << "  Example series selection configurations:" << std::endl;
+        for (int selection_code = 1; selection_code <= 3 && selection_code <= max_series_selections; selection_code++) {
+            HyperParameters test_params = hyperparams;  // Copy current config
+            test_params.setSelectedSeriesFromBinary(selection_code, 3);
+
+            std::cout << "    Config " << selection_code << " would select series: [";
+            auto selected = test_params.getSelectedSeriesIds();
+            for (size_t i = 0; i < selected.size(); i++) {
+                std::cout << selected[i];
+                if (i < selected.size() - 1) std::cout << ", ";
+            }
+            std::cout << "]" << std::endl;
+        }
+
+        // Example lag multiplier configurations
+        std::cout << "  Example lag multiplier configurations:" << std::endl;
+        for (long int mult_code = 0; mult_code <= 2; mult_code++) {
+            HyperParameters test_params = hyperparams;  // Copy current config
+            test_params.setLagMultipliersFromCode(mult_code, 3);
+
+            auto multipliers = test_params.getLagMultiplier();
+            std::cout << "    Multiplier code " << mult_code << " generates: [";
+            for (size_t i = 0; i < multipliers.size(); i++) {
+                std::cout << multipliers[i];
+                if (i < multipliers.size() - 1) std::cout << ", ";
+            }
+            std::cout << "]" << std::endl;
+        }
+
+        // Show total optimization space
+        long int total_configs = max_series_selections *
+                                 std::pow(max_lag_code + 1, 3) *
+                                 max_arch_code *
+                                 max_multiplier_code;
+        std::cout << "  Total discrete configuration space: " << total_configs << " combinations" << std::endl;
+
+        // Step 9: Demonstrate model loading with hyperparameters
+        std::cout << "\n9. Demonstrating model save/load with hyperparameters..." << std::endl;
+
+        // Create a new network with same hyperparameters
         NeuralNetworkWrapper loaded_net;
-        loaded_net.setLags(lags);
-        loaded_net.setHiddenLayers(hidden_layers);
-        loaded_net.initializeNetwork(1, "relu");
+        loaded_net.initializeNetwork(&hyperparams, 1);
 
         // Load the saved model
         loaded_net.loadModel("trained_model.pt");
 
         // Verify it works by making a prediction
-        loaded_net.setInputData(DataType::Test, input_data, split_time, t_end, dt);
+        loaded_net.setInputDataFromHyperParams(DataType::Test, input_data, split_time, t_end, dt);
         TimeSeriesSet<double> loaded_predictions = loaded_net.predict(DataType::Test, split_time, t_end, dt);
 
         std::cout << "Loaded model predictions: " << loaded_predictions[0].size() << " points" << std::endl;
 
-        std::cout << "\n=== Example completed successfully! ===" << std::endl;
+        std::cout << "\n=== HyperParameters example completed successfully! ===" << std::endl;
+        std::cout << "Configuration saved to: hyperparameters_config.txt" << std::endl;
 
         return 0;
 
@@ -146,7 +259,7 @@ int main(int argc, char *argv[]) {
     }
 }
 
-// Additional helper function for creating synthetic data if you don't have real data
+// Updated synthetic data creation function
 void createSyntheticData() {
     std::cout << "Creating synthetic data for testing..." << std::endl;
 
@@ -154,7 +267,7 @@ void createSyntheticData() {
     TimeSeriesSet<double> synthetic_input(3);
 
     // Extend the time range to include negative values for proper lag handling
-    for (double t = -2.0; t <= 100.0; t += 0.1) {
+    for (double t = -10.0; t <= 100.0; t += 0.1) {  // Extended range for larger lags
         // Series 0: sine wave
         synthetic_input[0].addPoint(t, std::sin(0.1 * t) + 0.1 * std::sin(0.5 * t));
 
@@ -171,13 +284,18 @@ void createSyntheticData() {
     synthetic_input.setSeriesName(2, "flow_rate");
     synthetic_input.write("input_data.csv");
 
-    // Create synthetic target data (combination of inputs with lags)
+    // Create synthetic target data using the hyperparameter-like structure
     TimeSeries<double> synthetic_target;
     for (double t = 0.0; t <= 100.0; t += 0.1) {
-        double target = 0.5 * synthetic_input[0].interpol(t - 0.1) +  // Lag 1 from series 0
-                        0.3 * synthetic_input[1].interpol(t - 0.5) +   // Lag 5 from series 1
-                        0.2 * synthetic_input[2].interpol(t - 0.2) +   // Lag 2 from series 2
-                        0.1 * (static_cast<double>(rand()) / RAND_MAX - 0.5); // Add some noise
+        // Simulate the lag structure that will be used:
+        // Series 0 with lags [0,1,2,...] × multiplier 1
+        // Series 1 with lags [1,2] × multiplier 5 = [5,10]
+        // Series 2 with lags [1,3] × multiplier 2 = [2,6]
+        double target = 0.3 * synthetic_input[0].interpol(t - 0.0) +     // lag 0
+                        0.2 * synthetic_input[0].interpol(t - 0.1) +     // lag 1
+                        0.2 * synthetic_input[1].interpol(t - 0.5) +     // lag 5
+                        0.2 * synthetic_input[2].interpol(t - 0.2) +     // lag 2
+                        0.1 * (static_cast<double>(rand()) / RAND_MAX - 0.5); // noise
         synthetic_target.addPoint(t, target);
     }
     synthetic_target.writefile("target_output.txt");
