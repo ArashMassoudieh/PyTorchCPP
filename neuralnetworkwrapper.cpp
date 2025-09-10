@@ -12,7 +12,9 @@ NeuralNetworkWrapper::NeuralNetworkWrapper()
     layers_(torch::nn::ModuleList()),
     train_input_data_(torch::Tensor()), train_target_data_(torch::Tensor()),
     test_input_data_(torch::Tensor()), test_target_data_(torch::Tensor()),
-    original_series_names_(), hyperparams_(nullptr) {  // Initialize as nullptr
+    original_series_names_(), hyperparams_(),
+    ga_t_start_(0.0), ga_t_end_(100.0), ga_dt_(0.1), ga_split_ratio_(0.8),
+    ga_available_series_count_(3), ga_data_configured_(false) {
 }
 
 void NeuralNetworkWrapper::clear() {
@@ -27,7 +29,7 @@ void NeuralNetworkWrapper::clear() {
     test_input_data_ = torch::Tensor();
     test_target_data_ = torch::Tensor();
     original_series_names_.clear();
-    hyperparams_ = nullptr;  // Reset pointer
+    hyperparams_.reset();  // Reset pointer
 
     layers_ = torch::nn::ModuleList();
 }
@@ -95,7 +97,7 @@ void NeuralNetworkWrapper::initializeNetwork(HyperParameters* hyperparams, int o
     }
 
     // Copy hyperparameters to internal storage
-    hyperparams_ = hyperparams;
+    hyperparams_ = *hyperparams;
 
     // Calculate input size based on selected series and their lags
     const auto& selected_series = hyperparams->getSelectedSeriesIds();
@@ -998,13 +1000,9 @@ void NeuralNetworkWrapper::setInputDataFromHyperParams(DataType data_type,
         throw std::runtime_error("Network must be initialized before setting input data.");
     }
 
-    if (hyperparams_ == nullptr) {
-        throw std::runtime_error("HyperParameters pointer is null. Initialize network first.");
-    }
-
-    const auto& selected_series = hyperparams_->getSelectedSeriesIds();
-    const auto& all_lags = hyperparams_->getLags();
-    const auto& lag_multipliers = hyperparams_->getLagMultiplier();
+    const auto& selected_series = hyperparams_.getSelectedSeriesIds();
+    const auto& all_lags = hyperparams_.getLags();
+    const auto& lag_multipliers = hyperparams_.getLagMultiplier();
 
     if (selected_series.empty()) {
         throw std::runtime_error("No time series selected in hyperparameters.");
@@ -1072,4 +1070,116 @@ void NeuralNetworkWrapper::setInputDataFromHyperParams(DataType data_type,
 
     std::cout << "Input data created: " << num_time_steps << " samples, "
               << total_features << " features" << std::endl;
+}
+
+
+// GA Interface implementations:
+int NeuralNetworkWrapper::ParametersSize() const {
+    return 3 + ga_available_series_count_;
+}
+
+long int NeuralNetworkWrapper::MaxParameter(int index) const {
+    auto bounds = HyperParameters::getOptimizationBounds(ga_available_series_count_);
+    if (index < 0 || index >= static_cast<int>(bounds.size())) {
+        throw std::runtime_error("Parameter index out of range");
+    }
+    return bounds[index];
+}
+
+void NeuralNetworkWrapper::AssignParameters(const std::vector<unsigned long int>& parameters) {
+    if (!ga_data_configured_) {
+        throw std::runtime_error("GA data must be configured before assigning parameters");
+    }
+
+    // Convert to long int and configure hyperparameters
+    std::vector<long int> params_long(parameters.begin(), parameters.end());
+
+    // Create temporary hyperparameters object and configure it
+    HyperParameters temp_hyperparams;
+    temp_hyperparams.setFromOptimizationParameters(params_long, ga_available_series_count_);
+
+    // Store the configured hyperparameters
+    hyperparams_ = temp_hyperparams;
+}
+
+void NeuralNetworkWrapper::CreateModel() {
+    try {
+        // Clear any existing state
+        clear();
+
+        // Initialize network with current hyperparameters
+        initializeNetwork(&hyperparams_, 1); // 1 output
+
+        // Calculate split time
+        double split_time = ga_t_start_ + ga_split_ratio_ * (ga_t_end_ - ga_t_start_);
+
+        // Set training data
+        setInputDataFromHyperParams(DataType::Train, ga_input_data_,
+                                    ga_t_start_, split_time, ga_dt_);
+        setTargetData(DataType::Train, ga_target_data_,
+                      ga_t_start_, split_time, ga_dt_);
+
+        // Set test data
+        setInputDataFromHyperParams(DataType::Test, ga_input_data_,
+                                    split_time, ga_t_end_, ga_dt_);
+        setTargetData(DataType::Test, ga_target_data_,
+                      split_time, ga_t_end_, ga_dt_);
+
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Failed to create model: " + std::string(e.what()));
+    }
+}
+
+std::map<std::string, double> NeuralNetworkWrapper::Fitness() {
+    std::map<std::string, double> fitness_map;
+
+    try {
+        // Train the network using hyperparameter settings
+        train(hyperparams_.getNumEpochs(),
+              hyperparams_.getBatchSize(),
+              hyperparams_.getLearningRate());
+
+        // Calculate training metrics
+        double train_r2 = calculateR2(DataType::Train);
+        auto train_metrics = evaluate(getInputData(DataType::Train),
+                                      getTargetData(DataType::Train));
+
+        // Calculate test metrics
+        auto test_metrics = evaluate();
+
+        // Store metrics with GA naming convention
+        fitness_map["MSE_Train_0"] = train_metrics["mse"];
+        fitness_map["R2_Train_0"] = train_r2;
+        fitness_map["MSE_Test_0"] = test_metrics["mse"];
+        fitness_map["R2_Test_0"] = test_metrics["r_squared"];
+
+    } catch (const std::exception& e) {
+        // Return bad fitness if training fails
+        fitness_map["MSE_Train_0"] = 1e12;
+        fitness_map["R2_Train_0"] = -1e12;
+        fitness_map["MSE_Test_0"] = 1e12;
+        fitness_map["R2_Test_0"] = -1e12;
+
+        std::cout << "Training failed: " << e.what() << std::endl;
+    }
+
+    return fitness_map;
+}
+
+void NeuralNetworkWrapper::setTimeSeriesData(const TimeSeriesSet<double>& input_data,
+                                             const TimeSeries<double>& target_data) {
+    ga_input_data_ = input_data;
+    ga_target_data_ = target_data;
+    ga_data_configured_ = true;
+}
+
+void NeuralNetworkWrapper::setTimeRange(double t_start, double t_end, double dt, double split_ratio) {
+    ga_t_start_ = t_start;
+    ga_t_end_ = t_end;
+    ga_dt_ = dt;
+    ga_split_ratio_ = split_ratio;
+}
+
+void NeuralNetworkWrapper::setAvailableSeriesCount(int count) {
+    ga_available_series_count_ = count;
 }

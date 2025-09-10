@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "TimeSeriesSet.h"
+#include "hyperparameters.h"
 
 /**
  * @brief Enum to specify whether data is for training or testing.
@@ -260,11 +261,72 @@ public:
                                      double t_start, double t_end, double dt);
 
 
+    // Add these public methods to the existing class:
+
+    // ============================================================================
+    /// @name Genetic Algorithm Interface
+    /// @{
+
+    /**
+    * @brief Get number of optimization parameters for GA.
+    * @return Number of parameters needed for complete model specification
+    */
+    int ParametersSize() const;
+
+    /**
+     * @brief Get maximum value for a specific parameter index.
+     * @param index Parameter index (0 to ParametersSize()-1)
+     * @return Maximum allowed value for the parameter
+     */
+    long int MaxParameter(int index) const;
+
+    /**
+     * @brief Configure hyperparameters from GA chromosome.
+     * @param parameters Vector of parameter values from GA
+     */
+    void AssignParameters(const std::vector<unsigned long int>& parameters);
+
+    /**
+     * @brief Create and initialize the neural network model.
+     * Must be called after AssignParameters() and data configuration.
+     */
+    void CreateModel();
+
+    /**
+     * @brief Train network and return fitness metrics.
+     * @return Map containing MSE and R² values for train/test data
+     */
+    std::map<std::string, double> Fitness();
+
+    /**
+     * @brief Configure time series data for training/testing.
+     * @param input_data TimeSeriesSet containing input time series
+     * @param target_data TimeSeries containing target values
+     */
+    void setTimeSeriesData(const TimeSeriesSet<double>& input_data,
+                           const TimeSeries<double>& target_data);
+
+    /**
+     * @brief Configure time range and data split for training/testing.
+     * @param t_start Start time
+     * @param t_end End time
+     * @param dt Time step
+     * @param split_ratio Fraction for training (0.0-1.0, default 0.8)
+     */
+    void setTimeRange(double t_start, double t_end, double dt, double split_ratio = 0.8);
+
+    /**
+     * @brief Set number of available time series for optimization bounds.
+     * @param count Total number of time series available in dataset
+     */
+    void setAvailableSeriesCount(int count);
+
+    /// @}
 private:
     // Member variables
     std::vector<std::vector<int>> lags_;                  ///< Lag configuration for each TimeSeries
     std::vector<int> hidden_layers_;                      ///< Number of nodes in each hidden layer
-    HyperParameters *hyperparams_;
+    HyperParameters  hyperparams_;
     std::vector<std::string> original_series_names_;     ///< Names of original TimeSeries from input data
 
     // Training state
@@ -316,4 +378,12 @@ private:
      * @return Output tensor
      */
     torch::Tensor forward_internal(torch::Tensor input);
+
+    // GA Interface data
+    TimeSeriesSet<double> ga_input_data_;        ///< Input data for GA optimization
+    TimeSeries<double> ga_target_data_;          ///< Target data for GA optimization
+    double ga_t_start_, ga_t_end_, ga_dt_;       ///< Time configuration for GA
+    double ga_split_ratio_;                      ///< Train/test split ratio for GA
+    int ga_available_series_count_;              ///< Number of available time series
+    bool ga_data_configured_;                    ///< Whether GA data has been set
 };
