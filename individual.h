@@ -3,35 +3,37 @@
 
 #include <Binary.h>
 #include "Utilities.h"
+#include <map>
+#include <vector>
+#include <iostream>
 
-using namespace std;
-
+/**
+ * @brief Represents an individual in a genetic algorithm population.
+ *
+ * An Individual is essentially a vector of BinaryNumber objects,
+ * representing a candidate solution. It stores its fitness, rank,
+ * split locations, and other auxiliary fitness measures.
+ */
 class Individual : public std::vector<BinaryNumber> {
 public:
-    // Default constructor
+    /// Default constructor.
     Individual() = default;
 
-    // Copy constructor
+    /// Copy constructor.
     Individual(const Individual &other) {
-        //std::cout << "Individual Copy Constructor Called\n";
-        this->clear(); // Clear current content
-        for (const auto &binary : other) {
-            this->push_back(binary); // Copy each BinaryNumber object
-        }
+        this->clear();
+        for (const auto &binary : other) this->push_back(binary);
         fitness = other.fitness;
         fitness_measures = other.fitness_measures;
         splitlocations = other.splitlocations;
         rank = other.rank;
     }
 
-    // Assignment operator
+    /// Assignment operator (copy from Individual).
     Individual &operator=(const Individual &other) {
         if (this != &other) {
-            //std::cout << "Individual Assignment Operator Called\n";
-            this->clear(); // Clear current content
-            for (const auto &binary : other) {
-                this->push_back(binary); // Copy each BinaryNumber object
-            }
+            this->clear();
+            for (const auto &binary : other) this->push_back(binary);
         }
         fitness = other.fitness;
         fitness_measures = other.fitness_measures;
@@ -40,57 +42,63 @@ public:
         return *this;
     }
 
-    Individual &operator=(const vector<BinaryNumber> &other) {
+    /// Assignment operator (from vector of BinaryNumber).
+    Individual &operator=(const std::vector<BinaryNumber> &other) {
         if (this != &other) {
-            //std::cout << "Individual Assignment Operator Called\n";
-            this->clear(); // Clear current content
-            for (const auto &binary : other) {
-                this->push_back(binary); // Copy each BinaryNumber object
-            }
+            this->clear();
+            for (const auto &binary : other) this->push_back(binary);
         }
         return *this;
     }
 
+    /// Fitness value of the individual.
     double fitness = 0;
-    map<string,double> fitness_measures;
 
-    // Display the entire individual
+    /// Auxiliary fitness measures (map of metric name to value).
+    std::map<std::string,double> fitness_measures;
+
+    /// Print the individual’s genome in decimal representation.
     void display() const {
         std::cout << "Individual: ";
         for (const auto &binary : *this) {
-            // Display the decimal equivalent of each BinaryNumber
             std::cout << binary.toDecimal() << " ";
         }
         std::cout << std::endl;
     }
 
-    vector<unsigned int> splitlocations;
+    /// Locations of splits in genome.
+    std::vector<unsigned int> splitlocations;
+
+    /// Rank of the individual (for selection).
     unsigned int rank = 0;
-    bool operator>(const Individual &I)
-    {
-        return (fitness>I.fitness?true:false);
-    }
-    bool operator<(const Individual &I)
-    {
-        return (fitness<I.fitness?true:false);
-    }
-    BinaryNumber toBinary() const
-    {
+
+    /// Greater-than operator (based on fitness).
+    bool operator>(const Individual &I) { return fitness > I.fitness; }
+
+    /// Less-than operator (based on fitness).
+    bool operator<(const Individual &I) { return fitness < I.fitness; }
+
+    /**
+     * @brief Combine genome into one BinaryNumber.
+     * @return Concatenated BinaryNumber.
+     */
+    BinaryNumber toBinary() const {
         BinaryNumber B = at(0);
-        for (unsigned int i=1; i<size(); i++)
-            B += at(i);
+        for (unsigned int i = 1; i < size(); i++) B += at(i);
         return B;
     }
 
-    string toAssignmentText(const string &name, int iterator)
-    {
-        string out = name + "_" + aquiutils::numbertostring(iterator) + "=" + aquiutils::numbertostring(fitness_measures[name + "_" + aquiutils::numbertostring(iterator)]);
+    /**
+     * @brief Return fitness measure as assignment string.
+     * @param name Base name of the metric.
+     * @param iterator Index appended to name.
+     * @return String of form "name_i=value".
+     */
+    std::string toAssignmentText(const std::string &name, int iterator) {
+        std::string key = name + "_" + aquiutils::numbertostring(iterator);
+        std::string out = key + "=" + aquiutils::numbertostring(fitness_measures[key]);
         return out;
     }
-
-
-
 };
-
 
 #endif // INDIVIDUAL_H

@@ -1,0 +1,179 @@
+\doxysection{/home/arash/\+Projects/\+Py\+Torch\+CPP/neuralnetworkwrapper.h}
+\hypertarget{neuralnetworkwrapper_8h_source}{}\label{neuralnetworkwrapper_8h_source}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00001}00001\ \textcolor{comment}{//\ NeuralNetworkWrapper.h}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00002}00002\ \textcolor{preprocessor}{\#pragma\ once}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00003}00003\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00004}00004\ \textcolor{preprocessor}{\#include\ <torch/torch.h>}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00005}00005\ \textcolor{preprocessor}{\#include\ <memory>}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00006}00006\ \textcolor{preprocessor}{\#include\ <string>}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00007}00007\ \textcolor{preprocessor}{\#include\ <vector>}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00008}00008\ \textcolor{preprocessor}{\#include\ "{}TimeSeriesSet.h"{}}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00009}00009\ \textcolor{preprocessor}{\#include\ "{}hyperparameters.h"{}}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00010}00010\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00014}00014\ \textcolor{keyword}{enum\ class}\ DataType\ \{}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00015}00015\ \ \ \ \ Train,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00016}00016\ \ \ \ \ Test}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00017}00017\ \};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00018}00018\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00019}00019\ \textcolor{keyword}{class\ }\mbox{\hyperlink{classHyperParameters}{HyperParameters}};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00020}00020\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00029}\mbox{\hyperlink{classNeuralNetworkWrapper}{00029}}\ \textcolor{keyword}{class\ }\mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}\ :\ \textcolor{keyword}{public}\ torch::nn::Module\ \{}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00030}00030\ \textcolor{keyword}{public}:}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00031}00031\ \ \ \ \ \textcolor{comment}{//\ Constructors\ and\ Destructor}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00032}00032\ \ \ \ \ \mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}();}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00033}00033\ \ \ \ \ \mbox{\hyperlink{classNeuralNetworkWrapper}{\string~NeuralNetworkWrapper}}();}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00034}00034\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00035}00035\ \ \ \ \ \textcolor{comment}{//\ Copy\ and\ move\ constructors/assignment\ operators}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00036}00036\ \ \ \ \ \mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}(\textcolor{keyword}{const}\ \mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}\&\ other)\ =\ \textcolor{keyword}{delete};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00037}00037\ \ \ \ \ \mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}\&\ operator=(\textcolor{keyword}{const}\ \mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}\&\ other)\ =\ \textcolor{keyword}{delete};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00038}00038\ \ \ \ \ \mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}(\mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}\&\&\ other)\ =\ \textcolor{keywordflow}{default};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00039}00039\ \ \ \ \ \mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}\&\ operator=(\mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}\&\&\ other)\ =\ \textcolor{keywordflow}{default};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00040}00040\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00041}00041\ \ \ \ \ \textcolor{comment}{//\ Network\ Architecture}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00042}00042\ \ \ \ \ \textcolor{comment}{//\ Network\ Architecture}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00049}00049\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_aed037c3b3dd03fc998d934aad8d21bf8}{initializeNetwork}}(\textcolor{keywordtype}{int}\ output\_size,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00050}00050\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{const}\ std::string\&\ activation\_function\ =\ \textcolor{stringliteral}{"{}relu"{}});}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00051}00051\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00052}00052\ \ \ \ \ \textcolor{comment}{//\ Forward\ pass}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00058}00058\ \ \ \ \ torch::Tensor\ \mbox{\hyperlink{classNeuralNetworkWrapper_a992020cb61851beb64ccf2318c95c1fd}{forward}}(DataType\ data\_type);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00059}00059\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00060}00060\ \ \ \ \ \textcolor{comment}{//\ Training}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00068}00068\ \ \ \ \ std::vector<double>\ \mbox{\hyperlink{classNeuralNetworkWrapper_a4bf1f4e72f6c108fe96387b5fb820c31}{train}}(\textcolor{keywordtype}{int}\ num\_epochs,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00069}00069\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{int}\ batch\_size\ =\ 32,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00070}00070\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ learning\_rate\ =\ 0.001);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00071}00071\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00072}00072\ \ \ \ \ \textcolor{comment}{//\ Evaluation}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00079}00079\ \ \ \ \ std::map<std::string,\ double>\ \mbox{\hyperlink{classNeuralNetworkWrapper_ac2795053e7bc2acb73c2d81298369663}{evaluate}}(\textcolor{keyword}{const}\ torch::Tensor\&\ test\_inputs,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00080}00080\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{const}\ torch::Tensor\&\ test\_targets);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00081}00081\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00082}00082\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00087}00087\ \ \ \ \ std::map<std::string,\ double>\ \mbox{\hyperlink{classNeuralNetworkWrapper_ac2795053e7bc2acb73c2d81298369663}{evaluate}}();}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00097}00097\ \ \ \ \ TimeSeriesSet<double>\ \mbox{\hyperlink{classNeuralNetworkWrapper_a2b961e95cce66deba3031c52cfa40d54}{predict}}(DataType\ data\_type,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00098}00098\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ t\_start,\ \textcolor{keywordtype}{double}\ t\_end,\ \textcolor{keywordtype}{double}\ dt,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00099}00099\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{const}\ std::vector<std::string>\&\ output\_names\ =\ \{\});}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00100}00100\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00101}00101\ \ \ \ \ \textcolor{comment}{//\ Model\ Management}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00106}00106\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a55b403d997f072ff81670c43206077cb}{saveModel}}(\textcolor{keyword}{const}\ std::string\&\ filepath);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00107}00107\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00112}00112\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a8a16794d39d68a8931e934bbab1baa9d}{loadModel}}(\textcolor{keyword}{const}\ std::string\&\ filepath);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00113}00113\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00114}00114\ \ \ \ \ \textcolor{comment}{//\ Getters}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00119}00119\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a2188c94d66427f7209cfcf510162d43d}{getTotalParameters}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00120}00120\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00125}00125\ \ \ \ \ \textcolor{keywordtype}{double}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a627ea1f1d275442cf67a906f7c225aee}{getCurrentLoss}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00126}00126\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00131}00131\ \ \ \ \ std::vector<double>\ \mbox{\hyperlink{classNeuralNetworkWrapper_a4f51e57d7a48f32712d211814718e547}{getTrainingHistory}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00132}00132\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00137}00137\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{classNeuralNetworkWrapper_ad8f4b049aec402d3019a3ffa2950329b}{isInitialized}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00138}00138\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00139}00139\ \ \ \ \ \textcolor{comment}{//\ Getters\ and\ Setters\ for\ Lag\ Configuration}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00140}00140\ \ \ \ \ \textcolor{keyword}{const}\ std::vector<std::vector<int>>\&\ getLags()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00141}00141\ \ \ \ \ \textcolor{keywordtype}{void}\ setLags(\textcolor{keyword}{const}\ std::vector<std::vector<int>>\&\ lags);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00142}00142\ \ \ \ \ \textcolor{comment}{//\ Getters\ and\ Setters\ for\ Network\ Architecture}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00143}00143\ \ \ \ \ \textcolor{keyword}{const}\ std::vector<int>\&\ getHiddenLayers()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00144}00144\ \ \ \ \ \textcolor{keywordtype}{void}\ setHiddenLayers(\textcolor{keyword}{const}\ std::vector<int>\&\ hidden\_layers);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00145}00145\ \ \ \ \ \textcolor{keywordtype}{void}\ clear();}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00146}00146\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00155}00155\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a621132e2f718b511835a146c5a937b5e}{setInputData}}(DataType\ data\_type,\ \textcolor{keyword}{const}\ TimeSeriesSet<double>\&\ time\_series\_set,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00156}00156\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ t\_start,\ \textcolor{keywordtype}{double}\ t\_end,\ \textcolor{keywordtype}{double}\ dt);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00157}00157\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00167}00167\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a4c9705bef9d12eff06f73916bf3f8aba}{setTargetData}}(DataType\ data\_type,\ \textcolor{keyword}{const}\ TimeSeriesSet<double>\&\ time\_series\_set,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00168}00168\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{const}\ std::vector<int>\&\ output\_indices,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00169}00169\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ t\_start,\ \textcolor{keywordtype}{double}\ t\_end,\ \textcolor{keywordtype}{double}\ dt);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00170}00170\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00179}00179\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a4c9705bef9d12eff06f73916bf3f8aba}{setTargetData}}(DataType\ data\_type,\ \textcolor{keyword}{const}\ TimeSeries<double>\&\ output\_series,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00180}00180\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ t\_start,\ \textcolor{keywordtype}{double}\ t\_end,\ \textcolor{keywordtype}{double}\ dt);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00181}00181\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00187}00187\ \ \ \ \ \textcolor{keyword}{const}\ torch::Tensor\&\ \mbox{\hyperlink{classNeuralNetworkWrapper_a3bcf431b2b241ac7bddd9ed4ec4512a2}{getInputData}}(DataType\ data\_type)\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00188}00188\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00194}00194\ \ \ \ \ \textcolor{keyword}{const}\ torch::Tensor\&\ \mbox{\hyperlink{classNeuralNetworkWrapper_ada0713efa958bfe5cf04e0dac8a9d8bd}{getTargetData}}(DataType\ data\_type)\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00195}00195\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00201}00201\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a1543fa06d2e747d9a5558176597b9a3b}{hasInputData}}(DataType\ data\_type)\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00202}00202\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00208}00208\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a647575c8e16926a00bab9129c0d7171d}{hasTargetData}}(DataType\ data\_type)\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00209}00209\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00215}00215\ \ \ \ \ \textcolor{keywordtype}{double}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a30fc317f9a1ac1524e93677d0b9a40d7}{calculateR2}}(DataType\ data\_type);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00216}00216\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00221}00221\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_aff0643d3ad87f5d1822aecec00fdd6bf}{setOriginalSeriesNames}}(\textcolor{keyword}{const}\ std::vector<std::string>\&\ series\_names);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00222}00222\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00227}00227\ \ \ \ \ \textcolor{keyword}{const}\ std::vector<std::string>\&\ \mbox{\hyperlink{classNeuralNetworkWrapper_a7f69e8db0a9c794c3638626b59a8fb73}{getOriginalSeriesNames}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00228}00228\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00233}00233\ \ \ \ \ std::vector<std::string>\ \mbox{\hyperlink{classNeuralNetworkWrapper_a44a597c01e69a5869dbb21e6d836ac3e}{generateInputFeatureNames}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00234}00234\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00239}00239\ \ \ \ \ std::string\ \mbox{\hyperlink{classNeuralNetworkWrapper_abd09422816be70a899ee9ed51c63a387}{parametersToString}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00240}00240\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00248}00248\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_aed037c3b3dd03fc998d934aad8d21bf8}{initializeNetwork}}(\mbox{\hyperlink{classHyperParameters}{HyperParameters}}*\ hyperparams,\ \textcolor{keywordtype}{int}\ output\_size);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00249}00249\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00260}00260\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a3ea7dcb24519463207ba3bbc49c01562}{setInputDataFromHyperParams}}(DataType\ data\_type,\ \textcolor{keyword}{const}\ TimeSeriesSet<double>\&\ time\_series\_set,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00261}00261\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ t\_start,\ \textcolor{keywordtype}{double}\ t\_end,\ \textcolor{keywordtype}{double}\ dt);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00262}00262\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00263}00263\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00264}00264\ \ \ \ \ \textcolor{comment}{//\ Add\ these\ public\ methods\ to\ the\ existing\ class:}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00265}00265\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00266}00266\ \ \ \ \ \textcolor{comment}{//\ ============================================================================}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00269}00269\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00274}00274\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a9ce3dbc3b0e8b082b8bd8a6093315b93}{ParametersSize}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00275}00275\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00281}00281\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a2841ccb095e6d0ebf43f0cf3f5c473f3}{MaxParameter}}(\textcolor{keywordtype}{int}\ index)\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00282}00282\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00287}00287\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_acd3f177412b61d7af4f313d730c8005c}{AssignParameters}}(\textcolor{keyword}{const}\ std::vector<unsigned\ long\ int>\&\ parameters);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00288}00288\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00293}00293\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a68ed95d39999578a72adc921897351ee}{CreateModel}}();}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00294}00294\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00299}00299\ \ \ \ \ std::map<std::string,\ double>\ \mbox{\hyperlink{classNeuralNetworkWrapper_a9134e5d00e03044b5cc0955bae57ab97}{Fitness}}();}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00300}00300\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00306}00306\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_a5ba9c0e574594be331b204dee96868de}{setTimeSeriesData}}(\textcolor{keyword}{const}\ TimeSeriesSet<double>\&\ input\_data,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00307}00307\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{const}\ TimeSeries<double>\&\ target\_data);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00308}00308\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00316}00316\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_acbdf59764f04ebf1765dc9e0d86c0dcd}{setTimeRange}}(\textcolor{keywordtype}{double}\ t\_start,\ \textcolor{keywordtype}{double}\ t\_end,\ \textcolor{keywordtype}{double}\ dt,\ \textcolor{keywordtype}{double}\ split\_ratio\ =\ 0.8);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00317}00317\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00322}00322\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classNeuralNetworkWrapper_ad5d25ccb4c2ba78e1821c500b203c392}{setAvailableSeriesCount}}(\textcolor{keywordtype}{int}\ count);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00323}00323\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00325}00325\ \textcolor{keyword}{private}:}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00326}00326\ \ \ \ \ \textcolor{comment}{//\ Member\ variables}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00327}00327\ \ \ \ \ std::vector<std::vector<int>>\ lags\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00328}00328\ \ \ \ \ std::vector<int>\ hidden\_layers\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00329}00329\ \ \ \ \ \mbox{\hyperlink{classHyperParameters}{HyperParameters}}\ \ hyperparams\_;}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00330}00330\ \ \ \ \ std::vector<std::string>\ original\_series\_names\_;\ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00331}00331\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00332}00332\ \ \ \ \ \textcolor{comment}{//\ Training\ state}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00333}00333\ \ \ \ \ std::vector<double>\ training\_history\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00334}00334\ \ \ \ \ \textcolor{keywordtype}{double}\ current\_loss\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00335}00335\ \ \ \ \ \textcolor{keywordtype}{bool}\ is\_initialized\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00336}00336\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00337}00337\ \ \ \ \ \textcolor{comment}{//\ Input/Output\ data\ state}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00338}00338\ \ \ \ \ torch::Tensor\ train\_input\_data\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00339}00339\ \ \ \ \ torch::Tensor\ train\_target\_data\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00340}00340\ \ \ \ \ torch::Tensor\ test\_input\_data\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00341}00341\ \ \ \ \ torch::Tensor\ test\_target\_data\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00342}00342\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00343}00343\ \ \ \ \ \textcolor{comment}{//\ Network\ components}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00344}00344\ \ \ \ \ torch::nn::ModuleList\ layers\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00345}00345\ \ \ \ \ std::string\ activation\_function\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00346}00346\ \ \ \ \ \textcolor{keywordtype}{int}\ input\_size\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00347}00347\ \ \ \ \ \textcolor{keywordtype}{int}\ output\_size\_;}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00348}00348\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00349}00349\ \ \ \ \ \textcolor{comment}{//\ Network\ components\ (to\ be\ defined\ based\ on\ architecture)}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00350}00350\ \ \ \ \ \textcolor{comment}{//\ torch::nn::ModuleList\ layers\_;\ //\ Will\ be\ added\ when\ implementing\ network\ structure}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00351}00351\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00352}00352\ \ \ \ \ \textcolor{comment}{//\ Private\ helper\ methods}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00357}00357\ \ \ \ \ \textcolor{keywordtype}{void}\ initializeWeights(\textcolor{keyword}{const}\ std::string\&\ strategy\ =\ \textcolor{stringliteral}{"{}xavier"{}});}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00358}00358\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00364}00364\ \ \ \ \ torch::nn::AnyModule\ createActivation(\textcolor{keyword}{const}\ std::string\&\ activation\_name);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00365}00365\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00372}00372\ \ \ \ \ std::map<std::string,\ double>\ computeMetrics(\textcolor{keyword}{const}\ torch::Tensor\&\ predictions,}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00373}00373\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{const}\ torch::Tensor\&\ targets);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00374}00374\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00380}00380\ \ \ \ \ torch::Tensor\ forward\_internal(torch::Tensor\ input);}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00381}00381\ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00382}00382\ \ \ \ \ \textcolor{comment}{//\ GA\ Interface\ data}}
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00383}00383\ \ \ \ \ TimeSeriesSet<double>\ ga\_input\_data\_;\ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00384}00384\ \ \ \ \ TimeSeries<double>\ ga\_target\_data\_;\ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00385}00385\ \ \ \ \ \textcolor{keywordtype}{double}\ ga\_t\_start\_,\ ga\_t\_end\_,\ ga\_dt\_;\ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00386}00386\ \ \ \ \ \textcolor{keywordtype}{double}\ ga\_split\_ratio\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00387}00387\ \ \ \ \ \textcolor{keywordtype}{int}\ ga\_available\_series\_count\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00388}00388\ \ \ \ \ \textcolor{keywordtype}{bool}\ ga\_data\_configured\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{neuralnetworkwrapper_8h_source_l00389}00389\ \};}
+
+\end{DoxyCode}

@@ -1,0 +1,792 @@
+\doxysection{/home/arash/\+Projects/\+Py\+Torch\+CPP/hyperparameters.cpp}
+\hypertarget{hyperparameters_8cpp_source}{}\label{hyperparameters_8cpp_source}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00001}00001\ \textcolor{comment}{//\ HyperParameters.cpp}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00002}00002\ \textcolor{preprocessor}{\#include\ "{}hyperparameters.h"{}}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00003}00003\ \textcolor{preprocessor}{\#include\ <stdexcept>}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00004}00004\ \textcolor{preprocessor}{\#include\ <algorithm>}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00005}00005\ \textcolor{preprocessor}{\#include\ <iomanip>}\ \ \textcolor{comment}{//\ for\ std::scientific,\ std::fixed,\ std::setprecision}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00006}00006\ \textcolor{preprocessor}{\#include\ <sstream>}\ \ \textcolor{comment}{//\ for\ std::ostringstream}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00007}00007\ \textcolor{preprocessor}{\#include\ <cmath>}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00008}00008\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00009}00009\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00010}00010\ \textcolor{comment}{//\ Constructor}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00011}00011\ HyperParameters::HyperParameters()}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00012}00012\ \ \ \ \ :\ selected\_series\_ids\_(),}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00013}00013\ \ \ \ \ hidden\_layers\_\{64,\ 32\},}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00014}00014\ \ \ \ \ activation\_function\_(\textcolor{stringliteral}{"{}relu"{}}),}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00015}00015\ \ \ \ \ lags\_(),}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00016}00016\ \ \ \ \ lag\_multiplier\_\{1\},}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00017}00017\ \ \ \ \ max\_lag\_multiplier\_(10),}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00018}00018\ \ \ \ \ max\_lags\_(10),}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00019}00019\ \ \ \ \ lag\_selection\_odd\_(3),}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00020}00020\ \ \ \ \ max\_number\_of\_hidden\_nodes\_(128),\ \ \ \ \ \ \ \ \textcolor{comment}{//\ Default\ max\ nodes\ per\ layer}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00021}00021\ \ \ \ \ max\_number\_of\_hidden\_layers\_(5),\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Default\ max\ layers}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00022}00022\ \ \ \ \ num\_epochs\_(100),}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00023}00023\ \ \ \ \ batch\_size\_(32),}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00024}00024\ \ \ \ \ learning\_rate\_(0.001),}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00025}00025\ \ \ \ \ train\_test\_split\_(0.8)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00026}00026\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00027}00027\ \textcolor{comment}{//\ Time\ Series\ Selection}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00028}00028\ \textcolor{keyword}{const}\ std::vector<int>\&\ HyperParameters::getSelectedSeriesIds()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00029}00029\ \ \ \ \ \textcolor{keywordflow}{return}\ selected\_series\_ids\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00030}00030\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00031}00031\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00032}00032\ \textcolor{keywordtype}{void}\ HyperParameters::setSelectedSeriesIds(\textcolor{keyword}{const}\ std::vector<int>\&\ selected\_ids)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00033}00033\ \ \ \ \ validateSelectedSeriesIds(selected\_ids);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00034}00034\ \ \ \ \ selected\_series\_ids\_\ =\ selected\_ids;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00035}00035\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00036}00036\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00037}\mbox{\hyperlink{classHyperParameters_a368596a6412efed46da57b33100b2006}{00037}}\ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_a368596a6412efed46da57b33100b2006}{HyperParameters::getMaxSelectionCode}}(\textcolor{keywordtype}{int}\ available\_series\_count)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00038}00038\ \ \ \ \ \textcolor{keywordflow}{if}\ (available\_series\_count\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00039}00039\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Available\ series\ count\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00040}00040\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00041}00041\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00042}00042\ \ \ \ \ \textcolor{keywordflow}{if}\ (available\_series\_count\ >\ 32)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00043}00043\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Maximum\ 32\ time\ series\ supported\ for\ binary\ selection."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00044}00044\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00045}00045\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00046}00046\ \ \ \ \ \textcolor{comment}{//\ Maximum\ value\ is\ 2\string^n\ -\/\ 1\ (all\ bits\ set)}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00047}00047\ \ \ \ \ \textcolor{comment}{//\ We\ exclude\ 0\ since\ it\ would\ select\ no\ time\ series}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00048}00048\ \ \ \ \ \textcolor{keywordflow}{return}\ (1\ <<\ available\_series\_count)\ -\/\ 1;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00049}00049\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00050}00050\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00051}00051\ \textcolor{keywordtype}{void}\ HyperParameters::clearSelectedSeriesIds()\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00052}00052\ \ \ \ \ selected\_series\_ids\_.clear();}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00053}00053\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00054}00054\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00055}\mbox{\hyperlink{classHyperParameters_a9c01f2402e2765ffb96e57f9fbf95aaf}{00055}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a9c01f2402e2765ffb96e57f9fbf95aaf}{HyperParameters::setSelectedSeriesFromBinary}}(\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ selection\_code,\ \textcolor{keywordtype}{int}\ available\_series\_count)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00056}00056\ \ \ \ \ \textcolor{keywordflow}{if}\ (available\_series\_count\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00057}00057\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Available\ series\ count\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00058}00058\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00059}00059\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00060}00060\ \ \ \ \ \textcolor{keywordflow}{if}\ (available\_series\_count\ >\ 32)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00061}00061\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Maximum\ 32\ time\ series\ supported\ for\ binary\ selection."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00062}00062\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00063}00063\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00064}00064\ \ \ \ \ \textcolor{keywordflow}{if}\ (selection\_code\ <\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00065}00065\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Selection\ code\ must\ be\ non-\/negative."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00066}00066\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00067}00067\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00068}00068\ \ \ \ \ std::vector<int>\ selected\_ids;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00069}00069\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00070}00070\ \ \ \ \ \textcolor{comment}{//\ Convert\ integer\ to\ binary\ and\ store\ corresponding\ indices}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00071}00071\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ i\ =\ 0;\ i\ <\ available\_series\_count;\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00072}00072\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ ((selection\_code\ >>\ i)\ \&\ 1)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00073}00073\ \ \ \ \ \ \ \ \ \ \ \ \ selected\_ids.push\_back(i);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00074}00074\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00075}00075\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00076}00076\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00077}00077\ \ \ \ \ \textcolor{keywordflow}{if}\ (selected\_ids.empty())\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00078}00078\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Selection\ code\ "{}}\ +\ std::to\_string(selection\_code)\ +}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00079}00079\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{}\ results\ in\ no\ time\ series\ being\ selected."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00080}00080\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00081}00081\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00082}00082\ \ \ \ \ selected\_series\_ids\_\ =\ selected\_ids;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00083}00083\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00084}00084\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00085}00085\ \textcolor{comment}{//\ Network\ Architecture}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00086}00086\ \textcolor{keyword}{const}\ std::vector<int>\&\ HyperParameters::getHiddenLayers()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00087}00087\ \ \ \ \ \textcolor{keywordflow}{return}\ hidden\_layers\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00088}00088\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00089}00089\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00090}00090\ \textcolor{keywordtype}{void}\ HyperParameters::setHiddenLayers(\textcolor{keyword}{const}\ std::vector<int>\&\ hidden\_layers)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00091}00091\ \ \ \ \ validateHiddenLayers(hidden\_layers);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00092}00092\ \ \ \ \ hidden\_layers\_\ =\ hidden\_layers;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00093}00093\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00094}00094\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00095}00095\ \textcolor{keyword}{const}\ std::string\&\ HyperParameters::getActivationFunction()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00096}00096\ \ \ \ \ \textcolor{keywordflow}{return}\ activation\_function\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00097}00097\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00098}00098\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00099}00099\ \textcolor{keywordtype}{void}\ HyperParameters::setActivationFunction(\textcolor{keyword}{const}\ std::string\&\ activation\_function)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00100}00100\ \ \ \ \ validateActivationFunction(activation\_function);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00101}00101\ \ \ \ \ activation\_function\_\ =\ activation\_function;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00102}00102\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00103}00103\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00104}00104\ \textcolor{comment}{//\ Lag\ Configuration}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00105}00105\ \textcolor{keyword}{const}\ std::vector<std::vector<int>>\&\ HyperParameters::getLags()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00106}00106\ \ \ \ \ \textcolor{keywordflow}{return}\ lags\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00107}00107\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00108}00108\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00109}00109\ \textcolor{keywordtype}{void}\ HyperParameters::setLags(\textcolor{keyword}{const}\ std::vector<std::vector<int>>\&\ lags)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00110}00110\ \ \ \ \ lags\_\ =\ lags;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00111}00111\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00112}00112\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00113}00113\ \textcolor{comment}{//\ Training\ Parameters}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00114}00114\ \textcolor{keywordtype}{int}\ HyperParameters::getNumEpochs()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00115}00115\ \ \ \ \ \textcolor{keywordflow}{return}\ num\_epochs\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00116}00116\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00117}00117\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00118}00118\ \textcolor{keywordtype}{void}\ HyperParameters::setNumEpochs(\textcolor{keywordtype}{int}\ num\_epochs)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00119}00119\ \ \ \ \ \textcolor{keywordflow}{if}\ (num\_epochs\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00120}00120\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Number\ of\ epochs\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00121}00121\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00122}00122\ \ \ \ \ num\_epochs\_\ =\ num\_epochs;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00123}00123\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00124}00124\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00125}00125\ \textcolor{keywordtype}{int}\ HyperParameters::getBatchSize()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00126}00126\ \ \ \ \ \textcolor{keywordflow}{return}\ batch\_size\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00127}00127\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00128}00128\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00129}00129\ \textcolor{keywordtype}{void}\ HyperParameters::setBatchSize(\textcolor{keywordtype}{int}\ batch\_size)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00130}00130\ \ \ \ \ \textcolor{keywordflow}{if}\ (batch\_size\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00131}00131\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Batch\ size\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00132}00132\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00133}00133\ \ \ \ \ batch\_size\_\ =\ batch\_size;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00134}00134\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00135}00135\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00136}00136\ \textcolor{keywordtype}{double}\ HyperParameters::getLearningRate()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00137}00137\ \ \ \ \ \textcolor{keywordflow}{return}\ learning\_rate\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00138}00138\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00139}00139\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00140}00140\ \textcolor{keywordtype}{void}\ HyperParameters::setLearningRate(\textcolor{keywordtype}{double}\ learning\_rate)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00141}00141\ \ \ \ \ \textcolor{keywordflow}{if}\ (learning\_rate\ <=\ 0.0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00142}00142\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Learning\ rate\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00143}00143\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00144}00144\ \ \ \ \ learning\_rate\_\ =\ learning\_rate;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00145}00145\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00146}00146\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00147}00147\ \textcolor{comment}{//\ Data\ Configuration}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00148}00148\ \textcolor{keywordtype}{double}\ HyperParameters::getTrainTestSplit()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00149}00149\ \ \ \ \ \textcolor{keywordflow}{return}\ train\_test\_split\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00150}00150\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00151}00151\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00152}00152\ \textcolor{keywordtype}{void}\ HyperParameters::setTrainTestSplit(\textcolor{keywordtype}{double}\ train\_test\_split)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00153}00153\ \ \ \ \ \textcolor{keywordflow}{if}\ (train\_test\_split\ <\ 0.0\ ||\ train\_test\_split\ >\ 1.0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00154}00154\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Train/test\ split\ must\ be\ between\ 0.0\ and\ 1.0."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00155}00155\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00156}00156\ \ \ \ \ train\_test\_split\_\ =\ train\_test\_split;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00157}00157\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00158}00158\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00159}\mbox{\hyperlink{classHyperParameters_ab8ad4f0afa16f4c39ad4a1cfb8a1a7ca}{00159}}\ std::string\ \mbox{\hyperlink{classHyperParameters_ab8ad4f0afa16f4c39ad4a1cfb8a1a7ca}{HyperParameters::toString}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00160}00160\ \ \ \ \ std::string\ out;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00161}00161\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00162}00162\ \ \ \ \ \textcolor{comment}{//\ Selected\ series}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00163}00163\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{}Selected\ series:\ ["{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00164}00164\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ selected\_series\_ids\_.size();\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00165}00165\ \ \ \ \ \ \ \ \ out\ +=\ std::to\_string(selected\_series\_ids\_[i]);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00166}00166\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (i\ <\ selected\_series\_ids\_.size()\ -\/\ 1)\ out\ +=\ \textcolor{stringliteral}{"{},"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00167}00167\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00168}00168\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{}]"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00169}00169\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00170}00170\ \ \ \ \ \textcolor{comment}{//\ Hidden\ layers}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00171}00171\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Hidden\ layers:\ ["{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00172}00172\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ hidden\_layers\_.size();\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00173}00173\ \ \ \ \ \ \ \ \ out\ +=\ std::to\_string(hidden\_layers\_[i]);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00174}00174\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (i\ <\ hidden\_layers\_.size()\ -\/\ 1)\ out\ +=\ \textcolor{stringliteral}{"{},"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00175}00175\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00176}00176\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{}]"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00177}00177\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00178}00178\ \ \ \ \ \textcolor{comment}{//\ Activation}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00179}00179\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Activation:\ "{}}\ +\ activation\_function\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00180}00180\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00181}00181\ \ \ \ \ \textcolor{comment}{//\ Lags}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00182}00182\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Lags:\ ["{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00183}00183\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ lags\_.size();\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00184}00184\ \ \ \ \ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{}["{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00185}00185\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ j\ =\ 0;\ j\ <\ lags\_[i].size();\ j++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00186}00186\ \ \ \ \ \ \ \ \ \ \ \ \ out\ +=\ std::to\_string(lags\_[i][j]);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00187}00187\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (j\ <\ lags\_[i].size()\ -\/\ 1)\ out\ +=\ \textcolor{stringliteral}{"{},"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00188}00188\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00189}00189\ \ \ \ \ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{}]"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00190}00190\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (i\ <\ lags\_.size()\ -\/\ 1)\ out\ +=\ \textcolor{stringliteral}{"{},"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00191}00191\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00192}00192\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{}]"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00193}00193\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00194}00194\ \ \ \ \ \textcolor{comment}{//\ Lag\ multipliers}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00195}00195\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Lag\ multipliers:\ ["{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00196}00196\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ lag\_multiplier\_.size();\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00197}00197\ \ \ \ \ \ \ \ \ out\ +=\ std::to\_string(lag\_multiplier\_[i]);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00198}00198\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (i\ <\ lag\_multiplier\_.size()\ -\/\ 1)\ out\ +=\ \textcolor{stringliteral}{"{},"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00199}00199\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00200}00200\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{}]"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00201}00201\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00202}00202\ \ \ \ \ \textcolor{comment}{//\ Max\ lag\ multiplier}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00203}00203\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Max\ lag\ multiplier:\ "{}}\ +\ std::to\_string(max\_lag\_multiplier\_);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00204}00204\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Multiplier\ generation\ base:\ "{}}\ +\ std::to\_string(max\_lag\_multiplier\_\ +\ 1);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00205}00205\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00206}00206\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00207}00207\ \ \ \ \ \textcolor{comment}{//\ Max\ lags\ -\/\ THIS\ WAS\ MISSING}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00208}00208\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Max\ lags:\ "{}}\ +\ std::to\_string(max\_lags\_);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00209}00209\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00210}00210\ \ \ \ \ \textcolor{comment}{//\ Lag\ selection\ odd}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00211}00211\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Lag\ selection\ odd:\ "{}}\ +\ std::to\_string(lag\_selection\_odd\_);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00212}00212\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00213}00213\ \ \ \ \ \textcolor{comment}{//\ Training\ parameters}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00214}00214\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Epochs:\ "{}}\ +\ std::to\_string(num\_epochs\_);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00215}00215\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Batch\ size:\ "{}}\ +\ std::to\_string(batch\_size\_);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00216}00216\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Learning\ rate:\ "{}}\ +\ std::to\_string(learning\_rate\_);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00217}00217\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Train/test\ split:\ "{}}\ +\ std::to\_string(train\_test\_split\_);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00218}00218\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00219}00219\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Hidden\ layers:\ ["{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00220}00220\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ hidden\_layers\_.size();\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00221}00221\ \ \ \ \ \ \ \ \ out\ +=\ std::to\_string(hidden\_layers\_[i]);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00222}00222\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (i\ <\ hidden\_layers\_.size()\ -\/\ 1)\ out\ +=\ \textcolor{stringliteral}{"{},"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00223}00223\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00224}00224\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{}]"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00225}00225\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00226}00226\ \ \ \ \ \textcolor{comment}{//\ Add\ count\ of\ layers\ and\ total\ nodes}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00227}00227\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Number\ of\ hidden\ layers:\ "{}}\ +\ std::to\_string(hidden\_layers\_.size());}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00228}00228\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00229}00229\ \ \ \ \ \textcolor{keywordtype}{int}\ total\_hidden\_nodes\ =\ 0;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00230}00230\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ nodes\ :\ hidden\_layers\_)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00231}00231\ \ \ \ \ \ \ \ \ total\_hidden\_nodes\ +=\ nodes;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00232}00232\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00233}00233\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Total\ hidden\ nodes:\ "{}}\ +\ std::to\_string(total\_hidden\_nodes);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00234}00234\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00235}00235\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Max\ hidden\ nodes:\ "{}}\ +\ std::to\_string(max\_number\_of\_hidden\_nodes\_);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00236}00236\ \ \ \ \ out\ +=\ \textcolor{stringliteral}{"{},\ Max\ hidden\ layers:\ "{}}\ +\ std::to\_string(max\_number\_of\_hidden\_layers\_);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00237}00237\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00238}00238\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00239}00239\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00240}00240\ \ \ \ \ \textcolor{keywordflow}{return}\ out;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00241}00241\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00242}\mbox{\hyperlink{classHyperParameters_a0ba1a22c19e273285315068e8b74ca11}{00242}}\ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{classHyperParameters_a0ba1a22c19e273285315068e8b74ca11}{HyperParameters::isValid}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00243}00243\ \ \ \ \ \textcolor{comment}{//\ Check\ selected\ series}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00244}00244\ \ \ \ \ \textcolor{keywordflow}{if}\ (selected\_series\_ids\_.empty())\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00245}00245\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00246}00246\ \ \ \ \ \textcolor{comment}{//\ Check\ for\ negative\ series\ IDs}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00247}00247\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ \textcolor{keywordtype}{id}\ :\ selected\_series\_ids\_)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00248}00248\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (\textcolor{keywordtype}{id}\ <\ 0)\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00249}00249\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00250}00250\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00251}00251\ \ \ \ \ \textcolor{comment}{//\ Check\ hidden\ layers}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00252}00252\ \ \ \ \ \textcolor{keywordflow}{if}\ (hidden\_layers\_.empty())\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00253}00253\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ nodes\ :\ hidden\_layers\_)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00254}00254\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (nodes\ <=\ 0)\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00255}00255\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00256}00256\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00257}00257\ \ \ \ \ \textcolor{comment}{//\ Check\ training\ parameters}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00258}00258\ \ \ \ \ \textcolor{keywordflow}{if}\ (num\_epochs\_\ <=\ 0)\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00259}00259\ \ \ \ \ \textcolor{keywordflow}{if}\ (batch\_size\_\ <=\ 0)\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00260}00260\ \ \ \ \ \textcolor{keywordflow}{if}\ (learning\_rate\_\ <=\ 0.0)\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00261}00261\ \ \ \ \ \textcolor{keywordflow}{if}\ (train\_test\_split\_\ <\ 0.0\ ||\ train\_test\_split\_\ >\ 1.0)\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00262}00262\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00263}00263\ \ \ \ \ \textcolor{comment}{//\ Check\ lag\ multipliers\ (now\ a\ vector)}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00264}00264\ \ \ \ \ \textcolor{keywordflow}{if}\ (lag\_multiplier\_.empty())\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00265}00265\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ multiplier\ :\ lag\_multiplier\_)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00266}00266\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (multiplier\ <=\ 0)\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00267}00267\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (multiplier\ >\ max\_lag\_multiplier\_)\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00268}00268\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00269}00269\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00270}00270\ \ \ \ \ \textcolor{comment}{//\ Check\ max\ lag\ multiplier}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00271}00271\ \ \ \ \ \textcolor{keywordflow}{if}\ (max\_lag\_multiplier\_\ <=\ 0)\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00272}00272\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00273}00273\ \ \ \ \ \textcolor{comment}{//\ Check\ max\ lags}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00274}00274\ \ \ \ \ \textcolor{keywordflow}{if}\ (max\_lags\_\ <=\ 0)\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00275}00275\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00276}00276\ \ \ \ \ \textcolor{comment}{//\ Check\ lag\ selection\ odd}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00277}00277\ \ \ \ \ \textcolor{keywordflow}{if}\ (lag\_selection\_odd\_\ <=\ 1)\ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00278}00278\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00279}00279\ \ \ \ \ \textcolor{comment}{//\ Check\ activation\ function}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00280}00280\ \ \ \ \ \textcolor{keywordflow}{if}\ (activation\_function\_\ !=\ \textcolor{stringliteral}{"{}relu"{}}\ \&\&}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00281}00281\ \ \ \ \ \ \ \ \ activation\_function\_\ !=\ \textcolor{stringliteral}{"{}tanh"{}}\ \&\&}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00282}00282\ \ \ \ \ \ \ \ \ activation\_function\_\ !=\ \textcolor{stringliteral}{"{}sigmoid"{}})\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00283}00283\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ \textcolor{keyword}{false};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00284}00284\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00285}00285\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00286}00286\ \ \ \ \ \textcolor{keywordflow}{return}\ \textcolor{keyword}{true};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00287}00287\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00288}00288\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00289}\mbox{\hyperlink{classHyperParameters_ab16fd9032185712183c137d6879eae6c}{00289}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_ab16fd9032185712183c137d6879eae6c}{HyperParameters::reset}}()\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00290}00290\ \ \ \ \ selected\_series\_ids\_.clear();}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00291}00291\ \ \ \ \ hidden\_layers\_\ =\ \{64,\ 32\};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00292}00292\ \ \ \ \ activation\_function\_\ =\ \textcolor{stringliteral}{"{}relu"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00293}00293\ \ \ \ \ lags\_.clear();}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00294}00294\ \ \ \ \ lag\_multiplier\_\ =\ \{1\};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00295}00295\ \ \ \ \ max\_lag\_multiplier\_\ =\ 10;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00296}00296\ \ \ \ \ max\_lags\_\ =\ 10;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00297}00297\ \ \ \ \ lag\_selection\_odd\_\ =\ 3;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00298}00298\ \ \ \ \ max\_number\_of\_hidden\_nodes\_\ =\ 128;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00299}00299\ \ \ \ \ max\_number\_of\_hidden\_layers\_\ =\ 5;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00300}00300\ \ \ \ \ num\_epochs\_\ =\ 100;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00301}00301\ \ \ \ \ batch\_size\_\ =\ 32;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00302}00302\ \ \ \ \ learning\_rate\_\ =\ 0.001;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00303}00303\ \ \ \ \ train\_test\_split\_\ =\ 0.8;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00304}00304\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00305}00305\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00306}00306\ \textcolor{comment}{//\ Private\ helper\ methods}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00307}00307\ \textcolor{keywordtype}{void}\ HyperParameters::validateSelectedSeriesIds(\textcolor{keyword}{const}\ std::vector<int>\&\ selected\_ids)\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00308}00308\ \ \ \ \ \textcolor{keywordflow}{if}\ (selected\_ids.empty())\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00309}00309\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}At\ least\ one\ time\ series\ must\ be\ selected."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00310}00310\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00311}00311\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00312}00312\ \ \ \ \ \textcolor{comment}{//\ Validate\ no\ duplicate\ IDs}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00313}00313\ \ \ \ \ std::vector<int>\ sorted\_ids\ =\ selected\_ids;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00314}00314\ \ \ \ \ std::sort(sorted\_ids.begin(),\ sorted\_ids.end());}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00315}00315\ \ \ \ \ \textcolor{keywordflow}{if}\ (std::adjacent\_find(sorted\_ids.begin(),\ sorted\_ids.end())\ !=\ sorted\_ids.end())\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00316}00316\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Duplicate\ time\ series\ IDs\ are\ not\ allowed."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00317}00317\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00318}00318\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00319}00319\ \ \ \ \ \textcolor{comment}{//\ Validate\ all\ IDs\ are\ non-\/negative}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00320}00320\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ \textcolor{keywordtype}{id}\ :\ selected\_ids)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00321}00321\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (\textcolor{keywordtype}{id}\ <\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00322}00322\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Time\ series\ ID\ must\ be\ non-\/negative:\ "{}}\ +\ std::to\_string(\textcolor{keywordtype}{id}));}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00323}00323\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00324}00324\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00325}00325\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00326}00326\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00327}00327\ \textcolor{keywordtype}{void}\ HyperParameters::validateHiddenLayers(\textcolor{keyword}{const}\ std::vector<int>\&\ hidden\_layers)\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00328}00328\ \ \ \ \ \textcolor{keywordflow}{if}\ (hidden\_layers.empty())\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00329}00329\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}At\ least\ one\ hidden\ layer\ must\ be\ specified."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00330}00330\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00331}00331\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00332}00332\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ nodes\ :\ hidden\_layers)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00333}00333\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (nodes\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00334}00334\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Hidden\ layer\ size\ must\ be\ positive:\ "{}}\ +\ std::to\_string(nodes));}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00335}00335\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00336}00336\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00337}00337\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00338}00338\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00339}00339\ \textcolor{keywordtype}{void}\ HyperParameters::validateActivationFunction(\textcolor{keyword}{const}\ std::string\&\ activation\_function)\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00340}00340\ \ \ \ \ \textcolor{keywordflow}{if}\ (activation\_function\ !=\ \textcolor{stringliteral}{"{}relu"{}}\ \&\&}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00341}00341\ \ \ \ \ \ \ \ \ activation\_function\ !=\ \textcolor{stringliteral}{"{}tanh"{}}\ \&\&}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00342}00342\ \ \ \ \ \ \ \ \ activation\_function\ !=\ \textcolor{stringliteral}{"{}sigmoid"{}})\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00343}00343\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Invalid\ activation\ function:\ "{}}\ +\ activation\_function\ +}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00344}00344\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{}.\ Supported:\ relu,\ tanh,\ sigmoid"{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00345}00345\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00346}00346\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00347}00347\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00348}\mbox{\hyperlink{classHyperParameters_a1e3a900610773b7727b8cd4ef5999700}{00348}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a1e3a900610773b7727b8cd4ef5999700}{HyperParameters::setMaxLags}}(\textcolor{keywordtype}{int}\ max\_lags)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00349}00349\ \ \ \ \ \textcolor{keywordflow}{if}\ (max\_lags\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00350}00350\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Max\ lags\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00351}00351\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00352}00352\ \ \ \ \ max\_lags\_\ =\ max\_lags;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00353}00353\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00354}00354\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00355}\mbox{\hyperlink{classHyperParameters_a4a5e4ec38ce45adb91f7233fd294afae}{00355}}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_a4a5e4ec38ce45adb91f7233fd294afae}{HyperParameters::getMaxLags}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00356}00356\ \ \ \ \ \textcolor{keywordflow}{return}\ max\_lags\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00357}00357\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00358}00358\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00359}\mbox{\hyperlink{classHyperParameters_aee298d046caddb715a0c420e5f5268ca}{00359}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_aee298d046caddb715a0c420e5f5268ca}{HyperParameters::setLagSelectionOdd}}(\textcolor{keywordtype}{int}\ lag\_selection\_odd)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00360}00360\ \ \ \ \ \textcolor{keywordflow}{if}\ (lag\_selection\_odd\ <=\ 1)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00361}00361\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Lag\ selection\ odd\ must\ be\ greater\ than\ 1."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00362}00362\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00363}00363\ \ \ \ \ lag\_selection\_odd\_\ =\ lag\_selection\_odd;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00364}00364\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00365}00365\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00366}\mbox{\hyperlink{classHyperParameters_add85d2d0b39397ac4b4561f6af094215}{00366}}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_add85d2d0b39397ac4b4561f6af094215}{HyperParameters::getLagSelectionOdd}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00367}00367\ \ \ \ \ \textcolor{keywordflow}{return}\ lag\_selection\_odd\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00368}00368\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00369}00369\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00370}\mbox{\hyperlink{classHyperParameters_a75cdc9ae291b860a9cb03138c56f22d2}{00370}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a75cdc9ae291b860a9cb03138c56f22d2}{HyperParameters::setLagsFromVector}}(\textcolor{keyword}{const}\ std::vector<long\ int>\&\ lag\_codes)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00371}00371\ \ \ \ \ \textcolor{keywordflow}{if}\ (lag\_codes.empty())\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00372}00372\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Lag\ codes\ vector\ cannot\ be\ empty."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00373}00373\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00374}00374\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00375}00375\ \ \ \ \ lags\_.clear();}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00376}00376\ \ \ \ \ lags\_.resize(lag\_codes.size());}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00377}00377\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00378}00378\ \ \ \ \ \textcolor{comment}{//\ Process\ each\ time\ series}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00379}00379\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ series\_idx\ =\ 0;\ series\_idx\ <\ lag\_codes.size();\ series\_idx++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00380}00380\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ code\ =\ lag\_codes[series\_idx];}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00381}00381\ \ \ \ \ \ \ \ \ std::vector<int>\ selected\_lags;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00382}00382\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00383}00383\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Check\ each\ lag\ from\ 0\ to\ max\_lags-\/1}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00384}00384\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ lag\ =\ 0;\ lag\ <\ max\_lags\_;\ lag++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00385}00385\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Convert\ to\ base\ lag\_selection\_odd\_\ and\ check\ if\ remainder\ is\ 0}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00386}00386\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ ((code\ \%\ lag\_selection\_odd\_)\ ==\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00387}00387\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ selected\_lags.push\_back(lag);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00388}00388\ \ \ \ \ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00389}00389\ \ \ \ \ \ \ \ \ \ \ \ \ code\ /=\ lag\_selection\_odd\_;\ \ \textcolor{comment}{//\ Move\ to\ next\ "{}digit"{}}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00390}00390\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00391}00391\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00392}00392\ \ \ \ \ \ \ \ \ lags\_[series\_idx]\ =\ selected\_lags;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00393}00393\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00394}00394\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00395}00395\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00396}\mbox{\hyperlink{classHyperParameters_a8cac7e74a33f2a79b51e0c93b2aee1d2}{00396}}\ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_a8cac7e74a33f2a79b51e0c93b2aee1d2}{HyperParameters::getMaxLagCode}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00397}00397\ \ \ \ \ \textcolor{keywordflow}{if}\ (max\_lags\_\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00398}00398\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Max\ lags\ must\ be\ set\ to\ a\ positive\ value."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00399}00399\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00400}00400\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00401}00401\ \ \ \ \ \textcolor{keywordflow}{if}\ (lag\_selection\_odd\_\ <=\ 1)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00402}00402\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Lag\ selection\ odd\ must\ be\ set\ to\ a\ value\ greater\ than\ 1."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00403}00403\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00404}00404\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00405}00405\ \ \ \ \ \textcolor{comment}{//\ Maximum\ code\ is\ when\ all\ lags\ are\ selected\ (remainder\ 0\ for\ all\ positions)}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00406}00406\ \ \ \ \ \textcolor{comment}{//\ This\ happens\ when\ code\ is\ 0,\ lag\_selection\_odd\_\string^1,\ lag\_selection\_odd\_\string^2,\ etc.}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00407}00407\ \ \ \ \ \textcolor{comment}{//\ The\ maximum\ useful\ value\ is\ lag\_selection\_odd\_\string^max\_lags\ -\/\ 1}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00408}00408\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_code\ =\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00409}00409\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ i\ =\ 0;\ i\ <\ max\_lags\_;\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00410}00410\ \ \ \ \ \ \ \ \ max\_code\ *=\ lag\_selection\_odd\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00411}00411\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00412}00412\ \ \ \ \ \textcolor{keywordflow}{return}\ max\_code\ -\/\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00413}00413\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00414}00414\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00415}\mbox{\hyperlink{classHyperParameters_acff0acec9550f5f1f967ed6f6d5ad1a1}{00415}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_acff0acec9550f5f1f967ed6f6d5ad1a1}{HyperParameters::setLagMultiplier}}(\textcolor{keyword}{const}\ std::vector<int>\&\ lag\_multipliers)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00416}00416\ \ \ \ \ \textcolor{keywordflow}{if}\ (lag\_multipliers.empty())\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00417}00417\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Lag\ multipliers\ vector\ cannot\ be\ empty."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00418}00418\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00419}00419\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00420}00420\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ multiplier\ :\ lag\_multipliers)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00421}00421\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (multiplier\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00422}00422\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}All\ lag\ multipliers\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00423}00423\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00424}00424\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (multiplier\ >\ max\_lag\_multiplier\_)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00425}00425\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Lag\ multiplier\ "{}}\ +\ std::to\_string(multiplier)\ +}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00426}00426\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{}\ exceeds\ maximum\ allowed\ value\ "{}}\ +\ std::to\_string(max\_lag\_multiplier\_));}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00427}00427\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00428}00428\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00429}00429\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00430}00430\ \ \ \ \ lag\_multiplier\_\ =\ lag\_multipliers;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00431}00431\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00432}00432\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00433}\mbox{\hyperlink{classHyperParameters_ae009663e377fa9b20bb6d19d794c69d7}{00433}}\ \textcolor{keyword}{const}\ std::vector<int>\&\ \mbox{\hyperlink{classHyperParameters_ae009663e377fa9b20bb6d19d794c69d7}{HyperParameters::getLagMultiplier}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00434}00434\ \ \ \ \ \textcolor{keywordflow}{return}\ lag\_multiplier\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00435}00435\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00436}00436\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00437}\mbox{\hyperlink{classHyperParameters_afa991ae193256290a14ea477526d74c7}{00437}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_afa991ae193256290a14ea477526d74c7}{HyperParameters::setMaxLagMultiplier}}(\textcolor{keywordtype}{int}\ max\_lag\_multiplier)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00438}00438\ \ \ \ \ \textcolor{keywordflow}{if}\ (max\_lag\_multiplier\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00439}00439\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Max\ lag\ multiplier\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00440}00440\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00441}00441\ \ \ \ \ max\_lag\_multiplier\_\ =\ max\_lag\_multiplier;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00442}00442\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00443}00443\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00444}\mbox{\hyperlink{classHyperParameters_afc8df8fef7859a2519cc48e7fa731d8c}{00444}}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_afc8df8fef7859a2519cc48e7fa731d8c}{HyperParameters::getMaxLagMultiplier}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00445}00445\ \ \ \ \ \textcolor{keywordflow}{return}\ max\_lag\_multiplier\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00446}00446\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00447}00447\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00448}\mbox{\hyperlink{classHyperParameters_a7ab556b1f5190e72f1ecdd2662d903a2}{00448}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a7ab556b1f5190e72f1ecdd2662d903a2}{HyperParameters::setMaxNumberOfHiddenNodes}}(\textcolor{keywordtype}{int}\ max\_nodes)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00449}00449\ \ \ \ \ \textcolor{keywordflow}{if}\ (max\_nodes\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00450}00450\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Max\ number\ of\ hidden\ nodes\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00451}00451\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00452}00452\ \ \ \ \ max\_number\_of\_hidden\_nodes\_\ =\ max\_nodes;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00453}00453\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00454}00454\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00455}\mbox{\hyperlink{classHyperParameters_a352c48c981fc336d7c0649ae67d3fffd}{00455}}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_a352c48c981fc336d7c0649ae67d3fffd}{HyperParameters::getMaxNumberOfHiddenNodes}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00456}00456\ \ \ \ \ \textcolor{keywordflow}{return}\ max\_number\_of\_hidden\_nodes\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00457}00457\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00458}00458\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00459}\mbox{\hyperlink{classHyperParameters_a2db0ba5cec313ffd6d3e57d87cda831f}{00459}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a2db0ba5cec313ffd6d3e57d87cda831f}{HyperParameters::setMaxNumberOfHiddenLayers}}(\textcolor{keywordtype}{int}\ max\_layers)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00460}00460\ \ \ \ \ \textcolor{keywordflow}{if}\ (max\_layers\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00461}00461\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Max\ number\ of\ hidden\ layers\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00462}00462\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00463}00463\ \ \ \ \ max\_number\_of\_hidden\_layers\_\ =\ max\_layers;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00464}00464\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00465}00465\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00466}\mbox{\hyperlink{classHyperParameters_aa142c5cfa6ff4af14bfe4dd4e8ff6e2a}{00466}}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_aa142c5cfa6ff4af14bfe4dd4e8ff6e2a}{HyperParameters::getMaxNumberOfHiddenLayers}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00467}00467\ \ \ \ \ \textcolor{keywordflow}{return}\ max\_number\_of\_hidden\_layers\_;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00468}00468\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00469}00469\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00470}\mbox{\hyperlink{classHyperParameters_a2099b28ac1fc3f16486966b05c9711ab}{00470}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a2099b28ac1fc3f16486966b05c9711ab}{HyperParameters::setHiddenLayersFromCode}}(\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ architecture\_code,\ \textcolor{keywordtype}{int}\ min\_nodes\_per\_layer)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00471}00471\ \ \ \ \ \textcolor{keywordflow}{if}\ (architecture\_code\ <\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00472}00472\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Architecture\ code\ must\ be\ non-\/negative."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00473}00473\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00474}00474\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00475}00475\ \ \ \ \ \textcolor{keywordflow}{if}\ (min\_nodes\_per\_layer\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00476}00476\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Minimum\ nodes\ per\ layer\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00477}00477\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00478}00478\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00479}00479\ \ \ \ \ \textcolor{keywordflow}{if}\ (min\_nodes\_per\_layer\ >\ max\_number\_of\_hidden\_nodes\_)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00480}00480\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Minimum\ nodes\ per\ layer\ cannot\ exceed\ maximum\ nodes\ per\ layer."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00481}00481\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00482}00482\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00483}00483\ \ \ \ \ \textcolor{comment}{//\ Base\ is\ max\_nodes\ +\ 1\ to\ allow\ 0\ to\ max\_nodes}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00484}00484\ \ \ \ \ \textcolor{keywordtype}{int}\ base\ =\ max\_number\_of\_hidden\_nodes\_\ +\ 1;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00485}00485\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ code\ =\ architecture\_code;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00486}00486\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00487}00487\ \ \ \ \ std::vector<int>\ temp\_layers;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00488}00488\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00489}00489\ \ \ \ \ \textcolor{comment}{//\ Extract\ up\ to\ max\_number\_of\_hidden\_layers\_\ digits}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00490}00490\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ layer\ =\ 0;\ layer\ <\ max\_number\_of\_hidden\_layers\_;\ layer++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00491}00491\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{int}\ digit\ =\ code\ \%\ base;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00492}00492\ \ \ \ \ \ \ \ \ code\ /=\ base;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00493}00493\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00494}00494\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ If\ digit\ >\ 0,\ add\ this\ layer\ (skip\ layers\ with\ 0\ nodes)}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00495}00495\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (digit\ >\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00496}00496\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Map\ digit\ 1\ to\ min\_nodes\_per\_layer,\ digit\ max\_nodes\ to\ max\_nodes}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00497}00497\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Available\ range:\ min\_nodes\_per\_layer\ to\ max\_number\_of\_hidden\_nodes\_}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00498}00498\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{int}\ range\ =\ max\_number\_of\_hidden\_nodes\_\ -\/\ min\_nodes\_per\_layer\ +\ 1;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00499}00499\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{int}\ actual\_nodes\ =\ min\_nodes\_per\_layer\ +\ ((digit\ -\/\ 1)\ \%\ range);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00500}00500\ \ \ \ \ \ \ \ \ \ \ \ \ temp\_layers.push\_back(actual\_nodes);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00501}00501\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00502}00502\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00503}00503\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ If\ code\ becomes\ 0,\ we've\ processed\ all\ meaningful\ digits}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00504}00504\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (code\ ==\ 0)\ \textcolor{keywordflow}{break};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00505}00505\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00506}00506\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00507}00507\ \ \ \ \ \textcolor{comment}{//\ Reverse\ to\ get\ correct\ layer\ order\ (first\ extracted\ =\ last\ layer)}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00508}00508\ \ \ \ \ std::reverse(temp\_layers.begin(),\ temp\_layers.end());}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00509}00509\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00510}00510\ \ \ \ \ \textcolor{comment}{//\ Ensure\ at\ least\ one\ layer\ exists}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00511}00511\ \ \ \ \ \textcolor{keywordflow}{if}\ (temp\_layers.empty())\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00512}00512\ \ \ \ \ \ \ \ \ temp\_layers.push\_back(min\_nodes\_per\_layer);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00513}00513\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00514}00514\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00515}00515\ \ \ \ \ hidden\_layers\_\ =\ temp\_layers;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00516}00516\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00517}00517\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00518}\mbox{\hyperlink{classHyperParameters_a3433d6d00e0ac89af001e2f1875ee522}{00518}}\ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_a3433d6d00e0ac89af001e2f1875ee522}{HyperParameters::getMaxArchitectureCode}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00519}00519\ \ \ \ \ \textcolor{keywordflow}{if}\ (max\_number\_of\_hidden\_layers\_\ <=\ 0\ ||\ max\_number\_of\_hidden\_nodes\_\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00520}00520\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Max\ layers\ and\ max\ nodes\ must\ be\ set\ to\ positive\ values."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00521}00521\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00522}00522\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00523}00523\ \ \ \ \ \textcolor{comment}{//\ Base\ is\ max\_nodes\ +\ 1}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00524}00524\ \ \ \ \ \textcolor{keywordtype}{int}\ base\ =\ max\_number\_of\_hidden\_nodes\_\ +\ 1;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00525}00525\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00526}00526\ \ \ \ \ \textcolor{comment}{//\ Maximum\ code\ is\ when\ all\ layers\ have\ maximum\ nodes}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00527}00527\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_code\ =\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00528}00528\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ i\ =\ 0;\ i\ <\ max\_number\_of\_hidden\_layers\_;\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00529}00529\ \ \ \ \ \ \ \ \ max\_code\ *=\ base;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00530}00530\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00531}00531\ \ \ \ \ \textcolor{keywordflow}{return}\ max\_code\ -\/\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00532}00532\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00533}00533\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00534}\mbox{\hyperlink{classHyperParameters_a0aabb6ee67c40da9fc9fef41dd78e239}{00534}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a0aabb6ee67c40da9fc9fef41dd78e239}{HyperParameters::setLagMultipliersFromCode}}(\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ multiplier\_code,\ \textcolor{keywordtype}{int}\ num\_series)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00535}00535\ \ \ \ \ \textcolor{keywordflow}{if}\ (multiplier\_code\ <\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00536}00536\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Multiplier\ code\ must\ be\ non-\/negative."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00537}00537\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00538}00538\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00539}00539\ \ \ \ \ \textcolor{keywordflow}{if}\ (num\_series\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00540}00540\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Number\ of\ series\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00541}00541\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00542}00542\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00543}00543\ \ \ \ \ \textcolor{keywordflow}{if}\ (max\_lag\_multiplier\_\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00544}00544\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Max\ lag\ multiplier\ must\ be\ set\ before\ generating\ multipliers\ from\ code."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00545}00545\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00546}00546\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00547}00547\ \ \ \ \ \textcolor{comment}{//\ Base\ is\ max\_lag\_multiplier\ +\ 1\ to\ allow\ values\ 0\ to\ max\_lag\_multiplier}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00548}00548\ \ \ \ \ \textcolor{keywordtype}{int}\ base\ =\ max\_lag\_multiplier\_\ +\ 1;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00549}00549\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ code\ =\ multiplier\_code;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00550}00550\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00551}00551\ \ \ \ \ std::vector<int>\ multipliers;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00552}00552\ \ \ \ \ multipliers.reserve(num\_series);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00553}00553\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00554}00554\ \ \ \ \ \textcolor{comment}{//\ Extract\ digits\ for\ each\ series}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00555}00555\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ i\ =\ 0;\ i\ <\ num\_series;\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00556}00556\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{int}\ digit\ =\ code\ \%\ base;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00557}00557\ \ \ \ \ \ \ \ \ code\ /=\ base;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00558}00558\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00559}00559\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Map\ digit\ 0\ to\ 1\ (minimum\ multiplier),\ digit\ max\_lag\_multiplier\ to\ max\_lag\_multiplier}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00560}00560\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{int}\ actual\_multiplier\ =\ (digit\ ==\ 0)\ ?\ 1\ :\ digit;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00561}00561\ \ \ \ \ \ \ \ \ multipliers.push\_back(actual\_multiplier);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00562}00562\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00563}00563\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00564}00564\ \ \ \ \ \textcolor{comment}{//\ Set\ the\ generated\ multipliers}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00565}00565\ \ \ \ \ lag\_multiplier\_\ =\ multipliers;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00566}00566\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00567}00567\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00568}\mbox{\hyperlink{classHyperParameters_ab1163122745d795f05fadd340f2dd97c}{00568}}\ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_ab1163122745d795f05fadd340f2dd97c}{HyperParameters::getMaxLagMultiplierCode}}(\textcolor{keywordtype}{int}\ num\_series)\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00569}00569\ \ \ \ \ \textcolor{keywordflow}{if}\ (num\_series\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00570}00570\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Number\ of\ series\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00571}00571\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00572}00572\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00573}00573\ \ \ \ \ \textcolor{keywordflow}{if}\ (max\_lag\_multiplier\_\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00574}00574\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Max\ lag\ multiplier\ must\ be\ set\ to\ calculate\ maximum\ code."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00575}00575\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00576}00576\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00577}00577\ \ \ \ \ \textcolor{comment}{//\ Base\ is\ max\_lag\_multiplier\ +\ 1}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00578}00578\ \ \ \ \ \textcolor{keywordtype}{int}\ base\ =\ max\_lag\_multiplier\_\ +\ 1;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00579}00579\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00580}00580\ \ \ \ \ \textcolor{comment}{//\ Maximum\ code\ when\ all\ series\ have\ maximum\ multiplier}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00581}00581\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_code\ =\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00582}00582\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ i\ =\ 0;\ i\ <\ num\_series;\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00583}00583\ \ \ \ \ \ \ \ \ max\_code\ *=\ base;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00584}00584\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00585}00585\ \ \ \ \ \textcolor{keywordflow}{return}\ max\_code\ -\/\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00586}00586\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00587}00587\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00588}\mbox{\hyperlink{classHyperParameters_a81e434d1f749b2b9095f8654b261e536}{00588}}\ std::vector<long\ int>\ \mbox{\hyperlink{classHyperParameters_a81e434d1f749b2b9095f8654b261e536}{HyperParameters::getOptimizationBounds}}(\textcolor{keywordtype}{int}\ num\_available\_series)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00589}00589\ \ \ \ \ \textcolor{keywordflow}{if}\ (num\_available\_series\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00590}00590\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Number\ of\ available\ series\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00591}00591\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00592}00592\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00593}00593\ \ \ \ \ \textcolor{keywordflow}{if}\ (num\_available\_series\ >\ 63)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00594}00594\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Maximum\ 63\ time\ series\ supported\ for\ optimization."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00595}00595\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00596}00596\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00597}00597\ \ \ \ \ std::vector<long\ int>\ bounds;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00598}00598\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00599}00599\ \ \ \ \ \textcolor{comment}{//\ Parameter\ 0:\ Series\ selection\ code}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00600}00600\ \ \ \ \ \textcolor{comment}{//\ Range:\ 1\ to\ 2\string^num\_available\_series\ -\/\ 1}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00601}00601\ \ \ \ \ bounds.push\_back(\mbox{\hyperlink{classHyperParameters_a368596a6412efed46da57b33100b2006}{getMaxSelectionCode}}(num\_available\_series));}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00602}00602\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00603}00603\ \ \ \ \ \textcolor{comment}{//\ Parameters\ 1\ to\ num\_available\_series:\ Lag\ codes\ for\ each\ potential\ series}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00604}00604\ \ \ \ \ \textcolor{comment}{//\ Range:\ 0\ to\ (lag\_selection\_odd\string^max\_lags\ -\/\ 1)\ for\ each\ series}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00605}00605\ \ \ \ \ \textcolor{comment}{//\ We'll\ use\ default\ values\ for\ calculation}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00606}00606\ \ \ \ \ \textcolor{keywordtype}{int}\ default\_max\_lags\ =\ 10;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00607}00607\ \ \ \ \ \textcolor{keywordtype}{int}\ default\_lag\_selection\_odd\ =\ 3;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00608}00608\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_lag\_code\ =\ \textcolor{keyword}{static\_cast<}\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\textcolor{keyword}{>}(std::pow(default\_lag\_selection\_odd,\ default\_max\_lags))\ -\/\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00609}00609\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00610}00610\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ i\ =\ 0;\ i\ <\ num\_available\_series;\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00611}00611\ \ \ \ \ \ \ \ \ bounds.push\_back(max\_lag\_code);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00612}00612\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00613}00613\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00614}00614\ \ \ \ \ \textcolor{comment}{//\ Parameter\ (num\_available\_series\ +\ 1):\ Lag\ multiplier\ code}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00615}00615\ \ \ \ \ \textcolor{comment}{//\ Range:\ 0\ to\ (max\_lag\_multiplier\ +\ 1)\string^num\_available\_series\ -\/\ 1}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00616}00616\ \ \ \ \ \textcolor{keywordtype}{int}\ default\_max\_lag\_multiplier\ =\ 10;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00617}00617\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_multiplier\_code\ =\ \textcolor{keyword}{static\_cast<}\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\textcolor{keyword}{>}(std::pow(default\_max\_lag\_multiplier\ +\ 1,\ num\_available\_series))\ -\/\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00618}00618\ \ \ \ \ bounds.push\_back(max\_multiplier\_code);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00619}00619\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00620}00620\ \ \ \ \ \textcolor{comment}{//\ Parameter\ (num\_available\_series\ +\ 2):\ Architecture\ code}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00621}00621\ \ \ \ \ \textcolor{comment}{//\ Range:\ 0\ to\ (max\_hidden\_nodes\ +\ 1)\string^max\_hidden\_layers\ -\/\ 1}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00622}00622\ \ \ \ \ \textcolor{keywordtype}{int}\ default\_max\_hidden\_nodes\ =\ 128;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00623}00623\ \ \ \ \ \textcolor{keywordtype}{int}\ default\_max\_hidden\_layers\ =\ 5;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00624}00624\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_arch\_code\ =\ \textcolor{keyword}{static\_cast<}\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\textcolor{keyword}{>}(std::pow(default\_max\_hidden\_nodes\ +\ 1,\ default\_max\_hidden\_layers))\ -\/\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00625}00625\ \ \ \ \ bounds.push\_back(max\_arch\_code);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00626}00626\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00627}00627\ \ \ \ \ \textcolor{keywordflow}{return}\ bounds;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00628}00628\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00629}00629\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00630}\mbox{\hyperlink{classHyperParameters_a56e94f6489d5e2120f3f55448aee40ea}{00630}}\ std::vector<std::string>\ \mbox{\hyperlink{classHyperParameters_a56e94f6489d5e2120f3f55448aee40ea}{HyperParameters::getOptimizationParameterNames}}(\textcolor{keywordtype}{int}\ num\_available\_series)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00631}00631\ \ \ \ \ \textcolor{keywordflow}{if}\ (num\_available\_series\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00632}00632\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Number\ of\ available\ series\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00633}00633\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00634}00634\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00635}00635\ \ \ \ \ std::vector<std::string>\ names;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00636}00636\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00637}00637\ \ \ \ \ \textcolor{comment}{//\ Series\ selection}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00638}00638\ \ \ \ \ names.push\_back(\textcolor{stringliteral}{"{}series\_selection\_code"{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00639}00639\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00640}00640\ \ \ \ \ \textcolor{comment}{//\ Lag\ codes\ for\ each\ series}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00641}00641\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ i\ =\ 0;\ i\ <\ num\_available\_series;\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00642}00642\ \ \ \ \ \ \ \ \ names.push\_back(\textcolor{stringliteral}{"{}lag\_code\_series\_"{}}\ +\ std::to\_string(i));}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00643}00643\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00644}00644\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00645}00645\ \ \ \ \ \textcolor{comment}{//\ Lag\ multiplier\ code}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00646}00646\ \ \ \ \ names.push\_back(\textcolor{stringliteral}{"{}lag\_multiplier\_code"{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00647}00647\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00648}00648\ \ \ \ \ \textcolor{comment}{//\ Architecture\ code}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00649}00649\ \ \ \ \ names.push\_back(\textcolor{stringliteral}{"{}architecture\_code"{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00650}00650\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00651}00651\ \ \ \ \ \textcolor{keywordflow}{return}\ names;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00652}00652\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00653}00653\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00654}\mbox{\hyperlink{classHyperParameters_aa5054bf5d5bacfce4fc60f077e4d1de8}{00654}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_aa5054bf5d5bacfce4fc60f077e4d1de8}{HyperParameters::setFromOptimizationParameters}}(\textcolor{keyword}{const}\ std::vector<long\ int>\&\ params,\ \textcolor{keywordtype}{int}\ num\_available\_series)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00655}00655\ \ \ \ \ \textcolor{keywordflow}{if}\ (num\_available\_series\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00656}00656\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Number\ of\ available\ series\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00657}00657\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00658}00658\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00659}00659\ \ \ \ \ \textcolor{comment}{//\ Expected\ parameter\ count:\ 1\ (series)\ +\ num\_available\_series\ (lags)\ +\ 1\ (multipliers)\ +\ 1\ (architecture)}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00660}00660\ \ \ \ \ \textcolor{keywordtype}{int}\ expected\_size\ =\ 3\ +\ num\_available\_series;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00661}00661\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00662}00662\ \ \ \ \ \textcolor{keywordflow}{if}\ (\textcolor{keyword}{static\_cast<}\textcolor{keywordtype}{int}\textcolor{keyword}{>}(params.size())\ !=\ expected\_size)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00663}00663\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Parameter\ vector\ size\ ("{}}\ +\ std::to\_string(params.size())\ +}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00664}00664\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{})\ doesn't\ match\ expected\ size\ ("{}}\ +\ std::to\_string(expected\_size)\ +}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00665}00665\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{})\ for\ "{}}\ +\ std::to\_string(num\_available\_series)\ +\ \textcolor{stringliteral}{"{}\ series."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00666}00666\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00667}00667\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00668}00668\ \ \ \ \ \textcolor{comment}{//\ Set\ default\ values\ that\ will\ be\ used\ for\ calculations}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00669}00669\ \ \ \ \ \mbox{\hyperlink{classHyperParameters_a1e3a900610773b7727b8cd4ef5999700}{setMaxLags}}(10);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00670}00670\ \ \ \ \ \mbox{\hyperlink{classHyperParameters_aee298d046caddb715a0c420e5f5268ca}{setLagSelectionOdd}}(3);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00671}00671\ \ \ \ \ \mbox{\hyperlink{classHyperParameters_afa991ae193256290a14ea477526d74c7}{setMaxLagMultiplier}}(10);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00672}00672\ \ \ \ \ \mbox{\hyperlink{classHyperParameters_a7ab556b1f5190e72f1ecdd2662d903a2}{setMaxNumberOfHiddenNodes}}(128);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00673}00673\ \ \ \ \ \mbox{\hyperlink{classHyperParameters_a2db0ba5cec313ffd6d3e57d87cda831f}{setMaxNumberOfHiddenLayers}}(5);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00674}00674\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00675}00675\ \ \ \ \ \textcolor{keywordtype}{int}\ param\_idx\ =\ 0;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00676}00676\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00677}00677\ \ \ \ \ \textcolor{comment}{//\ Parameter\ 0:\ Series\ selection}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00678}00678\ \ \ \ \ \textcolor{keywordflow}{if}\ (params[param\_idx]\ <=\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00679}00679\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Series\ selection\ code\ must\ be\ positive."{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00680}00680\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00681}00681\ \ \ \ \ \mbox{\hyperlink{classHyperParameters_a9c01f2402e2765ffb96e57f9fbf95aaf}{setSelectedSeriesFromBinary}}(params[param\_idx],\ num\_available\_series);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00682}00682\ \ \ \ \ param\_idx++;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00683}00683\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00684}00684\ \ \ \ \ \textcolor{comment}{//\ Parameters\ 1\ to\ num\_available\_series:\ Lag\ codes}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00685}00685\ \ \ \ \ std::vector<long\ int>\ lag\_codes;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00686}00686\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ i\ =\ 0;\ i\ <\ num\_available\_series;\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00687}00687\ \ \ \ \ \ \ \ \ lag\_codes.push\_back(params[param\_idx]);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00688}00688\ \ \ \ \ \ \ \ \ param\_idx++;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00689}00689\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00690}00690\ \ \ \ \ \mbox{\hyperlink{classHyperParameters_a75cdc9ae291b860a9cb03138c56f22d2}{setLagsFromVector}}(lag\_codes);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00691}00691\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00692}00692\ \ \ \ \ \textcolor{comment}{//\ Parameter\ (num\_available\_series\ +\ 1):\ Lag\ multiplier\ code}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00693}00693\ \ \ \ \ \mbox{\hyperlink{classHyperParameters_a0aabb6ee67c40da9fc9fef41dd78e239}{setLagMultipliersFromCode}}(params[param\_idx],\ num\_available\_series);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00694}00694\ \ \ \ \ param\_idx++;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00695}00695\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00696}00696\ \ \ \ \ \textcolor{comment}{//\ Parameter\ (num\_available\_series\ +\ 2):\ Architecture\ code}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00697}00697\ \ \ \ \ \mbox{\hyperlink{classHyperParameters_a2099b28ac1fc3f16486966b05c9711ab}{setHiddenLayersFromCode}}(params[param\_idx],\ 16);\ \ \textcolor{comment}{//\ Min\ 16\ nodes\ per\ layer}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00698}00698\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00699}00699\ \ \ \ \ \textcolor{comment}{//\ Set\ other\ default\ training\ parameters}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00700}00700\ \ \ \ \ setActivationFunction(\textcolor{stringliteral}{"{}relu"{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00701}00701\ \ \ \ \ setNumEpochs(100);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00702}00702\ \ \ \ \ setBatchSize(32);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00703}00703\ \ \ \ \ setLearningRate(0.001);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00704}00704\ \ \ \ \ setTrainTestSplit(0.8);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00705}00705\ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00706}00706\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00707}\mbox{\hyperlink{classHyperParameters_aff74be687d8341ca4831f2ba27aa9d55}{00707}}\ std::string\ \mbox{\hyperlink{classHyperParameters_aff74be687d8341ca4831f2ba27aa9d55}{HyperParameters::getOptimizationSpaceInfo}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00708}00708\ \ \ \ \ \textcolor{comment}{//\ Use\ the\ selected\ series\ to\ determine\ available\ series\ count}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00709}00709\ \ \ \ \ \textcolor{keywordtype}{int}\ num\_available\_series\ =\ 0;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00710}00710\ \ \ \ \ \textcolor{keywordflow}{if}\ (!selected\_series\_ids\_.empty())\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00711}00711\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Find\ the\ maximum\ series\ ID\ to\ determine\ available\ series\ count}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00712}00712\ \ \ \ \ \ \ \ \ num\_available\_series\ =\ *std::max\_element(selected\_series\_ids\_.begin(),\ selected\_series\_ids\_.end())\ +\ 1;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00713}00713\ \ \ \ \ \}\ \textcolor{keywordflow}{else}\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00714}00714\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ If\ no\ series\ selected,\ assume\ minimum\ 3\ series\ for\ calculation}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00715}00715\ \ \ \ \ \ \ \ \ num\_available\_series\ =\ 3;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00716}00716\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00717}00717\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00718}00718\ \ \ \ \ std::string\ result;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00719}00719\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}===\ Optimization\ Parameter\ Space\ ===\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00720}00720\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}Number\ of\ parameters:\ "{}}\ +\ std::to\_string(3\ +\ num\_available\_series)\ +\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00721}00721\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}Available\ time\ series:\ "{}}\ +\ std::to\_string(num\_available\_series)\ +\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00722}00722\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00723}00723\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00724}00724\ \ \ \ \ \textcolor{comment}{//\ Calculate\ bounds\ using\ actual\ configured\ values}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00725}00725\ \ \ \ \ std::vector<std::string>\ param\_names;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00726}00726\ \ \ \ \ std::vector<long\ int>\ bounds;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00727}00727\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00728}00728\ \ \ \ \ \textcolor{comment}{//\ Parameter\ 0:\ Series\ selection}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00729}00729\ \ \ \ \ param\_names.push\_back(\textcolor{stringliteral}{"{}series\_selection\_code"{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00730}00730\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_series\_code\ =\ \mbox{\hyperlink{classHyperParameters_a368596a6412efed46da57b33100b2006}{getMaxSelectionCode}}(num\_available\_series);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00731}00731\ \ \ \ \ bounds.push\_back(max\_series\_code);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00732}00732\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00733}00733\ \ \ \ \ \textcolor{comment}{//\ Parameters\ 1\ to\ num\_available\_series:\ Lag\ codes}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00734}00734\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ i\ =\ 0;\ i\ <\ num\_available\_series;\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00735}00735\ \ \ \ \ \ \ \ \ param\_names.push\_back(\textcolor{stringliteral}{"{}lag\_code\_series\_"{}}\ +\ std::to\_string(i));}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00736}00736\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_lag\_code\ =\ \textcolor{keyword}{static\_cast<}\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\textcolor{keyword}{>}(std::pow(lag\_selection\_odd\_,\ max\_lags\_))\ -\/\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00737}00737\ \ \ \ \ \ \ \ \ bounds.push\_back(max\_lag\_code);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00738}00738\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00739}00739\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00740}00740\ \ \ \ \ \textcolor{comment}{//\ Parameter\ (num\_available\_series\ +\ 1):\ Lag\ multiplier\ code}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00741}00741\ \ \ \ \ param\_names.push\_back(\textcolor{stringliteral}{"{}lag\_multiplier\_code"{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00742}00742\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_multiplier\_code\ =\ \textcolor{keyword}{static\_cast<}\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\textcolor{keyword}{>}(std::pow(max\_lag\_multiplier\_\ +\ 1,\ num\_available\_series))\ -\/\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00743}00743\ \ \ \ \ bounds.push\_back(max\_multiplier\_code);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00744}00744\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00745}00745\ \ \ \ \ \textcolor{comment}{//\ Parameter\ (num\_available\_series\ +\ 2):\ Architecture\ code}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00746}00746\ \ \ \ \ param\_names.push\_back(\textcolor{stringliteral}{"{}architecture\_code"{}});}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00747}00747\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_arch\_code\ =\ \textcolor{keyword}{static\_cast<}\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\textcolor{keyword}{>}(std::pow(max\_number\_of\_hidden\_nodes\_\ +\ 1,\ max\_number\_of\_hidden\_layers\_))\ -\/\ 1L;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00748}00748\ \ \ \ \ bounds.push\_back(max\_arch\_code);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00749}00749\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00750}00750\ \ \ \ \ \textcolor{comment}{//\ Display\ parameter\ details}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00751}00751\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ bounds.size();\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00752}00752\ \ \ \ \ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}Parameter\ "{}}\ +\ std::to\_string(i)\ +\ \textcolor{stringliteral}{"{}:\ "{}}\ +\ param\_names[i]\ +\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00753}00753\ \ \ \ \ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\ \ Range:\ 0\ to\ "{}}\ +\ std::to\_string(bounds[i])\ +\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00754}00754\ \ \ \ \ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\ \ Space\ size:\ "{}}\ +\ std::to\_string(bounds[i]\ +\ 1)\ +\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00755}00755\ \ \ \ \ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00756}00756\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00757}00757\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00758}00758\ \ \ \ \ \textcolor{comment}{//\ Calculate\ total\ combinations\ using\ logarithms\ to\ avoid\ overflow}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00759}00759\ \ \ \ \ \textcolor{keywordtype}{double}\ log\_total\ =\ 0.0;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00760}00760\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ bound\ :\ bounds)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00761}00761\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (bound\ >\ 0)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00762}00762\ \ \ \ \ \ \ \ \ \ \ \ \ log\_total\ +=\ std::log10(bound\ +\ 1);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00763}00763\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00764}00764\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00765}00765\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00766}00766\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}Configuration\ used:\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00767}00767\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\ \ Max\ lags:\ "{}}\ +\ std::to\_string(max\_lags\_)\ +\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00768}00768\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\ \ Lag\ selection\ odd:\ "{}}\ +\ std::to\_string(lag\_selection\_odd\_)\ +\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00769}00769\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\ \ Max\ lag\ multiplier:\ "{}}\ +\ std::to\_string(max\_lag\_multiplier\_)\ +\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00770}00770\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\ \ Max\ hidden\ nodes:\ "{}}\ +\ std::to\_string(max\_number\_of\_hidden\_nodes\_)\ +\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00771}00771\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\ \ Max\ hidden\ layers:\ "{}}\ +\ std::to\_string(max\_number\_of\_hidden\_layers\_)\ +\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00772}00772\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00773}00773\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00774}00774\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}Total\ configuration\ space:\ "{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00775}00775\ \ \ \ \ \textcolor{keywordflow}{if}\ (log\_total\ >\ 15)\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00776}00776\ \ \ \ \ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\string~10\string^"{}}\ +\ std::to\_string(\textcolor{keyword}{static\_cast<}\textcolor{keywordtype}{int}\textcolor{keyword}{>}(log\_total))\ +\ \textcolor{stringliteral}{"{}\ combinations\ (extremely\ large)"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00777}00777\ \ \ \ \ \}\ \textcolor{keywordflow}{else}\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00778}00778\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{double}\ total\_combinations\ =\ std::pow(10.0L,\ log\_total);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00779}00779\ \ \ \ \ \ \ \ \ std::ostringstream\ oss;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00780}00780\ \ \ \ \ \ \ \ \ oss\ <<\ std::scientific\ <<\ std::setprecision(2)\ <<\ total\_combinations;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00781}00781\ \ \ \ \ \ \ \ \ result\ +=\ oss.str()\ +\ \textcolor{stringliteral}{"{}\ combinations"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00782}00782\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00783}00783\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00784}00784\ \ \ \ \ result\ +=\ \textcolor{stringliteral}{"{}===============================\(\backslash\)n"{}};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00785}00785\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00786}00786\ \ \ \ \ \textcolor{keywordflow}{return}\ result;}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8cpp_source_l00787}00787\ \}}
+
+\end{DoxyCode}

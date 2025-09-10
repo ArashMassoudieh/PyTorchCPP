@@ -1,0 +1,5 @@
+<map id="NeuralNetworkWrapper" name="NeuralNetworkWrapper">
+<area shape="rect" id="Node000001" title="A flexible wrapper class for neural networks that inherits from torch::nn::Module." alt="" coords="5,79,163,104"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="23,5,145,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="87,44,87,79,81,79,81,44"/>
+</map>

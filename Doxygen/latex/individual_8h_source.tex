@@ -1,0 +1,81 @@
+\doxysection{/home/arash/\+Projects/\+Py\+Torch\+CPP/individual.h}
+\hypertarget{individual_8h_source}{}\label{individual_8h_source}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00001}00001\ \textcolor{preprocessor}{\#ifndef\ INDIVIDUAL\_H}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00002}00002\ \textcolor{preprocessor}{\#define\ INDIVIDUAL\_H}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00003}00003\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00004}00004\ \textcolor{preprocessor}{\#include\ <Binary.h>}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00005}00005\ \textcolor{preprocessor}{\#include\ "{}Utilities.h"{}}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00006}00006\ \textcolor{preprocessor}{\#include\ <map>}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00007}00007\ \textcolor{preprocessor}{\#include\ <vector>}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00008}00008\ \textcolor{preprocessor}{\#include\ <iostream>}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00009}00009\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00017}\mbox{\hyperlink{classIndividual}{00017}}\ \textcolor{keyword}{class\ }\mbox{\hyperlink{classIndividual}{Individual}}\ :\ \textcolor{keyword}{public}\ std::vector<BinaryNumber>\ \{}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00018}00018\ \textcolor{keyword}{public}:}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00020}\mbox{\hyperlink{classIndividual_aba744ebe9d36093e51d0c25ce471b0b2}{00020}}\ \ \ \ \ \mbox{\hyperlink{classIndividual_aba744ebe9d36093e51d0c25ce471b0b2}{Individual}}()\ =\ \textcolor{keywordflow}{default};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00021}00021\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00023}\mbox{\hyperlink{classIndividual_a742188752b96d96144ed0bbca879ff59}{00023}}\ \ \ \ \ \mbox{\hyperlink{classIndividual_a742188752b96d96144ed0bbca879ff59}{Individual}}(\textcolor{keyword}{const}\ \mbox{\hyperlink{classIndividual}{Individual}}\ \&other)\ \{}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00024}00024\ \ \ \ \ \ \ \ \ this-\/>clear();}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00025}00025\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keyword}{const}\ \textcolor{keyword}{auto}\ \&binary\ :\ other)\ this-\/>push\_back(binary);}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00026}00026\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}{fitness}}\ =\ other.\mbox{\hyperlink{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}{fitness}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00027}00027\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classIndividual_afa85095b4633c834f248634c3585664f}{fitness\_measures}}\ =\ other.\mbox{\hyperlink{classIndividual_afa85095b4633c834f248634c3585664f}{fitness\_measures}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00028}00028\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classIndividual_aadc0d2113b3245d2eca29ccc3f12f1fa}{splitlocations}}\ =\ other.\mbox{\hyperlink{classIndividual_aadc0d2113b3245d2eca29ccc3f12f1fa}{splitlocations}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00029}00029\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classIndividual_a7c924d30e81e844844660b9b3ec51a74}{rank}}\ =\ other.\mbox{\hyperlink{classIndividual_a7c924d30e81e844844660b9b3ec51a74}{rank}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00030}00030\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00031}00031\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00033}\mbox{\hyperlink{classIndividual_a354874a71786f9cc1efd5359a7534bbd}{00033}}\ \ \ \ \ \mbox{\hyperlink{classIndividual}{Individual}}\ \&\mbox{\hyperlink{classIndividual_a354874a71786f9cc1efd5359a7534bbd}{operator=}}(\textcolor{keyword}{const}\ \mbox{\hyperlink{classIndividual}{Individual}}\ \&other)\ \{}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00034}00034\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (\textcolor{keyword}{this}\ !=\ \&other)\ \{}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00035}00035\ \ \ \ \ \ \ \ \ \ \ \ \ this-\/>clear();}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00036}00036\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keyword}{const}\ \textcolor{keyword}{auto}\ \&binary\ :\ other)\ this-\/>push\_back(binary);}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00037}00037\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00038}00038\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}{fitness}}\ =\ other.\mbox{\hyperlink{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}{fitness}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00039}00039\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classIndividual_afa85095b4633c834f248634c3585664f}{fitness\_measures}}\ =\ other.\mbox{\hyperlink{classIndividual_afa85095b4633c834f248634c3585664f}{fitness\_measures}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00040}00040\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classIndividual_aadc0d2113b3245d2eca29ccc3f12f1fa}{splitlocations}}\ =\ other.\mbox{\hyperlink{classIndividual_aadc0d2113b3245d2eca29ccc3f12f1fa}{splitlocations}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00041}00041\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classIndividual_a7c924d30e81e844844660b9b3ec51a74}{rank}}\ =\ other.\mbox{\hyperlink{classIndividual_a7c924d30e81e844844660b9b3ec51a74}{rank}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00042}00042\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ *\textcolor{keyword}{this};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00043}00043\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00044}00044\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00046}\mbox{\hyperlink{classIndividual_a6fea16cd422ef4e980bc28963ad18bbd}{00046}}\ \ \ \ \ \mbox{\hyperlink{classIndividual}{Individual}}\ \&\mbox{\hyperlink{classIndividual_a6fea16cd422ef4e980bc28963ad18bbd}{operator=}}(\textcolor{keyword}{const}\ std::vector<BinaryNumber>\ \&other)\ \{}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00047}00047\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (\textcolor{keyword}{this}\ !=\ \&other)\ \{}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00048}00048\ \ \ \ \ \ \ \ \ \ \ \ \ this-\/>clear();}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00049}00049\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keyword}{const}\ \textcolor{keyword}{auto}\ \&binary\ :\ other)\ this-\/>push\_back(binary);}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00050}00050\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00051}00051\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ *\textcolor{keyword}{this};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00052}00052\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00053}00053\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00055}\mbox{\hyperlink{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}{00055}}\ \ \ \ \ \textcolor{keywordtype}{double}\ \mbox{\hyperlink{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}{fitness}}\ =\ 0;}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00056}00056\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00058}\mbox{\hyperlink{classIndividual_afa85095b4633c834f248634c3585664f}{00058}}\ \ \ \ \ std::map<std::string,double>\ \mbox{\hyperlink{classIndividual_afa85095b4633c834f248634c3585664f}{fitness\_measures}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00059}00059\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00061}\mbox{\hyperlink{classIndividual_a6a3600db501539f999b3b63464e68647}{00061}}\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classIndividual_a6a3600db501539f999b3b63464e68647}{display}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00062}00062\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Individual:\ "{}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00063}00063\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keyword}{const}\ \textcolor{keyword}{auto}\ \&binary\ :\ *\textcolor{keyword}{this})\ \{}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00064}00064\ \ \ \ \ \ \ \ \ \ \ \ \ std::cout\ <<\ binary.toDecimal()\ <<\ \textcolor{stringliteral}{"{}\ "{}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00065}00065\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00066}00066\ \ \ \ \ \ \ \ \ std::cout\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00067}00067\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00068}00068\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00070}\mbox{\hyperlink{classIndividual_aadc0d2113b3245d2eca29ccc3f12f1fa}{00070}}\ \ \ \ \ std::vector<unsigned\ int>\ \mbox{\hyperlink{classIndividual_aadc0d2113b3245d2eca29ccc3f12f1fa}{splitlocations}};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00071}00071\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00073}\mbox{\hyperlink{classIndividual_a7c924d30e81e844844660b9b3ec51a74}{00073}}\ \ \ \ \ \textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classIndividual_a7c924d30e81e844844660b9b3ec51a74}{rank}}\ =\ 0;}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00074}00074\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00076}\mbox{\hyperlink{classIndividual_a38546226a23513045f609f87b8a6a92b}{00076}}\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{classIndividual_a38546226a23513045f609f87b8a6a92b}{operator>}}(\textcolor{keyword}{const}\ \mbox{\hyperlink{classIndividual}{Individual}}\ \&I)\ \{\ \textcolor{keywordflow}{return}\ \mbox{\hyperlink{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}{fitness}}\ >\ I.\mbox{\hyperlink{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}{fitness}};\ \}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00077}00077\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00079}\mbox{\hyperlink{classIndividual_aed8522c05ac7dac694555c14a0199b67}{00079}}\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{classIndividual_aed8522c05ac7dac694555c14a0199b67}{operator<}}(\textcolor{keyword}{const}\ \mbox{\hyperlink{classIndividual}{Individual}}\ \&I)\ \{\ \textcolor{keywordflow}{return}\ \mbox{\hyperlink{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}{fitness}}\ <\ I.\mbox{\hyperlink{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}{fitness}};\ \}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00080}00080\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00085}\mbox{\hyperlink{classIndividual_aeeab018c69dcfefad7e1cd36a729f327}{00085}}\ \ \ \ \ \mbox{\hyperlink{classBinaryNumber}{BinaryNumber}}\ \mbox{\hyperlink{classIndividual_aeeab018c69dcfefad7e1cd36a729f327}{toBinary}}()\textcolor{keyword}{\ const\ }\{}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00086}00086\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classBinaryNumber}{BinaryNumber}}\ B\ =\ at(0);}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00087}00087\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ i\ =\ 1;\ i\ <\ size();\ i++)\ B\ +=\ at(i);}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00088}00088\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ B;}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00089}00089\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00090}00090\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00097}\mbox{\hyperlink{classIndividual_a3553f98b2d0a2c01f21d5e2b1b52fcf8}{00097}}\ \ \ \ \ std::string\ \mbox{\hyperlink{classIndividual_a3553f98b2d0a2c01f21d5e2b1b52fcf8}{toAssignmentText}}(\textcolor{keyword}{const}\ std::string\ \&name,\ \textcolor{keywordtype}{int}\ iterator)\ \{}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00098}00098\ \ \ \ \ \ \ \ \ std::string\ key\ =\ name\ +\ \textcolor{stringliteral}{"{}\_"{}}\ +\ aquiutils::numbertostring(iterator);}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00099}00099\ \ \ \ \ \ \ \ \ std::string\ out\ =\ key\ +\ \textcolor{stringliteral}{"{}="{}}\ +\ aquiutils::numbertostring(\mbox{\hyperlink{classIndividual_afa85095b4633c834f248634c3585664f}{fitness\_measures}}[key]);}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00100}00100\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ out;}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00101}00101\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00102}00102\ \};}
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00103}00103\ }
+\DoxyCodeLine{\Hypertarget{individual_8h_source_l00104}00104\ \textcolor{preprocessor}{\#endif\ }\textcolor{comment}{//\ INDIVIDUAL\_H}}
+
+\end{DoxyCode}

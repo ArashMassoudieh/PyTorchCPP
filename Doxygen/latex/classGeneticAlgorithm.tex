@@ -1,0 +1,277 @@
+\doxysection{Genetic\+Algorithm\texorpdfstring{$<$}{<} T \texorpdfstring{$>$}{>} Class Template Reference}
+\hypertarget{classGeneticAlgorithm}{}\label{classGeneticAlgorithm}\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+
+
+Template class implementing a Genetic Algorithm.  
+
+
+
+
+{\ttfamily \#include $<$ga.\+h$>$}
+
+
+
+Collaboration diagram for Genetic\+Algorithm\texorpdfstring{$<$}{<} T \texorpdfstring{$>$}{>}\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=206pt]{classGeneticAlgorithm__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{classGeneticAlgorithm_a5c88e1621cd3c7a41c4d93f314b03e14}{Genetic\+Algorithm}} ()
+\begin{DoxyCompactList}\small\item\em Construct a new \doxylink{classGeneticAlgorithm}{Genetic\+Algorithm} object with default settings. \end{DoxyCompactList}\item 
+T \mbox{\hyperlink{classGeneticAlgorithm_aa61a4793b783d45e828116a97ec7c5b7}{Optimize}} ()
+\begin{DoxyCompactList}\small\item\em Run the optimization process. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classGeneticAlgorithm_a4f1e87d1ccfe139917282fbcc7f52e8e}{Assign\+Fitnesses}} ()
+\begin{DoxyCompactList}\small\item\em Assign fitness values to all individuals. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classGeneticAlgorithm_a14dc60801d8c0353fb6ae02358470f57}{Initialize}} ()
+\begin{DoxyCompactList}\small\item\em Initialize the genetic algorithm. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classGeneticAlgorithm_a6583faf8c0a3b015a873a12b56604afc}{Write\+To\+File}} ()
+\begin{DoxyCompactList}\small\item\em Write current population or results to file. \end{DoxyCompactList}\item 
+std\+::vector$<$ int $>$ \mbox{\hyperlink{classGeneticAlgorithm_a2bcb94044a81924818cfa400598f8bb5}{get\+Ranks}} ()
+\begin{DoxyCompactList}\small\item\em Retrieve the rank of each individual. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classGeneticAlgorithm_ae2bccda81178aee45a79f7d7699f5242}{Cross\+Over}} ()
+\begin{DoxyCompactList}\small\item\em Perform crossover between selected individuals. \end{DoxyCompactList}\item 
+const \mbox{\hyperlink{classIndividual}{Individual}} \& \mbox{\hyperlink{classGeneticAlgorithm_a19c04f2ca03b9f732d84d24b62f930b5}{select\+Individual\+By\+Rank}} ()
+\begin{DoxyCompactList}\small\item\em Select an individual based on rank. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+vector$<$ \mbox{\hyperlink{classIndividual}{Individual}} $>$ \mbox{\hyperlink{classGeneticAlgorithm_aef7a1a5b5fef4a320a5cda1b7d2e8c80}{Individuals}}
+\begin{DoxyCompactList}\small\item\em Vector of individuals in the current population. \end{DoxyCompactList}\item 
+T \mbox{\hyperlink{classGeneticAlgorithm_a0d926d65e7ecab696d01f41fdeb14016}{model}}
+\begin{DoxyCompactList}\small\item\em The current best model. \end{DoxyCompactList}\item 
+vector$<$ T $>$ \mbox{\hyperlink{classGeneticAlgorithm_afa7e688e74b015a819453382f6b6b3cc}{models}}
+\begin{DoxyCompactList}\small\item\em Collection of all models considered during optimization. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{structGeneticAlgorithmsettings}{Genetic\+Algorithmsettings}} \mbox{\hyperlink{classGeneticAlgorithm_a8680bd594d80c1358e9d4880cb4b881d}{Settings}}
+\begin{DoxyCompactList}\small\item\em Settings used to configure this genetic algorithm instance. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+\subsubsection*{template$<$class T$>$\newline
+class Genetic\+Algorithm$<$ T $>$}
+Template class implementing a Genetic Algorithm. 
+
+This class provides a general-\/purpose implementation of a genetic algorithm for model optimization. The type parameter {\ttfamily T} typically represents the model type being optimized.
+
+
+\begin{DoxyTemplParams}{Template Parameters}
+{\em T} & Type of the model or object being optimized. \\
+\hline
+\end{DoxyTemplParams}
+
+
+Definition at line \mbox{\hyperlink{ga_8h_source_l00071}{71}} of file \mbox{\hyperlink{ga_8h_source}{ga.\+h}}.
+
+
+
+\doxysubsection{Constructor \& Destructor Documentation}
+\Hypertarget{classGeneticAlgorithm_a5c88e1621cd3c7a41c4d93f314b03e14}\label{classGeneticAlgorithm_a5c88e1621cd3c7a41c4d93f314b03e14} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!GeneticAlgorithm@{GeneticAlgorithm}}
+\index{GeneticAlgorithm@{GeneticAlgorithm}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{GeneticAlgorithm()}{GeneticAlgorithm()}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+\mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\mbox{\hyperlink{classGeneticAlgorithm}{\+::\+Genetic\+Algorithm}} (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Construct a new \doxylink{classGeneticAlgorithm}{Genetic\+Algorithm} object with default settings. 
+
+
+
+Definition at line \mbox{\hyperlink{ga_8hpp_source_l00008}{8}} of file \mbox{\hyperlink{ga_8hpp_source}{ga.\+hpp}}.
+
+
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{classGeneticAlgorithm_a4f1e87d1ccfe139917282fbcc7f52e8e}\label{classGeneticAlgorithm_a4f1e87d1ccfe139917282fbcc7f52e8e} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!AssignFitnesses@{AssignFitnesses}}
+\index{AssignFitnesses@{AssignFitnesses}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{AssignFitnesses()}{AssignFitnesses()}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+void \mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\+::\+Assign\+Fitnesses (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Assign fitness values to all individuals. 
+
+This function evaluates each individual in the population according to the chosen fitness criterion. 
+
+Definition at line \mbox{\hyperlink{ga_8hpp_source_l00087}{87}} of file \mbox{\hyperlink{ga_8hpp_source}{ga.\+hpp}}.
+
+\Hypertarget{classGeneticAlgorithm_ae2bccda81178aee45a79f7d7699f5242}\label{classGeneticAlgorithm_ae2bccda81178aee45a79f7d7699f5242} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!CrossOver@{CrossOver}}
+\index{CrossOver@{CrossOver}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{CrossOver()}{CrossOver()}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+void \mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\+::\+Cross\+Over (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Perform crossover between selected individuals. 
+
+Produces offspring by recombining selected parents, introducing diversity into the population. 
+
+Definition at line \mbox{\hyperlink{ga_8hpp_source_l00139}{139}} of file \mbox{\hyperlink{ga_8hpp_source}{ga.\+hpp}}.
+
+\Hypertarget{classGeneticAlgorithm_a2bcb94044a81924818cfa400598f8bb5}\label{classGeneticAlgorithm_a2bcb94044a81924818cfa400598f8bb5} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!getRanks@{getRanks}}
+\index{getRanks@{getRanks}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{getRanks()}{getRanks()}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+std\+::vector$<$ int $>$ \mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\+::get\+Ranks (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Retrieve the rank of each individual. 
+
+\begin{DoxyReturn}{Returns}
+std\+::vector$<$int$>$ Vector of ranks for all individuals. 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{ga_8hpp_source_l00207}{207}} of file \mbox{\hyperlink{ga_8hpp_source}{ga.\+hpp}}.
+
+\Hypertarget{classGeneticAlgorithm_a14dc60801d8c0353fb6ae02358470f57}\label{classGeneticAlgorithm_a14dc60801d8c0353fb6ae02358470f57} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!Initialize@{Initialize}}
+\index{Initialize@{Initialize}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{Initialize()}{Initialize()}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+void \mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\+::\+Initialize (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Initialize the genetic algorithm. 
+
+Prepares the initial population of individuals and sets up necessary data structures before optimization begins. 
+
+Definition at line \mbox{\hyperlink{ga_8hpp_source_l00063}{63}} of file \mbox{\hyperlink{ga_8hpp_source}{ga.\+hpp}}.
+
+\Hypertarget{classGeneticAlgorithm_aa61a4793b783d45e828116a97ec7c5b7}\label{classGeneticAlgorithm_aa61a4793b783d45e828116a97ec7c5b7} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!Optimize@{Optimize}}
+\index{Optimize@{Optimize}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{Optimize()}{Optimize()}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+T \mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\+::\+Optimize (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Run the optimization process. 
+
+Executes the genetic algorithm using the configured settings and returns the best model found.
+
+\begin{DoxyReturn}{Returns}
+T Best optimized model. 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{ga_8hpp_source_l00015}{15}} of file \mbox{\hyperlink{ga_8hpp_source}{ga.\+hpp}}.
+
+\Hypertarget{classGeneticAlgorithm_a19c04f2ca03b9f732d84d24b62f930b5}\label{classGeneticAlgorithm_a19c04f2ca03b9f732d84d24b62f930b5} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!selectIndividualByRank@{selectIndividualByRank}}
+\index{selectIndividualByRank@{selectIndividualByRank}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{selectIndividualByRank()}{selectIndividualByRank()}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+const \mbox{\hyperlink{classIndividual}{Individual}} \& \mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\+::select\+Individual\+By\+Rank (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Select an individual based on rank. 
+
+Individuals are chosen probabilistically using rank-\/based selection, favoring fitter individuals.
+
+\begin{DoxyReturn}{Returns}
+const \doxylink{classIndividual}{Individual}\& Reference to the selected individual. 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{ga_8hpp_source_l00157}{157}} of file \mbox{\hyperlink{ga_8hpp_source}{ga.\+hpp}}.
+
+\Hypertarget{classGeneticAlgorithm_a6583faf8c0a3b015a873a12b56604afc}\label{classGeneticAlgorithm_a6583faf8c0a3b015a873a12b56604afc} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!WriteToFile@{WriteToFile}}
+\index{WriteToFile@{WriteToFile}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{WriteToFile()}{WriteToFile()}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+void \mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\+::\+Write\+To\+File (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Write current population or results to file. 
+
+Uses the configured output path to save individuals’ fitnesses, models, or other relevant information. 
+
+Definition at line \mbox{\hyperlink{ga_8hpp_source_l00034}{34}} of file \mbox{\hyperlink{ga_8hpp_source}{ga.\+hpp}}.
+
+
+
+\doxysubsection{Member Data Documentation}
+\Hypertarget{classGeneticAlgorithm_aef7a1a5b5fef4a320a5cda1b7d2e8c80}\label{classGeneticAlgorithm_aef7a1a5b5fef4a320a5cda1b7d2e8c80} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!Individuals@{Individuals}}
+\index{Individuals@{Individuals}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{Individuals}{Individuals}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+vector$<$\mbox{\hyperlink{classIndividual}{Individual}}$>$ \mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\+::\+Individuals}
+
+
+
+Vector of individuals in the current population. 
+
+
+
+Definition at line \mbox{\hyperlink{ga_8h_source_l00116}{116}} of file \mbox{\hyperlink{ga_8h_source}{ga.\+h}}.
+
+\Hypertarget{classGeneticAlgorithm_a0d926d65e7ecab696d01f41fdeb14016}\label{classGeneticAlgorithm_a0d926d65e7ecab696d01f41fdeb14016} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!model@{model}}
+\index{model@{model}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{model}{model}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+T \mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\+::model}
+
+
+
+The current best model. 
+
+
+
+Definition at line \mbox{\hyperlink{ga_8h_source_l00121}{121}} of file \mbox{\hyperlink{ga_8h_source}{ga.\+h}}.
+
+\Hypertarget{classGeneticAlgorithm_afa7e688e74b015a819453382f6b6b3cc}\label{classGeneticAlgorithm_afa7e688e74b015a819453382f6b6b3cc} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!models@{models}}
+\index{models@{models}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{models}{models}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+vector$<$T$>$ \mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\+::models}
+
+
+
+Collection of all models considered during optimization. 
+
+
+
+Definition at line \mbox{\hyperlink{ga_8h_source_l00126}{126}} of file \mbox{\hyperlink{ga_8h_source}{ga.\+h}}.
+
+\Hypertarget{classGeneticAlgorithm_a8680bd594d80c1358e9d4880cb4b881d}\label{classGeneticAlgorithm_a8680bd594d80c1358e9d4880cb4b881d} 
+\index{GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}!Settings@{Settings}}
+\index{Settings@{Settings}!GeneticAlgorithm$<$ T $>$@{GeneticAlgorithm$<$ T $>$}}
+\doxysubsubsection{\texorpdfstring{Settings}{Settings}}
+{\footnotesize\ttfamily template$<$class T $>$ \\
+\mbox{\hyperlink{structGeneticAlgorithmsettings}{Genetic\+Algorithmsettings}} \mbox{\hyperlink{classGeneticAlgorithm}{Genetic\+Algorithm}}$<$ T $>$\+::\+Settings}
+
+
+
+Settings used to configure this genetic algorithm instance. 
+
+
+
+Definition at line \mbox{\hyperlink{ga_8h_source_l00131}{131}} of file \mbox{\hyperlink{ga_8h_source}{ga.\+h}}.
+
+
+
+The documentation for this class was generated from the following files\+:\begin{DoxyCompactItemize}
+\item 
+/home/arash/\+Projects/\+Py\+Torch\+CPP/ga.\+h\item 
+/home/arash/\+Projects/\+Py\+Torch\+CPP/ga.\+hpp\end{DoxyCompactItemize}

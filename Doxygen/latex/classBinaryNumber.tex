@@ -1,0 +1,439 @@
+\doxysection{Binary\+Number Class Reference}
+\hypertarget{classBinaryNumber}{}\label{classBinaryNumber}\index{BinaryNumber@{BinaryNumber}}
+
+
+Represents a binary number and provides utilities for conversion, mutation, crossover, and manipulation.  
+
+
+
+
+{\ttfamily \#include $<$Binary.\+h$>$}
+
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{classBinaryNumber_a45970e504da20711ecfc00f6c33a3c37}{Binary\+Number}} (const std\+::string \&bin="{}"{})
+\begin{DoxyCompactList}\small\item\em Construct a \doxylink{classBinaryNumber}{Binary\+Number} from a binary string. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{classBinaryNumber_a0147c36b50d0e35152f25b50ff8af342}{Binary\+Number}} (const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&other)
+\begin{DoxyCompactList}\small\item\em Copy constructor. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \& \mbox{\hyperlink{classBinaryNumber_ae62fda3c03b4006c0e838040f59b036c}{operator=}} (const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&other)
+\begin{DoxyCompactList}\small\item\em Assignment operator. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classBinaryNumber_a6c12411dd54cefaf6e91374f041b5bb6}{set\+Binary}} (const std\+::string \&bin)
+\begin{DoxyCompactList}\small\item\em Set the binary string. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classBinaryNumber_ac3ccb2fd0ed02a3054f36973cb368b40}{get\+Binary}} () const
+\begin{DoxyCompactList}\small\item\em Get the binary string. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classBinaryNumber_aa66c40d12a7e99a58febdd450661e9bb}{to\+Decimal}} () const
+\begin{DoxyCompactList}\small\item\em Convert stored binary to its decimal equivalent. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classBinaryNumber_af8cf0cfa334070355e726a70ec3ad02a}{display}} () const
+\begin{DoxyCompactList}\small\item\em Print the binary string to standard output. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \mbox{\hyperlink{classBinaryNumber_a65508a4da344014dd20dfff670ff1cfa}{operator+}} (const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&other) const
+\begin{DoxyCompactList}\small\item\em Concatenate two Binary\+Numbers. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \& \mbox{\hyperlink{classBinaryNumber_a8c7c072f9e5df62cbff6fe94108fccbf}{operator+=}} (const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&other)
+\begin{DoxyCompactList}\small\item\em Append another \doxylink{classBinaryNumber}{Binary\+Number} to this one. \end{DoxyCompactList}\item 
+std\+::vector$<$ \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} $>$ \mbox{\hyperlink{classBinaryNumber_aad531835173c51e6b65473ccc3c130ed}{split}} (const std\+::vector$<$ unsigned int $>$ \&segment\+Lengths) const
+\begin{DoxyCompactList}\small\item\em Split the binary string into segments. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classBinaryNumber_a0c3c1069f4e28c7044162b320e542a34}{fix\+Size}} (unsigned int max\+Digits)
+\begin{DoxyCompactList}\small\item\em Pad with leading zeros to reach fixed size. \end{DoxyCompactList}\item 
+unsigned int \mbox{\hyperlink{classBinaryNumber_ad8fffec57599fab299699b264cd65699}{num\+Digits}} () const
+\begin{DoxyCompactList}\small\item\em Return number of digits. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classBinaryNumber_a97d6297a9fe27164cbce940d6ce40f94}{mutate}} (unsigned int num\+Mutations=1)
+\begin{DoxyCompactList}\small\item\em Perform random mutations at specified positions. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classBinaryNumber_a5c383aa5ed87c2ffce7080f7c8bb5e3f}{mutate}} (const double \&mutation\+Probability)
+\begin{DoxyCompactList}\small\item\em Mutate each bit with given probability. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+static \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \mbox{\hyperlink{classBinaryNumber_a08451a607b79d2710b4fb9df3b96ee31}{decimal\+To\+Binary}} (int decimal)
+\begin{DoxyCompactList}\small\item\em Convert a decimal integer to a \doxylink{classBinaryNumber}{Binary\+Number}. \end{DoxyCompactList}\item 
+static int \mbox{\hyperlink{classBinaryNumber_a49650f6252bdfbc133ba2f119ea71f2b}{binary\+To\+Decimal}} (const std\+::string \&bin)
+\begin{DoxyCompactList}\small\item\em Convert a binary string to a decimal integer. \end{DoxyCompactList}\item 
+static \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \mbox{\hyperlink{classBinaryNumber_a34b78a2a1378fee42ef2faa3584680c4}{crossover}} (const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&bn1, const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&bn2)
+\begin{DoxyCompactList}\small\item\em Perform crossover between two Binary\+Numbers. \end{DoxyCompactList}\item 
+static \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \mbox{\hyperlink{classBinaryNumber_a88d3f1d628f55a71a2cf7cbc8a75336f}{random\+Binary}} (int max\+Decimal)
+\begin{DoxyCompactList}\small\item\em Generate a random \doxylink{classBinaryNumber}{Binary\+Number}. \end{DoxyCompactList}\item 
+static int \mbox{\hyperlink{classBinaryNumber_ac05afa3d202786afbadbbf46b7c8ab7b}{max\+Decimal\+For\+Binary\+Size}} (unsigned int size)
+\begin{DoxyCompactList}\small\item\em Compute maximum decimal value representable by {\ttfamily size} bits. \end{DoxyCompactList}\item 
+static unsigned int \mbox{\hyperlink{classBinaryNumber_a424b33725e8d6856f96678cb2930def2}{digits\+For\+Max\+Decimal}} (int max\+Decimal)
+\begin{DoxyCompactList}\small\item\em Determine number of digits required to represent max\+Decimal. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsubsection*{Static Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+static int \mbox{\hyperlink{classBinaryNumber_ad8b7cefbbc79c0a595fb04ff60953d11}{call\+\_\+counter}} = 0
+\begin{DoxyCompactList}\small\item\em Counter used to vary random seeds in static methods. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Represents a binary number and provides utilities for conversion, mutation, crossover, and manipulation. 
+
+A \doxylink{classBinaryNumber}{Binary\+Number} stores its value as a string of \textquotesingle{}0\textquotesingle{} and \textquotesingle{}1\textquotesingle{} characters, and provides helper functions to convert between decimal and binary, perform crossover operations, mutate bits, and split into segments. 
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00019}{19}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+
+
+\doxysubsection{Constructor \& Destructor Documentation}
+\Hypertarget{classBinaryNumber_a45970e504da20711ecfc00f6c33a3c37}\label{classBinaryNumber_a45970e504da20711ecfc00f6c33a3c37} 
+\index{BinaryNumber@{BinaryNumber}!BinaryNumber@{BinaryNumber}}
+\index{BinaryNumber@{BinaryNumber}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{BinaryNumber()}{BinaryNumber()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily Binary\+Number\+::\+Binary\+Number (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{bin = {\ttfamily "{}"{}} }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Construct a \doxylink{classBinaryNumber}{Binary\+Number} from a binary string. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em bin} & Binary string (e.\+g., "{}1011"{}). Defaults to empty string. \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00036}{36}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_a0147c36b50d0e35152f25b50ff8af342}\label{classBinaryNumber_a0147c36b50d0e35152f25b50ff8af342} 
+\index{BinaryNumber@{BinaryNumber}!BinaryNumber@{BinaryNumber}}
+\index{BinaryNumber@{BinaryNumber}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{BinaryNumber()}{BinaryNumber()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
+{\footnotesize\ttfamily Binary\+Number\+::\+Binary\+Number (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&}]{other }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Copy constructor. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em other} & \doxylink{classBinaryNumber}{Binary\+Number} to copy. \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00042}{42}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{classBinaryNumber_a49650f6252bdfbc133ba2f119ea71f2b}\label{classBinaryNumber_a49650f6252bdfbc133ba2f119ea71f2b} 
+\index{BinaryNumber@{BinaryNumber}!binaryToDecimal@{binaryToDecimal}}
+\index{binaryToDecimal@{binaryToDecimal}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{binaryToDecimal()}{binaryToDecimal()}}
+{\footnotesize\ttfamily static int Binary\+Number\+::binary\+To\+Decimal (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{bin }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [static]}}
+
+
+
+Convert a binary string to a decimal integer. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em bin} & Binary string. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Decimal integer value. 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00076}{76}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_a34b78a2a1378fee42ef2faa3584680c4}\label{classBinaryNumber_a34b78a2a1378fee42ef2faa3584680c4} 
+\index{BinaryNumber@{BinaryNumber}!crossover@{crossover}}
+\index{crossover@{crossover}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{crossover()}{crossover()}}
+{\footnotesize\ttfamily static \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} Binary\+Number\+::crossover (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&}]{bn1,  }\item[{const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&}]{bn2 }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [static]}}
+
+
+
+Perform crossover between two Binary\+Numbers. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em bn1} & First parent \doxylink{classBinaryNumber}{Binary\+Number}. \\
+\hline
+{\em bn2} & Second parent \doxylink{classBinaryNumber}{Binary\+Number}. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Offspring \doxylink{classBinaryNumber}{Binary\+Number}. 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00099}{99}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_a08451a607b79d2710b4fb9df3b96ee31}\label{classBinaryNumber_a08451a607b79d2710b4fb9df3b96ee31} 
+\index{BinaryNumber@{BinaryNumber}!decimalToBinary@{decimalToBinary}}
+\index{decimalToBinary@{decimalToBinary}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{decimalToBinary()}{decimalToBinary()}}
+{\footnotesize\ttfamily static \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} Binary\+Number\+::decimal\+To\+Binary (\begin{DoxyParamCaption}\item[{int}]{decimal }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [static]}}
+
+
+
+Convert a decimal integer to a \doxylink{classBinaryNumber}{Binary\+Number}. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em decimal} & Decimal integer. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+\doxylink{classBinaryNumber}{Binary\+Number} representation. 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00061}{61}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_a424b33725e8d6856f96678cb2930def2}\label{classBinaryNumber_a424b33725e8d6856f96678cb2930def2} 
+\index{BinaryNumber@{BinaryNumber}!digitsForMaxDecimal@{digitsForMaxDecimal}}
+\index{digitsForMaxDecimal@{digitsForMaxDecimal}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{digitsForMaxDecimal()}{digitsForMaxDecimal()}}
+{\footnotesize\ttfamily static unsigned int Binary\+Number\+::digits\+For\+Max\+Decimal (\begin{DoxyParamCaption}\item[{int}]{max\+Decimal }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [static]}}
+
+
+
+Determine number of digits required to represent max\+Decimal. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00168}{168}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_af8cf0cfa334070355e726a70ec3ad02a}\label{classBinaryNumber_af8cf0cfa334070355e726a70ec3ad02a} 
+\index{BinaryNumber@{BinaryNumber}!display@{display}}
+\index{display@{display}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{display()}{display()}}
+{\footnotesize\ttfamily void Binary\+Number\+::display (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Print the binary string to standard output. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00111}{111}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_a0c3c1069f4e28c7044162b320e542a34}\label{classBinaryNumber_a0c3c1069f4e28c7044162b320e542a34} 
+\index{BinaryNumber@{BinaryNumber}!fixSize@{fixSize}}
+\index{fixSize@{fixSize}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{fixSize()}{fixSize()}}
+{\footnotesize\ttfamily void Binary\+Number\+::fix\+Size (\begin{DoxyParamCaption}\item[{unsigned int}]{max\+Digits }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Pad with leading zeros to reach fixed size. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00179}{179}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_ac3ccb2fd0ed02a3054f36973cb368b40}\label{classBinaryNumber_ac3ccb2fd0ed02a3054f36973cb368b40} 
+\index{BinaryNumber@{BinaryNumber}!getBinary@{getBinary}}
+\index{getBinary@{getBinary}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{getBinary()}{getBinary()}}
+{\footnotesize\ttfamily std\+::string Binary\+Number\+::get\+Binary (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Get the binary string. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00088}{88}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_ac05afa3d202786afbadbbf46b7c8ab7b}\label{classBinaryNumber_ac05afa3d202786afbadbbf46b7c8ab7b} 
+\index{BinaryNumber@{BinaryNumber}!maxDecimalForBinarySize@{maxDecimalForBinarySize}}
+\index{maxDecimalForBinarySize@{maxDecimalForBinarySize}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{maxDecimalForBinarySize()}{maxDecimalForBinarySize()}}
+{\footnotesize\ttfamily static int Binary\+Number\+::max\+Decimal\+For\+Binary\+Size (\begin{DoxyParamCaption}\item[{unsigned int}]{size }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [static]}}
+
+
+
+Compute maximum decimal value representable by {\ttfamily size} bits. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00162}{162}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_a5c383aa5ed87c2ffce7080f7c8bb5e3f}\label{classBinaryNumber_a5c383aa5ed87c2ffce7080f7c8bb5e3f} 
+\index{BinaryNumber@{BinaryNumber}!mutate@{mutate}}
+\index{mutate@{mutate}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{mutate()}{mutate()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily void Binary\+Number\+::mutate (\begin{DoxyParamCaption}\item[{const double \&}]{mutation\+Probability }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Mutate each bit with given probability. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00200}{200}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_a97d6297a9fe27164cbce940d6ce40f94}\label{classBinaryNumber_a97d6297a9fe27164cbce940d6ce40f94} 
+\index{BinaryNumber@{BinaryNumber}!mutate@{mutate}}
+\index{mutate@{mutate}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{mutate()}{mutate()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
+{\footnotesize\ttfamily void Binary\+Number\+::mutate (\begin{DoxyParamCaption}\item[{unsigned int}]{num\+Mutations = {\ttfamily 1} }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Perform random mutations at specified positions. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00190}{190}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_ad8fffec57599fab299699b264cd65699}\label{classBinaryNumber_ad8fffec57599fab299699b264cd65699} 
+\index{BinaryNumber@{BinaryNumber}!numDigits@{numDigits}}
+\index{numDigits@{numDigits}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{numDigits()}{numDigits()}}
+{\footnotesize\ttfamily unsigned int Binary\+Number\+::num\+Digits (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Return number of digits. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00187}{187}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_a65508a4da344014dd20dfff670ff1cfa}\label{classBinaryNumber_a65508a4da344014dd20dfff670ff1cfa} 
+\index{BinaryNumber@{BinaryNumber}!operator+@{operator+}}
+\index{operator+@{operator+}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{operator+()}{operator+()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} Binary\+Number\+::operator+ (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&}]{other }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Concatenate two Binary\+Numbers. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00114}{114}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_a8c7c072f9e5df62cbff6fe94108fccbf}\label{classBinaryNumber_a8c7c072f9e5df62cbff6fe94108fccbf} 
+\index{BinaryNumber@{BinaryNumber}!operator+=@{operator+=}}
+\index{operator+=@{operator+=}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{operator+=()}{operator+=()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \& Binary\+Number\+::operator+= (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&}]{other }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Append another \doxylink{classBinaryNumber}{Binary\+Number} to this one. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00117}{117}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_ae62fda3c03b4006c0e838040f59b036c}\label{classBinaryNumber_ae62fda3c03b4006c0e838040f59b036c} 
+\index{BinaryNumber@{BinaryNumber}!operator=@{operator=}}
+\index{operator=@{operator=}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{operator=()}{operator=()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \& Binary\+Number\+::operator= (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \&}]{other }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Assignment operator. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em other} & \doxylink{classBinaryNumber}{Binary\+Number} to copy. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Reference to this \doxylink{classBinaryNumber}{Binary\+Number}. 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00049}{49}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_a88d3f1d628f55a71a2cf7cbc8a75336f}\label{classBinaryNumber_a88d3f1d628f55a71a2cf7cbc8a75336f} 
+\index{BinaryNumber@{BinaryNumber}!randomBinary@{randomBinary}}
+\index{randomBinary@{randomBinary}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{randomBinary()}{randomBinary()}}
+{\footnotesize\ttfamily static \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} Binary\+Number\+::random\+Binary (\begin{DoxyParamCaption}\item[{int}]{max\+Decimal }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [static]}}
+
+
+
+Generate a random \doxylink{classBinaryNumber}{Binary\+Number}. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em max\+Decimal} & Maximum decimal value to represent. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Random \doxylink{classBinaryNumber}{Binary\+Number} within \mbox{[}0, max\+Decimal\mbox{]}. 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00130}{130}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_a6c12411dd54cefaf6e91374f041b5bb6}\label{classBinaryNumber_a6c12411dd54cefaf6e91374f041b5bb6} 
+\index{BinaryNumber@{BinaryNumber}!setBinary@{setBinary}}
+\index{setBinary@{setBinary}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{setBinary()}{setBinary()}}
+{\footnotesize\ttfamily void Binary\+Number\+::set\+Binary (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{bin }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Set the binary string. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00085}{85}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_aad531835173c51e6b65473ccc3c130ed}\label{classBinaryNumber_aad531835173c51e6b65473ccc3c130ed} 
+\index{BinaryNumber@{BinaryNumber}!split@{split}}
+\index{split@{split}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{split()}{split()}}
+{\footnotesize\ttfamily std\+::vector$<$ \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} $>$ Binary\+Number\+::split (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ unsigned int $>$ \&}]{segment\+Lengths }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Split the binary string into segments. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em segment\+Lengths} & Vector of lengths for each segment. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Vector of Binary\+Numbers, each representing a segment. 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00143}{143}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+\Hypertarget{classBinaryNumber_aa66c40d12a7e99a58febdd450661e9bb}\label{classBinaryNumber_aa66c40d12a7e99a58febdd450661e9bb} 
+\index{BinaryNumber@{BinaryNumber}!toDecimal@{toDecimal}}
+\index{toDecimal@{toDecimal}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{toDecimal()}{toDecimal()}}
+{\footnotesize\ttfamily int Binary\+Number\+::to\+Decimal (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Convert stored binary to its decimal equivalent. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00091}{91}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+
+
+\doxysubsection{Member Data Documentation}
+\Hypertarget{classBinaryNumber_ad8b7cefbbc79c0a595fb04ff60953d11}\label{classBinaryNumber_ad8b7cefbbc79c0a595fb04ff60953d11} 
+\index{BinaryNumber@{BinaryNumber}!call\_counter@{call\_counter}}
+\index{call\_counter@{call\_counter}!BinaryNumber@{BinaryNumber}}
+\doxysubsubsection{\texorpdfstring{call\_counter}{call\_counter}}
+{\footnotesize\ttfamily int Binary\+Number\+::call\+\_\+counter = 0\hspace{0.3cm}{\ttfamily [inline]}, {\ttfamily [static]}}
+
+
+
+Counter used to vary random seeds in static methods. 
+
+
+
+Definition at line \mbox{\hyperlink{Binary_8h_source_l00030}{30}} of file \mbox{\hyperlink{Binary_8h_source}{Binary.\+h}}.
+
+
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+/home/arash/\+Projects/\+Py\+Torch\+CPP/Binary.\+h\end{DoxyCompactItemize}

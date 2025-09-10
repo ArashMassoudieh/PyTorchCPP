@@ -1,0 +1,142 @@
+\doxysection{/home/arash/\+Projects/\+Py\+Torch\+CPP/hyperparameters.h}
+\hypertarget{hyperparameters_8h_source}{}\label{hyperparameters_8h_source}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00001}00001\ \textcolor{comment}{//\ HyperParameters.h}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00002}00002\ \textcolor{preprocessor}{\#pragma\ once}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00003}00003\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00004}00004\ \textcolor{preprocessor}{\#include\ <vector>}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00005}00005\ \textcolor{preprocessor}{\#include\ <string>}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00006}00006\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00010}\mbox{\hyperlink{classHyperParameters}{00010}}\ \textcolor{keyword}{class\ }\mbox{\hyperlink{classHyperParameters}{HyperParameters}}\ \{}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00011}00011\ \textcolor{keyword}{public}:}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00012}00012\ \ \ \ \ \textcolor{comment}{//\ Constructors}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00013}00013\ \ \ \ \ \mbox{\hyperlink{classHyperParameters}{HyperParameters}}();}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00014}00014\ \ \ \ \ \mbox{\hyperlink{classHyperParameters}{HyperParameters}}(\textcolor{keyword}{const}\ \mbox{\hyperlink{classHyperParameters}{HyperParameters}}\&\ other)\ =\ \textcolor{keywordflow}{default};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00015}00015\ \ \ \ \ \mbox{\hyperlink{classHyperParameters}{HyperParameters}}\&\ operator=(\textcolor{keyword}{const}\ \mbox{\hyperlink{classHyperParameters}{HyperParameters}}\&\ other)\ =\ \textcolor{keywordflow}{default};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00016}00016\ \ \ \ \ \mbox{\hyperlink{classHyperParameters}{\string~HyperParameters}}()\ =\ \textcolor{keywordflow}{default};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00017}00017\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00018}00018\ \ \ \ \ \textcolor{comment}{//\ Time\ Series\ Selection}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00019}00019\ \ \ \ \ \textcolor{keyword}{const}\ std::vector<int>\&\ getSelectedSeriesIds()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00020}00020\ \ \ \ \ \textcolor{keywordtype}{void}\ setSelectedSeriesIds(\textcolor{keyword}{const}\ std::vector<int>\&\ selected\_ids);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00021}00021\ \ \ \ \ \textcolor{keywordtype}{void}\ clearSelectedSeriesIds();}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00022}00022\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00023}00023\ \ \ \ \ \textcolor{comment}{//\ Network\ Architecture}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00024}00024\ \ \ \ \ \textcolor{keyword}{const}\ std::vector<int>\&\ getHiddenLayers()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00025}00025\ \ \ \ \ \textcolor{keywordtype}{void}\ setHiddenLayers(\textcolor{keyword}{const}\ std::vector<int>\&\ hidden\_layers);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00026}00026\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00027}00027\ \ \ \ \ \textcolor{keyword}{const}\ std::string\&\ getActivationFunction()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00028}00028\ \ \ \ \ \textcolor{keywordtype}{void}\ setActivationFunction(\textcolor{keyword}{const}\ std::string\&\ activation\_function);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00029}00029\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00030}00030\ \ \ \ \ \textcolor{comment}{//\ Lag\ Configuration}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00031}00031\ \ \ \ \ \textcolor{keyword}{const}\ std::vector<std::vector<int>>\&\ getLags()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00032}00032\ \ \ \ \ \textcolor{keywordtype}{void}\ setLags(\textcolor{keyword}{const}\ std::vector<std::vector<int>>\&\ lags);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00033}00033\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00038}00038\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_acff0acec9550f5f1f967ed6f6d5ad1a1}{setLagMultiplier}}(\textcolor{keyword}{const}\ std::vector<int>\&\ lag\_multipliers);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00039}00039\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00044}00044\ \ \ \ \ \textcolor{keyword}{const}\ std::vector<int>\&\ \mbox{\hyperlink{classHyperParameters_ae009663e377fa9b20bb6d19d794c69d7}{getLagMultiplier}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00045}00045\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00050}00050\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_afa991ae193256290a14ea477526d74c7}{setMaxLagMultiplier}}(\textcolor{keywordtype}{int}\ max\_lag\_multiplier);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00051}00051\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00056}00056\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_afc8df8fef7859a2519cc48e7fa731d8c}{getMaxLagMultiplier}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00057}00057\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00058}00058\ \ \ \ \ \textcolor{comment}{//\ Training\ Parameters}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00059}00059\ \ \ \ \ \textcolor{keywordtype}{int}\ getNumEpochs()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00060}00060\ \ \ \ \ \textcolor{keywordtype}{void}\ setNumEpochs(\textcolor{keywordtype}{int}\ num\_epochs);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00061}00061\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00062}00062\ \ \ \ \ \textcolor{keywordtype}{int}\ getBatchSize()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00063}00063\ \ \ \ \ \textcolor{keywordtype}{void}\ setBatchSize(\textcolor{keywordtype}{int}\ batch\_size);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00064}00064\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00065}00065\ \ \ \ \ \textcolor{keywordtype}{double}\ getLearningRate()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00066}00066\ \ \ \ \ \textcolor{keywordtype}{void}\ setLearningRate(\textcolor{keywordtype}{double}\ learning\_rate);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00067}00067\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00068}00068\ \ \ \ \ \textcolor{comment}{//\ Data\ Configuration}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00069}00069\ \ \ \ \ \textcolor{keywordtype}{double}\ getTrainTestSplit()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00070}00070\ \ \ \ \ \textcolor{keywordtype}{void}\ setTrainTestSplit(\textcolor{keywordtype}{double}\ train\_test\_split);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00071}00071\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00072}00072\ \ \ \ \ \textcolor{comment}{//\ Utility\ Methods}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00077}00077\ \ \ \ \ std::string\ \mbox{\hyperlink{classHyperParameters_ab8ad4f0afa16f4c39ad4a1cfb8a1a7ca}{toString}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00078}00078\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00083}00083\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{classHyperParameters_a0ba1a22c19e273285315068e8b74ca11}{isValid}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00084}00084\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00088}00088\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_ab16fd9032185712183c137d6879eae6c}{reset}}();}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00089}00089\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00095}00095\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a9c01f2402e2765ffb96e57f9fbf95aaf}{setSelectedSeriesFromBinary}}(\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ selection\_code,\ \textcolor{keywordtype}{int}\ available\_series\_count);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00096}00096\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00102}00102\ \ \ \ \ \textcolor{keyword}{static}\ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_a368596a6412efed46da57b33100b2006}{getMaxSelectionCode}}(\textcolor{keywordtype}{int}\ available\_series\_count);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00103}00103\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00108}00108\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a1e3a900610773b7727b8cd4ef5999700}{setMaxLags}}(\textcolor{keywordtype}{int}\ max\_lags);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00109}00109\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00114}00114\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_a4a5e4ec38ce45adb91f7233fd294afae}{getMaxLags}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00115}00115\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00120}00120\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_aee298d046caddb715a0c420e5f5268ca}{setLagSelectionOdd}}(\textcolor{keywordtype}{int}\ lag\_selection\_odd);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00121}00121\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00126}00126\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_add85d2d0b39397ac4b4561f6af094215}{getLagSelectionOdd}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00127}00127\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00134}00134\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a75cdc9ae291b860a9cb03138c56f22d2}{setLagsFromVector}}(\textcolor{keyword}{const}\ std::vector<long\ int>\&\ lag\_codes);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00135}00135\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00142}00142\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_a8cac7e74a33f2a79b51e0c93b2aee1d2}{getMaxLagCode}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00143}00143\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00144}00144\ \ \ \ \ \textcolor{comment}{//\ Add\ to\ public\ section:}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00149}00149\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a7ab556b1f5190e72f1ecdd2662d903a2}{setMaxNumberOfHiddenNodes}}(\textcolor{keywordtype}{int}\ max\_nodes);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00150}00150\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00155}00155\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_a352c48c981fc336d7c0649ae67d3fffd}{getMaxNumberOfHiddenNodes}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00156}00156\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00161}00161\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a2db0ba5cec313ffd6d3e57d87cda831f}{setMaxNumberOfHiddenLayers}}(\textcolor{keywordtype}{int}\ max\_layers);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00162}00162\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00167}00167\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_aa142c5cfa6ff4af14bfe4dd4e8ff6e2a}{getMaxNumberOfHiddenLayers}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00168}00168\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00175}00175\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a2099b28ac1fc3f16486966b05c9711ab}{setHiddenLayersFromCode}}(\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ architecture\_code,\ \textcolor{keywordtype}{int}\ min\_nodes\_per\_layer\ =\ 1);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00176}00176\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00181}00181\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_a3433d6d00e0ac89af001e2f1875ee522}{getMaxArchitectureCode}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00182}00182\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00183}00183\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00184}00184\ \ \ \ \ \textcolor{comment}{//\ Add\ to\ public\ section:}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00191}00191\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_a0aabb6ee67c40da9fc9fef41dd78e239}{setLagMultipliersFromCode}}(\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ multiplier\_code,\ \textcolor{keywordtype}{int}\ num\_series);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00192}00192\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00198}00198\ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{classHyperParameters_ab1163122745d795f05fadd340f2dd97c}{getMaxLagMultiplierCode}}(\textcolor{keywordtype}{int}\ num\_series)\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00199}00199\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00206}00206\ \ \ \ \ \textcolor{keyword}{static}\ std::vector<long\ int>\ \mbox{\hyperlink{classHyperParameters_a81e434d1f749b2b9095f8654b261e536}{getOptimizationBounds}}(\textcolor{keywordtype}{int}\ num\_available\_series);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00207}00207\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00213}00213\ \ \ \ \ \textcolor{keyword}{static}\ std::vector<std::string>\ \mbox{\hyperlink{classHyperParameters_a56e94f6489d5e2120f3f55448aee40ea}{getOptimizationParameterNames}}(\textcolor{keywordtype}{int}\ num\_available\_series);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00214}00214\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00221}00221\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classHyperParameters_aa5054bf5d5bacfce4fc60f077e4d1de8}{setFromOptimizationParameters}}(\textcolor{keyword}{const}\ std::vector<long\ int>\&\ params,\ \textcolor{keywordtype}{int}\ num\_available\_series);}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00222}00222\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00228}00228\ \ \ \ \ std::string\ \mbox{\hyperlink{classHyperParameters_aff74be687d8341ca4831f2ba27aa9d55}{getOptimizationSpaceInfo}}()\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00229}00229\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00230}00230\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00231}00231\ \ \ \ \ \textcolor{comment}{//\ Add\ to\ HyperParameters.cpp:}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00232}00232\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00233}00233\ \textcolor{keyword}{private}:}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00234}00234\ \ \ \ \ \textcolor{comment}{//\ Time\ Series\ Selection}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00235}00235\ \ \ \ \ std::vector<int>\ selected\_series\_ids\_;\ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00236}00236\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00237}00237\ \ \ \ \ \textcolor{comment}{//\ Network\ Architecture}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00238}00238\ \ \ \ \ std::vector<int>\ hidden\_layers\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00239}00239\ \ \ \ \ std::string\ activation\_function\_;\ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00240}00240\ \ \ \ \ \textcolor{keywordtype}{int}\ max\_number\_of\_hidden\_nodes\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00241}00241\ \ \ \ \ \textcolor{keywordtype}{int}\ max\_number\_of\_hidden\_layers\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00242}00242\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00243}00243\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00244}00244\ \ \ \ \ \textcolor{comment}{//\ Lag\ Configuration}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00245}00245\ \ \ \ \ std::vector<std::vector<int>>\ lags\_;\ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00246}00246\ \ \ \ \ std::vector<int>\ lag\_multiplier\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00247}00247\ \ \ \ \ \textcolor{keywordtype}{int}\ max\_lag\_multiplier\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00248}00248\ \ \ \ \ \textcolor{keywordtype}{int}\ max\_lags\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00249}00249\ \ \ \ \ \textcolor{keywordtype}{int}\ lag\_selection\_odd\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00250}00250\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00251}00251\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00252}00252\ \ \ \ \ \textcolor{comment}{//\ Training\ Parameters}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00253}00253\ \ \ \ \ \textcolor{keywordtype}{int}\ num\_epochs\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00254}00254\ \ \ \ \ \textcolor{keywordtype}{int}\ batch\_size\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00255}00255\ \ \ \ \ \textcolor{keywordtype}{double}\ learning\_rate\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00256}00256\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00257}00257\ \ \ \ \ \textcolor{comment}{//\ Data\ Configuration}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00258}00258\ \ \ \ \ \textcolor{keywordtype}{double}\ train\_test\_split\_;\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00259}00259\ }
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00260}00260\ \ \ \ \ \textcolor{comment}{//\ Private\ helper\ methods}}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00261}00261\ \ \ \ \ \textcolor{keywordtype}{void}\ validateSelectedSeriesIds(\textcolor{keyword}{const}\ std::vector<int>\&\ selected\_ids)\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00262}00262\ \ \ \ \ \textcolor{keywordtype}{void}\ validateHiddenLayers(\textcolor{keyword}{const}\ std::vector<int>\&\ hidden\_layers)\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00263}00263\ \ \ \ \ \textcolor{keywordtype}{void}\ validateActivationFunction(\textcolor{keyword}{const}\ std::string\&\ activation\_function)\ \textcolor{keyword}{const};}
+\DoxyCodeLine{\Hypertarget{hyperparameters_8h_source_l00264}00264\ \};}
+
+\end{DoxyCode}

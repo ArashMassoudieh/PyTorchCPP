@@ -1,0 +1,69 @@
+\doxysection{/home/arash/\+Projects/\+Py\+Torch\+CPP/ga.h}
+\hypertarget{ga_8h_source}{}\label{ga_8h_source}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00001}00001\ \textcolor{preprocessor}{\#ifndef\ GeneticAlgorithm\_H}}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00002}00002\ \textcolor{preprocessor}{\#define\ GeneticAlgorithm\_H}}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00003}00003\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00004}00004\ \textcolor{preprocessor}{\#include\ <vector>}}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00005}00005\ \textcolor{preprocessor}{\#include\ <string>}}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00006}00006\ \textcolor{preprocessor}{\#include\ <fstream>}}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00007}00007\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00008}00008\ \textcolor{preprocessor}{\#include\ "{}Binary.h"{}}}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00009}00009\ \textcolor{preprocessor}{\#include\ "{}individual.h"{}}}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00010}00010\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00018}\mbox{\hyperlink{structGeneticAlgorithmsettings}{00018}}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structGeneticAlgorithmsettings}{GeneticAlgorithmsettings}}}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00019}00019\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00025}\mbox{\hyperlink{structGeneticAlgorithmsettings_af806800bfe261718de7ec1c7ef78ae86}{00025}}\ \ \ \ \ \textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{structGeneticAlgorithmsettings_af806800bfe261718de7ec1c7ef78ae86}{totalpopulation}}\ =\ 40;}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00026}00026\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00032}\mbox{\hyperlink{structGeneticAlgorithmsettings_aaa92cd56048270894c64545a133ded92}{00032}}\ \ \ \ \ \textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{structGeneticAlgorithmsettings_aaa92cd56048270894c64545a133ded92}{generations}}\ =\ 100;}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00033}00033\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00039}\mbox{\hyperlink{structGeneticAlgorithmsettings_a7a6d16b15ec20de702b9b81bacfbcaf6}{00039}}\ \ \ \ \ \textcolor{keywordtype}{double}\ \mbox{\hyperlink{structGeneticAlgorithmsettings_a7a6d16b15ec20de702b9b81bacfbcaf6}{mutation\_probability}}\ =\ 0.05;}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00040}00040\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00046}\mbox{\hyperlink{structGeneticAlgorithmsettings_a0bace747423a99274070490923f96295}{00046}}\ \ \ \ \ std::string\ \mbox{\hyperlink{structGeneticAlgorithmsettings_a0bace747423a99274070490923f96295}{outputpath}}\ =\ \textcolor{stringliteral}{"{}"{}};}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00047}00047\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00056}\mbox{\hyperlink{structGeneticAlgorithmsettings_aa9def52bc638bdf5824793c7d61d53b6}{00056}}\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{structGeneticAlgorithmsettings_aa9def52bc638bdf5824793c7d61d53b6}{MSE\_optimization}}\ =\ \textcolor{keyword}{true};}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00057}00057\ \};}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00058}00058\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00059}00059\ \textcolor{keyword}{using\ namespace\ }std;}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00060}00060\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00070}00070\ \textcolor{keyword}{template}<\textcolor{keyword}{class}\ T>}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00071}\mbox{\hyperlink{classGeneticAlgorithm}{00071}}\ \textcolor{keyword}{class\ }\mbox{\hyperlink{classGeneticAlgorithm}{GeneticAlgorithm}}}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00072}00072\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00073}00073\ \textcolor{keyword}{public}:}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00077}00077\ \ \ \ \ \mbox{\hyperlink{classGeneticAlgorithm_a5c88e1621cd3c7a41c4d93f314b03e14}{GeneticAlgorithm}}();}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00078}00078\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00087}00087\ \ \ \ \ T\ \mbox{\hyperlink{classGeneticAlgorithm_aa61a4793b783d45e828116a97ec7c5b7}{Optimize}}();}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00088}00088\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00095}00095\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classGeneticAlgorithm_a4f1e87d1ccfe139917282fbcc7f52e8e}{AssignFitnesses}}();}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00096}00096\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00103}00103\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classGeneticAlgorithm_a14dc60801d8c0353fb6ae02358470f57}{Initialize}}();}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00104}00104\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00111}00111\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classGeneticAlgorithm_a6583faf8c0a3b015a873a12b56604afc}{WriteToFile}}();}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00112}00112\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00116}\mbox{\hyperlink{classGeneticAlgorithm_aef7a1a5b5fef4a320a5cda1b7d2e8c80}{00116}}\ \ \ \ \ vector<Individual>\ \mbox{\hyperlink{classGeneticAlgorithm_aef7a1a5b5fef4a320a5cda1b7d2e8c80}{Individuals}};}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00117}00117\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00121}\mbox{\hyperlink{classGeneticAlgorithm_a0d926d65e7ecab696d01f41fdeb14016}{00121}}\ \ \ \ \ T\ \mbox{\hyperlink{classGeneticAlgorithm_a0d926d65e7ecab696d01f41fdeb14016}{model}};}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00122}00122\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00126}\mbox{\hyperlink{classGeneticAlgorithm_afa7e688e74b015a819453382f6b6b3cc}{00126}}\ \ \ \ \ vector<T>\ \mbox{\hyperlink{classGeneticAlgorithm_afa7e688e74b015a819453382f6b6b3cc}{models}};}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00127}00127\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00131}\mbox{\hyperlink{classGeneticAlgorithm_a8680bd594d80c1358e9d4880cb4b881d}{00131}}\ \ \ \ \ \mbox{\hyperlink{structGeneticAlgorithmsettings}{GeneticAlgorithmsettings}}\ \mbox{\hyperlink{classGeneticAlgorithm_a8680bd594d80c1358e9d4880cb4b881d}{Settings}};}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00132}00132\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00138}00138\ \ \ \ \ std::vector<int>\ \mbox{\hyperlink{classGeneticAlgorithm_a2bcb94044a81924818cfa400598f8bb5}{getRanks}}();}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00139}00139\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00146}00146\ \ \ \ \ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classGeneticAlgorithm_ae2bccda81178aee45a79f7d7699f5242}{CrossOver}}();}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00147}00147\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00156}00156\ \ \ \ \ \textcolor{keyword}{const}\ \mbox{\hyperlink{classIndividual}{Individual}}\&\ \mbox{\hyperlink{classGeneticAlgorithm_a19c04f2ca03b9f732d84d24b62f930b5}{selectIndividualByRank}}();}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00157}00157\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00158}00158\ \textcolor{keyword}{private}:}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00162}00162\ \ \ \ \ \textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ max\_rank\ =\ 0;}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00163}00163\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00167}00167\ \ \ \ \ std::ofstream\ file;}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00168}00168\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00172}00172\ \ \ \ \ \textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ current\_generation\ =\ 0;}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00173}00173\ \};}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00174}00174\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00175}00175\ \textcolor{preprocessor}{\#include\ "{}ga.hpp"{}}}
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00176}00176\ }
+\DoxyCodeLine{\Hypertarget{ga_8h_source_l00177}00177\ \textcolor{preprocessor}{\#endif\ }\textcolor{comment}{//\ GeneticAlgorithm\_H}}
+
+\end{DoxyCode}

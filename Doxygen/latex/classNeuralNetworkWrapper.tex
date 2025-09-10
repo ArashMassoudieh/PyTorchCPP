@@ -1,0 +1,928 @@
+\doxysection{Neural\+Network\+Wrapper Class Reference}
+\hypertarget{classNeuralNetworkWrapper}{}\label{classNeuralNetworkWrapper}\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+
+
+A flexible wrapper class for neural networks that inherits from torch\+::nn\+::\+Module.  
+
+
+
+
+{\ttfamily \#include $<$neuralnetworkwrapper.\+h$>$}
+
+
+
+Inheritance diagram for Neural\+Network\+Wrapper\+:\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=198pt]{classNeuralNetworkWrapper__inherit__graph}
+\end{center}
+\end{figure}
+
+
+Collaboration diagram for Neural\+Network\+Wrapper\+:\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=198pt]{classNeuralNetworkWrapper__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\Hypertarget{classNeuralNetworkWrapper_a20cd7cf5364979c0b8715a547713767c}\label{classNeuralNetworkWrapper_a20cd7cf5364979c0b8715a547713767c} 
+{\bfseries Neural\+Network\+Wrapper} (const \mbox{\hyperlink{classNeuralNetworkWrapper}{Neural\+Network\+Wrapper}} \&other)=delete
+\item 
+\Hypertarget{classNeuralNetworkWrapper_a015a02a2ec22e039a0549ee6565cd68a}\label{classNeuralNetworkWrapper_a015a02a2ec22e039a0549ee6565cd68a} 
+\mbox{\hyperlink{classNeuralNetworkWrapper}{Neural\+Network\+Wrapper}} \& {\bfseries operator=} (const \mbox{\hyperlink{classNeuralNetworkWrapper}{Neural\+Network\+Wrapper}} \&other)=delete
+\item 
+\Hypertarget{classNeuralNetworkWrapper_a9be6b994a7a0c4fb00ea5e7347c9d753}\label{classNeuralNetworkWrapper_a9be6b994a7a0c4fb00ea5e7347c9d753} 
+{\bfseries Neural\+Network\+Wrapper} (\mbox{\hyperlink{classNeuralNetworkWrapper}{Neural\+Network\+Wrapper}} \&\&other)=default
+\item 
+\Hypertarget{classNeuralNetworkWrapper_ad98a462beb5218442113d9d3175c152d}\label{classNeuralNetworkWrapper_ad98a462beb5218442113d9d3175c152d} 
+\mbox{\hyperlink{classNeuralNetworkWrapper}{Neural\+Network\+Wrapper}} \& {\bfseries operator=} (\mbox{\hyperlink{classNeuralNetworkWrapper}{Neural\+Network\+Wrapper}} \&\&other)=default
+\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_aed037c3b3dd03fc998d934aad8d21bf8}{initialize\+Network}} (int output\+\_\+size, const std\+::string \&activation\+\_\+function="{}relu"{})
+\begin{DoxyCompactList}\small\item\em Initialize the network with specified architecture. Uses member variables lags\+\_\+ and hidden\+\_\+layers\+\_\+ to determine input size and hidden architecture. \end{DoxyCompactList}\item 
+torch\+::\+Tensor \mbox{\hyperlink{classNeuralNetworkWrapper_a992020cb61851beb64ccf2318c95c1fd}{forward}} (Data\+Type data\+\_\+type)
+\begin{DoxyCompactList}\small\item\em Forward pass through the network using stored data. \end{DoxyCompactList}\item 
+std\+::vector$<$ double $>$ \mbox{\hyperlink{classNeuralNetworkWrapper_a4bf1f4e72f6c108fe96387b5fb820c31}{train}} (int num\+\_\+epochs, int batch\+\_\+size=32, double learning\+\_\+rate=0.\+001)
+\begin{DoxyCompactList}\small\item\em Train the network using stored training data. \end{DoxyCompactList}\item 
+std\+::map$<$ std\+::string, double $>$ \mbox{\hyperlink{classNeuralNetworkWrapper_a18dd882655d839239c7e17cb2bfed697}{evaluate}} (const torch\+::\+Tensor \&test\+\_\+inputs, const torch\+::\+Tensor \&test\+\_\+targets)
+\begin{DoxyCompactList}\small\item\em Evaluate the network on test data. \end{DoxyCompactList}\item 
+std\+::map$<$ std\+::string, double $>$ \mbox{\hyperlink{classNeuralNetworkWrapper_ac2795053e7bc2acb73c2d81298369663}{evaluate}} ()
+\begin{DoxyCompactList}\small\item\em Evaluate the network using internally stored test data. \end{DoxyCompactList}\item 
+Time\+Series\+Set$<$ double $>$ \mbox{\hyperlink{classNeuralNetworkWrapper_a2b961e95cce66deba3031c52cfa40d54}{predict}} (Data\+Type data\+\_\+type, double t\+\_\+start, double t\+\_\+end, double dt, const std\+::vector$<$ std\+::string $>$ \&output\+\_\+names=\{\})
+\begin{DoxyCompactList}\small\item\em Make predictions and return results as Time\+Series\+Set. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_a55b403d997f072ff81670c43206077cb}{save\+Model}} (const std\+::string \&filepath)
+\begin{DoxyCompactList}\small\item\em Save the model to a file. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_a8a16794d39d68a8931e934bbab1baa9d}{load\+Model}} (const std\+::string \&filepath)
+\begin{DoxyCompactList}\small\item\em Load a model from a file. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classNeuralNetworkWrapper_a2188c94d66427f7209cfcf510162d43d}{get\+Total\+Parameters}} () const
+\begin{DoxyCompactList}\small\item\em Get the total number of trainable parameters. \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{classNeuralNetworkWrapper_a627ea1f1d275442cf67a906f7c225aee}{get\+Current\+Loss}} () const
+\begin{DoxyCompactList}\small\item\em Get the current loss value. \end{DoxyCompactList}\item 
+std\+::vector$<$ double $>$ \mbox{\hyperlink{classNeuralNetworkWrapper_a4f51e57d7a48f32712d211814718e547}{get\+Training\+History}} () const
+\begin{DoxyCompactList}\small\item\em Get training history. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classNeuralNetworkWrapper_ad8f4b049aec402d3019a3ffa2950329b}{is\+Initialized}} () const
+\begin{DoxyCompactList}\small\item\em Check if the network is initialized. \end{DoxyCompactList}\item 
+const std\+::vector$<$ std\+::vector$<$ int $>$ $>$ \& \mbox{\hyperlink{classNeuralNetworkWrapper_a79433e208ba38d98769b62ab03adafb8}{get\+Lags}} () const
+\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_ab1237986ed1ab36a4a8f242a67a2258f}{set\+Lags}} (const std\+::vector$<$ std\+::vector$<$ int $>$ $>$ \&lags)
+\item 
+const std\+::vector$<$ int $>$ \& \mbox{\hyperlink{classNeuralNetworkWrapper_abf048582b788f28166256f18e092310d}{get\+Hidden\+Layers}} () const
+\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_a201221b5339eb3d029485a3c0366d863}{set\+Hidden\+Layers}} (const std\+::vector$<$ int $>$ \&hidden\+\_\+layers)
+\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_a77fe4d5e4246606e1454e2fe88cf0957}{clear}} ()
+\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_a621132e2f718b511835a146c5a937b5e}{set\+Input\+Data}} (Data\+Type data\+\_\+type, const Time\+Series\+Set$<$ double $>$ \&time\+\_\+series\+\_\+set, double t\+\_\+start, double t\+\_\+end, double dt)
+\begin{DoxyCompactList}\small\item\em Set input data from Time\+Series\+Set using lag configuration. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_a4c9705bef9d12eff06f73916bf3f8aba}{set\+Target\+Data}} (Data\+Type data\+\_\+type, const Time\+Series\+Set$<$ double $>$ \&time\+\_\+series\+\_\+set, const std\+::vector$<$ int $>$ \&output\+\_\+indices, double t\+\_\+start, double t\+\_\+end, double dt)
+\begin{DoxyCompactList}\small\item\em Set output data from multiple Time\+Series columns. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_aeb79d3e720d78b767060cc87616b67e4}{set\+Target\+Data}} (Data\+Type data\+\_\+type, const Time\+Series$<$ double $>$ \&output\+\_\+series, double t\+\_\+start, double t\+\_\+end, double dt)
+\begin{DoxyCompactList}\small\item\em Set output data from a single Time\+Series. \end{DoxyCompactList}\item 
+const torch\+::\+Tensor \& \mbox{\hyperlink{classNeuralNetworkWrapper_a3bcf431b2b241ac7bddd9ed4ec4512a2}{get\+Input\+Data}} (Data\+Type data\+\_\+type) const
+\begin{DoxyCompactList}\small\item\em Get input data tensor for specified data type. \end{DoxyCompactList}\item 
+const torch\+::\+Tensor \& \mbox{\hyperlink{classNeuralNetworkWrapper_ada0713efa958bfe5cf04e0dac8a9d8bd}{get\+Target\+Data}} (Data\+Type data\+\_\+type) const
+\begin{DoxyCompactList}\small\item\em Get output data tensor for specified data type. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classNeuralNetworkWrapper_a1543fa06d2e747d9a5558176597b9a3b}{has\+Input\+Data}} (Data\+Type data\+\_\+type) const
+\begin{DoxyCompactList}\small\item\em Check if input data is available for specified data type. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classNeuralNetworkWrapper_a647575c8e16926a00bab9129c0d7171d}{has\+Target\+Data}} (Data\+Type data\+\_\+type) const
+\begin{DoxyCompactList}\small\item\em Check if output data is available for specified data type. \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{classNeuralNetworkWrapper_a30fc317f9a1ac1524e93677d0b9a40d7}{calculate\+R2}} (Data\+Type data\+\_\+type)
+\begin{DoxyCompactList}\small\item\em Calculate R² (coefficient of determination) for specified data type. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_aff0643d3ad87f5d1822aecec00fdd6bf}{set\+Original\+Series\+Names}} (const std\+::vector$<$ std\+::string $>$ \&series\+\_\+names)
+\begin{DoxyCompactList}\small\item\em Set the names of the original Time\+Series for feature naming. \end{DoxyCompactList}\item 
+const std\+::vector$<$ std\+::string $>$ \& \mbox{\hyperlink{classNeuralNetworkWrapper_a7f69e8db0a9c794c3638626b59a8fb73}{get\+Original\+Series\+Names}} () const
+\begin{DoxyCompactList}\small\item\em Get the names of the original Time\+Series. \end{DoxyCompactList}\item 
+std\+::vector$<$ std\+::string $>$ \mbox{\hyperlink{classNeuralNetworkWrapper_a44a597c01e69a5869dbb21e6d836ac3e}{generate\+Input\+Feature\+Names}} () const
+\begin{DoxyCompactList}\small\item\em Generate feature names for lag-\/based input data. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classNeuralNetworkWrapper_abd09422816be70a899ee9ed51c63a387}{parameters\+To\+String}} () const
+\begin{DoxyCompactList}\small\item\em Generate a string representation of the network parameters and configuration. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_ab4018ae8e77221799a6221481185412d}{initialize\+Network}} (\mbox{\hyperlink{classHyperParameters}{Hyper\+Parameters}} \texorpdfstring{$\ast$}{*}hyperparams, int output\+\_\+size)
+\begin{DoxyCompactList}\small\item\em Initialize the network using \doxylink{classHyperParameters}{Hyper\+Parameters} configuration. Uses the \doxylink{classHyperParameters}{Hyper\+Parameters} object to set up the complete network architecture, lag configuration, and other settings. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_a3ea7dcb24519463207ba3bbc49c01562}{set\+Input\+Data\+From\+Hyper\+Params}} (Data\+Type data\+\_\+type, const Time\+Series\+Set$<$ double $>$ \&time\+\_\+series\+\_\+set, double t\+\_\+start, double t\+\_\+end, double dt)
+\begin{DoxyCompactList}\small\item\em Create input data tensor from Time\+Series\+Set using \doxylink{classHyperParameters}{Hyper\+Parameters} configuration. Uses the selected series and lag configuration from hyperparameters to create the input tensor for training or testing. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\begin{Indent}\textbf{ Genetic Algorithm Interface}\par
+\begin{DoxyCompactItemize}
+\item 
+int \mbox{\hyperlink{classNeuralNetworkWrapper_a9ce3dbc3b0e8b082b8bd8a6093315b93}{Parameters\+Size}} () const
+\begin{DoxyCompactList}\small\item\em Get number of optimization parameters for GA. \end{DoxyCompactList}\item 
+long int \mbox{\hyperlink{classNeuralNetworkWrapper_a2841ccb095e6d0ebf43f0cf3f5c473f3}{Max\+Parameter}} (int index) const
+\begin{DoxyCompactList}\small\item\em Get maximum value for a specific parameter index. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_acd3f177412b61d7af4f313d730c8005c}{Assign\+Parameters}} (const std\+::vector$<$ unsigned long int $>$ \&parameters)
+\begin{DoxyCompactList}\small\item\em Configure hyperparameters from GA chromosome. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_a68ed95d39999578a72adc921897351ee}{Create\+Model}} ()
+\begin{DoxyCompactList}\small\item\em Create and initialize the neural network model. Must be called after \doxylink{classNeuralNetworkWrapper_acd3f177412b61d7af4f313d730c8005c}{Assign\+Parameters()} and data configuration. \end{DoxyCompactList}\item 
+std\+::map$<$ std\+::string, double $>$ \mbox{\hyperlink{classNeuralNetworkWrapper_a9134e5d00e03044b5cc0955bae57ab97}{Fitness}} ()
+\begin{DoxyCompactList}\small\item\em Train network and return fitness metrics. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_a5ba9c0e574594be331b204dee96868de}{set\+Time\+Series\+Data}} (const Time\+Series\+Set$<$ double $>$ \&input\+\_\+data, const Time\+Series$<$ double $>$ \&target\+\_\+data)
+\begin{DoxyCompactList}\small\item\em Configure time series data for training/testing. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_acbdf59764f04ebf1765dc9e0d86c0dcd}{set\+Time\+Range}} (double t\+\_\+start, double t\+\_\+end, double dt, double split\+\_\+ratio=0.\+8)
+\begin{DoxyCompactList}\small\item\em Configure time range and data split for training/testing. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classNeuralNetworkWrapper_ad5d25ccb4c2ba78e1821c500b203c392}{set\+Available\+Series\+Count}} (int count)
+\begin{DoxyCompactList}\small\item\em Set number of available time series for optimization bounds. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\end{Indent}
+
+
+\doxysubsection{Detailed Description}
+A flexible wrapper class for neural networks that inherits from torch\+::nn\+::\+Module. 
+
+This class provides a convenient interface for creating, training, and using neural networks with Py\+Torch C++. It encapsulates common neural network operations and provides easy-\/to-\/use methods for training and inference. 
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8h_source_l00029}{29}} of file \mbox{\hyperlink{neuralnetworkwrapper_8h_source}{neuralnetworkwrapper.\+h}}.
+
+
+
+\doxysubsection{Constructor \& Destructor Documentation}
+\Hypertarget{classNeuralNetworkWrapper_ac1cd8f759624a5e38ac480f47451c5b4}\label{classNeuralNetworkWrapper_ac1cd8f759624a5e38ac480f47451c5b4} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{NeuralNetworkWrapper()}{NeuralNetworkWrapper()}}
+{\footnotesize\ttfamily Neural\+Network\+Wrapper\+::\+Neural\+Network\+Wrapper (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00009}{9}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a60a92157d74e591d537d152be6657abe}\label{classNeuralNetworkWrapper_a60a92157d74e591d537d152be6657abe} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!````~NeuralNetworkWrapper@{\texorpdfstring{$\sim$}{\string~}NeuralNetworkWrapper}}
+\index{````~NeuralNetworkWrapper@{\texorpdfstring{$\sim$}{\string~}NeuralNetworkWrapper}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{\texorpdfstring{$\sim$}{\string~}NeuralNetworkWrapper()}{\string~NeuralNetworkWrapper()}}
+{\footnotesize\ttfamily Neural\+Network\+Wrapper\+::\texorpdfstring{$\sim$}{\string~}\+Neural\+Network\+Wrapper (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00037}{37}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{classNeuralNetworkWrapper_acd3f177412b61d7af4f313d730c8005c}\label{classNeuralNetworkWrapper_acd3f177412b61d7af4f313d730c8005c} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!AssignParameters@{AssignParameters}}
+\index{AssignParameters@{AssignParameters}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{AssignParameters()}{AssignParameters()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::\+Assign\+Parameters (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ unsigned long int $>$ \&}]{parameters }\end{DoxyParamCaption})}
+
+
+
+Configure hyperparameters from GA chromosome. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em parameters} & Vector of parameter values from GA \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l01089}{1089}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a30fc317f9a1ac1524e93677d0b9a40d7}\label{classNeuralNetworkWrapper_a30fc317f9a1ac1524e93677d0b9a40d7} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!calculateR2@{calculateR2}}
+\index{calculateR2@{calculateR2}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{calculateR2()}{calculateR2()}}
+{\footnotesize\ttfamily double Neural\+Network\+Wrapper\+::calculate\+R2 (\begin{DoxyParamCaption}\item[{Data\+Type}]{data\+\_\+type }\end{DoxyParamCaption})}
+
+
+
+Calculate R² (coefficient of determination) for specified data type. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em data\+\_\+type} & Specify whether to calculate for training or test data \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+R² value 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00779}{779}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a77fe4d5e4246606e1454e2fe88cf0957}\label{classNeuralNetworkWrapper_a77fe4d5e4246606e1454e2fe88cf0957} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!clear@{clear}}
+\index{clear@{clear}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{clear()}{clear()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::clear (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00020}{20}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a68ed95d39999578a72adc921897351ee}\label{classNeuralNetworkWrapper_a68ed95d39999578a72adc921897351ee} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!CreateModel@{CreateModel}}
+\index{CreateModel@{CreateModel}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{CreateModel()}{CreateModel()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::\+Create\+Model (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Create and initialize the neural network model. Must be called after \doxylink{classNeuralNetworkWrapper_acd3f177412b61d7af4f313d730c8005c}{Assign\+Parameters()} and data configuration. 
+
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l01105}{1105}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_ac2795053e7bc2acb73c2d81298369663}\label{classNeuralNetworkWrapper_ac2795053e7bc2acb73c2d81298369663} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!evaluate@{evaluate}}
+\index{evaluate@{evaluate}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{evaluate()}{evaluate()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily std\+::map$<$ std\+::string, double $>$ Neural\+Network\+Wrapper\+::evaluate (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Evaluate the network using internally stored test data. 
+
+\begin{DoxyReturn}{Returns}
+Dictionary of evaluation metrics 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00923}{923}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a18dd882655d839239c7e17cb2bfed697}\label{classNeuralNetworkWrapper_a18dd882655d839239c7e17cb2bfed697} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!evaluate@{evaluate}}
+\index{evaluate@{evaluate}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{evaluate()}{evaluate()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
+{\footnotesize\ttfamily std\+::map$<$ std\+::string, double $>$ Neural\+Network\+Wrapper\+::evaluate (\begin{DoxyParamCaption}\item[{const torch\+::\+Tensor \&}]{test\+\_\+inputs,  }\item[{const torch\+::\+Tensor \&}]{test\+\_\+targets }\end{DoxyParamCaption})}
+
+
+
+Evaluate the network on test data. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em test\+\_\+inputs} & Test input data \\
+\hline
+{\em test\+\_\+targets} & Test target data \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Dictionary of evaluation metrics 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00862}{862}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a9134e5d00e03044b5cc0955bae57ab97}\label{classNeuralNetworkWrapper_a9134e5d00e03044b5cc0955bae57ab97} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!Fitness@{Fitness}}
+\index{Fitness@{Fitness}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{Fitness()}{Fitness()}}
+{\footnotesize\ttfamily std\+::map$<$ std\+::string, double $>$ Neural\+Network\+Wrapper\+::\+Fitness (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Train network and return fitness metrics. 
+
+\begin{DoxyReturn}{Returns}
+Map containing MSE and R² values for train/test data 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l01133}{1133}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a992020cb61851beb64ccf2318c95c1fd}\label{classNeuralNetworkWrapper_a992020cb61851beb64ccf2318c95c1fd} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!forward@{forward}}
+\index{forward@{forward}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{forward()}{forward()}}
+{\footnotesize\ttfamily torch\+::\+Tensor Neural\+Network\+Wrapper\+::forward (\begin{DoxyParamCaption}\item[{Data\+Type}]{data\+\_\+type }\end{DoxyParamCaption})}
+
+
+
+Forward pass through the network using stored data. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em data\+\_\+type} & Specify whether to use training or test data \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Output tensor from the forward pass 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00205}{205}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a44a597c01e69a5869dbb21e6d836ac3e}\label{classNeuralNetworkWrapper_a44a597c01e69a5869dbb21e6d836ac3e} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!generateInputFeatureNames@{generateInputFeatureNames}}
+\index{generateInputFeatureNames@{generateInputFeatureNames}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{generateInputFeatureNames()}{generateInputFeatureNames()}}
+{\footnotesize\ttfamily std\+::vector$<$ std\+::string $>$ Neural\+Network\+Wrapper\+::generate\+Input\+Feature\+Names (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Generate feature names for lag-\/based input data. 
+
+\begin{DoxyReturn}{Returns}
+Vector of feature names in format "{}seriesname\+\_\+lag"{} 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00826}{826}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a627ea1f1d275442cf67a906f7c225aee}\label{classNeuralNetworkWrapper_a627ea1f1d275442cf67a906f7c225aee} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!getCurrentLoss@{getCurrentLoss}}
+\index{getCurrentLoss@{getCurrentLoss}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{getCurrentLoss()}{getCurrentLoss()}}
+{\footnotesize\ttfamily double Neural\+Network\+Wrapper\+::get\+Current\+Loss (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the current loss value. 
+
+\begin{DoxyReturn}{Returns}
+Current loss value 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00400}{400}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_abf048582b788f28166256f18e092310d}\label{classNeuralNetworkWrapper_abf048582b788f28166256f18e092310d} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!getHiddenLayers@{getHiddenLayers}}
+\index{getHiddenLayers@{getHiddenLayers}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{getHiddenLayers()}{getHiddenLayers()}}
+{\footnotesize\ttfamily const std\+::vector$<$ int $>$ \& Neural\+Network\+Wrapper\+::get\+Hidden\+Layers (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00424}{424}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a3bcf431b2b241ac7bddd9ed4ec4512a2}\label{classNeuralNetworkWrapper_a3bcf431b2b241ac7bddd9ed4ec4512a2} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!getInputData@{getInputData}}
+\index{getInputData@{getInputData}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{getInputData()}{getInputData()}}
+{\footnotesize\ttfamily const torch\+::\+Tensor \& Neural\+Network\+Wrapper\+::get\+Input\+Data (\begin{DoxyParamCaption}\item[{Data\+Type}]{data\+\_\+type }\end{DoxyParamCaption}) const}
+
+
+
+Get input data tensor for specified data type. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em data\+\_\+type} & Specify whether to get training or test data \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Reference to the requested input data tensor 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00653}{653}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a79433e208ba38d98769b62ab03adafb8}\label{classNeuralNetworkWrapper_a79433e208ba38d98769b62ab03adafb8} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!getLags@{getLags}}
+\index{getLags@{getLags}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{getLags()}{getLags()}}
+{\footnotesize\ttfamily const std\+::vector$<$ std\+::vector$<$ int $>$ $>$ \& Neural\+Network\+Wrapper\+::get\+Lags (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00413}{413}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a7f69e8db0a9c794c3638626b59a8fb73}\label{classNeuralNetworkWrapper_a7f69e8db0a9c794c3638626b59a8fb73} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!getOriginalSeriesNames@{getOriginalSeriesNames}}
+\index{getOriginalSeriesNames@{getOriginalSeriesNames}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{getOriginalSeriesNames()}{getOriginalSeriesNames()}}
+{\footnotesize\ttfamily const std\+::vector$<$ std\+::string $>$ \& Neural\+Network\+Wrapper\+::get\+Original\+Series\+Names (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the names of the original Time\+Series. 
+
+\begin{DoxyReturn}{Returns}
+Vector of original Time\+Series names 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00822}{822}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_ada0713efa958bfe5cf04e0dac8a9d8bd}\label{classNeuralNetworkWrapper_ada0713efa958bfe5cf04e0dac8a9d8bd} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!getTargetData@{getTargetData}}
+\index{getTargetData@{getTargetData}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{getTargetData()}{getTargetData()}}
+{\footnotesize\ttfamily const torch\+::\+Tensor \& Neural\+Network\+Wrapper\+::get\+Target\+Data (\begin{DoxyParamCaption}\item[{Data\+Type}]{data\+\_\+type }\end{DoxyParamCaption}) const}
+
+
+
+Get output data tensor for specified data type. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em data\+\_\+type} & Specify whether to get training or test data \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Reference to the requested output data tensor 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00667}{667}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a2188c94d66427f7209cfcf510162d43d}\label{classNeuralNetworkWrapper_a2188c94d66427f7209cfcf510162d43d} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!getTotalParameters@{getTotalParameters}}
+\index{getTotalParameters@{getTotalParameters}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{getTotalParameters()}{getTotalParameters()}}
+{\footnotesize\ttfamily int Neural\+Network\+Wrapper\+::get\+Total\+Parameters (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the total number of trainable parameters. 
+
+\begin{DoxyReturn}{Returns}
+Total number of parameters 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00390}{390}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a4f51e57d7a48f32712d211814718e547}\label{classNeuralNetworkWrapper_a4f51e57d7a48f32712d211814718e547} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!getTrainingHistory@{getTrainingHistory}}
+\index{getTrainingHistory@{getTrainingHistory}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{getTrainingHistory()}{getTrainingHistory()}}
+{\footnotesize\ttfamily std\+::vector$<$ double $>$ Neural\+Network\+Wrapper\+::get\+Training\+History (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get training history. 
+
+\begin{DoxyReturn}{Returns}
+Vector of loss values from training 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00404}{404}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a1543fa06d2e747d9a5558176597b9a3b}\label{classNeuralNetworkWrapper_a1543fa06d2e747d9a5558176597b9a3b} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!hasInputData@{hasInputData}}
+\index{hasInputData@{hasInputData}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{hasInputData()}{hasInputData()}}
+{\footnotesize\ttfamily bool Neural\+Network\+Wrapper\+::has\+Input\+Data (\begin{DoxyParamCaption}\item[{Data\+Type}]{data\+\_\+type }\end{DoxyParamCaption}) const}
+
+
+
+Check if input data is available for specified data type. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em data\+\_\+type} & Specify whether to check training or test data \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+True if input data is available 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00681}{681}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a647575c8e16926a00bab9129c0d7171d}\label{classNeuralNetworkWrapper_a647575c8e16926a00bab9129c0d7171d} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!hasTargetData@{hasTargetData}}
+\index{hasTargetData@{hasTargetData}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{hasTargetData()}{hasTargetData()}}
+{\footnotesize\ttfamily bool Neural\+Network\+Wrapper\+::has\+Target\+Data (\begin{DoxyParamCaption}\item[{Data\+Type}]{data\+\_\+type }\end{DoxyParamCaption}) const}
+
+
+
+Check if output data is available for specified data type. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em data\+\_\+type} & Specify whether to check training or test data \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+True if output data is available 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00689}{689}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_ab4018ae8e77221799a6221481185412d}\label{classNeuralNetworkWrapper_ab4018ae8e77221799a6221481185412d} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!initializeNetwork@{initializeNetwork}}
+\index{initializeNetwork@{initializeNetwork}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{initializeNetwork()}{initializeNetwork()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::initialize\+Network (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{classHyperParameters}{Hyper\+Parameters}} \texorpdfstring{$\ast$}{*}}]{hyperparams,  }\item[{int}]{output\+\_\+size }\end{DoxyParamCaption})}
+
+
+
+Initialize the network using \doxylink{classHyperParameters}{Hyper\+Parameters} configuration. Uses the \doxylink{classHyperParameters}{Hyper\+Parameters} object to set up the complete network architecture, lag configuration, and other settings. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em hyperparams} & Pointer to \doxylink{classHyperParameters}{Hyper\+Parameters} object containing configuration \\
+\hline
+{\em output\+\_\+size} & Number of output features \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00086}{86}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_aed037c3b3dd03fc998d934aad8d21bf8}\label{classNeuralNetworkWrapper_aed037c3b3dd03fc998d934aad8d21bf8} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!initializeNetwork@{initializeNetwork}}
+\index{initializeNetwork@{initializeNetwork}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{initializeNetwork()}{initializeNetwork()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::initialize\+Network (\begin{DoxyParamCaption}\item[{int}]{output\+\_\+size,  }\item[{const std\+::string \&}]{activation\+\_\+function = {\ttfamily "{}relu"{}} }\end{DoxyParamCaption})}
+
+
+
+Initialize the network with specified architecture. Uses member variables lags\+\_\+ and hidden\+\_\+layers\+\_\+ to determine input size and hidden architecture. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em output\+\_\+size} & Number of output features \\
+\hline
+{\em activation\+\_\+function} & Activation function name ("{}relu"{}, "{}tanh"{}, "{}sigmoid"{}) \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00041}{41}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_ad8f4b049aec402d3019a3ffa2950329b}\label{classNeuralNetworkWrapper_ad8f4b049aec402d3019a3ffa2950329b} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!isInitialized@{isInitialized}}
+\index{isInitialized@{isInitialized}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{isInitialized()}{isInitialized()}}
+{\footnotesize\ttfamily bool Neural\+Network\+Wrapper\+::is\+Initialized (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Check if the network is initialized. 
+
+\begin{DoxyReturn}{Returns}
+True if network is initialized, false otherwise 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00408}{408}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a8a16794d39d68a8931e934bbab1baa9d}\label{classNeuralNetworkWrapper_a8a16794d39d68a8931e934bbab1baa9d} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!loadModel@{loadModel}}
+\index{loadModel@{loadModel}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{loadModel()}{loadModel()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::load\+Model (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{filepath }\end{DoxyParamCaption})}
+
+
+
+Load a model from a file. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em filepath} & Path to load the model from \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00363}{363}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a2841ccb095e6d0ebf43f0cf3f5c473f3}\label{classNeuralNetworkWrapper_a2841ccb095e6d0ebf43f0cf3f5c473f3} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!MaxParameter@{MaxParameter}}
+\index{MaxParameter@{MaxParameter}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{MaxParameter()}{MaxParameter()}}
+{\footnotesize\ttfamily long int Neural\+Network\+Wrapper\+::\+Max\+Parameter (\begin{DoxyParamCaption}\item[{int}]{index }\end{DoxyParamCaption}) const}
+
+
+
+Get maximum value for a specific parameter index. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em index} & Parameter index (0 to \doxylink{classNeuralNetworkWrapper_a9ce3dbc3b0e8b082b8bd8a6093315b93}{Parameters\+Size()}-\/1) \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Maximum allowed value for the parameter 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l01081}{1081}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a9ce3dbc3b0e8b082b8bd8a6093315b93}\label{classNeuralNetworkWrapper_a9ce3dbc3b0e8b082b8bd8a6093315b93} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!ParametersSize@{ParametersSize}}
+\index{ParametersSize@{ParametersSize}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{ParametersSize()}{ParametersSize()}}
+{\footnotesize\ttfamily int Neural\+Network\+Wrapper\+::\+Parameters\+Size (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get number of optimization parameters for GA. 
+
+\begin{DoxyReturn}{Returns}
+Number of parameters needed for complete model specification 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l01077}{1077}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_abd09422816be70a899ee9ed51c63a387}\label{classNeuralNetworkWrapper_abd09422816be70a899ee9ed51c63a387} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!parametersToString@{parametersToString}}
+\index{parametersToString@{parametersToString}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{parametersToString()}{parametersToString()}}
+{\footnotesize\ttfamily std\+::string Neural\+Network\+Wrapper\+::parameters\+To\+String (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Generate a string representation of the network parameters and configuration. 
+
+\begin{DoxyReturn}{Returns}
+String describing the network architecture and configuration 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00931}{931}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a2b961e95cce66deba3031c52cfa40d54}\label{classNeuralNetworkWrapper_a2b961e95cce66deba3031c52cfa40d54} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!predict@{predict}}
+\index{predict@{predict}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{predict()}{predict()}}
+{\footnotesize\ttfamily Time\+Series\+Set$<$ double $>$ Neural\+Network\+Wrapper\+::predict (\begin{DoxyParamCaption}\item[{Data\+Type}]{data\+\_\+type,  }\item[{double}]{t\+\_\+start,  }\item[{double}]{t\+\_\+end,  }\item[{double}]{dt,  }\item[{const std\+::vector$<$ std\+::string $>$ \&}]{output\+\_\+names = {\ttfamily \{\}} }\end{DoxyParamCaption})}
+
+
+
+Make predictions and return results as Time\+Series\+Set. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em data\+\_\+type} & Specify whether to use training or test input data \\
+\hline
+{\em t\+\_\+start} & Start time for the output time series \\
+\hline
+{\em t\+\_\+end} & End time for the output time series \\
+\hline
+{\em dt} & Time step for the output time series \\
+\hline
+{\em output\+\_\+names} & Optional vector of names for output Time\+Series (default\+: "{}output\+\_\+0"{}, "{}output\+\_\+1"{}, etc.) \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Time\+Series\+Set containing predicted values as Time\+Series 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00722}{722}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a55b403d997f072ff81670c43206077cb}\label{classNeuralNetworkWrapper_a55b403d997f072ff81670c43206077cb} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!saveModel@{saveModel}}
+\index{saveModel@{saveModel}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{saveModel()}{saveModel()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::save\+Model (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{filepath }\end{DoxyParamCaption})}
+
+
+
+Save the model to a file. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em filepath} & Path to save the model \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00340}{340}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_ad5d25ccb4c2ba78e1821c500b203c392}\label{classNeuralNetworkWrapper_ad5d25ccb4c2ba78e1821c500b203c392} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!setAvailableSeriesCount@{setAvailableSeriesCount}}
+\index{setAvailableSeriesCount@{setAvailableSeriesCount}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{setAvailableSeriesCount()}{setAvailableSeriesCount()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::set\+Available\+Series\+Count (\begin{DoxyParamCaption}\item[{int}]{count }\end{DoxyParamCaption})}
+
+
+
+Set number of available time series for optimization bounds. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em count} & Total number of time series available in dataset \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l01183}{1183}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a201221b5339eb3d029485a3c0366d863}\label{classNeuralNetworkWrapper_a201221b5339eb3d029485a3c0366d863} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!setHiddenLayers@{setHiddenLayers}}
+\index{setHiddenLayers@{setHiddenLayers}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{setHiddenLayers()}{setHiddenLayers()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::set\+Hidden\+Layers (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ int $>$ \&}]{hidden\+\_\+layers }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00428}{428}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a621132e2f718b511835a146c5a937b5e}\label{classNeuralNetworkWrapper_a621132e2f718b511835a146c5a937b5e} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!setInputData@{setInputData}}
+\index{setInputData@{setInputData}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{setInputData()}{setInputData()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::set\+Input\+Data (\begin{DoxyParamCaption}\item[{Data\+Type}]{data\+\_\+type,  }\item[{const Time\+Series\+Set$<$ double $>$ \&}]{time\+\_\+series\+\_\+set,  }\item[{double}]{t\+\_\+start,  }\item[{double}]{t\+\_\+end,  }\item[{double}]{dt }\end{DoxyParamCaption})}
+
+
+
+Set input data from Time\+Series\+Set using lag configuration. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em data\+\_\+type} & Specify whether this is training or test data \\
+\hline
+{\em time\+\_\+series\+\_\+set} & Input Time\+Series\+Set containing the raw time series data \\
+\hline
+{\em t\+\_\+start} & Start time for data extraction \\
+\hline
+{\em t\+\_\+end} & End time for data extraction \\
+\hline
+{\em dt} & Time step for uniform sampling \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00487}{487}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a3ea7dcb24519463207ba3bbc49c01562}\label{classNeuralNetworkWrapper_a3ea7dcb24519463207ba3bbc49c01562} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!setInputDataFromHyperParams@{setInputDataFromHyperParams}}
+\index{setInputDataFromHyperParams@{setInputDataFromHyperParams}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{setInputDataFromHyperParams()}{setInputDataFromHyperParams()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::set\+Input\+Data\+From\+Hyper\+Params (\begin{DoxyParamCaption}\item[{Data\+Type}]{data\+\_\+type,  }\item[{const Time\+Series\+Set$<$ double $>$ \&}]{time\+\_\+series\+\_\+set,  }\item[{double}]{t\+\_\+start,  }\item[{double}]{t\+\_\+end,  }\item[{double}]{dt }\end{DoxyParamCaption})}
+
+
+
+Create input data tensor from Time\+Series\+Set using \doxylink{classHyperParameters}{Hyper\+Parameters} configuration. Uses the selected series and lag configuration from hyperparameters to create the input tensor for training or testing. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em data\+\_\+type} & Specify whether this is training or test data \\
+\hline
+{\em time\+\_\+series\+\_\+set} & Input Time\+Series\+Set containing all available time series \\
+\hline
+{\em t\+\_\+start} & Start time for data extraction \\
+\hline
+{\em t\+\_\+end} & End time for data extraction \\
+\hline
+{\em dt} & Time step for uniform sampling \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00996}{996}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_ab1237986ed1ab36a4a8f242a67a2258f}\label{classNeuralNetworkWrapper_ab1237986ed1ab36a4a8f242a67a2258f} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!setLags@{setLags}}
+\index{setLags@{setLags}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{setLags()}{setLags()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::set\+Lags (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ std\+::vector$<$ int $>$ $>$ \&}]{lags }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00417}{417}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_aff0643d3ad87f5d1822aecec00fdd6bf}\label{classNeuralNetworkWrapper_aff0643d3ad87f5d1822aecec00fdd6bf} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!setOriginalSeriesNames@{setOriginalSeriesNames}}
+\index{setOriginalSeriesNames@{setOriginalSeriesNames}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{setOriginalSeriesNames()}{setOriginalSeriesNames()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::set\+Original\+Series\+Names (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ std\+::string $>$ \&}]{series\+\_\+names }\end{DoxyParamCaption})}
+
+
+
+Set the names of the original Time\+Series for feature naming. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em series\+\_\+names} & Vector of original Time\+Series names \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00818}{818}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_aeb79d3e720d78b767060cc87616b67e4}\label{classNeuralNetworkWrapper_aeb79d3e720d78b767060cc87616b67e4} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!setTargetData@{setTargetData}}
+\index{setTargetData@{setTargetData}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{setTargetData()}{setTargetData()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::set\+Target\+Data (\begin{DoxyParamCaption}\item[{Data\+Type}]{data\+\_\+type,  }\item[{const Time\+Series$<$ double $>$ \&}]{output\+\_\+series,  }\item[{double}]{t\+\_\+start,  }\item[{double}]{t\+\_\+end,  }\item[{double}]{dt }\end{DoxyParamCaption})}
+
+
+
+Set output data from a single Time\+Series. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em data\+\_\+type} & Specify whether this is training or test data \\
+\hline
+{\em output\+\_\+series} & Single Time\+Series to use as output \\
+\hline
+{\em t\+\_\+start} & Start time for data extraction \\
+\hline
+{\em t\+\_\+end} & End time for data extraction \\
+\hline
+{\em dt} & Time step for uniform sampling \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00614}{614}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a4c9705bef9d12eff06f73916bf3f8aba}\label{classNeuralNetworkWrapper_a4c9705bef9d12eff06f73916bf3f8aba} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!setTargetData@{setTargetData}}
+\index{setTargetData@{setTargetData}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{setTargetData()}{setTargetData()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::set\+Target\+Data (\begin{DoxyParamCaption}\item[{Data\+Type}]{data\+\_\+type,  }\item[{const Time\+Series\+Set$<$ double $>$ \&}]{time\+\_\+series\+\_\+set,  }\item[{const std\+::vector$<$ int $>$ \&}]{output\+\_\+indices,  }\item[{double}]{t\+\_\+start,  }\item[{double}]{t\+\_\+end,  }\item[{double}]{dt }\end{DoxyParamCaption})}
+
+
+
+Set output data from multiple Time\+Series columns. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em data\+\_\+type} & Specify whether this is training or test data \\
+\hline
+{\em time\+\_\+series\+\_\+set} & Time\+Series\+Set containing output data \\
+\hline
+{\em output\+\_\+indices} & Vector of indices specifying which Time\+Series to use as outputs \\
+\hline
+{\em t\+\_\+start} & Start time for data extraction \\
+\hline
+{\em t\+\_\+end} & End time for data extraction \\
+\hline
+{\em dt} & Time step for uniform sampling \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00554}{554}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_acbdf59764f04ebf1765dc9e0d86c0dcd}\label{classNeuralNetworkWrapper_acbdf59764f04ebf1765dc9e0d86c0dcd} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!setTimeRange@{setTimeRange}}
+\index{setTimeRange@{setTimeRange}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{setTimeRange()}{setTimeRange()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::set\+Time\+Range (\begin{DoxyParamCaption}\item[{double}]{t\+\_\+start,  }\item[{double}]{t\+\_\+end,  }\item[{double}]{dt,  }\item[{double}]{split\+\_\+ratio = {\ttfamily 0.8} }\end{DoxyParamCaption})}
+
+
+
+Configure time range and data split for training/testing. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em t\+\_\+start} & Start time \\
+\hline
+{\em t\+\_\+end} & End time \\
+\hline
+{\em dt} & Time step \\
+\hline
+{\em split\+\_\+ratio} & Fraction for training (0.\+0-\/1.\+0, default 0.\+8) \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l01176}{1176}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a5ba9c0e574594be331b204dee96868de}\label{classNeuralNetworkWrapper_a5ba9c0e574594be331b204dee96868de} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!setTimeSeriesData@{setTimeSeriesData}}
+\index{setTimeSeriesData@{setTimeSeriesData}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{setTimeSeriesData()}{setTimeSeriesData()}}
+{\footnotesize\ttfamily void Neural\+Network\+Wrapper\+::set\+Time\+Series\+Data (\begin{DoxyParamCaption}\item[{const Time\+Series\+Set$<$ double $>$ \&}]{input\+\_\+data,  }\item[{const Time\+Series$<$ double $>$ \&}]{target\+\_\+data }\end{DoxyParamCaption})}
+
+
+
+Configure time series data for training/testing. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em input\+\_\+data} & Time\+Series\+Set containing input time series \\
+\hline
+{\em target\+\_\+data} & Time\+Series containing target values \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l01169}{1169}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+\Hypertarget{classNeuralNetworkWrapper_a4bf1f4e72f6c108fe96387b5fb820c31}\label{classNeuralNetworkWrapper_a4bf1f4e72f6c108fe96387b5fb820c31} 
+\index{NeuralNetworkWrapper@{NeuralNetworkWrapper}!train@{train}}
+\index{train@{train}!NeuralNetworkWrapper@{NeuralNetworkWrapper}}
+\doxysubsubsection{\texorpdfstring{train()}{train()}}
+{\footnotesize\ttfamily std\+::vector$<$ double $>$ Neural\+Network\+Wrapper\+::train (\begin{DoxyParamCaption}\item[{int}]{num\+\_\+epochs,  }\item[{int}]{batch\+\_\+size = {\ttfamily 32},  }\item[{double}]{learning\+\_\+rate = {\ttfamily 0.001} }\end{DoxyParamCaption})}
+
+
+
+Train the network using stored training data. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em num\+\_\+epochs} & Number of training epochs \\
+\hline
+{\em batch\+\_\+size} & Batch size for mini-\/batch training \\
+\hline
+{\em learning\+\_\+rate} & Learning rate for optimizer \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Vector of loss values per epoch 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source_l00258}{258}} of file \mbox{\hyperlink{neuralnetworkwrapper_8cpp_source}{neuralnetworkwrapper.\+cpp}}.
+
+
+
+The documentation for this class was generated from the following files\+:\begin{DoxyCompactItemize}
+\item 
+/home/arash/\+Projects/\+Py\+Torch\+CPP/neuralnetworkwrapper.\+h\item 
+/home/arash/\+Projects/\+Py\+Torch\+CPP/neuralnetworkwrapper.\+cpp\end{DoxyCompactItemize}

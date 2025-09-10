@@ -1,0 +1,821 @@
+\doxysection{Hyper\+Parameters Class Reference}
+\hypertarget{classHyperParameters}{}\label{classHyperParameters}\index{HyperParameters@{HyperParameters}}
+
+
+Class to hold and manage all hyperparameters for neural network optimization.  
+
+
+
+
+{\ttfamily \#include $<$hyperparameters.\+h$>$}
+
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\Hypertarget{classHyperParameters_a3fc25e7d172561bbb30367e04336d6aa}\label{classHyperParameters_a3fc25e7d172561bbb30367e04336d6aa} 
+{\bfseries Hyper\+Parameters} (const \mbox{\hyperlink{classHyperParameters}{Hyper\+Parameters}} \&other)=default
+\item 
+\Hypertarget{classHyperParameters_a09ac13e338ecb15e7668a9817b397d74}\label{classHyperParameters_a09ac13e338ecb15e7668a9817b397d74} 
+\mbox{\hyperlink{classHyperParameters}{Hyper\+Parameters}} \& {\bfseries operator=} (const \mbox{\hyperlink{classHyperParameters}{Hyper\+Parameters}} \&other)=default
+\item 
+const std\+::vector$<$ int $>$ \& \mbox{\hyperlink{classHyperParameters_add514f90168fc262af51576d91d8a634}{get\+Selected\+Series\+Ids}} () const
+\item 
+void \mbox{\hyperlink{classHyperParameters_a57da40e48da490aa2a3b97dc8483b818}{set\+Selected\+Series\+Ids}} (const std\+::vector$<$ int $>$ \&selected\+\_\+ids)
+\item 
+void \mbox{\hyperlink{classHyperParameters_ad7baa9d1e2bd87afc156ad3bbac52204}{clear\+Selected\+Series\+Ids}} ()
+\item 
+const std\+::vector$<$ int $>$ \& \mbox{\hyperlink{classHyperParameters_ac067b5d4a4c40e2d015535c47770064e}{get\+Hidden\+Layers}} () const
+\item 
+void \mbox{\hyperlink{classHyperParameters_ad5fa88c54c15f1c53c6da9e8d2d8499c}{set\+Hidden\+Layers}} (const std\+::vector$<$ int $>$ \&hidden\+\_\+layers)
+\item 
+const std\+::string \& \mbox{\hyperlink{classHyperParameters_a51422fa4567a2eff14dd71ac279a51d6}{get\+Activation\+Function}} () const
+\item 
+void \mbox{\hyperlink{classHyperParameters_a47b4091218561848ef87a66aa44c9aac}{set\+Activation\+Function}} (const std\+::string \&activation\+\_\+function)
+\item 
+const std\+::vector$<$ std\+::vector$<$ int $>$ $>$ \& \mbox{\hyperlink{classHyperParameters_a084ae1c87728d2bd3e2129e671f956d5}{get\+Lags}} () const
+\item 
+void \mbox{\hyperlink{classHyperParameters_a99ca8a62139945287439c11075a5ef4f}{set\+Lags}} (const std\+::vector$<$ std\+::vector$<$ int $>$ $>$ \&lags)
+\item 
+void \mbox{\hyperlink{classHyperParameters_acff0acec9550f5f1f967ed6f6d5ad1a1}{set\+Lag\+Multiplier}} (const std\+::vector$<$ int $>$ \&lag\+\_\+multipliers)
+\begin{DoxyCompactList}\small\item\em Set lag multipliers for each time series. \end{DoxyCompactList}\item 
+const std\+::vector$<$ int $>$ \& \mbox{\hyperlink{classHyperParameters_ae009663e377fa9b20bb6d19d794c69d7}{get\+Lag\+Multiplier}} () const
+\begin{DoxyCompactList}\small\item\em Get lag multipliers for all time series. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classHyperParameters_afa991ae193256290a14ea477526d74c7}{set\+Max\+Lag\+Multiplier}} (int max\+\_\+lag\+\_\+multiplier)
+\begin{DoxyCompactList}\small\item\em Set maximum allowed value for lag multipliers. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classHyperParameters_afc8df8fef7859a2519cc48e7fa731d8c}{get\+Max\+Lag\+Multiplier}} () const
+\begin{DoxyCompactList}\small\item\em Get maximum allowed value for lag multipliers. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classHyperParameters_ac6b6e9c2844b1d89718eb442b039fe1e}{get\+Num\+Epochs}} () const
+\item 
+void \mbox{\hyperlink{classHyperParameters_a42a4e1060507ff00a3544a69a6f2a425}{set\+Num\+Epochs}} (int num\+\_\+epochs)
+\item 
+int \mbox{\hyperlink{classHyperParameters_a14f7a0e5c468a831df2b60b4c096f259}{get\+Batch\+Size}} () const
+\item 
+void \mbox{\hyperlink{classHyperParameters_a5e9337e934680ff68e1f63d6c13dc76b}{set\+Batch\+Size}} (int batch\+\_\+size)
+\item 
+double \mbox{\hyperlink{classHyperParameters_afce46e7b77343c572c8d4605d90b3430}{get\+Learning\+Rate}} () const
+\item 
+void \mbox{\hyperlink{classHyperParameters_a862c9ad2d5acfea60e412403e2022c25}{set\+Learning\+Rate}} (double learning\+\_\+rate)
+\item 
+double \mbox{\hyperlink{classHyperParameters_a0a63f8458b1fcab2fb80fdad4733008b}{get\+Train\+Test\+Split}} () const
+\item 
+void \mbox{\hyperlink{classHyperParameters_a886ef1620b8b98cd20ec5d9cec44e4ff}{set\+Train\+Test\+Split}} (double train\+\_\+test\+\_\+split)
+\item 
+std\+::string \mbox{\hyperlink{classHyperParameters_ab8ad4f0afa16f4c39ad4a1cfb8a1a7ca}{to\+String}} () const
+\begin{DoxyCompactList}\small\item\em Convert hyperparameters to string representation. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classHyperParameters_a0ba1a22c19e273285315068e8b74ca11}{is\+Valid}} () const
+\begin{DoxyCompactList}\small\item\em Validate hyperparameters. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classHyperParameters_ab16fd9032185712183c137d6879eae6c}{reset}} ()
+\begin{DoxyCompactList}\small\item\em Reset all parameters to default values. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classHyperParameters_a9c01f2402e2765ffb96e57f9fbf95aaf}{set\+Selected\+Series\+From\+Binary}} (long int selection\+\_\+code, int available\+\_\+series\+\_\+count)
+\begin{DoxyCompactList}\small\item\em Set selected time series using binary encoding. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classHyperParameters_a1e3a900610773b7727b8cd4ef5999700}{set\+Max\+Lags}} (int max\+\_\+lags)
+\begin{DoxyCompactList}\small\item\em Set the maximum number of lags available for selection. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classHyperParameters_a4a5e4ec38ce45adb91f7233fd294afae}{get\+Max\+Lags}} () const
+\begin{DoxyCompactList}\small\item\em Get the maximum number of lags. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classHyperParameters_aee298d046caddb715a0c420e5f5268ca}{set\+Lag\+Selection\+Odd}} (int lag\+\_\+selection\+\_\+odd)
+\begin{DoxyCompactList}\small\item\em Set the base number used for lag selection conversion. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classHyperParameters_add85d2d0b39397ac4b4561f6af094215}{get\+Lag\+Selection\+Odd}} () const
+\begin{DoxyCompactList}\small\item\em Get the base number used for lag selection conversion. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classHyperParameters_a75cdc9ae291b860a9cb03138c56f22d2}{set\+Lags\+From\+Vector}} (const std\+::vector$<$ long int $>$ \&lag\+\_\+codes)
+\begin{DoxyCompactList}\small\item\em Set lag configuration from vector of codes using base conversion. Each element in lag\+\_\+codes corresponds to a time series. The code is converted to base lag\+\_\+selection\+\_\+odd\+\_\+, and lags where the remainder is 0 are selected. \end{DoxyCompactList}\item 
+long int \mbox{\hyperlink{classHyperParameters_a8cac7e74a33f2a79b51e0c93b2aee1d2}{get\+Max\+Lag\+Code}} () const
+\begin{DoxyCompactList}\small\item\em Get maximum possible value for lag codes given current configuration. This represents the highest value where at least one lag would be selected using the current max\+\_\+lags and lag\+\_\+selection\+\_\+odd settings. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classHyperParameters_a7ab556b1f5190e72f1ecdd2662d903a2}{set\+Max\+Number\+Of\+Hidden\+Nodes}} (int max\+\_\+nodes)
+\begin{DoxyCompactList}\small\item\em Set maximum number of nodes allowed in any hidden layer. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classHyperParameters_a352c48c981fc336d7c0649ae67d3fffd}{get\+Max\+Number\+Of\+Hidden\+Nodes}} () const
+\begin{DoxyCompactList}\small\item\em Get maximum number of nodes allowed in any hidden layer. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classHyperParameters_a2db0ba5cec313ffd6d3e57d87cda831f}{set\+Max\+Number\+Of\+Hidden\+Layers}} (int max\+\_\+layers)
+\begin{DoxyCompactList}\small\item\em Set maximum number of hidden layers allowed. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{classHyperParameters_aa142c5cfa6ff4af14bfe4dd4e8ff6e2a}{get\+Max\+Number\+Of\+Hidden\+Layers}} () const
+\begin{DoxyCompactList}\small\item\em Get maximum number of hidden layers allowed. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classHyperParameters_a2099b28ac1fc3f16486966b05c9711ab}{set\+Hidden\+Layers\+From\+Code}} (long int architecture\+\_\+code, int min\+\_\+nodes\+\_\+per\+\_\+layer=1)
+\begin{DoxyCompactList}\small\item\em Set hidden layer architecture from a single code using base conversion. Layers with zero nodes are automatically excluded from the architecture. \end{DoxyCompactList}\item 
+long int \mbox{\hyperlink{classHyperParameters_a3433d6d00e0ac89af001e2f1875ee522}{get\+Max\+Architecture\+Code}} () const
+\begin{DoxyCompactList}\small\item\em Get maximum possible architecture code. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classHyperParameters_a0aabb6ee67c40da9fc9fef41dd78e239}{set\+Lag\+Multipliers\+From\+Code}} (long int multiplier\+\_\+code, int num\+\_\+series)
+\begin{DoxyCompactList}\small\item\em Set lag multipliers from a single code using base conversion. Each digit in base (max\+\_\+lag\+\_\+multiplier + 1) represents the multiplier for that series. \end{DoxyCompactList}\item 
+long int \mbox{\hyperlink{classHyperParameters_ab1163122745d795f05fadd340f2dd97c}{get\+Max\+Lag\+Multiplier\+Code}} (int num\+\_\+series) const
+\begin{DoxyCompactList}\small\item\em Get maximum possible lag multiplier code for given number of series. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classHyperParameters_aa5054bf5d5bacfce4fc60f077e4d1de8}{set\+From\+Optimization\+Parameters}} (const std\+::vector$<$ long int $>$ \&params, int num\+\_\+available\+\_\+series)
+\begin{DoxyCompactList}\small\item\em Configure \doxylink{classHyperParameters}{Hyper\+Parameters} from optimization parameter vector. Sets all model structure parameters from a vector of integer values. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classHyperParameters_aff74be687d8341ca4831f2ba27aa9d55}{get\+Optimization\+Space\+Info}} () const
+\begin{DoxyCompactList}\small\item\em Get optimization space information as string for debugging. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+static long int \mbox{\hyperlink{classHyperParameters_a368596a6412efed46da57b33100b2006}{get\+Max\+Selection\+Code}} (int available\+\_\+series\+\_\+count)
+\begin{DoxyCompactList}\small\item\em Get maximum selection code for given number of available series. \end{DoxyCompactList}\item 
+static std\+::vector$<$ long int $>$ \mbox{\hyperlink{classHyperParameters_a81e434d1f749b2b9095f8654b261e536}{get\+Optimization\+Bounds}} (int num\+\_\+available\+\_\+series)
+\begin{DoxyCompactList}\small\item\em Get optimization parameter bounds for genetic algorithm. Returns maximum values for all parameters needed to fully specify the model. \end{DoxyCompactList}\item 
+static std\+::vector$<$ std\+::string $>$ \mbox{\hyperlink{classHyperParameters_a56e94f6489d5e2120f3f55448aee40ea}{get\+Optimization\+Parameter\+Names}} (int num\+\_\+available\+\_\+series)
+\begin{DoxyCompactList}\small\item\em Get parameter names corresponding to optimization bounds. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Class to hold and manage all hyperparameters for neural network optimization. 
+
+Definition at line \mbox{\hyperlink{hyperparameters_8h_source_l00010}{10}} of file \mbox{\hyperlink{hyperparameters_8h_source}{hyperparameters.\+h}}.
+
+
+
+\doxysubsection{Constructor \& Destructor Documentation}
+\Hypertarget{classHyperParameters_aae0860b4da1d7384d0334f0081bc7a2c}\label{classHyperParameters_aae0860b4da1d7384d0334f0081bc7a2c} 
+\index{HyperParameters@{HyperParameters}!HyperParameters@{HyperParameters}}
+\index{HyperParameters@{HyperParameters}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{HyperParameters()}{HyperParameters()}}
+{\footnotesize\ttfamily Hyper\+Parameters\+::\+Hyper\+Parameters (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00011}{11}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{classHyperParameters_ad7baa9d1e2bd87afc156ad3bbac52204}\label{classHyperParameters_ad7baa9d1e2bd87afc156ad3bbac52204} 
+\index{HyperParameters@{HyperParameters}!clearSelectedSeriesIds@{clearSelectedSeriesIds}}
+\index{clearSelectedSeriesIds@{clearSelectedSeriesIds}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{clearSelectedSeriesIds()}{clearSelectedSeriesIds()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::clear\+Selected\+Series\+Ids (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00051}{51}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a51422fa4567a2eff14dd71ac279a51d6}\label{classHyperParameters_a51422fa4567a2eff14dd71ac279a51d6} 
+\index{HyperParameters@{HyperParameters}!getActivationFunction@{getActivationFunction}}
+\index{getActivationFunction@{getActivationFunction}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getActivationFunction()}{getActivationFunction()}}
+{\footnotesize\ttfamily const std\+::string \& Hyper\+Parameters\+::get\+Activation\+Function (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00095}{95}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a14f7a0e5c468a831df2b60b4c096f259}\label{classHyperParameters_a14f7a0e5c468a831df2b60b4c096f259} 
+\index{HyperParameters@{HyperParameters}!getBatchSize@{getBatchSize}}
+\index{getBatchSize@{getBatchSize}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getBatchSize()}{getBatchSize()}}
+{\footnotesize\ttfamily int Hyper\+Parameters\+::get\+Batch\+Size (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00125}{125}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_ac067b5d4a4c40e2d015535c47770064e}\label{classHyperParameters_ac067b5d4a4c40e2d015535c47770064e} 
+\index{HyperParameters@{HyperParameters}!getHiddenLayers@{getHiddenLayers}}
+\index{getHiddenLayers@{getHiddenLayers}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getHiddenLayers()}{getHiddenLayers()}}
+{\footnotesize\ttfamily const std\+::vector$<$ int $>$ \& Hyper\+Parameters\+::get\+Hidden\+Layers (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00086}{86}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_ae009663e377fa9b20bb6d19d794c69d7}\label{classHyperParameters_ae009663e377fa9b20bb6d19d794c69d7} 
+\index{HyperParameters@{HyperParameters}!getLagMultiplier@{getLagMultiplier}}
+\index{getLagMultiplier@{getLagMultiplier}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getLagMultiplier()}{getLagMultiplier()}}
+{\footnotesize\ttfamily const std\+::vector$<$ int $>$ \& Hyper\+Parameters\+::get\+Lag\+Multiplier (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get lag multipliers for all time series. 
+
+\begin{DoxyReturn}{Returns}
+Vector of lag multipliers 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00433}{433}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a084ae1c87728d2bd3e2129e671f956d5}\label{classHyperParameters_a084ae1c87728d2bd3e2129e671f956d5} 
+\index{HyperParameters@{HyperParameters}!getLags@{getLags}}
+\index{getLags@{getLags}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getLags()}{getLags()}}
+{\footnotesize\ttfamily const std\+::vector$<$ std\+::vector$<$ int $>$ $>$ \& Hyper\+Parameters\+::get\+Lags (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00105}{105}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_add85d2d0b39397ac4b4561f6af094215}\label{classHyperParameters_add85d2d0b39397ac4b4561f6af094215} 
+\index{HyperParameters@{HyperParameters}!getLagSelectionOdd@{getLagSelectionOdd}}
+\index{getLagSelectionOdd@{getLagSelectionOdd}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getLagSelectionOdd()}{getLagSelectionOdd()}}
+{\footnotesize\ttfamily int Hyper\+Parameters\+::get\+Lag\+Selection\+Odd (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the base number used for lag selection conversion. 
+
+\begin{DoxyReturn}{Returns}
+Base number for lag selection conversion 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00366}{366}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_afce46e7b77343c572c8d4605d90b3430}\label{classHyperParameters_afce46e7b77343c572c8d4605d90b3430} 
+\index{HyperParameters@{HyperParameters}!getLearningRate@{getLearningRate}}
+\index{getLearningRate@{getLearningRate}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getLearningRate()}{getLearningRate()}}
+{\footnotesize\ttfamily double Hyper\+Parameters\+::get\+Learning\+Rate (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00136}{136}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a3433d6d00e0ac89af001e2f1875ee522}\label{classHyperParameters_a3433d6d00e0ac89af001e2f1875ee522} 
+\index{HyperParameters@{HyperParameters}!getMaxArchitectureCode@{getMaxArchitectureCode}}
+\index{getMaxArchitectureCode@{getMaxArchitectureCode}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getMaxArchitectureCode()}{getMaxArchitectureCode()}}
+{\footnotesize\ttfamily long int Hyper\+Parameters\+::get\+Max\+Architecture\+Code (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get maximum possible architecture code. 
+
+\begin{DoxyReturn}{Returns}
+Maximum architecture code value 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00518}{518}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a8cac7e74a33f2a79b51e0c93b2aee1d2}\label{classHyperParameters_a8cac7e74a33f2a79b51e0c93b2aee1d2} 
+\index{HyperParameters@{HyperParameters}!getMaxLagCode@{getMaxLagCode}}
+\index{getMaxLagCode@{getMaxLagCode}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getMaxLagCode()}{getMaxLagCode()}}
+{\footnotesize\ttfamily long int Hyper\+Parameters\+::get\+Max\+Lag\+Code (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get maximum possible value for lag codes given current configuration. This represents the highest value where at least one lag would be selected using the current max\+\_\+lags and lag\+\_\+selection\+\_\+odd settings. 
+
+\begin{DoxyReturn}{Returns}
+Maximum possible lag code value 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00396}{396}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_afc8df8fef7859a2519cc48e7fa731d8c}\label{classHyperParameters_afc8df8fef7859a2519cc48e7fa731d8c} 
+\index{HyperParameters@{HyperParameters}!getMaxLagMultiplier@{getMaxLagMultiplier}}
+\index{getMaxLagMultiplier@{getMaxLagMultiplier}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getMaxLagMultiplier()}{getMaxLagMultiplier()}}
+{\footnotesize\ttfamily int Hyper\+Parameters\+::get\+Max\+Lag\+Multiplier (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get maximum allowed value for lag multipliers. 
+
+\begin{DoxyReturn}{Returns}
+Maximum lag multiplier value 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00444}{444}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_ab1163122745d795f05fadd340f2dd97c}\label{classHyperParameters_ab1163122745d795f05fadd340f2dd97c} 
+\index{HyperParameters@{HyperParameters}!getMaxLagMultiplierCode@{getMaxLagMultiplierCode}}
+\index{getMaxLagMultiplierCode@{getMaxLagMultiplierCode}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getMaxLagMultiplierCode()}{getMaxLagMultiplierCode()}}
+{\footnotesize\ttfamily long int Hyper\+Parameters\+::get\+Max\+Lag\+Multiplier\+Code (\begin{DoxyParamCaption}\item[{int}]{num\+\_\+series }\end{DoxyParamCaption}) const}
+
+
+
+Get maximum possible lag multiplier code for given number of series. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em num\+\_\+series} & Number of time series \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Maximum multiplier code value 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00568}{568}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a4a5e4ec38ce45adb91f7233fd294afae}\label{classHyperParameters_a4a5e4ec38ce45adb91f7233fd294afae} 
+\index{HyperParameters@{HyperParameters}!getMaxLags@{getMaxLags}}
+\index{getMaxLags@{getMaxLags}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getMaxLags()}{getMaxLags()}}
+{\footnotesize\ttfamily int Hyper\+Parameters\+::get\+Max\+Lags (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get the maximum number of lags. 
+
+\begin{DoxyReturn}{Returns}
+Maximum number of lags 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00355}{355}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_aa142c5cfa6ff4af14bfe4dd4e8ff6e2a}\label{classHyperParameters_aa142c5cfa6ff4af14bfe4dd4e8ff6e2a} 
+\index{HyperParameters@{HyperParameters}!getMaxNumberOfHiddenLayers@{getMaxNumberOfHiddenLayers}}
+\index{getMaxNumberOfHiddenLayers@{getMaxNumberOfHiddenLayers}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getMaxNumberOfHiddenLayers()}{getMaxNumberOfHiddenLayers()}}
+{\footnotesize\ttfamily int Hyper\+Parameters\+::get\+Max\+Number\+Of\+Hidden\+Layers (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get maximum number of hidden layers allowed. 
+
+\begin{DoxyReturn}{Returns}
+Maximum number of hidden layers 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00466}{466}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a352c48c981fc336d7c0649ae67d3fffd}\label{classHyperParameters_a352c48c981fc336d7c0649ae67d3fffd} 
+\index{HyperParameters@{HyperParameters}!getMaxNumberOfHiddenNodes@{getMaxNumberOfHiddenNodes}}
+\index{getMaxNumberOfHiddenNodes@{getMaxNumberOfHiddenNodes}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getMaxNumberOfHiddenNodes()}{getMaxNumberOfHiddenNodes()}}
+{\footnotesize\ttfamily int Hyper\+Parameters\+::get\+Max\+Number\+Of\+Hidden\+Nodes (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get maximum number of nodes allowed in any hidden layer. 
+
+\begin{DoxyReturn}{Returns}
+Maximum nodes per layer 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00455}{455}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a368596a6412efed46da57b33100b2006}\label{classHyperParameters_a368596a6412efed46da57b33100b2006} 
+\index{HyperParameters@{HyperParameters}!getMaxSelectionCode@{getMaxSelectionCode}}
+\index{getMaxSelectionCode@{getMaxSelectionCode}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getMaxSelectionCode()}{getMaxSelectionCode()}}
+{\footnotesize\ttfamily long int Hyper\+Parameters\+::get\+Max\+Selection\+Code (\begin{DoxyParamCaption}\item[{int}]{available\+\_\+series\+\_\+count }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Get maximum selection code for given number of available series. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em available\+\_\+series\+\_\+count} & Total available series \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Maximum long integer value for binary encoding (2\texorpdfstring{$^\wedge$}{\string^}n -\/ 1) 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00037}{37}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_ac6b6e9c2844b1d89718eb442b039fe1e}\label{classHyperParameters_ac6b6e9c2844b1d89718eb442b039fe1e} 
+\index{HyperParameters@{HyperParameters}!getNumEpochs@{getNumEpochs}}
+\index{getNumEpochs@{getNumEpochs}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getNumEpochs()}{getNumEpochs()}}
+{\footnotesize\ttfamily int Hyper\+Parameters\+::get\+Num\+Epochs (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00114}{114}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a81e434d1f749b2b9095f8654b261e536}\label{classHyperParameters_a81e434d1f749b2b9095f8654b261e536} 
+\index{HyperParameters@{HyperParameters}!getOptimizationBounds@{getOptimizationBounds}}
+\index{getOptimizationBounds@{getOptimizationBounds}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getOptimizationBounds()}{getOptimizationBounds()}}
+{\footnotesize\ttfamily std\+::vector$<$ long int $>$ Hyper\+Parameters\+::get\+Optimization\+Bounds (\begin{DoxyParamCaption}\item[{int}]{num\+\_\+available\+\_\+series }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Get optimization parameter bounds for genetic algorithm. Returns maximum values for all parameters needed to fully specify the model. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em num\+\_\+available\+\_\+series} & Total number of time series available in dataset \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Vector containing maximum value for each optimization parameter 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00588}{588}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a56e94f6489d5e2120f3f55448aee40ea}\label{classHyperParameters_a56e94f6489d5e2120f3f55448aee40ea} 
+\index{HyperParameters@{HyperParameters}!getOptimizationParameterNames@{getOptimizationParameterNames}}
+\index{getOptimizationParameterNames@{getOptimizationParameterNames}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getOptimizationParameterNames()}{getOptimizationParameterNames()}}
+{\footnotesize\ttfamily std\+::vector$<$ std\+::string $>$ Hyper\+Parameters\+::get\+Optimization\+Parameter\+Names (\begin{DoxyParamCaption}\item[{int}]{num\+\_\+available\+\_\+series }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Get parameter names corresponding to optimization bounds. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em num\+\_\+available\+\_\+series} & Total number of time series available in dataset \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Vector of parameter names in same order as \doxylink{classHyperParameters_a81e434d1f749b2b9095f8654b261e536}{get\+Optimization\+Bounds()} 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00630}{630}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_aff74be687d8341ca4831f2ba27aa9d55}\label{classHyperParameters_aff74be687d8341ca4831f2ba27aa9d55} 
+\index{HyperParameters@{HyperParameters}!getOptimizationSpaceInfo@{getOptimizationSpaceInfo}}
+\index{getOptimizationSpaceInfo@{getOptimizationSpaceInfo}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getOptimizationSpaceInfo()}{getOptimizationSpaceInfo()}}
+{\footnotesize\ttfamily std\+::string Hyper\+Parameters\+::get\+Optimization\+Space\+Info (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Get optimization space information as string for debugging. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em num\+\_\+available\+\_\+series} & Total number of time series available in dataset \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+String containing optimization space details 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00707}{707}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_add514f90168fc262af51576d91d8a634}\label{classHyperParameters_add514f90168fc262af51576d91d8a634} 
+\index{HyperParameters@{HyperParameters}!getSelectedSeriesIds@{getSelectedSeriesIds}}
+\index{getSelectedSeriesIds@{getSelectedSeriesIds}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getSelectedSeriesIds()}{getSelectedSeriesIds()}}
+{\footnotesize\ttfamily const std\+::vector$<$ int $>$ \& Hyper\+Parameters\+::get\+Selected\+Series\+Ids (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00028}{28}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a0a63f8458b1fcab2fb80fdad4733008b}\label{classHyperParameters_a0a63f8458b1fcab2fb80fdad4733008b} 
+\index{HyperParameters@{HyperParameters}!getTrainTestSplit@{getTrainTestSplit}}
+\index{getTrainTestSplit@{getTrainTestSplit}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{getTrainTestSplit()}{getTrainTestSplit()}}
+{\footnotesize\ttfamily double Hyper\+Parameters\+::get\+Train\+Test\+Split (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00148}{148}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a0ba1a22c19e273285315068e8b74ca11}\label{classHyperParameters_a0ba1a22c19e273285315068e8b74ca11} 
+\index{HyperParameters@{HyperParameters}!isValid@{isValid}}
+\index{isValid@{isValid}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{isValid()}{isValid()}}
+{\footnotesize\ttfamily bool Hyper\+Parameters\+::is\+Valid (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Validate hyperparameters. 
+
+\begin{DoxyReturn}{Returns}
+True if valid, false otherwise 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00242}{242}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_ab16fd9032185712183c137d6879eae6c}\label{classHyperParameters_ab16fd9032185712183c137d6879eae6c} 
+\index{HyperParameters@{HyperParameters}!reset@{reset}}
+\index{reset@{reset}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{reset()}{reset()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::reset (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Reset all parameters to default values. 
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00289}{289}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a47b4091218561848ef87a66aa44c9aac}\label{classHyperParameters_a47b4091218561848ef87a66aa44c9aac} 
+\index{HyperParameters@{HyperParameters}!setActivationFunction@{setActivationFunction}}
+\index{setActivationFunction@{setActivationFunction}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setActivationFunction()}{setActivationFunction()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Activation\+Function (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{activation\+\_\+function }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00099}{99}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a5e9337e934680ff68e1f63d6c13dc76b}\label{classHyperParameters_a5e9337e934680ff68e1f63d6c13dc76b} 
+\index{HyperParameters@{HyperParameters}!setBatchSize@{setBatchSize}}
+\index{setBatchSize@{setBatchSize}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setBatchSize()}{setBatchSize()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Batch\+Size (\begin{DoxyParamCaption}\item[{int}]{batch\+\_\+size }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00129}{129}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_aa5054bf5d5bacfce4fc60f077e4d1de8}\label{classHyperParameters_aa5054bf5d5bacfce4fc60f077e4d1de8} 
+\index{HyperParameters@{HyperParameters}!setFromOptimizationParameters@{setFromOptimizationParameters}}
+\index{setFromOptimizationParameters@{setFromOptimizationParameters}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setFromOptimizationParameters()}{setFromOptimizationParameters()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+From\+Optimization\+Parameters (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ long int $>$ \&}]{params,  }\item[{int}]{num\+\_\+available\+\_\+series }\end{DoxyParamCaption})}
+
+
+
+Configure \doxylink{classHyperParameters}{Hyper\+Parameters} from optimization parameter vector. Sets all model structure parameters from a vector of integer values. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em params} & Vector of parameter values (must match \doxylink{classHyperParameters_a81e434d1f749b2b9095f8654b261e536}{get\+Optimization\+Bounds()} size) \\
+\hline
+{\em num\+\_\+available\+\_\+series} & Total number of time series available in dataset \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00654}{654}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_ad5fa88c54c15f1c53c6da9e8d2d8499c}\label{classHyperParameters_ad5fa88c54c15f1c53c6da9e8d2d8499c} 
+\index{HyperParameters@{HyperParameters}!setHiddenLayers@{setHiddenLayers}}
+\index{setHiddenLayers@{setHiddenLayers}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setHiddenLayers()}{setHiddenLayers()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Hidden\+Layers (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ int $>$ \&}]{hidden\+\_\+layers }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00090}{90}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a2099b28ac1fc3f16486966b05c9711ab}\label{classHyperParameters_a2099b28ac1fc3f16486966b05c9711ab} 
+\index{HyperParameters@{HyperParameters}!setHiddenLayersFromCode@{setHiddenLayersFromCode}}
+\index{setHiddenLayersFromCode@{setHiddenLayersFromCode}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setHiddenLayersFromCode()}{setHiddenLayersFromCode()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Hidden\+Layers\+From\+Code (\begin{DoxyParamCaption}\item[{long int}]{architecture\+\_\+code,  }\item[{int}]{min\+\_\+nodes\+\_\+per\+\_\+layer = {\ttfamily 1} }\end{DoxyParamCaption})}
+
+
+
+Set hidden layer architecture from a single code using base conversion. Layers with zero nodes are automatically excluded from the architecture. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em architecture\+\_\+code} & Single number encoding the entire architecture \\
+\hline
+{\em min\+\_\+nodes\+\_\+per\+\_\+layer} & Minimum nodes per layer (default\+: 1) \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00470}{470}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_acff0acec9550f5f1f967ed6f6d5ad1a1}\label{classHyperParameters_acff0acec9550f5f1f967ed6f6d5ad1a1} 
+\index{HyperParameters@{HyperParameters}!setLagMultiplier@{setLagMultiplier}}
+\index{setLagMultiplier@{setLagMultiplier}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setLagMultiplier()}{setLagMultiplier()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Lag\+Multiplier (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ int $>$ \&}]{lag\+\_\+multipliers }\end{DoxyParamCaption})}
+
+
+
+Set lag multipliers for each time series. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em lag\+\_\+multipliers} & Vector of multipliers (one per time series) \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00415}{415}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a0aabb6ee67c40da9fc9fef41dd78e239}\label{classHyperParameters_a0aabb6ee67c40da9fc9fef41dd78e239} 
+\index{HyperParameters@{HyperParameters}!setLagMultipliersFromCode@{setLagMultipliersFromCode}}
+\index{setLagMultipliersFromCode@{setLagMultipliersFromCode}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setLagMultipliersFromCode()}{setLagMultipliersFromCode()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Lag\+Multipliers\+From\+Code (\begin{DoxyParamCaption}\item[{long int}]{multiplier\+\_\+code,  }\item[{int}]{num\+\_\+series }\end{DoxyParamCaption})}
+
+
+
+Set lag multipliers from a single code using base conversion. Each digit in base (max\+\_\+lag\+\_\+multiplier + 1) represents the multiplier for that series. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em multiplier\+\_\+code} & Single integer encoding all lag multipliers \\
+\hline
+{\em num\+\_\+series} & Number of time series (determines how many digits to extract) \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00534}{534}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a99ca8a62139945287439c11075a5ef4f}\label{classHyperParameters_a99ca8a62139945287439c11075a5ef4f} 
+\index{HyperParameters@{HyperParameters}!setLags@{setLags}}
+\index{setLags@{setLags}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setLags()}{setLags()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Lags (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ std\+::vector$<$ int $>$ $>$ \&}]{lags }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00109}{109}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_aee298d046caddb715a0c420e5f5268ca}\label{classHyperParameters_aee298d046caddb715a0c420e5f5268ca} 
+\index{HyperParameters@{HyperParameters}!setLagSelectionOdd@{setLagSelectionOdd}}
+\index{setLagSelectionOdd@{setLagSelectionOdd}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setLagSelectionOdd()}{setLagSelectionOdd()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Lag\+Selection\+Odd (\begin{DoxyParamCaption}\item[{int}]{lag\+\_\+selection\+\_\+odd }\end{DoxyParamCaption})}
+
+
+
+Set the base number used for lag selection conversion. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em lag\+\_\+selection\+\_\+odd} & Base number for converting lag codes (must be \texorpdfstring{$>$}{>} 1) \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00359}{359}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a75cdc9ae291b860a9cb03138c56f22d2}\label{classHyperParameters_a75cdc9ae291b860a9cb03138c56f22d2} 
+\index{HyperParameters@{HyperParameters}!setLagsFromVector@{setLagsFromVector}}
+\index{setLagsFromVector@{setLagsFromVector}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setLagsFromVector()}{setLagsFromVector()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Lags\+From\+Vector (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ long int $>$ \&}]{lag\+\_\+codes }\end{DoxyParamCaption})}
+
+
+
+Set lag configuration from vector of codes using base conversion. Each element in lag\+\_\+codes corresponds to a time series. The code is converted to base lag\+\_\+selection\+\_\+odd\+\_\+, and lags where the remainder is 0 are selected. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em lag\+\_\+codes} & Vector of long integers for lag selection (one per time series) \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00370}{370}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a862c9ad2d5acfea60e412403e2022c25}\label{classHyperParameters_a862c9ad2d5acfea60e412403e2022c25} 
+\index{HyperParameters@{HyperParameters}!setLearningRate@{setLearningRate}}
+\index{setLearningRate@{setLearningRate}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setLearningRate()}{setLearningRate()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Learning\+Rate (\begin{DoxyParamCaption}\item[{double}]{learning\+\_\+rate }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00140}{140}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_afa991ae193256290a14ea477526d74c7}\label{classHyperParameters_afa991ae193256290a14ea477526d74c7} 
+\index{HyperParameters@{HyperParameters}!setMaxLagMultiplier@{setMaxLagMultiplier}}
+\index{setMaxLagMultiplier@{setMaxLagMultiplier}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setMaxLagMultiplier()}{setMaxLagMultiplier()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Max\+Lag\+Multiplier (\begin{DoxyParamCaption}\item[{int}]{max\+\_\+lag\+\_\+multiplier }\end{DoxyParamCaption})}
+
+
+
+Set maximum allowed value for lag multipliers. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em max\+\_\+lag\+\_\+multiplier} & Maximum value for any lag multiplier \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00437}{437}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a1e3a900610773b7727b8cd4ef5999700}\label{classHyperParameters_a1e3a900610773b7727b8cd4ef5999700} 
+\index{HyperParameters@{HyperParameters}!setMaxLags@{setMaxLags}}
+\index{setMaxLags@{setMaxLags}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setMaxLags()}{setMaxLags()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Max\+Lags (\begin{DoxyParamCaption}\item[{int}]{max\+\_\+lags }\end{DoxyParamCaption})}
+
+
+
+Set the maximum number of lags available for selection. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em max\+\_\+lags} & Maximum number of lags (lags will be numbered 0 to max\+\_\+lags-\/1) \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00348}{348}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a2db0ba5cec313ffd6d3e57d87cda831f}\label{classHyperParameters_a2db0ba5cec313ffd6d3e57d87cda831f} 
+\index{HyperParameters@{HyperParameters}!setMaxNumberOfHiddenLayers@{setMaxNumberOfHiddenLayers}}
+\index{setMaxNumberOfHiddenLayers@{setMaxNumberOfHiddenLayers}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setMaxNumberOfHiddenLayers()}{setMaxNumberOfHiddenLayers()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Max\+Number\+Of\+Hidden\+Layers (\begin{DoxyParamCaption}\item[{int}]{max\+\_\+layers }\end{DoxyParamCaption})}
+
+
+
+Set maximum number of hidden layers allowed. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em max\+\_\+layers} & Maximum number of hidden layers \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00459}{459}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a7ab556b1f5190e72f1ecdd2662d903a2}\label{classHyperParameters_a7ab556b1f5190e72f1ecdd2662d903a2} 
+\index{HyperParameters@{HyperParameters}!setMaxNumberOfHiddenNodes@{setMaxNumberOfHiddenNodes}}
+\index{setMaxNumberOfHiddenNodes@{setMaxNumberOfHiddenNodes}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setMaxNumberOfHiddenNodes()}{setMaxNumberOfHiddenNodes()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Max\+Number\+Of\+Hidden\+Nodes (\begin{DoxyParamCaption}\item[{int}]{max\+\_\+nodes }\end{DoxyParamCaption})}
+
+
+
+Set maximum number of nodes allowed in any hidden layer. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em max\+\_\+nodes} & Maximum nodes per layer \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00448}{448}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a42a4e1060507ff00a3544a69a6f2a425}\label{classHyperParameters_a42a4e1060507ff00a3544a69a6f2a425} 
+\index{HyperParameters@{HyperParameters}!setNumEpochs@{setNumEpochs}}
+\index{setNumEpochs@{setNumEpochs}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setNumEpochs()}{setNumEpochs()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Num\+Epochs (\begin{DoxyParamCaption}\item[{int}]{num\+\_\+epochs }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00118}{118}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a9c01f2402e2765ffb96e57f9fbf95aaf}\label{classHyperParameters_a9c01f2402e2765ffb96e57f9fbf95aaf} 
+\index{HyperParameters@{HyperParameters}!setSelectedSeriesFromBinary@{setSelectedSeriesFromBinary}}
+\index{setSelectedSeriesFromBinary@{setSelectedSeriesFromBinary}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setSelectedSeriesFromBinary()}{setSelectedSeriesFromBinary()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Selected\+Series\+From\+Binary (\begin{DoxyParamCaption}\item[{long int}]{selection\+\_\+code,  }\item[{int}]{available\+\_\+series\+\_\+count }\end{DoxyParamCaption})}
+
+
+
+Set selected time series using binary encoding. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em selection\+\_\+code} & Long integer for binary encoding \\
+\hline
+{\em available\+\_\+series\+\_\+count} & Total available series \\
+\hline
+\end{DoxyParams}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00055}{55}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a57da40e48da490aa2a3b97dc8483b818}\label{classHyperParameters_a57da40e48da490aa2a3b97dc8483b818} 
+\index{HyperParameters@{HyperParameters}!setSelectedSeriesIds@{setSelectedSeriesIds}}
+\index{setSelectedSeriesIds@{setSelectedSeriesIds}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setSelectedSeriesIds()}{setSelectedSeriesIds()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Selected\+Series\+Ids (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ int $>$ \&}]{selected\+\_\+ids }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00032}{32}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_a886ef1620b8b98cd20ec5d9cec44e4ff}\label{classHyperParameters_a886ef1620b8b98cd20ec5d9cec44e4ff} 
+\index{HyperParameters@{HyperParameters}!setTrainTestSplit@{setTrainTestSplit}}
+\index{setTrainTestSplit@{setTrainTestSplit}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{setTrainTestSplit()}{setTrainTestSplit()}}
+{\footnotesize\ttfamily void Hyper\+Parameters\+::set\+Train\+Test\+Split (\begin{DoxyParamCaption}\item[{double}]{train\+\_\+test\+\_\+split }\end{DoxyParamCaption})}
+
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00152}{152}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+\Hypertarget{classHyperParameters_ab8ad4f0afa16f4c39ad4a1cfb8a1a7ca}\label{classHyperParameters_ab8ad4f0afa16f4c39ad4a1cfb8a1a7ca} 
+\index{HyperParameters@{HyperParameters}!toString@{toString}}
+\index{toString@{toString}!HyperParameters@{HyperParameters}}
+\doxysubsubsection{\texorpdfstring{toString()}{toString()}}
+{\footnotesize\ttfamily std\+::string Hyper\+Parameters\+::to\+String (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const}
+
+
+
+Convert hyperparameters to string representation. 
+
+\begin{DoxyReturn}{Returns}
+String describing all hyperparameters 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{hyperparameters_8cpp_source_l00159}{159}} of file \mbox{\hyperlink{hyperparameters_8cpp_source}{hyperparameters.\+cpp}}.
+
+
+
+The documentation for this class was generated from the following files\+:\begin{DoxyCompactItemize}
+\item 
+/home/arash/\+Projects/\+Py\+Torch\+CPP/hyperparameters.\+h\item 
+/home/arash/\+Projects/\+Py\+Torch\+CPP/hyperparameters.\+cpp\end{DoxyCompactItemize}

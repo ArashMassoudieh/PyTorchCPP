@@ -1,0 +1,232 @@
+\doxysection{/home/arash/\+Projects/\+Py\+Torch\+CPP/ga.hpp}
+\hypertarget{ga_8hpp_source}{}\label{ga_8hpp_source}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00001}00001\ \textcolor{preprocessor}{\#include\ "{}ga.h"{}}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00002}00002\ \textcolor{preprocessor}{\#include\ <iostream>}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00003}00003\ \textcolor{preprocessor}{\#include\ <fstream>}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00004}00004\ \textcolor{preprocessor}{\#include\ <omp.h>}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00005}00005\ \textcolor{preprocessor}{\#include\ "{}Utilities.h"{}}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00006}00006\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00007}00007\ \textcolor{keyword}{template}<\textcolor{keyword}{class}\ T>}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00008}\mbox{\hyperlink{classGeneticAlgorithm_a5c88e1621cd3c7a41c4d93f314b03e14}{00008}}\ \mbox{\hyperlink{classGeneticAlgorithm_a5c88e1621cd3c7a41c4d93f314b03e14}{GeneticAlgorithm<T>::GeneticAlgorithm}}()}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00009}00009\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00010}00010\ \ \ \ \ omp\_set\_num\_threads(8);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00011}00011\ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00012}00012\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00013}00013\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00014}00014\ \textcolor{keyword}{template}<\textcolor{keyword}{class}\ T>}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00015}\mbox{\hyperlink{classGeneticAlgorithm_aa61a4793b783d45e828116a97ec7c5b7}{00015}}\ T\ \mbox{\hyperlink{classGeneticAlgorithm_aa61a4793b783d45e828116a97ec7c5b7}{GeneticAlgorithm<T>::Optimize}}()}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00016}00016\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00017}00017\ \ \ \ \ Initialize();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00018}00018\ \ \ \ \ WriteToFile();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00019}00019\ \ \ \ \ file.open(Settings.outputpath+\textcolor{stringliteral}{"{}/GA\_Output.txt"{}},\ std::ios::out);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00020}00020\ \ \ \ \ file.close();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00021}00021\ \ \ \ \ \textcolor{keywordflow}{for}\ (current\_generation=0;\ current\_generation<Settings.generations;\ current\_generation++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00022}00022\ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00023}00023\ \ \ \ \ \ \ \ \ cout<<\textcolor{stringliteral}{"{}Generation:\ "{}}<<current\_generation<<endl;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00024}00024\ \ \ \ \ \ \ \ \ CrossOver();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00025}00025\ \ \ \ \ \ \ \ \ AssignFitnesses();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00026}00026\ \ \ \ \ \ \ \ \ WriteToFile();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00027}00027\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00028}00028\ \ \ \ \ \textcolor{keywordflow}{return}\ models[max\_rank];}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00029}00029\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00030}00030\ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00031}00031\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00032}00032\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00033}00033\ \textcolor{keyword}{template}<\textcolor{keyword}{class}\ T>}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00034}\mbox{\hyperlink{classGeneticAlgorithm_a6583faf8c0a3b015a873a12b56604afc}{00034}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classGeneticAlgorithm_a6583faf8c0a3b015a873a12b56604afc}{GeneticAlgorithm<T>::WriteToFile}}()}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00035}00035\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00036}00036\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00037}00037\ \ \ \ \ file.open(Settings.outputpath+\textcolor{stringliteral}{"{}/GA\_Output.txt"{}},\ std::ios::app);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00038}00038\ \ \ \ \ file<<\textcolor{stringliteral}{"{}Generation:\ "{}}<<\ current\_generation\ <<\ endl;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00039}00039\ \ \ \ \ \textcolor{keywordflow}{if}\ (file.is\_open())}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00040}00040\ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00041}00041\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ i=0;\ i<Individuals.size();\ i++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00042}00042\ \ \ \ \ \ \ \ \ \{\ \ \ file<<i<<\textcolor{stringliteral}{"{}:"{}}<<Individuals[i].toBinary().getBinary()<<\textcolor{stringliteral}{"{},"{}}<<models[i].FFN.ModelStructure.ParametersToString().toStdString();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00043}00043\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ constituent\ =\ 0;\ constituent<models[i].FFN.ModelStructure.outputcolumns.size();\ constituent++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00044}00044\ \ \ \ \ \ \ \ \ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00045}00045\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ file<<\ \textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}MSE\_Train"{}},constituent)<<\textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}R2\_Train"{}},constituent);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00046}00046\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ file<<\ \textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}MSE\_Test"{}},constituent)<<\textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}R2\_Test"{}},constituent);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00047}00047\ \ \ \ \ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00048}00048\ \ \ \ \ \ \ \ \ \ \ \ \ file<<endl;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00049}00049\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00050}00050\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00051}00051\ \ \ \ \ file.close();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00052}00052\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ i=0;\ i<Individuals.size();\ i++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00053}00053\ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00054}00054\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ constituent\ =\ 0;\ constituent<models[i].FFN.ModelStructure.outputcolumns.size();\ constituent++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00055}00055\ \ \ \ \ \ \ \ \ \ \ \ \ cout<<\ \textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}MSE\_Train"{}},constituent)<<\textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}R2\_Train"{}},constituent);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00056}00056\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ constituent\ =\ 0;\ constituent<models[i].FFN.ModelStructure.outputcolumns.size();\ constituent++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00057}00057\ \ \ \ \ \ \ \ \ \ \ \ \ cout<<\ \textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}MSE\_Test"{}},constituent)<<\textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}R2\_Test"{}},constituent);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00058}00058\ \ \ \ \ \ \ \ \ cout<<std::endl;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00059}00059\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00060}00060\ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00061}00061\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00062}00062\ \textcolor{keyword}{template}<\textcolor{keyword}{class}\ T>}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00063}\mbox{\hyperlink{classGeneticAlgorithm_a14dc60801d8c0353fb6ae02358470f57}{00063}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classGeneticAlgorithm_a14dc60801d8c0353fb6ae02358470f57}{GeneticAlgorithm<T>::Initialize}}()}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00064}00064\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00065}00065\ \ \ \ \ Individuals.resize(Settings.totalpopulation);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00066}00066\ \ \ \ \ models.resize(Settings.totalpopulation);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00067}00067\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ i=0;\ i<Individuals.size();\ i++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00068}00068\ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00069}00069\ \ \ \ \ \ \ \ \ models[i]\ =\ model;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00070}00070\ \ \ \ \ \ \ \ \ Individuals[i].resize(model.ParametersSize());}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00071}00071\ \ \ \ \ \ \ \ \ vector<int>\ splitlocations;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00072}00072\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ j=0;\ j<model.ParametersSize();\ j++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00073}00073\ \ \ \ \ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00074}00074\ \ \ \ \ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classBinaryNumber}{BinaryNumber}}\ B\ =\ \mbox{\hyperlink{classBinaryNumber_a88d3f1d628f55a71a2cf7cbc8a75336f}{BinaryNumber::randomBinary}}(model.MaxParameter(j));}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00075}00075\ \ \ \ \ \ \ \ \ \ \ \ \ B.\mbox{\hyperlink{classBinaryNumber_a0c3c1069f4e28c7044162b320e542a34}{fixSize}}(\mbox{\hyperlink{classBinaryNumber_a08451a607b79d2710b4fb9df3b96ee31}{BinaryNumber::decimalToBinary}}(model.MaxParameter(j)).\mbox{\hyperlink{classBinaryNumber_ad8fffec57599fab299699b264cd65699}{numDigits}}());}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00076}00076\ \ \ \ \ \ \ \ \ \ \ \ \ Individuals[i][j]\ =\ B;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00077}00077\ \ \ \ \ \ \ \ \ \ \ \ \ Individuals[i].splitlocations.push\_back(\mbox{\hyperlink{classBinaryNumber_a08451a607b79d2710b4fb9df3b96ee31}{BinaryNumber::decimalToBinary}}(model.MaxParameter(j)).\mbox{\hyperlink{classBinaryNumber_ad8fffec57599fab299699b264cd65699}{numDigits}}());}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00078}00078\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00079}00079\ \ \ \ \ \ \ \ \ Individuals[i].\mbox{\hyperlink{classBinaryNumber_af8cf0cfa334070355e726a70ec3ad02a}{display}}();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00080}00080\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00081}00081\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00082}00082\ \ \ \ \ AssignFitnesses();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00083}00083\ \ \ \ \ WriteToFile();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00084}00084\ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00085}00085\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00086}00086\ \textcolor{keyword}{template}<\textcolor{keyword}{class}\ T>}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00087}\mbox{\hyperlink{classGeneticAlgorithm_a4f1e87d1ccfe139917282fbcc7f52e8e}{00087}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classGeneticAlgorithm_a4f1e87d1ccfe139917282fbcc7f52e8e}{GeneticAlgorithm<T>::AssignFitnesses}}()}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00088}00088\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00089}00089\ \ \ \ \ \textcolor{comment}{//\#pragma\ omp\ parallel\ for}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00090}00090\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ i=0;\ i<models.size();\ i++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00091}00091\ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00092}00092\ \ \ \ \ \ \ \ \ vector<unsigned\ long\ int>\ parameterset;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00093}00093\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ j=0;\ j<models[i].ParametersSize();\ j++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00094}00094\ \ \ \ \ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00095}00095\ \ \ \ \ \ \ \ \ \ \ \ \ parameterset.push\_back(Individuals[i][j].toDecimal());}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00096}00096\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00097}00097\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00098}00098\ \ \ \ \ \ \ \ \ models[i].AssignParameters(parameterset);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00099}00099\ \ \ \ \ \ \ \ \ models[i].CreateModel();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00100}00100\ \ \ \ \ \ \ \ \ cout<<\textcolor{stringliteral}{"{}Pre-\/Train:\ "{}}<<i<<\textcolor{stringliteral}{"{}:"{}}<<models[i].FFN.ModelStructure.ParametersToString().toStdString()<<endl;\ \textcolor{comment}{//\ Debugger}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00101}00101\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (models[i].FFN.ModelStructure.ValidLags())}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00102}00102\ \ \ \ \ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00103}00103\ \ \ \ \ \ \ \ \ \ \ \ \ Individuals[i].fitness\_measures\ =\ models[i].Fitness();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00104}00104\ \ \ \ \ \ \ \ \ \ \ \ \ Individuals[i].fitness=0;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00105}00105\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ constituent\ =\ 0;\ constituent<models[i].FFN.ModelStructure.outputcolumns.size();\ constituent++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00106}00106\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (Settings.MSE\_optimization)\ \textcolor{comment}{//\ true\ for\ MSE\_Test\ and\ false\ for\ (MSE\_Test\ +\ MSE\_Train)}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00107}00107\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Individuals[i].fitness\ +=\ Individuals[i].fitness\_measures[\textcolor{stringliteral}{"{}MSE\_Test\_"{}}\ +\ aquiutils::numbertostring(constituent)];\ \textcolor{comment}{//\ MSE\_Test}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00108}00108\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{else}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00109}00109\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Individuals[i].fitness\ +=\ max(Individuals[i].fitness\_measures[\textcolor{stringliteral}{"{}MSE\_Test\_"{}}\ +\ aquiutils::numbertostring(constituent)],Individuals[i].fitness\_measures[\textcolor{stringliteral}{"{}MSE\_Train\_"{}}\ +\ aquiutils::numbertostring(constituent)]);\ \textcolor{comment}{//\ MSE\_Test\ and\ MSE\_Train}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00110}00110\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00111}00111\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{else}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00112}00112\ \ \ \ \ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00113}00113\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ constituent\ =\ 0;\ constituent<models[i].FFN.ModelStructure.outputcolumns.size();\ constituent++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00114}00114\ \ \ \ \ \ \ \ \ \ \ \ \ \{\ \ \ Individuals[i].fitness\_measures[\textcolor{stringliteral}{"{}MSE\_Test\_"{}}+\ aquiutils::numbertostring(constituent)]=1e12;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00115}00115\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Individuals[i].fitness\_measures[\textcolor{stringliteral}{"{}R2\_Test\_"{}}+\ aquiutils::numbertostring(constituent)]=0;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00116}00116\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Individuals[i].fitness\ +=\ Individuals[i].fitness\_measures[\textcolor{stringliteral}{"{}MSE\_Test\_"{}}\ +\ aquiutils::numbertostring(constituent)];}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00117}00117\ \ \ \ \ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00118}00118\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00119}00119\ \ \ \ \ \ \ \ \ cout<<i<<\textcolor{stringliteral}{"{}:"{}}<<models[i].FFN.ModelStructure.ParametersToString().toStdString();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00120}00120\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00121}00121\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ constituent\ =\ 0;\ constituent<models[i].FFN.ModelStructure.outputcolumns.size();\ constituent++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00122}00122\ \ \ \ \ \ \ \ \ \ \ \ \ cout<<\ \textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}MSE\_Train"{}},constituent)<<\textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}R2\_Train"{}},constituent);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00123}00123\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00124}00124\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ constituent\ =\ 0;\ constituent<models[i].FFN.ModelStructure.outputcolumns.size();\ constituent++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00125}00125\ \ \ \ \ \ \ \ \ \ \ \ \ cout<<\ \textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}MSE\_Test"{}},constituent)<<\textcolor{stringliteral}{"{},"{}}<<Individuals[i].toAssignmentText(\textcolor{stringliteral}{"{}R2\_Test"{}},constituent);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00126}00126\ \ \ \ \ \ \ \ \ cout<<\ endl;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00127}00127\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00128}00128\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00129}00129\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00130}00130\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00131}00131\ \ \ \ \ vector<int>\ ranks\ =\ getRanks();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00132}00132\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ i=0;\ i<Individuals.size();\ i++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00133}00133\ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00134}00134\ \ \ \ \ \ \ \ \ Individuals[i].rank\ =\ ranks[i];}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00135}00135\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00136}00136\ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00137}00137\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00138}00138\ \textcolor{keyword}{template}<\textcolor{keyword}{class}\ T>}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00139}\mbox{\hyperlink{classGeneticAlgorithm_ae2bccda81178aee45a79f7d7699f5242}{00139}}\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{classGeneticAlgorithm_ae2bccda81178aee45a79f7d7699f5242}{GeneticAlgorithm<T>::CrossOver}}()}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00140}00140\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00141}00141\ \ \ \ \ vector<Individual>\ newIndividuals\ =\ Individuals;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00142}00142\ \ \ \ \ newIndividuals[0]\ =\ Individuals[max\_rank];}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00143}00143\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{unsigned}\ \textcolor{keywordtype}{int}\ i=1;\ i<Individuals.size();\ i++)}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00144}00144\ \ \ \ \ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00145}00145\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classIndividual}{Individual}}\ Ind1\ =\ selectIndividualByRank();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00146}00146\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classIndividual}{Individual}}\ Ind2\ =\ selectIndividualByRank();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00147}00147\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classBinaryNumber}{BinaryNumber}}\ FullBinary\ =\ Ind1.\mbox{\hyperlink{classIndividual_aeeab018c69dcfefad7e1cd36a729f327}{toBinary}}();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00148}00148\ \ \ \ \ \ \ \ \ FullBinary.\mbox{\hyperlink{classBinaryNumber_a97d6297a9fe27164cbce940d6ce40f94}{mutate}}(Settings.mutation\_probability);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00149}00149\ \ \ \ \ \ \ \ \ newIndividuals[i]\ =\ FullBinary.\mbox{\hyperlink{classBinaryNumber_aad531835173c51e6b65473ccc3c130ed}{split}}(Individuals[i].splitlocations);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00150}00150\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00151}00151\ \ \ \ \ Individuals\ =\ newIndividuals;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00152}00152\ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00153}00153\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00154}00154\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00155}00155\ \textcolor{comment}{//\ Function\ to\ randomly\ select\ an\ Individual\ based\ on\ inverse\ rank\ probability}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00156}00156\ \textcolor{keyword}{template}<\textcolor{keyword}{class}\ T>}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00157}\mbox{\hyperlink{classGeneticAlgorithm_a19c04f2ca03b9f732d84d24b62f930b5}{00157}}\ \textcolor{keyword}{const}\ \mbox{\hyperlink{classIndividual}{Individual}}\&\ \mbox{\hyperlink{classGeneticAlgorithm_a19c04f2ca03b9f732d84d24b62f930b5}{GeneticAlgorithm<T>::selectIndividualByRank}}()\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00158}00158\ \ \ \ \ \textcolor{comment}{//\ Calculate\ weights\ as\ the\ inverse\ of\ rank}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00159}00159\ \ \ \ \ std::vector<double>\ weights(Individuals.size());}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00160}00160\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ Individuals.size();\ ++i)\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00161}00161\ \ \ \ \ \ \ \ \ weights[i]\ =\ 1.0\ /\ Individuals[i].rank;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00162}00162\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00163}00163\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00164}00164\ \ \ \ \ \textcolor{comment}{//\ Create\ a\ cumulative\ probability\ distribution}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00165}00165\ \ \ \ \ std::vector<double>\ cumulative(weights.size());}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00166}00166\ \ \ \ \ std::partial\_sum(weights.begin(),\ weights.end(),\ cumulative.begin());}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00167}00167\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00168}00168\ \ \ \ \ \textcolor{comment}{//\ Normalize\ the\ cumulative\ probabilities}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00169}00169\ \ \ \ \ \textcolor{keywordtype}{double}\ totalWeight\ =\ cumulative.back();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00170}00170\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{double}\&\ value\ :\ cumulative)\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00171}00171\ \ \ \ \ \ \ \ \ value\ /=\ totalWeight;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00172}00172\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00173}00173\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00174}00174\ \ \ \ \ \textcolor{comment}{//\ Generate\ a\ random\ number\ between\ 0\ and\ 1}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00175}00175\ \ \ \ \ std::random\_device\ rd;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00176}00176\ \ \ \ \ std::mt19937\ gen(rd());}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00177}00177\ \ \ \ \ std::uniform\_real\_distribution<>\ dis(0.0,\ 1.0);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00178}00178\ \ \ \ \ \textcolor{keywordtype}{double}\ randomValue\ =\ dis(gen);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00179}00179\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00180}00180\ \ \ \ \ \textcolor{comment}{//\ Find\ the\ corresponding\ individual}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00181}00181\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ cumulative.size();\ ++i)\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00182}00182\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (randomValue\ <=\ cumulative[i])\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00183}00183\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ Individuals[i];}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00184}00184\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00185}00185\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00186}00186\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00187}00187\ \ \ \ \ \textcolor{comment}{//\ Fallback\ (shouldn't\ be\ reached)}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00188}00188\ \ \ \ \ \textcolor{keywordflow}{return}\ Individuals.back();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00189}00189\ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00190}00190\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00191}00191\ \textcolor{keywordtype}{void}\ SortIndices(\textcolor{keyword}{const}\ std::vector<Individual>\&\ individuals,\ std::vector<int>\&\ indices)\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00192}00192\ \ \ \ \ \textcolor{keywordtype}{size\_t}\ n\ =\ indices.size();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00193}00193\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00194}00194\ \ \ \ \ \textcolor{comment}{//\ Perform\ Bubble\ Sort\ on\ indices\ based\ on\ fitness\ values}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00195}00195\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ n\ -\/\ 1;\ ++i)\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00196}00196\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ j\ =\ 0;\ j\ <\ n\ -\/\ i\ -\/\ 1;\ ++j)\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00197}00197\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Compare\ fitness\ values\ of\ the\ indices}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00198}00198\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (individuals[indices[j]].fitness\ >\ individuals[indices[j\ +\ 1]].fitness)\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00199}00199\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Swap\ indices}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00200}00200\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ std::swap(indices[j],\ indices[j\ +\ 1]);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00201}00201\ \ \ \ \ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00202}00202\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00203}00203\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00204}00204\ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00205}00205\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00206}00206\ \textcolor{keyword}{template}<\textcolor{keyword}{class}\ T>}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00207}\mbox{\hyperlink{classGeneticAlgorithm_a2bcb94044a81924818cfa400598f8bb5}{00207}}\ std::vector<int>\ \mbox{\hyperlink{classGeneticAlgorithm_a2bcb94044a81924818cfa400598f8bb5}{GeneticAlgorithm<T>::getRanks}}()\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00208}00208\ \ \ \ \ \textcolor{keywordtype}{size\_t}\ n\ =\ Individuals.size();}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00209}00209\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00210}00210\ \ \ \ \ \textcolor{comment}{//\ Create\ a\ vector\ of\ indices\ from\ 0\ to\ n-\/1}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00211}00211\ \ \ \ \ std::vector<int>\ indices(n);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00212}00212\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ n;\ ++i)\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00213}00213\ \ \ \ \ \ \ \ \ indices[i]\ =\ i;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00214}00214\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00215}00215\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00216}00216\ \ \ \ \ \textcolor{comment}{//\ Sort\ indices\ based\ on\ fitness\ using\ our\ custom\ bubble\ sort}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00217}00217\ \ \ \ \ SortIndices(Individuals,\ indices);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00218}00218\ }
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00219}00219\ \ \ \ \ \textcolor{comment}{//\ Create\ a\ vector\ to\ store\ ranks}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00220}00220\ \ \ \ \ std::vector<int>\ ranks(n);}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00221}00221\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ n;\ ++i)\ \{}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00222}00222\ \ \ \ \ \ \ \ \ ranks[indices[i]]\ =\ i\ +\ 1;\ \textcolor{comment}{//\ Rank\ starts\ from\ 1}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00223}00223\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00224}00224\ \ \ \ \ max\_rank\ =\ indices[0];}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00225}00225\ \ \ \ \ \textcolor{keywordflow}{return}\ ranks;}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00226}00226\ \}}
+\DoxyCodeLine{\Hypertarget{ga_8hpp_source_l00227}00227\ }
+
+\end{DoxyCode}

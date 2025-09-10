@@ -1,0 +1,117 @@
+\doxysection{Genetic\+Algorithmsettings Struct Reference}
+\hypertarget{structGeneticAlgorithmsettings}{}\label{structGeneticAlgorithmsettings}\index{GeneticAlgorithmsettings@{GeneticAlgorithmsettings}}
+
+
+Settings structure for configuring the genetic algorithm.  
+
+
+
+
+{\ttfamily \#include $<$ga.\+h$>$}
+
+\doxysubsubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+unsigned int \mbox{\hyperlink{structGeneticAlgorithmsettings_af806800bfe261718de7ec1c7ef78ae86}{totalpopulation}} = 40
+\begin{DoxyCompactList}\small\item\em Total number of individuals in the population. \end{DoxyCompactList}\item 
+unsigned int \mbox{\hyperlink{structGeneticAlgorithmsettings_aaa92cd56048270894c64545a133ded92}{generations}} = 100
+\begin{DoxyCompactList}\small\item\em Number of generations for which the algorithm will run. \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{structGeneticAlgorithmsettings_a7a6d16b15ec20de702b9b81bacfbcaf6}{mutation\+\_\+probability}} = 0.\+05
+\begin{DoxyCompactList}\small\item\em Probability of mutation applied to individuals. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{structGeneticAlgorithmsettings_a0bace747423a99274070490923f96295}{outputpath}} = "{}"{}
+\begin{DoxyCompactList}\small\item\em Output path where results will be written. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{structGeneticAlgorithmsettings_aa9def52bc638bdf5824793c7d61d53b6}{MSE\+\_\+optimization}} = true
+\begin{DoxyCompactList}\small\item\em Fitness optimization mode. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Settings structure for configuring the genetic algorithm. 
+
+This struct defines all tunable parameters of the genetic algorithm, such as population size, number of generations, mutation probability, and optimization target. 
+
+Definition at line \mbox{\hyperlink{ga_8h_source_l00018}{18}} of file \mbox{\hyperlink{ga_8h_source}{ga.\+h}}.
+
+
+
+\doxysubsection{Member Data Documentation}
+\Hypertarget{structGeneticAlgorithmsettings_aaa92cd56048270894c64545a133ded92}\label{structGeneticAlgorithmsettings_aaa92cd56048270894c64545a133ded92} 
+\index{GeneticAlgorithmsettings@{GeneticAlgorithmsettings}!generations@{generations}}
+\index{generations@{generations}!GeneticAlgorithmsettings@{GeneticAlgorithmsettings}}
+\doxysubsubsection{\texorpdfstring{generations}{generations}}
+{\footnotesize\ttfamily unsigned int Genetic\+Algorithmsettings\+::generations = 100}
+
+
+
+Number of generations for which the algorithm will run. 
+
+Default\+: 100 
+
+Definition at line \mbox{\hyperlink{ga_8h_source_l00032}{32}} of file \mbox{\hyperlink{ga_8h_source}{ga.\+h}}.
+
+\Hypertarget{structGeneticAlgorithmsettings_aa9def52bc638bdf5824793c7d61d53b6}\label{structGeneticAlgorithmsettings_aa9def52bc638bdf5824793c7d61d53b6} 
+\index{GeneticAlgorithmsettings@{GeneticAlgorithmsettings}!MSE\_optimization@{MSE\_optimization}}
+\index{MSE\_optimization@{MSE\_optimization}!GeneticAlgorithmsettings@{GeneticAlgorithmsettings}}
+\doxysubsubsection{\texorpdfstring{MSE\_optimization}{MSE\_optimization}}
+{\footnotesize\ttfamily bool Genetic\+Algorithmsettings\+::\+MSE\+\_\+optimization = true}
+
+
+
+Fitness optimization mode. 
+
+
+\begin{DoxyItemize}
+\item true → minimize MSE\+\_\+\+Test only
+\item false → minimize (MSE\+\_\+\+Test + MSE\+\_\+\+Train)
+\end{DoxyItemize}
+
+Default\+: true 
+
+Definition at line \mbox{\hyperlink{ga_8h_source_l00056}{56}} of file \mbox{\hyperlink{ga_8h_source}{ga.\+h}}.
+
+\Hypertarget{structGeneticAlgorithmsettings_a7a6d16b15ec20de702b9b81bacfbcaf6}\label{structGeneticAlgorithmsettings_a7a6d16b15ec20de702b9b81bacfbcaf6} 
+\index{GeneticAlgorithmsettings@{GeneticAlgorithmsettings}!mutation\_probability@{mutation\_probability}}
+\index{mutation\_probability@{mutation\_probability}!GeneticAlgorithmsettings@{GeneticAlgorithmsettings}}
+\doxysubsubsection{\texorpdfstring{mutation\_probability}{mutation\_probability}}
+{\footnotesize\ttfamily double Genetic\+Algorithmsettings\+::mutation\+\_\+probability = 0.\+05}
+
+
+
+Probability of mutation applied to individuals. 
+
+Must be between 0.\+0 and 1.\+0. Default\+: 0.\+05 
+
+Definition at line \mbox{\hyperlink{ga_8h_source_l00039}{39}} of file \mbox{\hyperlink{ga_8h_source}{ga.\+h}}.
+
+\Hypertarget{structGeneticAlgorithmsettings_a0bace747423a99274070490923f96295}\label{structGeneticAlgorithmsettings_a0bace747423a99274070490923f96295} 
+\index{GeneticAlgorithmsettings@{GeneticAlgorithmsettings}!outputpath@{outputpath}}
+\index{outputpath@{outputpath}!GeneticAlgorithmsettings@{GeneticAlgorithmsettings}}
+\doxysubsubsection{\texorpdfstring{outputpath}{outputpath}}
+{\footnotesize\ttfamily std\+::string Genetic\+Algorithmsettings\+::outputpath = "{}"{}}
+
+
+
+Output path where results will be written. 
+
+Default\+: empty string (no output). 
+
+Definition at line \mbox{\hyperlink{ga_8h_source_l00046}{46}} of file \mbox{\hyperlink{ga_8h_source}{ga.\+h}}.
+
+\Hypertarget{structGeneticAlgorithmsettings_af806800bfe261718de7ec1c7ef78ae86}\label{structGeneticAlgorithmsettings_af806800bfe261718de7ec1c7ef78ae86} 
+\index{GeneticAlgorithmsettings@{GeneticAlgorithmsettings}!totalpopulation@{totalpopulation}}
+\index{totalpopulation@{totalpopulation}!GeneticAlgorithmsettings@{GeneticAlgorithmsettings}}
+\doxysubsubsection{\texorpdfstring{totalpopulation}{totalpopulation}}
+{\footnotesize\ttfamily unsigned int Genetic\+Algorithmsettings\+::totalpopulation = 40}
+
+
+
+Total number of individuals in the population. 
+
+Default\+: 40 
+
+Definition at line \mbox{\hyperlink{ga_8h_source_l00025}{25}} of file \mbox{\hyperlink{ga_8h_source}{ga.\+h}}.
+
+
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+/home/arash/\+Projects/\+Py\+Torch\+CPP/ga.\+h\end{DoxyCompactItemize}

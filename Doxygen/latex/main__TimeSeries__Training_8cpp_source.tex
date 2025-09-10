@@ -1,0 +1,310 @@
+\doxysection{/home/arash/\+Projects/\+Py\+Torch\+CPP/main\+\_\+\+Time\+Series\+\_\+\+Training.cpp}
+\hypertarget{main__TimeSeries__Training_8cpp_source}{}\label{main__TimeSeries__Training_8cpp_source}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00001}00001\ \textcolor{preprocessor}{\#include\ <QCoreApplication>}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00002}00002\ \textcolor{preprocessor}{\#include\ <iostream>}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00003}00003\ \textcolor{preprocessor}{\#include\ <vector>}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00004}00004\ \textcolor{preprocessor}{\#include\ "{}neuralnetworkwrapper.h"{}}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00005}00005\ \textcolor{preprocessor}{\#include\ "{}TimeSeriesSet.h"{}}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00006}00006\ \textcolor{preprocessor}{\#include\ "{}TimeSeries.h"{}}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00007}00007\ \textcolor{preprocessor}{\#include\ "{}TestHyperParameters.h"{}}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00008}00008\ \textcolor{preprocessor}{\#include\ "{}hyperparameters.h"{}}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00009}00009\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00010}00010\ \textcolor{keywordtype}{void}\ createSyntheticData();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00011}00011\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00012}00012\ \textcolor{keywordtype}{int}\ main(\textcolor{keywordtype}{int}\ argc,\ \textcolor{keywordtype}{char}\ *argv[])\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00013}00013\ \ \ \ \ QCoreApplication\ app(argc,\ argv);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00014}00014\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00015}00015\ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Running\ HyperParameters\ class\ tests...\(\backslash\)n"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00016}00016\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00017}00017\ \ \ \ \ \textcolor{keywordflow}{try}\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00018}00018\ \ \ \ \ \ \ \ \ testConstructorAndDefaults();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00019}00019\ \ \ \ \ \ \ \ \ testTimeSeriesSelection();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00020}00020\ \ \ \ \ \ \ \ \ testNetworkArchitecture();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00021}00021\ \ \ \ \ \ \ \ \ testLagConfiguration();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00022}00022\ \ \ \ \ \ \ \ \ testTrainingParameters();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00023}00023\ \ \ \ \ \ \ \ \ testValidation();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00024}00024\ \ \ \ \ \ \ \ \ testErrorHandling();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00025}00025\ \ \ \ \ \ \ \ \ testStringRepresentation();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00026}00026\ \ \ \ \ \ \ \ \ testReset();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00027}00027\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00028}00028\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n🎉\ All\ tests\ passed\ successfully!"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00029}00029\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00030}00030\ \ \ \ \ \}\ \textcolor{keywordflow}{catch}\ (\textcolor{keyword}{const}\ std::exception\&\ e)\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00031}00031\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}❌\ Test\ failed\ with\ exception:\ "{}}\ <<\ e.what()\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00032}00032\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ 1;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00033}00033\ \ \ \ \ \}\ \textcolor{keywordflow}{catch}\ (...)\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00034}00034\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}❌\ Test\ failed\ with\ unknown\ exception"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00035}00035\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ 1;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00036}00036\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00037}00037\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00038}00038\ \ \ \ \ \textcolor{keywordflow}{try}\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00039}00039\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}===\ Neural\ Network\ Wrapper\ with\ HyperParameters\ Example\ ==="{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00040}00040\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n1.\ Creating\ synthetic\ data..."{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00041}00041\ \ \ \ \ \ \ \ \ createSyntheticData();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00042}00042\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00043}00043\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Step\ 1:\ Load\ your\ data}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00044}00044\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n1.\ Loading\ data..."{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00045}00045\ \ \ \ \ \ \ \ \ TimeSeriesSet<double>\ input\_data;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00046}00046\ \ \ \ \ \ \ \ \ input\_data.read(\textcolor{stringliteral}{"{}input\_data.csv"{}},\ \textcolor{keyword}{true});\ \ \textcolor{comment}{//\ CSV\ with\ multiple\ time\ series}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00047}00047\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00048}00048\ \ \ \ \ \ \ \ \ TimeSeries<double>\ target\_series;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00049}00049\ \ \ \ \ \ \ \ \ target\_series.readfile(\textcolor{stringliteral}{"{}target\_output.txt"{}});\ \ \textcolor{comment}{//\ Single\ target\ series}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00050}00050\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00051}00051\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Loaded\ "{}}\ <<\ input\_data.size()\ <<\ \textcolor{stringliteral}{"{}\ input\ time\ series"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00052}00052\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Target\ series\ has\ "{}}\ <<\ target\_series.size()\ <<\ \textcolor{stringliteral}{"{}\ points"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00053}00053\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00054}00054\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Step\ 2:\ Configure\ hyperparameters}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00055}00055\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n2.\ Configuring\ hyperparameters..."{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00056}00056\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classHyperParameters}{HyperParameters}}\ hyperparams;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00057}00057\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00058}00058\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Configure\ time\ series\ selection\ (select\ all\ 3\ series:\ binary\ 111\ =\ 7)}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00059}00059\ \ \ \ \ \ \ \ \ hyperparams.\mbox{\hyperlink{classHyperParameters_a9c01f2402e2765ffb96e57f9fbf95aaf}{setSelectedSeriesFromBinary}}(7L,\ 3);\ \ \textcolor{comment}{//\ Selects\ series\ \{0,\ 1,\ 2\}}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00060}00060\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00061}00061\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Configure\ lag\ structure\ for\ all\ potential\ series}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00062}00062\ \ \ \ \ \ \ \ \ hyperparams.\mbox{\hyperlink{classHyperParameters_a1e3a900610773b7727b8cd4ef5999700}{setMaxLags}}(10);\ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Lags\ numbered\ 0-\/9}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00063}00063\ \ \ \ \ \ \ \ \ hyperparams.\mbox{\hyperlink{classHyperParameters_aee298d046caddb715a0c420e5f5268ca}{setLagSelectionOdd}}(2);\ \ \ \ \textcolor{comment}{//\ Base\ 2\ for\ lag\ selection}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00064}00064\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00065}00065\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Set\ lag\ codes\ for\ each\ series\ (3\ codes\ for\ 3\ potential\ series)}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00066}00066\ \ \ \ \ \ \ \ \ std::vector<long\ int>\ lag\_codes\ =\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00067}00067\ \ \ \ \ \ \ \ \ \ \ \ \ 0L,\ \ \ \textcolor{comment}{//\ Series\ 0:\ all\ lags\ selected\ (0\%2=0\ for\ all)}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00068}00068\ \ \ \ \ \ \ \ \ \ \ \ \ 6L,\ \ \ \textcolor{comment}{//\ Series\ 1:\ binary\ 110\ -\/>\ lags\ [1,\ 2]\ selected}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00069}00069\ \ \ \ \ \ \ \ \ \ \ \ \ 10L\ \ \ \textcolor{comment}{//\ Series\ 2:\ binary\ 1010\ -\/>\ lags\ [1,\ 3]\ selected}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00070}00070\ \ \ \ \ \ \ \ \ \};}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00071}00071\ \ \ \ \ \ \ \ \ hyperparams.\mbox{\hyperlink{classHyperParameters_a75cdc9ae291b860a9cb03138c56f22d2}{setLagsFromVector}}(lag\_codes);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00072}00072\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00073}00073\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Configure\ lag\ multipliers\ (different\ time\ scales\ for\ each\ series)}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00074}00074\ \ \ \ \ \ \ \ \ std::vector<int>\ lag\_multipliers\ =\ \{1,\ 5,\ 2\};\ \textcolor{comment}{//\ Series\ 0:\ ×1,\ Series\ 1:\ ×5,\ Series\ 2:\ ×2}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00075}00075\ \ \ \ \ \ \ \ \ hyperparams.\mbox{\hyperlink{classHyperParameters_acff0acec9550f5f1f967ed6f6d5ad1a1}{setLagMultiplier}}(lag\_multipliers);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00076}00076\ \ \ \ \ \ \ \ \ hyperparams.\mbox{\hyperlink{classHyperParameters_afa991ae193256290a14ea477526d74c7}{setMaxLagMultiplier}}(10);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00077}00077\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00078}00078\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Configure\ network\ architecture\ using\ code-\/based\ generation}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00079}00079\ \ \ \ \ \ \ \ \ hyperparams.\mbox{\hyperlink{classHyperParameters_a7ab556b1f5190e72f1ecdd2662d903a2}{setMaxNumberOfHiddenNodes}}(128);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00080}00080\ \ \ \ \ \ \ \ \ hyperparams.\mbox{\hyperlink{classHyperParameters_a2db0ba5cec313ffd6d3e57d87cda831f}{setMaxNumberOfHiddenLayers}}(4);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00081}00081\ \ \ \ \ \ \ \ \ hyperparams.\mbox{\hyperlink{classHyperParameters_a2099b28ac1fc3f16486966b05c9711ab}{setHiddenLayersFromCode}}(16450L,\ 32);\ \ \textcolor{comment}{//\ Generate\ architecture\ from\ code}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00082}00082\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00083}00083\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Configure\ training\ parameters}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00084}00084\ \ \ \ \ \ \ \ \ hyperparams.setActivationFunction(\textcolor{stringliteral}{"{}relu"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00085}00085\ \ \ \ \ \ \ \ \ hyperparams.setNumEpochs(100);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00086}00086\ \ \ \ \ \ \ \ \ hyperparams.setBatchSize(32);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00087}00087\ \ \ \ \ \ \ \ \ hyperparams.setLearningRate(0.001);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00088}00088\ \ \ \ \ \ \ \ \ hyperparams.setTrainTestSplit(0.8);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00089}00089\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00090}00090\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Validate\ and\ display\ configuration}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00091}00091\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (!hyperparams.\mbox{\hyperlink{classHyperParameters_a0ba1a22c19e273285315068e8b74ca11}{isValid}}())\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00092}00092\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{throw}\ std::runtime\_error(\textcolor{stringliteral}{"{}Invalid\ hyperparameter\ configuration"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00093}00093\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00094}00094\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00095}00095\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}HyperParameters\ configuration:"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00096}00096\ \ \ \ \ \ \ \ \ std::cout\ <<\ hyperparams.\mbox{\hyperlink{classHyperParameters_ab8ad4f0afa16f4c39ad4a1cfb8a1a7ca}{toString}}()\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00097}00097\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00098}00098\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Step\ 3:\ Create\ and\ initialize\ neural\ network}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00099}00099\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n3.\ Initializing\ neural\ network..."{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00100}00100\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}\ net;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00101}00101\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00102}00102\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Initialize\ network\ using\ hyperparameters\ (1\ output)}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00103}00103\ \ \ \ \ \ \ \ \ net.\mbox{\hyperlink{classNeuralNetworkWrapper_aed037c3b3dd03fc998d934aad8d21bf8}{initializeNetwork}}(\&hyperparams,\ 1);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00104}00104\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00105}00105\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Network\ initialized\ with\ "{}}\ <<\ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a2188c94d66427f7209cfcf510162d43d}{getTotalParameters}}()\ <<\ \textcolor{stringliteral}{"{}\ parameters"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00106}00106\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00107}00107\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Step\ 4:\ Prepare\ training\ and\ test\ data\ using\ hyperparameters}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00108}00108\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n4.\ Preparing\ data\ using\ hyperparameters..."{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00109}00109\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00110}00110\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ t\_start\ =\ 0.0;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00111}00111\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ t\_end\ =\ 100.0;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00112}00112\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ dt\ =\ 0.1;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00113}00113\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ split\_ratio\ =\ hyperparams.getTrainTestSplit();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00114}00114\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ split\_time\ =\ t\_start\ +\ split\_ratio\ *\ (t\_end\ -\/\ t\_start);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00115}00115\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00116}00116\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Set\ training\ data\ using\ hyperparameter\ configuration}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00117}00117\ \ \ \ \ \ \ \ \ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a3ea7dcb24519463207ba3bbc49c01562}{setInputDataFromHyperParams}}(DataType::Train,\ input\_data,\ t\_start,\ split\_time,\ dt);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00118}00118\ \ \ \ \ \ \ \ \ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a4c9705bef9d12eff06f73916bf3f8aba}{setTargetData}}(DataType::Train,\ target\_series,\ t\_start,\ split\_time,\ dt);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00119}00119\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00120}00120\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Set\ test\ data\ using\ hyperparameter\ configuration}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00121}00121\ \ \ \ \ \ \ \ \ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a3ea7dcb24519463207ba3bbc49c01562}{setInputDataFromHyperParams}}(DataType::Test,\ input\_data,\ split\_time,\ t\_end,\ dt);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00122}00122\ \ \ \ \ \ \ \ \ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a4c9705bef9d12eff06f73916bf3f8aba}{setTargetData}}(DataType::Test,\ target\_series,\ split\_time,\ t\_end,\ dt);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00123}00123\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00124}00124\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Training\ data:\ "{}}\ <<\ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a3bcf431b2b241ac7bddd9ed4ec4512a2}{getInputData}}(DataType::Train).size(0)\ <<\ \textcolor{stringliteral}{"{}\ samples"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00125}00125\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Test\ data:\ "{}}\ <<\ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a3bcf431b2b241ac7bddd9ed4ec4512a2}{getInputData}}(DataType::Test).size(0)\ <<\ \textcolor{stringliteral}{"{}\ samples"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00126}00126\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00127}00127\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Write\ input\ data\ for\ verification}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00128}00128\ \ \ \ \ \ \ \ \ TimeSeriesSet<double>\ training\_data\_for\_check\ =\ TimeSeriesSet<double>::fromTensor(}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00129}00129\ \ \ \ \ \ \ \ \ \ \ \ \ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a3bcf431b2b241ac7bddd9ed4ec4512a2}{getInputData}}(DataType::Train),\ t\_start,\ split\_time,\ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a44a597c01e69a5869dbb21e6d836ac3e}{generateInputFeatureNames}}());}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00130}00130\ \ \ \ \ \ \ \ \ training\_data\_for\_check.write(\textcolor{stringliteral}{"{}training\_data\_for\_check.txt"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00131}00131\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00132}00132\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Step\ 5:\ Train\ the\ network\ using\ hyperparameters}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00133}00133\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n5.\ Training\ network..."{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00134}00134\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00135}00135\ \ \ \ \ \ \ \ \ std::vector<double>\ training\_losses\ =\ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a4bf1f4e72f6c108fe96387b5fb820c31}{train}}(}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00136}00136\ \ \ \ \ \ \ \ \ \ \ \ \ hyperparams.getNumEpochs(),}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00137}00137\ \ \ \ \ \ \ \ \ \ \ \ \ hyperparams.getBatchSize(),}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00138}00138\ \ \ \ \ \ \ \ \ \ \ \ \ hyperparams.getLearningRate()}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00139}00139\ \ \ \ \ \ \ \ \ \ \ \ \ );}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00140}00140\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00141}00141\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Training\ completed.\ Final\ loss:\ "{}}\ <<\ training\_losses.back()\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00142}00142\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00143}00143\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Training\ performance:"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00144}00144\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ train\_r2\ =\ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a30fc317f9a1ac1524e93677d0b9a40d7}{calculateR2}}(DataType::Train);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00145}00145\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\ \ Training\ R²:\ "{}}\ <<\ std::fixed\ <<\ std::setprecision(4)\ <<\ train\_r2\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00146}00146\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00147}00147\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00148}00148\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Step\ 6:\ Evaluate\ performance}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00149}00149\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n6.\ Evaluating\ performance..."{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00150}00150\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00151}00151\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Make\ predictions\ on\ test\ data}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00152}00152\ \ \ \ \ \ \ \ \ TimeSeriesSet<double>\ test\_predictions\ =\ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a2b961e95cce66deba3031c52cfa40d54}{predict}}(}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00153}00153\ \ \ \ \ \ \ \ \ \ \ \ \ DataType::Test,\ split\_time,\ t\_end,\ dt,\ \{\textcolor{stringliteral}{"{}predicted\_output"{}}\});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00154}00154\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00155}00155\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Test\ predictions\ generated:\ "{}}\ <<\ test\_predictions[0].size()\ <<\ \textcolor{stringliteral}{"{}\ points"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00156}00156\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00157}00157\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Calculate\ metrics\ using\ the\ evaluate\ method}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00158}00158\ \ \ \ \ \ \ \ \ \textcolor{keyword}{auto}\ metrics\ =\ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a18dd882655d839239c7e17cb2bfed697}{evaluate}}();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00159}00159\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Test\ MSE:\ "{}}\ <<\ metrics[\textcolor{stringliteral}{"{}mse"{}}]\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00160}00160\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Test\ RMSE:\ "{}}\ <<\ metrics[\textcolor{stringliteral}{"{}rmse"{}}]\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00161}00161\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Test\ MAE:\ "{}}\ <<\ metrics[\textcolor{stringliteral}{"{}mae"{}}]\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00162}00162\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Test\ R²:\ "{}}\ <<\ metrics[\textcolor{stringliteral}{"{}r\_squared"{}}]\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00163}00163\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00164}00164\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Step\ 7:\ Save\ results}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00165}00165\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n7.\ Saving\ results..."{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00166}00166\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00167}00167\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Save\ the\ trained\ model}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00168}00168\ \ \ \ \ \ \ \ \ net.\mbox{\hyperlink{classNeuralNetworkWrapper_a55b403d997f072ff81670c43206077cb}{saveModel}}(\textcolor{stringliteral}{"{}trained\_model.pt"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00169}00169\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00170}00170\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Save\ predictions}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00171}00171\ \ \ \ \ \ \ \ \ test\_predictions.write(\textcolor{stringliteral}{"{}test\_predictions.csv"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00172}00172\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00173}00173\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Save\ hyperparameters\ configuration}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00174}00174\ \ \ \ \ \ \ \ \ std::ofstream\ hyperparams\_file(\textcolor{stringliteral}{"{}hyperparameters\_config.txt"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00175}00175\ \ \ \ \ \ \ \ \ hyperparams\_file\ <<\ hyperparams.\mbox{\hyperlink{classHyperParameters_ab8ad4f0afa16f4c39ad4a1cfb8a1a7ca}{toString}}()\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00176}00176\ \ \ \ \ \ \ \ \ hyperparams\_file.close();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00177}00177\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00178}00178\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Save\ training\ history}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00179}00179\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Training\ loss\ history\ (last\ 10\ epochs):"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00180}00180\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ std::max(0,\ \textcolor{keyword}{static\_cast<}\textcolor{keywordtype}{int}\textcolor{keyword}{>}(training\_losses.size())\ -\/\ 10);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00181}00181\ \ \ \ \ \ \ \ \ \ \ \ \ \ i\ <\ training\_losses.size();\ ++i)\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00182}00182\ \ \ \ \ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\ \ Epoch\ "{}}\ <<\ (i\ +\ 1)\ <<\ \textcolor{stringliteral}{"{}:\ "{}}\ <<\ training\_losses[i]\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00183}00183\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00184}00184\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00185}00185\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Step\ 8:\ Demonstrate\ hyperparameter\ optimization\ potential}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00186}00186\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n8.\ Demonstrating\ optimization\ potential..."{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00187}00187\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00188}00188\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Show\ how\ to\ iterate\ through\ different\ configurations}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00189}00189\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Example\ optimization\ iterations:"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00190}00190\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00191}00191\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{int}\ max\_series\_selections\ =\ \mbox{\hyperlink{classHyperParameters_a368596a6412efed46da57b33100b2006}{HyperParameters::getMaxSelectionCode}}(3);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00192}00192\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\ \ Possible\ series\ selections:\ 1\ to\ "{}}\ <<\ max\_series\_selections\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00193}00193\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00194}00194\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_lag\_code\ =\ hyperparams.\mbox{\hyperlink{classHyperParameters_a8cac7e74a33f2a79b51e0c93b2aee1d2}{getMaxLagCode}}();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00195}00195\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\ \ Max\ lag\ code\ per\ series:\ "{}}\ <<\ max\_lag\_code\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00196}00196\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00197}00197\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_arch\_code\ =\ hyperparams.\mbox{\hyperlink{classHyperParameters_a3433d6d00e0ac89af001e2f1875ee522}{getMaxArchitectureCode}}();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00198}00198\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\ \ Max\ architecture\ code:\ "{}}\ <<\ max\_arch\_code\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00199}00199\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00200}00200\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ max\_multiplier\_code\ =\ hyperparams.\mbox{\hyperlink{classHyperParameters_ab1163122745d795f05fadd340f2dd97c}{getMaxLagMultiplierCode}}(3);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00201}00201\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\ \ Max\ lag\ multiplier\ code:\ "{}}\ <<\ max\_multiplier\_code\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00202}00202\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00203}00203\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Example:\ test\ a\ few\ different\ configurations}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00204}00204\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\ \ Example\ series\ selection\ configurations:"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00205}00205\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{int}\ selection\_code\ =\ 1;\ selection\_code\ <=\ 3\ \&\&\ selection\_code\ <=\ max\_series\_selections;\ selection\_code++)\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00206}00206\ \ \ \ \ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classHyperParameters}{HyperParameters}}\ test\_params\ =\ hyperparams;\ \ \textcolor{comment}{//\ Copy\ current\ config}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00207}00207\ \ \ \ \ \ \ \ \ \ \ \ \ test\_params.\mbox{\hyperlink{classHyperParameters_a9c01f2402e2765ffb96e57f9fbf95aaf}{setSelectedSeriesFromBinary}}(selection\_code,\ 3);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00208}00208\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00209}00209\ \ \ \ \ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\ \ \ \ Config\ "{}}\ <<\ selection\_code\ <<\ \textcolor{stringliteral}{"{}\ would\ select\ series:\ ["{}};}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00210}00210\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{auto}\ selected\ =\ test\_params.getSelectedSeriesIds();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00211}00211\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ selected.size();\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00212}00212\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ std::cout\ <<\ selected[i];}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00213}00213\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (i\ <\ selected.size()\ -\/\ 1)\ std::cout\ <<\ \textcolor{stringliteral}{"{},\ "{}};}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00214}00214\ \ \ \ \ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00215}00215\ \ \ \ \ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}]"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00216}00216\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00217}00217\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00218}00218\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Example\ lag\ multiplier\ configurations}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00219}00219\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\ \ Example\ lag\ multiplier\ configurations:"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00220}00220\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{long}\ \textcolor{keywordtype}{int}\ mult\_code\ =\ 0;\ mult\_code\ <=\ 2;\ mult\_code++)\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00221}00221\ \ \ \ \ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classHyperParameters}{HyperParameters}}\ test\_params\ =\ hyperparams;\ \ \textcolor{comment}{//\ Copy\ current\ config}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00222}00222\ \ \ \ \ \ \ \ \ \ \ \ \ test\_params.\mbox{\hyperlink{classHyperParameters_a0aabb6ee67c40da9fc9fef41dd78e239}{setLagMultipliersFromCode}}(mult\_code,\ 3);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00223}00223\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00224}00224\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{auto}\ multipliers\ =\ test\_params.\mbox{\hyperlink{classHyperParameters_ae009663e377fa9b20bb6d19d794c69d7}{getLagMultiplier}}();}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00225}00225\ \ \ \ \ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\ \ \ \ Multiplier\ code\ "{}}\ <<\ mult\_code\ <<\ \textcolor{stringliteral}{"{}\ generates:\ ["{}};}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00226}00226\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{size\_t}\ i\ =\ 0;\ i\ <\ multipliers.size();\ i++)\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00227}00227\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ std::cout\ <<\ multipliers[i];}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00228}00228\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (i\ <\ multipliers.size()\ -\/\ 1)\ std::cout\ <<\ \textcolor{stringliteral}{"{},\ "{}};}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00229}00229\ \ \ \ \ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00230}00230\ \ \ \ \ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}]"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00231}00231\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00232}00232\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00233}00233\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Show\ total\ optimization\ space}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00234}00234\ \ \ \ \ \ \ \ \ std::cout<<\ \textcolor{stringliteral}{"{}Optimization\ space:\ "{}}\ <<\ hyperparams.\mbox{\hyperlink{classHyperParameters_aff74be687d8341ca4831f2ba27aa9d55}{getOptimizationSpaceInfo}}()\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00235}00235\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00236}00236\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Step\ 9:\ Demonstrate\ model\ loading\ with\ hyperparameters}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00237}00237\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n9.\ Demonstrating\ model\ save/load\ with\ hyperparameters..."{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00238}00238\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00239}00239\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Create\ a\ new\ network\ with\ same\ hyperparameters}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00240}00240\ \ \ \ \ \ \ \ \ \mbox{\hyperlink{classNeuralNetworkWrapper}{NeuralNetworkWrapper}}\ loaded\_net;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00241}00241\ \ \ \ \ \ \ \ \ loaded\_net.\mbox{\hyperlink{classNeuralNetworkWrapper_aed037c3b3dd03fc998d934aad8d21bf8}{initializeNetwork}}(\&hyperparams,\ 1);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00242}00242\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00243}00243\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Load\ the\ saved\ model}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00244}00244\ \ \ \ \ \ \ \ \ loaded\_net.\mbox{\hyperlink{classNeuralNetworkWrapper_a8a16794d39d68a8931e934bbab1baa9d}{loadModel}}(\textcolor{stringliteral}{"{}trained\_model.pt"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00245}00245\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00246}00246\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Verify\ it\ works\ by\ making\ a\ prediction}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00247}00247\ \ \ \ \ \ \ \ \ loaded\_net.\mbox{\hyperlink{classNeuralNetworkWrapper_a3ea7dcb24519463207ba3bbc49c01562}{setInputDataFromHyperParams}}(DataType::Test,\ input\_data,\ split\_time,\ t\_end,\ dt);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00248}00248\ \ \ \ \ \ \ \ \ TimeSeriesSet<double>\ loaded\_predictions\ =\ loaded\_net.\mbox{\hyperlink{classNeuralNetworkWrapper_a2b961e95cce66deba3031c52cfa40d54}{predict}}(DataType::Test,\ split\_time,\ t\_end,\ dt);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00249}00249\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00250}00250\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Loaded\ model\ predictions:\ "{}}\ <<\ loaded\_predictions[0].size()\ <<\ \textcolor{stringliteral}{"{}\ points"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00251}00251\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00252}00252\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}\(\backslash\)n===\ HyperParameters\ example\ completed\ successfully!\ ==="{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00253}00253\ \ \ \ \ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Configuration\ saved\ to:\ hyperparameters\_config.txt"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00254}00254\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00255}00255\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ 0;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00256}00256\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00257}00257\ \ \ \ \ \}\ \textcolor{keywordflow}{catch}\ (\textcolor{keyword}{const}\ std::exception\&\ e)\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00258}00258\ \ \ \ \ \ \ \ \ std::cerr\ <<\ \textcolor{stringliteral}{"{}Error:\ "{}}\ <<\ e.what()\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00259}00259\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ -\/1;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00260}00260\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00261}00261\ \}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00262}00262\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00263}00263\ \textcolor{comment}{//\ Updated\ synthetic\ data\ creation\ function}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00264}00264\ \textcolor{keywordtype}{void}\ createSyntheticData()\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00265}00265\ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Creating\ synthetic\ data\ for\ testing..."{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00266}00266\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00267}00267\ \ \ \ \ \textcolor{comment}{//\ Create\ synthetic\ input\ data\ (3\ time\ series)}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00268}00268\ \ \ \ \ TimeSeriesSet<double>\ synthetic\_input(3);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00269}00269\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00270}00270\ \ \ \ \ \textcolor{comment}{//\ Extend\ the\ time\ range\ to\ include\ negative\ values\ for\ proper\ lag\ handling}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00271}00271\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{double}\ t\ =\ -\/10.0;\ t\ <=\ 100.0;\ t\ +=\ 0.1)\ \{\ \ \textcolor{comment}{//\ Extended\ range\ for\ larger\ lags}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00272}00272\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Series\ 0:\ sine\ wave}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00273}00273\ \ \ \ \ \ \ \ \ synthetic\_input[0].addPoint(t,\ std::sin(0.1\ *\ t)\ +\ 0.1\ *\ std::sin(0.5\ *\ t));}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00274}00274\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00275}00275\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Series\ 1:\ cosine\ wave\ with\ trend}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00276}00276\ \ \ \ \ \ \ \ \ synthetic\_input[1].addPoint(t,\ std::cos(0.15\ *\ t)\ +\ 0.01\ *\ t);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00277}00277\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00278}00278\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Series\ 2:\ noisy\ exponential\ decay}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00279}00279\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ noise\ =\ 0.1\ *\ (\textcolor{keyword}{static\_cast<}\textcolor{keywordtype}{double}\textcolor{keyword}{>}(rand())\ /\ RAND\_MAX\ -\/\ 0.5);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00280}00280\ \ \ \ \ \ \ \ \ synthetic\_input[2].addPoint(t,\ std::exp(-\/0.02\ *\ std::abs(t))\ +\ noise);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00281}00281\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00282}00282\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00283}00283\ \ \ \ \ synthetic\_input.setSeriesName(0,\ \textcolor{stringliteral}{"{}temperature"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00284}00284\ \ \ \ \ synthetic\_input.setSeriesName(1,\ \textcolor{stringliteral}{"{}pressure"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00285}00285\ \ \ \ \ synthetic\_input.setSeriesName(2,\ \textcolor{stringliteral}{"{}flow\_rate"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00286}00286\ \ \ \ \ synthetic\_input.write(\textcolor{stringliteral}{"{}input\_data.csv"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00287}00287\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00288}00288\ \ \ \ \ \textcolor{comment}{//\ Create\ synthetic\ target\ data\ using\ the\ hyperparameter-\/like\ structure}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00289}00289\ \ \ \ \ TimeSeries<double>\ synthetic\_target;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00290}00290\ \ \ \ \ \textcolor{keywordflow}{for}\ (\textcolor{keywordtype}{double}\ t\ =\ 0.0;\ t\ <=\ 100.0;\ t\ +=\ 0.1)\ \{}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00291}00291\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Simulate\ the\ lag\ structure\ that\ will\ be\ used:}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00292}00292\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Series\ 0\ with\ lags\ [0,1,2,...]\ ×\ multiplier\ 1}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00293}00293\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Series\ 1\ with\ lags\ [1,2]\ ×\ multiplier\ 5\ =\ [5,10]}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00294}00294\ \ \ \ \ \ \ \ \ \textcolor{comment}{//\ Series\ 2\ with\ lags\ [1,3]\ ×\ multiplier\ 2\ =\ [2,6]}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00295}00295\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{double}\ target\ =\ 0.3\ *\ synthetic\_input[0].interpol(t\ -\/\ 0.0)\ +\ \ \ \ \ \textcolor{comment}{//\ lag\ 0}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00296}00296\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 0.2\ *\ synthetic\_input[0].interpol(t\ -\/\ 0.1)\ +\ \ \ \ \ \textcolor{comment}{//\ lag\ 1}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00297}00297\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 0.2\ *\ synthetic\_input[1].interpol(t\ -\/\ 0.5)\ +\ \ \ \ \ \textcolor{comment}{//\ lag\ 5}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00298}00298\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 0.2\ *\ synthetic\_input[2].interpol(t\ -\/\ 0.2)\ +\ \ \ \ \ \textcolor{comment}{//\ lag\ 2}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00299}00299\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 0.1\ *\ (\textcolor{keyword}{static\_cast<}\textcolor{keywordtype}{double}\textcolor{keyword}{>}(rand())\ /\ RAND\_MAX\ -\/\ 0.5);\ \textcolor{comment}{//\ noise}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00300}00300\ \ \ \ \ \ \ \ \ synthetic\_target.addPoint(t,\ target);}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00301}00301\ \ \ \ \ \}}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00302}00302\ \ \ \ \ synthetic\_target.writefile(\textcolor{stringliteral}{"{}target\_output.txt"{}});}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00303}00303\ }
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00304}00304\ \ \ \ \ std::cout\ <<\ \textcolor{stringliteral}{"{}Synthetic\ data\ created\ successfully!"{}}\ <<\ std::endl;}
+\DoxyCodeLine{\Hypertarget{main__TimeSeries__Training_8cpp_source_l00305}00305\ \}}
+
+\end{DoxyCode}

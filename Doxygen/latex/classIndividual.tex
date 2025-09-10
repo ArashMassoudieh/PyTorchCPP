@@ -1,0 +1,268 @@
+\doxysection{Individual Class Reference}
+\hypertarget{classIndividual}{}\label{classIndividual}\index{Individual@{Individual}}
+
+
+Represents an individual in a genetic algorithm population.  
+
+
+
+
+{\ttfamily \#include $<$individual.\+h$>$}
+
+
+
+Inheritance diagram for Individual\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=223pt]{classIndividual__inherit__graph}
+\end{center}
+\end{figure}
+
+
+Collaboration diagram for Individual\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=223pt]{classIndividual__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\Hypertarget{classIndividual_aba744ebe9d36093e51d0c25ce471b0b2}\label{classIndividual_aba744ebe9d36093e51d0c25ce471b0b2} 
+{\bfseries Individual} ()=default
+\begin{DoxyCompactList}\small\item\em Default constructor. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{classIndividual_a742188752b96d96144ed0bbca879ff59}{Individual}} (const \mbox{\hyperlink{classIndividual}{Individual}} \&other)
+\begin{DoxyCompactList}\small\item\em Copy constructor. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{classIndividual}{Individual}} \& \mbox{\hyperlink{classIndividual_a354874a71786f9cc1efd5359a7534bbd}{operator=}} (const \mbox{\hyperlink{classIndividual}{Individual}} \&other)
+\begin{DoxyCompactList}\small\item\em Assignment operator (copy from \doxylink{classIndividual}{Individual}). \end{DoxyCompactList}\item 
+\mbox{\hyperlink{classIndividual}{Individual}} \& \mbox{\hyperlink{classIndividual_a6fea16cd422ef4e980bc28963ad18bbd}{operator=}} (const std\+::vector$<$ \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} $>$ \&other)
+\begin{DoxyCompactList}\small\item\em Assignment operator (from vector of \doxylink{classBinaryNumber}{Binary\+Number}). \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classIndividual_a6a3600db501539f999b3b63464e68647}{display}} () const
+\begin{DoxyCompactList}\small\item\em Print the individual’s genome in decimal representation. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classIndividual_a38546226a23513045f609f87b8a6a92b}{operator$>$}} (const \mbox{\hyperlink{classIndividual}{Individual}} \&I)
+\begin{DoxyCompactList}\small\item\em Greater-\/than operator (based on fitness). \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classIndividual_aed8522c05ac7dac694555c14a0199b67}{operator$<$}} (const \mbox{\hyperlink{classIndividual}{Individual}} \&I)
+\begin{DoxyCompactList}\small\item\em Less-\/than operator (based on fitness). \end{DoxyCompactList}\item 
+\mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} \mbox{\hyperlink{classIndividual_aeeab018c69dcfefad7e1cd36a729f327}{to\+Binary}} () const
+\begin{DoxyCompactList}\small\item\em Combine genome into one \doxylink{classBinaryNumber}{Binary\+Number}. \end{DoxyCompactList}\item 
+std\+::string \mbox{\hyperlink{classIndividual_a3553f98b2d0a2c01f21d5e2b1b52fcf8}{to\+Assignment\+Text}} (const std\+::string \&name, int iterator)
+\begin{DoxyCompactList}\small\item\em Return fitness measure as assignment string. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+double \mbox{\hyperlink{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}{fitness}} = 0
+\begin{DoxyCompactList}\small\item\em Fitness value of the individual. \end{DoxyCompactList}\item 
+std\+::map$<$ std\+::string, double $>$ \mbox{\hyperlink{classIndividual_afa85095b4633c834f248634c3585664f}{fitness\+\_\+measures}}
+\begin{DoxyCompactList}\small\item\em Auxiliary fitness measures (map of metric name to value). \end{DoxyCompactList}\item 
+std\+::vector$<$ unsigned int $>$ \mbox{\hyperlink{classIndividual_aadc0d2113b3245d2eca29ccc3f12f1fa}{splitlocations}}
+\begin{DoxyCompactList}\small\item\em Locations of splits in genome. \end{DoxyCompactList}\item 
+unsigned int \mbox{\hyperlink{classIndividual_a7c924d30e81e844844660b9b3ec51a74}{rank}} = 0
+\begin{DoxyCompactList}\small\item\em Rank of the individual (for selection). \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Represents an individual in a genetic algorithm population. 
+
+An \doxylink{classIndividual}{Individual} is essentially a vector of \doxylink{classBinaryNumber}{Binary\+Number} objects, representing a candidate solution. It stores its fitness, rank, split locations, and other auxiliary fitness measures. 
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00017}{17}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+
+
+\doxysubsection{Constructor \& Destructor Documentation}
+\Hypertarget{classIndividual_a742188752b96d96144ed0bbca879ff59}\label{classIndividual_a742188752b96d96144ed0bbca879ff59} 
+\index{Individual@{Individual}!Individual@{Individual}}
+\index{Individual@{Individual}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{Individual()}{Individual()}}
+{\footnotesize\ttfamily Individual\+::\+Individual (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classIndividual}{Individual}} \&}]{other }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Copy constructor. 
+
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00023}{23}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{classIndividual_a6a3600db501539f999b3b63464e68647}\label{classIndividual_a6a3600db501539f999b3b63464e68647} 
+\index{Individual@{Individual}!display@{display}}
+\index{display@{display}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{display()}{display()}}
+{\footnotesize\ttfamily void Individual\+::display (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Print the individual’s genome in decimal representation. 
+
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00061}{61}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+\Hypertarget{classIndividual_aed8522c05ac7dac694555c14a0199b67}\label{classIndividual_aed8522c05ac7dac694555c14a0199b67} 
+\index{Individual@{Individual}!operator$<$@{operator$<$}}
+\index{operator$<$@{operator$<$}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{operator$<$()}{operator<()}}
+{\footnotesize\ttfamily bool Individual\+::operator$<$ (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classIndividual}{Individual}} \&}]{I }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Less-\/than operator (based on fitness). 
+
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00079}{79}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+\Hypertarget{classIndividual_a354874a71786f9cc1efd5359a7534bbd}\label{classIndividual_a354874a71786f9cc1efd5359a7534bbd} 
+\index{Individual@{Individual}!operator=@{operator=}}
+\index{operator=@{operator=}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{operator=()}{operator=()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily \mbox{\hyperlink{classIndividual}{Individual}} \& Individual\+::operator= (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classIndividual}{Individual}} \&}]{other }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Assignment operator (copy from \doxylink{classIndividual}{Individual}). 
+
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00033}{33}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+\Hypertarget{classIndividual_a6fea16cd422ef4e980bc28963ad18bbd}\label{classIndividual_a6fea16cd422ef4e980bc28963ad18bbd} 
+\index{Individual@{Individual}!operator=@{operator=}}
+\index{operator=@{operator=}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{operator=()}{operator=()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
+{\footnotesize\ttfamily \mbox{\hyperlink{classIndividual}{Individual}} \& Individual\+::operator= (\begin{DoxyParamCaption}\item[{const std\+::vector$<$ \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} $>$ \&}]{other }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Assignment operator (from vector of \doxylink{classBinaryNumber}{Binary\+Number}). 
+
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00046}{46}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+\Hypertarget{classIndividual_a38546226a23513045f609f87b8a6a92b}\label{classIndividual_a38546226a23513045f609f87b8a6a92b} 
+\index{Individual@{Individual}!operator$>$@{operator$>$}}
+\index{operator$>$@{operator$>$}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{operator$>$()}{operator>()}}
+{\footnotesize\ttfamily bool Individual\+::operator$>$ (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{classIndividual}{Individual}} \&}]{I }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Greater-\/than operator (based on fitness). 
+
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00076}{76}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+\Hypertarget{classIndividual_a3553f98b2d0a2c01f21d5e2b1b52fcf8}\label{classIndividual_a3553f98b2d0a2c01f21d5e2b1b52fcf8} 
+\index{Individual@{Individual}!toAssignmentText@{toAssignmentText}}
+\index{toAssignmentText@{toAssignmentText}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{toAssignmentText()}{toAssignmentText()}}
+{\footnotesize\ttfamily std\+::string Individual\+::to\+Assignment\+Text (\begin{DoxyParamCaption}\item[{const std\+::string \&}]{name,  }\item[{int}]{iterator }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Return fitness measure as assignment string. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em name} & Base name of the metric. \\
+\hline
+{\em iterator} & Index appended to name. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+String of form "{}name\+\_\+i=value"{}. 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00097}{97}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+\Hypertarget{classIndividual_aeeab018c69dcfefad7e1cd36a729f327}\label{classIndividual_aeeab018c69dcfefad7e1cd36a729f327} 
+\index{Individual@{Individual}!toBinary@{toBinary}}
+\index{toBinary@{toBinary}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{toBinary()}{toBinary()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{classBinaryNumber}{Binary\+Number}} Individual\+::to\+Binary (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Combine genome into one \doxylink{classBinaryNumber}{Binary\+Number}. 
+
+\begin{DoxyReturn}{Returns}
+Concatenated \doxylink{classBinaryNumber}{Binary\+Number}. 
+\end{DoxyReturn}
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00085}{85}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+
+
+\doxysubsection{Member Data Documentation}
+\Hypertarget{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae}\label{classIndividual_aa836a17c3f643f8b5d9032161c8a07ae} 
+\index{Individual@{Individual}!fitness@{fitness}}
+\index{fitness@{fitness}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{fitness}{fitness}}
+{\footnotesize\ttfamily double Individual\+::fitness = 0}
+
+
+
+Fitness value of the individual. 
+
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00055}{55}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+\Hypertarget{classIndividual_afa85095b4633c834f248634c3585664f}\label{classIndividual_afa85095b4633c834f248634c3585664f} 
+\index{Individual@{Individual}!fitness\_measures@{fitness\_measures}}
+\index{fitness\_measures@{fitness\_measures}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{fitness\_measures}{fitness\_measures}}
+{\footnotesize\ttfamily std\+::map$<$std\+::string,double$>$ Individual\+::fitness\+\_\+measures}
+
+
+
+Auxiliary fitness measures (map of metric name to value). 
+
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00058}{58}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+\Hypertarget{classIndividual_a7c924d30e81e844844660b9b3ec51a74}\label{classIndividual_a7c924d30e81e844844660b9b3ec51a74} 
+\index{Individual@{Individual}!rank@{rank}}
+\index{rank@{rank}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{rank}{rank}}
+{\footnotesize\ttfamily unsigned int Individual\+::rank = 0}
+
+
+
+Rank of the individual (for selection). 
+
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00073}{73}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+\Hypertarget{classIndividual_aadc0d2113b3245d2eca29ccc3f12f1fa}\label{classIndividual_aadc0d2113b3245d2eca29ccc3f12f1fa} 
+\index{Individual@{Individual}!splitlocations@{splitlocations}}
+\index{splitlocations@{splitlocations}!Individual@{Individual}}
+\doxysubsubsection{\texorpdfstring{splitlocations}{splitlocations}}
+{\footnotesize\ttfamily std\+::vector$<$unsigned int$>$ Individual\+::splitlocations}
+
+
+
+Locations of splits in genome. 
+
+
+
+Definition at line \mbox{\hyperlink{individual_8h_source_l00070}{70}} of file \mbox{\hyperlink{individual_8h_source}{individual.\+h}}.
+
+
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+/home/arash/\+Projects/\+Py\+Torch\+CPP/individual.\+h\end{DoxyCompactItemize}

@@ -12,7 +12,6 @@ DEFINES += ARMA_USE_OPENMP
 INCLUDEPATH += Utilities/
 
 SOURCES += \
-    GADistribution.cpp \
     hyperparameters.cpp \
     main_TimeSeries_Training.cpp \
     Utilities/Distribution.cpp \
@@ -28,7 +27,6 @@ SOURCES += \
 
 HEADERS += \
     Binary.h \
-    GADistribution.h \
     TestHyperParameters.h \
     Utilities/TimeSeries.h \
     Utilities/TimeSeries.hpp \
