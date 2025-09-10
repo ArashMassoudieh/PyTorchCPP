@@ -140,6 +140,11 @@ int main(int argc, char *argv[]) {
 
         std::cout << "Training completed. Final loss: " << training_losses.back() << std::endl;
 
+        std::cout << "Training performance:" << std::endl;
+        double train_r2 = net.calculateR2(DataType::Train);
+        std::cout << "  Training R²: " << std::fixed << std::setprecision(4) << train_r2 << std::endl;
+
+
         // Step 6: Evaluate performance
         std::cout << "\n6. Evaluating performance..." << std::endl;
 
@@ -226,11 +231,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Show total optimization space
-        long int total_configs = max_series_selections *
-                                 std::pow(max_lag_code + 1, 3) *
-                                 max_arch_code *
-                                 max_multiplier_code;
-        std::cout << "  Total discrete configuration space: " << total_configs << " combinations" << std::endl;
+        std::cout<< "Optimization space: " << hyperparams.getOptimizationSpaceInfo() << std::endl;
 
         // Step 9: Demonstrate model loading with hyperparameters
         std::cout << "\n9. Demonstrating model save/load with hyperparameters..." << std::endl;

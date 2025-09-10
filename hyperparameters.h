@@ -196,6 +196,40 @@ public:
      * @return Maximum multiplier code value
      */
     long int getMaxLagMultiplierCode(int num_series) const;
+
+    /**
+     * @brief Get optimization parameter bounds for genetic algorithm.
+     * Returns maximum values for all parameters needed to fully specify the model.
+     * @param num_available_series Total number of time series available in dataset
+     * @return Vector containing maximum value for each optimization parameter
+     */
+    static std::vector<long int> getOptimizationBounds(int num_available_series);
+
+    /**
+     * @brief Get parameter names corresponding to optimization bounds.
+     * @param num_available_series Total number of time series available in dataset
+     * @return Vector of parameter names in same order as getOptimizationBounds()
+     */
+    static std::vector<std::string> getOptimizationParameterNames(int num_available_series);
+
+    /**
+     * @brief Configure HyperParameters from optimization parameter vector.
+     * Sets all model structure parameters from a vector of integer values.
+     * @param params Vector of parameter values (must match getOptimizationBounds() size)
+     * @param num_available_series Total number of time series available in dataset
+     */
+    void setFromOptimizationParameters(const std::vector<long int>& params, int num_available_series);
+
+    /**
+     * @brief Get optimization space information as string for debugging.
+     * @param num_available_series Total number of time series available in dataset
+     * @return String containing optimization space details
+     */
+    std::string getOptimizationSpaceInfo() const;
+
+
+    // Add to HyperParameters.cpp:
+
 private:
     // Time Series Selection
     std::vector<int> selected_series_ids_;        ///< IDs of selected time series from input

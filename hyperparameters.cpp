@@ -2,6 +2,10 @@
 #include "hyperparameters.h"
 #include <stdexcept>
 #include <algorithm>
+#include <iomanip>  // for std::scientific, std::fixed, std::setprecision
+#include <sstream>  // for std::ostringstream
+#include <cmath>
+
 
 // Constructor
 HyperParameters::HyperParameters()
@@ -581,3 +585,203 @@ long int HyperParameters::getMaxLagMultiplierCode(int num_series) const {
     return max_code - 1L;
 }
 
+std::vector<long int> HyperParameters::getOptimizationBounds(int num_available_series) {
+    if (num_available_series <= 0) {
+        throw std::runtime_error("Number of available series must be positive.");
+    }
+
+    if (num_available_series > 63) {
+        throw std::runtime_error("Maximum 63 time series supported for optimization.");
+    }
+
+    std::vector<long int> bounds;
+
+    // Parameter 0: Series selection code
+    // Range: 1 to 2^num_available_series - 1
+    bounds.push_back(getMaxSelectionCode(num_available_series));
+
+    // Parameters 1 to num_available_series: Lag codes for each potential series
+    // Range: 0 to (lag_selection_odd^max_lags - 1) for each series
+    // We'll use default values for calculation
+    int default_max_lags = 10;
+    int default_lag_selection_odd = 3;
+    long int max_lag_code = static_cast<long int>(std::pow(default_lag_selection_odd, default_max_lags)) - 1L;
+
+    for (int i = 0; i < num_available_series; i++) {
+        bounds.push_back(max_lag_code);
+    }
+
+    // Parameter (num_available_series + 1): Lag multiplier code
+    // Range: 0 to (max_lag_multiplier + 1)^num_available_series - 1
+    int default_max_lag_multiplier = 10;
+    long int max_multiplier_code = static_cast<long int>(std::pow(default_max_lag_multiplier + 1, num_available_series)) - 1L;
+    bounds.push_back(max_multiplier_code);
+
+    // Parameter (num_available_series + 2): Architecture code
+    // Range: 0 to (max_hidden_nodes + 1)^max_hidden_layers - 1
+    int default_max_hidden_nodes = 128;
+    int default_max_hidden_layers = 5;
+    long int max_arch_code = static_cast<long int>(std::pow(default_max_hidden_nodes + 1, default_max_hidden_layers)) - 1L;
+    bounds.push_back(max_arch_code);
+
+    return bounds;
+}
+
+std::vector<std::string> HyperParameters::getOptimizationParameterNames(int num_available_series) {
+    if (num_available_series <= 0) {
+        throw std::runtime_error("Number of available series must be positive.");
+    }
+
+    std::vector<std::string> names;
+
+    // Series selection
+    names.push_back("series_selection_code");
+
+    // Lag codes for each series
+    for (int i = 0; i < num_available_series; i++) {
+        names.push_back("lag_code_series_" + std::to_string(i));
+    }
+
+    // Lag multiplier code
+    names.push_back("lag_multiplier_code");
+
+    // Architecture code
+    names.push_back("architecture_code");
+
+    return names;
+}
+
+void HyperParameters::setFromOptimizationParameters(const std::vector<long int>& params, int num_available_series) {
+    if (num_available_series <= 0) {
+        throw std::runtime_error("Number of available series must be positive.");
+    }
+
+    // Expected parameter count: 1 (series) + num_available_series (lags) + 1 (multipliers) + 1 (architecture)
+    int expected_size = 3 + num_available_series;
+
+    if (static_cast<int>(params.size()) != expected_size) {
+        throw std::runtime_error("Parameter vector size (" + std::to_string(params.size()) +
+                                 ") doesn't match expected size (" + std::to_string(expected_size) +
+                                 ") for " + std::to_string(num_available_series) + " series.");
+    }
+
+    // Set default values that will be used for calculations
+    setMaxLags(10);
+    setLagSelectionOdd(3);
+    setMaxLagMultiplier(10);
+    setMaxNumberOfHiddenNodes(128);
+    setMaxNumberOfHiddenLayers(5);
+
+    int param_idx = 0;
+
+    // Parameter 0: Series selection
+    if (params[param_idx] <= 0) {
+        throw std::runtime_error("Series selection code must be positive.");
+    }
+    setSelectedSeriesFromBinary(params[param_idx], num_available_series);
+    param_idx++;
+
+    // Parameters 1 to num_available_series: Lag codes
+    std::vector<long int> lag_codes;
+    for (int i = 0; i < num_available_series; i++) {
+        lag_codes.push_back(params[param_idx]);
+        param_idx++;
+    }
+    setLagsFromVector(lag_codes);
+
+    // Parameter (num_available_series + 1): Lag multiplier code
+    setLagMultipliersFromCode(params[param_idx], num_available_series);
+    param_idx++;
+
+    // Parameter (num_available_series + 2): Architecture code
+    setHiddenLayersFromCode(params[param_idx], 16);  // Min 16 nodes per layer
+
+    // Set other default training parameters
+    setActivationFunction("relu");
+    setNumEpochs(100);
+    setBatchSize(32);
+    setLearningRate(0.001);
+    setTrainTestSplit(0.8);
+}
+
+std::string HyperParameters::getOptimizationSpaceInfo() const {
+    // Use the selected series to determine available series count
+    int num_available_series = 0;
+    if (!selected_series_ids_.empty()) {
+        // Find the maximum series ID to determine available series count
+        num_available_series = *std::max_element(selected_series_ids_.begin(), selected_series_ids_.end()) + 1;
+    } else {
+        // If no series selected, assume minimum 3 series for calculation
+        num_available_series = 3;
+    }
+
+    std::string result;
+    result += "=== Optimization Parameter Space ===\n";
+    result += "Number of parameters: " + std::to_string(3 + num_available_series) + "\n";
+    result += "Available time series: " + std::to_string(num_available_series) + "\n";
+    result += "\n";
+
+    // Calculate bounds using actual configured values
+    std::vector<std::string> param_names;
+    std::vector<long int> bounds;
+
+    // Parameter 0: Series selection
+    param_names.push_back("series_selection_code");
+    long int max_series_code = getMaxSelectionCode(num_available_series);
+    bounds.push_back(max_series_code);
+
+    // Parameters 1 to num_available_series: Lag codes
+    for (int i = 0; i < num_available_series; i++) {
+        param_names.push_back("lag_code_series_" + std::to_string(i));
+        long int max_lag_code = static_cast<long int>(std::pow(lag_selection_odd_, max_lags_)) - 1L;
+        bounds.push_back(max_lag_code);
+    }
+
+    // Parameter (num_available_series + 1): Lag multiplier code
+    param_names.push_back("lag_multiplier_code");
+    long int max_multiplier_code = static_cast<long int>(std::pow(max_lag_multiplier_ + 1, num_available_series)) - 1L;
+    bounds.push_back(max_multiplier_code);
+
+    // Parameter (num_available_series + 2): Architecture code
+    param_names.push_back("architecture_code");
+    long int max_arch_code = static_cast<long int>(std::pow(max_number_of_hidden_nodes_ + 1, max_number_of_hidden_layers_)) - 1L;
+    bounds.push_back(max_arch_code);
+
+    // Display parameter details
+    for (size_t i = 0; i < bounds.size(); i++) {
+        result += "Parameter " + std::to_string(i) + ": " + param_names[i] + "\n";
+        result += "  Range: 0 to " + std::to_string(bounds[i]) + "\n";
+        result += "  Space size: " + std::to_string(bounds[i] + 1) + "\n";
+        result += "\n";
+    }
+
+    // Calculate total combinations using logarithms to avoid overflow
+    double log_total = 0.0;
+    for (long int bound : bounds) {
+        if (bound > 0) {
+            log_total += std::log10(bound + 1);
+        }
+    }
+
+    result += "Configuration used:\n";
+    result += "  Max lags: " + std::to_string(max_lags_) + "\n";
+    result += "  Lag selection odd: " + std::to_string(lag_selection_odd_) + "\n";
+    result += "  Max lag multiplier: " + std::to_string(max_lag_multiplier_) + "\n";
+    result += "  Max hidden nodes: " + std::to_string(max_number_of_hidden_nodes_) + "\n";
+    result += "  Max hidden layers: " + std::to_string(max_number_of_hidden_layers_) + "\n";
+    result += "\n";
+
+    result += "Total configuration space: ";
+    if (log_total > 15) {
+        result += "~10^" + std::to_string(static_cast<int>(log_total)) + " combinations (extremely large)";
+    } else {
+        long double total_combinations = std::pow(10.0L, log_total);
+        std::ostringstream oss;
+        oss << std::scientific << std::setprecision(2) << total_combinations;
+        result += oss.str() + " combinations";
+    }
+    result += "\n";
+    result += "===============================\n";
+
+    return result;
+}
