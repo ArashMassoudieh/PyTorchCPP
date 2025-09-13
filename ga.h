@@ -84,7 +84,7 @@ public:
      *
      * @return T Best optimized model.
      */
-    T Optimize();
+    T& Optimize();
 
     /**
      * @brief Assign fitness values to all individuals.
@@ -155,6 +155,21 @@ public:
      */
     const Individual& selectIndividualByRank();
 
+    /**
+     * @brief Perform mutation.
+     *
+     * Produces offspring by mutation,
+     * introducing diversity into the population.
+     */
+    void mutatePopulation();
+
+    void setVerbose(bool verbose) {
+        verbose_ = verbose;
+        // Also set verbose on the model
+        model.setVerbose(verbose);
+    }
+    bool getVerbose() const { return verbose_; }
+
 private:
     /**
      * @brief Maximum rank assigned within the population.
@@ -170,6 +185,8 @@ private:
      * @brief Current generation counter.
      */
     unsigned int current_generation = 0;
+
+    bool verbose_ = false;
 };
 
 #include "ga.hpp"

@@ -26,19 +26,27 @@ class HyperParameters;
  * operations and provides easy-to-use methods for training and inference.
  */
 
-class NeuralNetworkWrapper : public torch::nn::Module {
+class NeuralNetworkWrapper {
+
 public:
     // Constructors and Destructor
     NeuralNetworkWrapper();
     ~NeuralNetworkWrapper();
 
     // Copy and move constructors/assignment operators
-    NeuralNetworkWrapper(const NeuralNetworkWrapper& other) = delete;
-    NeuralNetworkWrapper& operator=(const NeuralNetworkWrapper& other) = delete;
+    NeuralNetworkWrapper(const NeuralNetworkWrapper& other);
+    NeuralNetworkWrapper& operator=(const NeuralNetworkWrapper& other);
     NeuralNetworkWrapper(NeuralNetworkWrapper&& other) = default;
     NeuralNetworkWrapper& operator=(NeuralNetworkWrapper&& other) = default;
 
-    // Network Architecture
+    /**
+     * @brief Get the current hyperparameters configuration.
+     * @return Const reference to the hyperparameters object
+     */
+    const HyperParameters& getHyperParameters() const;
+
+    void setHyperParameters(const HyperParameters& hyperparams);
+
     // Network Architecture
     /**
      * @brief Initialize the network with specified architecture.
@@ -56,6 +64,19 @@ public:
      * @return Output tensor from the forward pass
      */
     torch::Tensor forward(DataType data_type);
+
+    /**
+     * @brief Get the number of output time series (output features).
+     * @return Number of output features/time series
+     */
+    int getOutputSize() const;
+
+    /**
+     * @brief Check if at least one time series has lags configured.
+     * Delegates to HyperParameters if available, otherwise checks internal lags.
+     * @return True if at least one time series has one or more lags, false otherwise
+     */
+    bool ValidLags() const;
 
     // Training
     /**
@@ -116,7 +137,7 @@ public:
      * @brief Get the total number of trainable parameters.
      * @return Total number of parameters
      */
-    int getTotalParameters() const;
+    int getTotalParameters();
 
     /**
      * @brief Get the current loss value.
@@ -236,7 +257,7 @@ public:
      * @brief Generate a string representation of the network parameters and configuration.
      * @return String describing the network architecture and configuration
      */
-    std::string parametersToString() const;
+    std::string ParametersToString() const;
 
     /**
      * @brief Initialize the network using HyperParameters configuration.
@@ -322,6 +343,11 @@ public:
     void setAvailableSeriesCount(int count);
 
     /// @}
+
+    // Setter for verbose mode
+    void setVerbose(bool verbose);
+    bool getVerbose() const;
+
 private:
     // Member variables
     std::vector<std::vector<int>> lags_;                  ///< Lag configuration for each TimeSeries
@@ -341,10 +367,12 @@ private:
     torch::Tensor test_target_data_;                     ///< Test target output tensor
 
     // Network components
-    torch::nn::ModuleList layers_;                       ///< All linear layers
+    std::vector<torch::nn::Linear> layers_;              ///< All linear layers
     std::string activation_function_;                    ///< Activation function name
     int input_size_;                                     ///< Input layer size
     int output_size_;
+
+    bool verbose_ = false;
 
     // Network components (to be defined based on architecture)
     // torch::nn::ModuleList layers_; // Will be added when implementing network structure
@@ -378,6 +406,14 @@ private:
      * @return Output tensor
      */
     torch::Tensor forward_internal(torch::Tensor input);
+
+    /**
+     * @brief Copy weights from another network instance.
+     * @param other Source network to copy weights from
+     */
+    void copyWeightsFrom(const NeuralNetworkWrapper& other);
+
+
 
     // GA Interface data
     TimeSeriesSet<double> ga_input_data_;        ///< Input data for GA optimization

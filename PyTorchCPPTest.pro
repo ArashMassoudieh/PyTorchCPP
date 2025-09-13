@@ -21,6 +21,7 @@ SOURCES += \
     Utilities/Utilities.cpp \
     Utilities/Vector.cpp \
     Utilities/Vector_arma.cpp \
+    neuralnetworkfactory.cpp \
     neuralnetworkwrapper.cpp
 
 HEADERS += \
@@ -42,6 +43,7 @@ HEADERS += \
     ga.hpp \
     hyperparameters.h \
     individual.h \
+    neuralnetworkfactory.h \
     neuralnetworkwrapper.h
     Utilities/Vector_arma.h
 
@@ -82,6 +84,9 @@ LIBS += -L$$LIBTORCH_PATH/lib -ltorch -ltorch_cpu -lc10
 # Extra Libraries
 # =========================
 LIBS += -lgomp -lpthread -larmadillo
+
+QMAKE_CXXFLAGS += -fopenmp
+QMAKE_LFLAGS   += -fopenmp
 
 # =========================
 # ABI Compatibility
