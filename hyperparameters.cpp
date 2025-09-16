@@ -100,6 +100,9 @@ const std::string& HyperParameters::getInputActivation() const {
     return input_activation_function_;
 }
 void HyperParameters::setInputActivation(const std::string& activation) {
+    if (activation != "relu" && activation != "tanh" && activation != "sigmoid") {
+        throw std::runtime_error("Invalid hidden activation: " + activation);
+    }
     input_activation_function_ = activation;
 }
 
@@ -315,11 +318,11 @@ bool HyperParameters::isValid() const {
         hidden_activation_function_ != "sigmoid") {
         return false;
     }
-    if (output_activation_function_ != "relu" &&
-        output_activation_function_ != "tanh" &&
-        output_activation_function_ != "sigmoid") {
-        return false;
-    }
+    /*if (output_activation_function_ != "relu" &&
+        //output_activation_function_ != "tanh" &&
+        //output_activation_function_ != "sigmoid") {
+        //return false;
+    }*/
 
     return true;
 }

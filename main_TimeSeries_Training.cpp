@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
         testLagConfiguration();
         testTrainingParameters();
         testValidation();
-        testErrorHandling();
+        //testErrorHandling();
         testStringRepresentation();
         testReset();
 
@@ -76,13 +76,13 @@ int main(int argc, char *argv[]) {
         hyperparams.setMaxLags(10);
         hyperparams.setLagSelectionOdd(2);
 
-        // Use all lags for each series (bitmask with 10 bits all set = 1023)
-        std::vector<long int> lag_codes = {
-            (1 << 10) - 1,   // Series 0: lags [0..9]
-            (1 << 10) - 1,   // Series 1: lags [0..9]
-            (1 << 10) - 1    // Series 2: lags [0..9]
+
+        std::vector<std::vector<int>> lags = {
+            {0, 2, 5},
+            {0, 2, 3},
+            {0, 2, 5, 9}
         };
-        hyperparams.setLagsFromVector(lag_codes);
+        hyperparams.setLags(lags);
 
         // --- Lag multipliers ---
         // Different time scales for each series

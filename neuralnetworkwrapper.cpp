@@ -469,6 +469,7 @@ torch::Tensor NeuralNetworkWrapper::forward(DataType data_type) {
             throw std::runtime_error("Unknown activation function: " + hidden_activation_function_);
         }
         // Apply output activation function
+        /*
         if (output_activation_function_ == "relu") {
             x = torch::relu(x);
         } else if (output_activation_function_ == "tanh") {
@@ -478,6 +479,7 @@ torch::Tensor NeuralNetworkWrapper::forward(DataType data_type) {
         } else {
             throw std::runtime_error("Unknown activation function: " + output_activation_function_);
         }
+        */
     }
 
     // Final layer without activation (for regression)
