@@ -25,8 +25,8 @@ SOURCES += \
 
 HEADERS += \
     Binary.h \
+    Normalization.h \
     TestHyperParameters.h \
-    Utilities/Normalization.h \
     Utilities/TimeSeries.h \
     Utilities/TimeSeries.hpp \
     Utilities/TimeSeriesSet.h \

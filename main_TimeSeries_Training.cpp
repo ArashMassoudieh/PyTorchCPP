@@ -6,7 +6,7 @@
 #include "TimeSeries.h"
 #include "TestHyperParameters.h"
 #include "hyperparameters.h"
-#include "Utilities/Normalization.h"
+#include "Normalization.h"
 
 void createSyntheticData();
 
@@ -54,17 +54,20 @@ int main(int argc, char *argv[]) {
         std::cout << "Loaded " << input_data.size() << " input time series" << std::endl;
         std::cout << "Target series has " << target_series.size() << " points" << std::endl;
 
+        /*
         // Normalize input + target
-        Normalizer<double> inputScaler(NormType::Standardize);
+        Normalizer<double> inputScaler(NormType::MinMax);
         inputScaler.fit(input_data);
         inputScaler.transform(input_data);
 
-        Normalizer<double> targetScaler(NormType::Standardize);
+        Normalizer<double> targetScaler(NormType::MinMax);
         targetScaler.fit(target_series);
         targetScaler.transform(target_series);
 
         // Step 2: Configure hyperparameters
         std::cout << "\n2. Configuring hyperparameters..." << std::endl;
+        */
+
         HyperParameters hyperparams;
 
         // --- Time series selection ---
@@ -76,11 +79,17 @@ int main(int argc, char *argv[]) {
         hyperparams.setMaxLags(10);
         hyperparams.setLagSelectionOdd(2);
 
-
         std::vector<std::vector<int>> lags = {
-            {0, 2, 5},
+            {0, 2},
             {0, 2, 3},
-            {0, 2, 5, 9}
+            {0, 2, 5, 9},
+            {0, 1},
+            {0, 3, 5},
+            {0, 4},
+            {0, 2},
+            {0, 1},
+            {0},
+
         };
         hyperparams.setLags(lags);
 
@@ -92,20 +101,20 @@ int main(int argc, char *argv[]) {
 
         // --- Network architecture ---
         // Explicit architecture (avoid randomness of setHiddenLayersFromCode)
-        hyperparams.setMaxNumberOfHiddenNodes(32);
+        hyperparams.setMaxNumberOfHiddenNodes(128);
         hyperparams.setMaxNumberOfHiddenLayers(3);
-        hyperparams.setHiddenLayers({32, 16});   // Two hidden layers: [32, 16]
+        hyperparams.setHiddenLayers({32, 16, 16});   // Two hidden layers: [32, 16]
 
         // --- Activation functions ---
         // Separate activations for input, hidden, output
         hyperparams.setInputActivation("sigmoid");  // compress input features
-        hyperparams.setHiddenActivation("relu");    // expressive hidden layers
+        hyperparams.setHiddenActivation("sigmoid");    // expressive hidden layers
         hyperparams.setOutputActivation("");        // linear output for regression
 
         // --- Training parameters ---
-        hyperparams.setNumEpochs(200);
+        hyperparams.setNumEpochs(100);
         hyperparams.setBatchSize(32);
-        hyperparams.setLearningRate(0.001);
+        hyperparams.setLearningRate(0.0001);
         hyperparams.setTrainTestSplit(0.7);
 
         // --- Validation ---
@@ -182,9 +191,11 @@ int main(int argc, char *argv[]) {
 
         std::cout << "Test predictions generated: " << test_predictions[0].size() << " points" << std::endl;
 
+        /*
         // Inverse-transform predictions to original scale
         targetScaler.inverseTransform(test_predictions);
         test_predictions.write("test_predictions_rescaled.csv");
+        */
 
         // Calculate metrics using the evaluate method
         auto metrics = net.evaluate();

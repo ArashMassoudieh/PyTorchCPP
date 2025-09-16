@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include "Normalization.h"  // for NormType
 
 /**
  * @brief Class to hold and manage all hyperparameters for neural network optimization.
@@ -250,6 +251,11 @@ public:
     void setVerbose(bool verbose);
     bool getVerbose() const;
 
+    // Normalization
+    void setNormalization(NormType mode);
+    NormType getNormalization() const;
+    std::string getNormalizationString() const;
+
 private:
     // Time Series Selection
     std::vector<int> selected_series_ids_;        ///< IDs of selected time series from input
@@ -285,4 +291,7 @@ private:
     void validateSelectedSeriesIds(const std::vector<int>& selected_ids) const;
     void validateHiddenLayers(const std::vector<int>& hidden_layers) const;
     void validateActivationFunction(const std::string& activation_function) const;
+
+    // Normalization
+    NormType normalization_ = NormType::Standardize;  ///< Default
 };
