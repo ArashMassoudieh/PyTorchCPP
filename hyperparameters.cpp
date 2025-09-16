@@ -5,6 +5,7 @@
 #include <iomanip>  // for std::scientific, std::fixed, std::setprecision
 #include <sstream>  // for std::ostringstream
 #include <cmath>
+#include <iostream>
 
 
 // Constructor
@@ -516,19 +517,8 @@ void HyperParameters::setHiddenLayersFromCode(long int architecture_code, int mi
 }
 
 long int HyperParameters::getMaxArchitectureCode() const {
-    if (max_number_of_hidden_layers_ <= 0 || max_number_of_hidden_nodes_ <= 0) {
-        throw std::runtime_error("Max layers and max nodes must be set to positive values.");
-    }
-
-    // Base is max_nodes + 1
     int base = max_number_of_hidden_nodes_ + 1;
-
-    // Maximum code is when all layers have maximum nodes
-    long int max_code = 1L;
-    for (int i = 0; i < max_number_of_hidden_layers_; i++) {
-        max_code *= base;
-    }
-    return max_code - 1L;
+    return static_cast<long int>(std::pow(base, max_number_of_hidden_layers_)) - 1;
 }
 
 void HyperParameters::setLagMultipliersFromCode(long int multiplier_code, int num_series) {
@@ -652,20 +642,25 @@ std::vector<std::string> HyperParameters::getOptimizationParameterNames(int num_
 }
 
 void HyperParameters::setFromOptimizationParameters(const std::vector<long int>& params, int num_available_series) {
-    if (num_available_series <= 0) {
-        throw std::runtime_error("Number of available series must be positive.");
+    if (verbose_) {
+        std::cout << "DEBUG setFromOptimizationParameters called with params: [";
+        for (size_t i = 0; i < params.size(); i++) {
+            std::cout << params[i];
+            if (i < params.size() - 1) std::cout << ", ";
+        }
+        std::cout << "]" << std::endl;
+        std::cout << "num_available_series: " << num_available_series << std::endl;
     }
 
     // Expected parameter count: 1 (series) + num_available_series (lags) + 1 (multipliers) + 1 (architecture)
     int expected_size = 3 + num_available_series;
-
     if (static_cast<int>(params.size()) != expected_size) {
         throw std::runtime_error("Parameter vector size (" + std::to_string(params.size()) +
                                  ") doesn't match expected size (" + std::to_string(expected_size) +
                                  ") for " + std::to_string(num_available_series) + " series.");
     }
 
-    // Set default values that will be used for calculations
+    // Set defaults first
     setMaxLags(10);
     setLagSelectionOdd(3);
     setMaxLagMultiplier(10);
@@ -675,26 +670,58 @@ void HyperParameters::setFromOptimizationParameters(const std::vector<long int>&
     int param_idx = 0;
 
     // Parameter 0: Series selection
-    if (params[param_idx] <= 0) {
-        throw std::runtime_error("Series selection code must be positive.");
+    long int series_code = params[param_idx];
+    if (verbose_) {
+        std::cout << "DEBUG Processing series selection code: " << series_code << std::endl;
     }
-    setSelectedSeriesFromBinary(params[param_idx], num_available_series);
+    if (series_code == 0) {
+        if (verbose_) std::cout << "DEBUG Series code is 0 - clearing selection" << std::endl;
+        selected_series_ids_.clear();
+    } else {
+        setSelectedSeriesFromBinary(series_code, num_available_series);
+    }
     param_idx++;
 
-    // Parameters 1 to num_available_series: Lag codes
+    // Parameters 1 to num_available_series: Lag codes for each potential series
+    if (verbose_) {
+        std::cout << "DEBUG Processing lag codes..." << std::endl;
+    }
     std::vector<long int> lag_codes;
     for (int i = 0; i < num_available_series; i++) {
         lag_codes.push_back(params[param_idx]);
+        if (verbose_) {
+            std::cout << "DEBUG Lag code for series " << i << ": " << params[param_idx] << std::endl;
+        }
         param_idx++;
     }
     setLagsFromVector(lag_codes);
 
     // Parameter (num_available_series + 1): Lag multiplier code
+    if (verbose_) {
+        std::cout << "DEBUG Processing lag multiplier code: " << params[param_idx] << std::endl;
+    }
     setLagMultipliersFromCode(params[param_idx], num_available_series);
     param_idx++;
 
     // Parameter (num_available_series + 2): Architecture code
-    setHiddenLayersFromCode(params[param_idx], 16);  // Min 16 nodes per layer
+    long int arch_code = params[param_idx];
+    if (verbose_) {
+        std::cout << "DEBUG Processing architecture code: " << arch_code << std::endl;
+    }
+    setHiddenLayersFromCode(arch_code, 16);
+
+    if (verbose_) {
+        std::cout << "DEBUG After setHiddenLayersFromCode, hidden_layers size: " << hidden_layers_.size() << std::endl;
+        std::cout << "DEBUG Hidden layers: [";
+        for (size_t i = 0; i < hidden_layers_.size(); i++) {
+            std::cout << hidden_layers_[i];
+            if (i < hidden_layers_.size() - 1) std::cout << ", ";
+        }
+        std::cout << "]" << std::endl;
+
+        std::cout << "DEBUG Final lags size: " << lags_.size() << std::endl;
+        std::cout << "DEBUG Final selected series size: " << selected_series_ids_.size() << std::endl;
+    }
 
     // Set other default training parameters
     setActivationFunction("relu");
@@ -784,4 +811,76 @@ std::string HyperParameters::getOptimizationSpaceInfo() const {
     result += "===============================\n";
 
     return result;
+}
+
+std::string HyperParameters::ParametersToString() const {
+    std::string out;
+
+    // Number of hidden layers
+    out += "Number of hidden layers:" + std::to_string(hidden_layers_.size());
+
+    // Number of nodes
+    out += ", Number of nodes: [";
+    for (size_t i = 0; i < hidden_layers_.size(); i++) {
+        out += std::to_string(hidden_layers_[i]);
+        if (i < hidden_layers_.size() - 1) {
+            out += ",";
+        }
+    }
+    out += "]";
+
+    // Selected series (columns)
+    out += ", Columns: [";
+    for (size_t i = 0; i < selected_series_ids_.size(); i++) {
+        out += std::to_string(selected_series_ids_[i]);
+        if (i < selected_series_ids_.size() - 1) {
+            out += ",";
+        }
+    }
+    out += "]";
+
+    // Lags
+    out += ", Lags: [";
+    for (size_t i = 0; i < lags_.size(); i++) {
+        out += "[";
+        for (size_t j = 0; j < lags_[i].size(); j++) {
+            out += std::to_string(lags_[i][j]);
+            if (j < lags_[i].size() - 1) {
+                out += ",";
+            }
+        }
+        out += "]";
+        if (i < lags_.size() - 1) {
+            out += ",";
+        }
+    }
+    out += "]";
+
+    // Lag multipliers
+    out += ", Lag multipliers: [";
+    for (size_t i = 0; i < lag_multiplier_.size(); i++) {
+        out += std::to_string(lag_multiplier_[i]);
+        if (i < lag_multiplier_.size() - 1) {
+            out += ",";
+        }
+    }
+    out += "]";
+
+    return out;
+}
+bool HyperParameters::ValidLags() const {
+    for (size_t i = 0; i < lags_.size(); i++) {
+        if (lags_[i].size() > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void HyperParameters::setVerbose(bool verbose) {
+    verbose_ = verbose;
+}
+
+bool HyperParameters::getVerbose() const {
+    return verbose_;
 }

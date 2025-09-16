@@ -5,7 +5,7 @@ CONFIG -= app_bundle
 TEMPLATE = app
 TARGET = torch_qt_test
 
-DEFINES += Arash
+DEFINES += PowerEdge
 
 # =========================
 # Project Sources & Headers
@@ -26,6 +26,7 @@ SOURCES += \
 HEADERS += \
     Binary.h \
     TestHyperParameters.h \
+    Utilities/Normalization.h \
     Utilities/TimeSeries.h \
     Utilities/TimeSeries.hpp \
     Utilities/TimeSeriesSet.h \

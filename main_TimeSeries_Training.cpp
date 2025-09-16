@@ -6,6 +6,7 @@
 #include "TimeSeries.h"
 #include "TestHyperParameters.h"
 #include "hyperparameters.h"
+#include "Utilities/Normalization.h"
 
 void createSyntheticData();
 
@@ -38,18 +39,29 @@ int main(int argc, char *argv[]) {
     try {
         std::cout << "=== Neural Network Wrapper with HyperParameters Example ===" << std::endl;
         std::cout << "\n1. Creating synthetic data..." << std::endl;
-        createSyntheticData();
+        //createSyntheticData();
 
         // Step 1: Load your data
         std::cout << "\n1. Loading data..." << std::endl;
         TimeSeriesSet<double> input_data;
-        input_data.read("input_data.csv", true);  // CSV with multiple time series
+        //input_data.read("input_data.csv", true);  // CSV with multiple time series
+        input_data.read("/mnt/3rd900/Projects/PyTorchCPP/Data/Inputs.txt", true);  // CSV with multiple time series
 
         TimeSeries<double> target_series;
-        target_series.readfile("target_output.txt");  // Single target series
+        //target_series.readfile("target_output.txt");  // Single target series
+        target_series.readfile("/mnt/3rd900/Projects/PyTorchCPP/Data/Output.txt");  // Single target series
 
         std::cout << "Loaded " << input_data.size() << " input time series" << std::endl;
         std::cout << "Target series has " << target_series.size() << " points" << std::endl;
+
+        // Normalize input + target
+        Normalizer<double> inputScaler(NormType::Standardize);
+        inputScaler.fit(input_data);
+        inputScaler.transform(input_data);
+
+        Normalizer<double> targetScaler(NormType::Standardize);
+        targetScaler.fit(target_series);
+        targetScaler.transform(target_series);
 
         // Step 2: Configure hyperparameters
         std::cout << "\n2. Configuring hyperparameters..." << std::endl;
@@ -76,16 +88,16 @@ int main(int argc, char *argv[]) {
         hyperparams.setMaxLagMultiplier(10);
 
         // Configure network architecture using code-based generation
-        hyperparams.setMaxNumberOfHiddenNodes(128);
-        hyperparams.setMaxNumberOfHiddenLayers(4);
-        hyperparams.setHiddenLayersFromCode(16450L, 32);  // Generate architecture from code
+        hyperparams.setMaxNumberOfHiddenNodes(64);
+        hyperparams.setMaxNumberOfHiddenLayers(3);
+        hyperparams.setHiddenLayersFromCode(1234L, 16);  // Generate architecture from code
 
         // Configure training parameters
         hyperparams.setActivationFunction("relu");
-        hyperparams.setNumEpochs(100);
+        hyperparams.setNumEpochs(1000);
         hyperparams.setBatchSize(32);
         hyperparams.setLearningRate(0.001);
-        hyperparams.setTrainTestSplit(0.8);
+        hyperparams.setTrainTestSplit(0.7);
 
         // Validate and display configuration
         if (!hyperparams.isValid()) {
@@ -107,9 +119,16 @@ int main(int argc, char *argv[]) {
         // Step 4: Prepare training and test data using hyperparameters
         std::cout << "\n4. Preparing data using hyperparameters..." << std::endl;
 
-        double t_start = 0.0;
-        double t_end = 100.0;
-        double dt = 0.1;
+        if (input_data.size() == 0) throw std::runtime_error("No input series loaded!");
+        if (target_series.size() == 0) throw std::runtime_error("No target series loaded!");
+
+        double t_start = input_data[0].front().t;
+        double t_end   = input_data[0].back().t;
+        double dt      = input_data[0][1].t - input_data[0][0].t;
+
+        std::cout << "Detected time range: " << t_start << " → " << t_end
+                  << " with dt=" << dt << std::endl;
+
         double split_ratio = hyperparams.getTrainTestSplit();
         double split_time = t_start + split_ratio * (t_end - t_start);
 
@@ -153,6 +172,10 @@ int main(int argc, char *argv[]) {
             DataType::Test, split_time, t_end, dt, {"predicted_output"});
 
         std::cout << "Test predictions generated: " << test_predictions[0].size() << " points" << std::endl;
+
+        // Inverse-transform predictions to original scale
+        targetScaler.inverseTransform(test_predictions);
+        test_predictions.write("test_predictions_rescaled.csv");
 
         // Calculate metrics using the evaluate method
         auto metrics = net.evaluate();

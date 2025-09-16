@@ -227,8 +227,21 @@ public:
      */
     std::string getOptimizationSpaceInfo() const;
 
+    /**
+     * @brief Generate a string representation matching the Qt CModelStructure style.
+     * @return String describing the model structure parameters
+     */
+    std::string ParametersToString() const;
 
-    // Add to HyperParameters.cpp:
+    /**
+     * @brief Check if at least one time series has lags configured.
+     * @return True if at least one time series has one or more lags, false otherwise
+     */
+    bool ValidLags() const;
+
+    // Setter for verbose mode
+    void setVerbose(bool verbose);
+    bool getVerbose() const;
 
 private:
     // Time Series Selection
@@ -256,6 +269,8 @@ private:
 
     // Data Configuration
     double train_test_split_;                     ///< Ratio for train/test split (0.0-1.0)
+
+    bool verbose_ = false;
 
     // Private helper methods
     void validateSelectedSeriesIds(const std::vector<int>& selected_ids) const;
