@@ -367,9 +367,11 @@ private:
     torch::Tensor test_target_data_;                     ///< Test target output tensor
 
     // Network components
-    std::vector<torch::nn::Linear> layers_;              ///< All linear layers
-    std::string activation_function_;                    ///< Activation function name
-    int input_size_;                                     ///< Input layer size
+    std::vector<torch::nn::Linear> layers_;      ///< All linear layers
+    std::string input_activation_function_;      ///< Activation for input layer
+    std::string hidden_activation_function_;     ///< Activation for hidden layers
+    std::string output_activation_function_;     ///< Activation for output layer
+    int input_size_;                             ///< Input layer size
     int output_size_;
 
     bool verbose_ = false;

@@ -16,7 +16,9 @@ void testConstructorAndDefaults() {
     assert(params.getHiddenLayers().size() == 2);
     assert(params.getHiddenLayers()[0] == 64);
     assert(params.getHiddenLayers()[1] == 32);
-    assert(params.getActivationFunction() == "relu");
+    assert(params.getInputActivation() == "sigmoid");
+    assert(params.getHiddenActivation() == "sigmoid");
+    assert(params.getOutputActivation() == "");
     assert(params.getLags().empty());
     assert(params.getLagMultiplier().size() == 1);
     assert(params.getLagMultiplier()[0] == 1);
@@ -70,8 +72,12 @@ void testNetworkArchitecture() {
     assert(params.getHiddenLayers() == hidden_layers);
 
     // Test activation function
-    params.setActivationFunction("tanh");
-    assert(params.getActivationFunction() == "tanh");
+    params.setInputActivation("tanh");
+    assert(params.getInputActivation() == "tanh");
+    params.setHiddenActivation("tanh");
+    assert(params.getHiddenActivation() == "tanh");
+    params.setOutputActivation("tanh");
+    assert(params.getOutputActivation() == "tanh");
 
     std::cout << "✓ Network architecture test passed" << std::endl;
 }
@@ -148,7 +154,9 @@ void testValidation() {
     // Set valid configuration
     params.setSelectedSeriesIds({0, 1});
     params.setHiddenLayers({64, 32});
-    params.setActivationFunction("relu");
+    params.setInputActivation("relu");
+    params.setHiddenActivation("relu");
+    params.setOutputActivation("relu");
     params.setNumEpochs(100);
     params.setBatchSize(32);
     params.setLearningRate(0.001);
@@ -173,40 +181,56 @@ void testErrorHandling() {
     // Test negative selection code
     try {
         params.setSelectedSeriesFromBinary(-1L, 3);
-        assert(false); // Should not reach here
-    } catch (const std::runtime_error& e) {
+        assert(false && "Expected exception for negative selection code");
+    } catch (const std::runtime_error&) {
         // Expected
     }
 
     // Test empty selected series
     try {
         params.setSelectedSeriesIds({});
-        assert(false);
-    } catch (const std::runtime_error& e) {
+        assert(false && "Expected exception for empty selected series");
+    } catch (const std::runtime_error&) {
         // Expected
     }
 
-    // Test invalid activation function
+    // Test invalid input activation
     try {
-        params.setActivationFunction("invalid");
-        assert(false);
-    } catch (const std::runtime_error& e) {
+        params.setInputActivation("invalid");
+        assert(false && "Expected exception for invalid input activation");
+    } catch (const std::runtime_error&) {
+        // Expected
+    }
+
+    // Test invalid hidden activation
+    try {
+        params.setHiddenActivation("invalid");
+        assert(false && "Expected exception for invalid hidden activation");
+    } catch (const std::runtime_error&) {
+        // Expected
+    }
+
+    // Test invalid output activation
+    try {
+        params.setOutputActivation("invalid");
+        assert(false && "Expected exception for invalid output activation");
+    } catch (const std::runtime_error&) {
         // Expected
     }
 
     // Test negative epochs
     try {
         params.setNumEpochs(-1);
-        assert(false);
-    } catch (const std::runtime_error& e) {
+        assert(false && "Expected exception for negative epochs");
+    } catch (const std::runtime_error&) {
         // Expected
     }
 
     // Test invalid train/test split
     try {
         params.setTrainTestSplit(1.5);
-        assert(false);
-    } catch (const std::runtime_error& e) {
+        assert(false && "Expected exception for invalid train/test split");
+    } catch (const std::runtime_error&) {
         // Expected
     }
 
@@ -214,8 +238,8 @@ void testErrorHandling() {
     params.setMaxLagMultiplier(3);
     try {
         params.setLagMultiplier({1, 5}); // 5 > 3
-        assert(false);
-    } catch (const std::runtime_error& e) {
+        assert(false && "Expected exception for exceeding lag multiplier");
+    } catch (const std::runtime_error&) {
         // Expected
     }
 
@@ -230,7 +254,9 @@ void testStringRepresentation() {
     params.setMaxNumberOfHiddenNodes(64);
     params.setMaxNumberOfHiddenLayers(3);
     params.setHiddenLayersFromCode(50L, 16);  // Generate architecture from code
-    params.setActivationFunction("tanh");
+    params.setInputActivation("tanh");
+    params.setHiddenActivation("tanh");
+    params.setOutputActivation("tanh");
     params.setMaxLags(3);
     params.setLagSelectionOdd(2);
     params.setLagMultiplier({1, 2, 1});
@@ -266,7 +292,9 @@ void testReset() {
     // Modify parameters
     params.setSelectedSeriesIds({0, 1, 2});
     params.setHiddenLayers({256, 128, 64});
-    params.setActivationFunction("sigmoid");
+    params.setInputActivation("sigmoid");
+    params.setHiddenActivation("sigmoid");
+    params.setOutputActivation("");
     params.setNumEpochs(500);
 
     // Reset to defaults
@@ -276,7 +304,10 @@ void testReset() {
     assert(params.getSelectedSeriesIds().empty());
     assert(params.getHiddenLayers().size() == 2);
     assert(params.getHiddenLayers()[0] == 64);
-    assert(params.getActivationFunction() == "relu");
+    assert(params.getInputActivation() == "sigmoid");
+    assert(params.getHiddenActivation() == "sigmoid");
+    assert(params.getOutputActivation() == "");
+
     assert(params.getNumEpochs() == 100);
 
     std::cout << "✓ Reset test passed" << std::endl;

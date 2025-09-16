@@ -67,39 +67,48 @@ int main(int argc, char *argv[]) {
         std::cout << "\n2. Configuring hyperparameters..." << std::endl;
         HyperParameters hyperparams;
 
-        // Configure time series selection (select all 3 series: binary 111 = 7)
-        hyperparams.setSelectedSeriesFromBinary(7L, 3);  // Selects series {0, 1, 2}
+        // --- Time series selection ---
+        // Select all 3 available series: binary 111 = 7
+        hyperparams.setSelectedSeriesFromBinary(7L, 3);
 
-        // Configure lag structure for all potential series
-        hyperparams.setMaxLags(10);           // Lags numbered 0-9
-        hyperparams.setLagSelectionOdd(2);    // Base 2 for lag selection
+        // --- Lag structure ---
+        // Allow up to 10 lags per series
+        hyperparams.setMaxLags(10);
+        hyperparams.setLagSelectionOdd(2);
 
-        // Set lag codes for each series (3 codes for 3 potential series)
+        // Use all lags for each series (bitmask with 10 bits all set = 1023)
         std::vector<long int> lag_codes = {
-            0L,   // Series 0: all lags selected (0%2=0 for all)
-            6L,   // Series 1: binary 110 -> lags [1, 2] selected
-            10L   // Series 2: binary 1010 -> lags [1, 3] selected
+            (1 << 10) - 1,   // Series 0: lags [0..9]
+            (1 << 10) - 1,   // Series 1: lags [0..9]
+            (1 << 10) - 1    // Series 2: lags [0..9]
         };
         hyperparams.setLagsFromVector(lag_codes);
 
-        // Configure lag multipliers (different time scales for each series)
-        std::vector<int> lag_multipliers = {1, 5, 2}; // Series 0: ×1, Series 1: ×5, Series 2: ×2
+        // --- Lag multipliers ---
+        // Different time scales for each series
+        std::vector<int> lag_multipliers = {1, 5, 2};
         hyperparams.setLagMultiplier(lag_multipliers);
         hyperparams.setMaxLagMultiplier(10);
 
-        // Configure network architecture using code-based generation
-        hyperparams.setMaxNumberOfHiddenNodes(64);
+        // --- Network architecture ---
+        // Explicit architecture (avoid randomness of setHiddenLayersFromCode)
+        hyperparams.setMaxNumberOfHiddenNodes(32);
         hyperparams.setMaxNumberOfHiddenLayers(3);
-        hyperparams.setHiddenLayersFromCode(1234L, 16);  // Generate architecture from code
+        hyperparams.setHiddenLayers({32, 16});   // Two hidden layers: [32, 16]
 
-        // Configure training parameters
-        hyperparams.setActivationFunction("relu");
-        hyperparams.setNumEpochs(1000);
+        // --- Activation functions ---
+        // Separate activations for input, hidden, output
+        hyperparams.setInputActivation("sigmoid");  // compress input features
+        hyperparams.setHiddenActivation("relu");    // expressive hidden layers
+        hyperparams.setOutputActivation("");        // linear output for regression
+
+        // --- Training parameters ---
+        hyperparams.setNumEpochs(200);
         hyperparams.setBatchSize(32);
         hyperparams.setLearningRate(0.001);
         hyperparams.setTrainTestSplit(0.7);
 
-        // Validate and display configuration
+        // --- Validation ---
         if (!hyperparams.isValid()) {
             throw std::runtime_error("Invalid hyperparameter configuration");
         }
