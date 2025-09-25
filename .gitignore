@@ -40,3 +40,13 @@ build/Desktop_Qt_6_8_2-Debug/
 Build-Debug-5.15.2/
 
 Build-Debug-6.9.1/
+
+Build-Release-5.15.2/.qtc_clangd/.cache/clangd/index/
+
+Build-Release-5.15.2/.qtc_clangd/
+
+Build-Release-6.9.1/.qtc_clangd/.cache/clangd/index/
+
+Build-Release-6.9.1/.qtc_clangd/
+
+Build-Release-6.9.1/
