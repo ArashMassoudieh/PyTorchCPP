@@ -40,17 +40,17 @@ int main(int argc, char *argv[]) {
     try {
         std::cout << "=== Neural Network Wrapper with HyperParameters Example ===" << std::endl;
         std::cout << "\n1. Creating synthetic data..." << std::endl;
-        //createSyntheticData();
+        createSyntheticData();
 
         // Step 1: Load your data
         std::cout << "\n1. Loading data..." << std::endl;
         TimeSeriesSet<double> input_data;
-        input_data.read("/mnt/3rd900/Projects/PyTorchCPP/Data/Inputs.txt", true);
-        //input_data.read("input_data.csv", true); // CSV with multiple time series
+        //input_data.read("/mnt/3rd900/Projects/PyTorchCPP/Data/Inputs.txt", true);
+        input_data.read("input_data.csv", true); // CSV with multiple time series
 
         TimeSeries<double> target_series;
-        target_series.readfile("/mnt/3rd900/Projects/PyTorchCPP/Data/Output.txt");
-        //target_series.readfile("target_output.txt"); // Single target series
+        //target_series.readfile("/mnt/3rd900/Projects/PyTorchCPP/Data/Output.txt");
+        target_series.readfile("target_output.txt"); // Single target series
 
         std::cout << "Loaded " << input_data.size() << " input time series" << std::endl;
         std::cout << "Target series has " << target_series.size() << " points" << std::endl;
@@ -255,4 +255,52 @@ int main(int argc, char *argv[]) {
         std::cerr << "Error: " << e.what() << std::endl;
         return -1;
     }
+}
+
+// Updated synthetic data creation function
+void createSyntheticData() {
+    std::cout << "Creating synthetic data for testing..." << std::endl;
+
+    // Create synthetic input data (3 time series)
+    TimeSeriesSet<double> synthetic_input(3);
+
+    // Extend the time range to include negative values for proper lag handling
+    for (double t = -10.0; t <= 100.0; t += 0.1) { // Extended range for larger lags
+        // Series 0: sine wave
+        synthetic_input[0].addPoint(t, std::sin(0.1 * t) + 0.1 * std::sin(0.5 * t));
+
+        // Series 1: cosine wave with trend
+        synthetic_input[1].addPoint(t, std::cos(0.15 * t) + 0.01 * t);
+
+        // Series 2: noisy exponential decay
+        double noise = 0.1 * (static_cast<double>(rand()) / RAND_MAX - 0.5);
+        synthetic_input[2].addPoint(t, std::exp(-0.02 * std::abs(t)) + noise);
+    }
+
+    synthetic_input.setSeriesName(0, "temperature");
+    synthetic_input.setSeriesName(1, "pressure");
+    synthetic_input.setSeriesName(2, "flow_rate");
+
+    synthetic_input.write("input_data.csv");
+
+    // Create synthetic target data using the hyperparameter-like structure
+    TimeSeries<double> synthetic_target;
+    for (double t = 0.0; t <= 100.0; t += 0.1) {
+        // Simulate the lag structure that will be used:
+        // Series 0 with lags [0,1,2,...] × multiplier 1
+        // Series 1 with lags [1,2] × multiplier 5 = [5,10]
+        // Series 2 with lags [1,3] × multiplier 2 = [2,6]
+        double target =
+            0.3 * synthetic_input[0].interpol(t - 0.0) +  // lag 0
+            0.2 * synthetic_input[0].interpol(t - 0.1) +  // lag 1
+            0.2 * synthetic_input[1].interpol(t - 0.5) +  // lag 5
+            0.2 * synthetic_input[2].interpol(t - 0.2) +  // lag 2
+            0.1 * (static_cast<double>(rand()) / RAND_MAX - 0.5); // noise
+
+        synthetic_target.addPoint(t, target);
+    }
+
+    synthetic_target.writefile("target_output.txt");
+
+    std::cout << "Synthetic data created successfully!" << std::endl;
 }
