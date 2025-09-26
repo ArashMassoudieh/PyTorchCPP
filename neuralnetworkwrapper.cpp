@@ -1324,6 +1324,12 @@ void NeuralNetworkWrapper::setInputDataFromHyperParams(DataType data_type,
     {   std::cout << "Input data created: " << num_time_steps << " samples, "
                   << total_features << " features" << std::endl;
     }
+
+#ifdef DEBUG_
+    TimeSeriesSet<double> inputdata;
+    inputdata.fromTensor(input_tensor,t_start,t_end);
+    inputdata.write("input_data_lagged.csv");
+#endif
 }
 
 

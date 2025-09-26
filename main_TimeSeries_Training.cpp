@@ -40,17 +40,17 @@ int main(int argc, char *argv[]) {
     try {
         std::cout << "=== Neural Network Wrapper with HyperParameters Example ===" << std::endl;
         std::cout << "\n1. Creating synthetic data..." << std::endl;
-        createSyntheticData();
+        //createSyntheticData();
 
         // Step 1: Load your data
         std::cout << "\n1. Loading data..." << std::endl;
         TimeSeriesSet<double> input_data;
-        //input_data.read("/mnt/3rd900/Projects/PyTorchCPP/Data/Inputs.txt", true);
-        input_data.read("input_data.csv", true); // CSV with multiple time series
+        input_data.read("/mnt/3rd900/Projects/PyTorchCPP/Data/Inputs.txt", true);
+        //input_data.read("input_data.csv", true); // CSV with multiple time series
 
         TimeSeries<double> target_series;
-        //target_series.readfile("/mnt/3rd900/Projects/PyTorchCPP/Data/Output.txt");
-        target_series.readfile("target_output.txt"); // Single target series
+        target_series.readfile("/mnt/3rd900/Projects/PyTorchCPP/Data/Output.txt");
+        //target_series.readfile("target_output.txt"); // Single target series
 
         std::cout << "Loaded " << input_data.size() << " input time series" << std::endl;
         std::cout << "Target series has " << target_series.size() << " points" << std::endl;
@@ -70,7 +70,35 @@ int main(int argc, char *argv[]) {
         HyperParameters hyperparams;
 
         // --- Time series selection ---
-        hyperparams.setSelectedSeriesFromBinary(7L, 3);
+        hyperparams.setSelectedSeriesFromBinary(511L, 3);
+
+        /*
+        | Bitmask | Binary | Selected series (0-based) |
+        | ------- | ------ | ------------------------- |
+        | `1L`    | 001    | Series 0                  |
+        | `2L`    | 010    | Series 1                  |
+        | `4L`    | 100    | Series 2                  |
+        | `3L`    | 011    | Series 0 + 1              |
+        | `5L`    | 101    | Series 0 + 2              |
+        | `7L`    | 111    | Series 0 + 1 + 2          |
+
+
+        | Bitmask (decimal) | Binary (9 bits) | Selected series  |
+        | ----------------- | --------------- | ---------------- |
+        | `1L`              | `000000001`     | Series 0         |
+        | `2L`              | `000000010`     | Series 1         |
+        | `4L`              | `000000100`     | Series 2         |
+        | `8L`              | `000001000`     | Series 3         |
+        | `16L`             | `000010000`     | Series 4         |
+        | `32L`             | `000100000`     | Series 5         |
+        | `64L`             | `001000000`     | Series 6         |
+        | `128L`            | `010000000`     | Series 7         |
+        | `256L`            | `100000000`     | Series 8         |
+        | `511L`            | `111111111`     | All 9 (0–8)      |
+        | `341L`            | `101010101`     | Series 0,2,4,6,8 |
+        | `85L`             | `0001010101`    | Series 0,2,4,6   |
+
+        */
 
         // --- Lag structure ---
         hyperparams.setMaxLags(10);
@@ -90,7 +118,7 @@ int main(int argc, char *argv[]) {
         hyperparams.setLags(lags);
 
         // --- Lag multipliers ---
-        std::vector<int> lag_multipliers = {1, 5};
+        std::vector<int> lag_multipliers = {1, 1, 1, 1, 1, 1, 1, 1, 1};
         hyperparams.setLagMultiplier(lag_multipliers);
         hyperparams.setMaxLagMultiplier(10);
 
@@ -105,9 +133,9 @@ int main(int argc, char *argv[]) {
         hyperparams.setOutputActivation("");
 
         // --- Training parameters ---
-        hyperparams.setNumEpochs(200);
+        hyperparams.setNumEpochs(100);
         hyperparams.setBatchSize(32);
-        hyperparams.setLearningRate(0.001);
+        hyperparams.setLearningRate(0.0001);
         hyperparams.setTrainTestSplit(0.7);
 
         if (!hyperparams.isValid()) {

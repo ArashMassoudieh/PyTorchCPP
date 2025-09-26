@@ -6,6 +6,7 @@ TEMPLATE = app
 TARGET = torch_qt_test
 
 DEFINES += PowerEdge
+DEFINES += DEBUG_
 
 # =========================
 # Project Sources & Headers
