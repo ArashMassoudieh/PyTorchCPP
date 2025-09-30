@@ -55,6 +55,49 @@ int main(int argc, char *argv[]) {
         std::cout << "Loaded " << input_data.size() << " input time series" << std::endl;
         std::cout << "Target series has " << target_series.size() << " points" << std::endl;
 
+        // --------------------------------------Debug----------------------------------------------------
+        std::cout << "\n[DEBUG] Input data size: " << input_data.size() << " series" << std::endl;
+        for (size_t i = 0; i < input_data.size(); ++i) {
+            std::cout << "  Series " << i
+                      << " length = " << input_data[i].size()
+                      << " (t range: " << input_data[i].front().t
+                      << " → " << input_data[i].back().t << ")" << std::endl;
+
+            // Print first 3 values as a sample
+            std::cout << "    First 3 values: ";
+            for (size_t j = 0; j < std::min<size_t>(3, input_data[i].size()); ++j) {
+                std::cout << "(" << input_data[i][j].t << "," << input_data[i][j].c << ") ";
+            }
+            std::cout << std::endl;
+
+            // Print last 3 values as a sample
+            std::cout << "    Last 3 values: ";
+            for (size_t j = input_data[i].size() > 3 ? input_data[i].size()-3 : 0;
+                 j < input_data[i].size(); ++j) {
+                std::cout << "(" << input_data[i][j].t << "," << input_data[i][j].c << ") ";
+            }
+            std::cout << std::endl;
+        }
+
+        std::cout << "[DEBUG] Target series length = " << target_series.size()
+                  << " (t range: " << target_series.front().t
+                  << " → " << target_series.back().t << ")" << std::endl;
+
+        // Print sample of target values
+        std::cout << "  First 5 target values: ";
+        for (size_t j = 0; j < std::min<size_t>(5, target_series.size()); ++j) {
+            std::cout << "(" << target_series[j].t << "," << target_series[j].c << ") ";
+        }
+        std::cout << std::endl;
+
+        std::cout << "  Last 5 target values: ";
+        for (size_t j = target_series.size() > 5 ? target_series.size()-5 : 0;
+             j < target_series.size(); ++j) {
+            std::cout << "(" << target_series[j].t << "," << target_series[j].c << ") ";
+        }
+        std::cout << std::endl;
+        // -----------------------------------------------------------------------------------------------
+
         // Normalize input + target
         Normalizer<double> inputScaler(NormType::MinMax);
         inputScaler.fit(input_data);
@@ -64,13 +107,26 @@ int main(int argc, char *argv[]) {
         targetScaler.fit(target_series);
         targetScaler.transform(target_series);
 
+        // --------------------------------------Debug----------------------------------------------------
+        std::cout << "\n[DEBUG] Normalization applied." << std::endl;
+        std::cout << "  First 5 values of series 0: ";
+        for (size_t i = 0; i < std::min<size_t>(5, input_data[0].size()); ++i)
+            std::cout << input_data[0][i].c << " ";
+        std::cout << std::endl;
+
+        std::cout << "  First 5 target values: ";
+        for (size_t i = 0; i < std::min<size_t>(5, target_series.size()); ++i)
+            std::cout << target_series[i].c << " ";
+        std::cout << std::endl;
+        // -----------------------------------------------------------------------------------------------
+
         // Step 2: Configure hyperparameters
         std::cout << "\n2. Configuring hyperparameters..." << std::endl;
 
         HyperParameters hyperparams;
 
         // --- Time series selection ---
-        hyperparams.setSelectedSeriesFromBinary(511L, 3);
+        hyperparams.setSelectedSeriesFromBinary(511L, 9); // 9 of 9 inputs (All)
 
         /*
         | Bitmask | Binary | Selected series (0-based) |
@@ -142,8 +198,16 @@ int main(int argc, char *argv[]) {
             throw std::runtime_error("Invalid hyperparameter configuration");
         }
 
-        std::cout << "HyperParameters configuration:" << std::endl;
+        // --------------------------------------Debug----------------------------------------------------
+        std::cout << "\n[DEBUG] Hyperparameters summary:" << std::endl;
         std::cout << hyperparams.toString() << std::endl;
+
+        std::cout << "[DEBUG] Selected series indices: ";
+        for (auto idx : hyperparams.getSelectedSeriesIds()) {
+            std::cout << idx << " ";
+        }
+        std::cout << std::endl;
+        // -----------------------------------------------------------------------------------------------
 
         // Step 3: Create and initialize neural network
         std::cout << "\n3. Initializing neural network..." << std::endl;
@@ -165,6 +229,22 @@ int main(int argc, char *argv[]) {
         double split_time = t_start + split_ratio * (t_end - t_start);
 
         net.setInputDataFromHyperParams(DataType::Train, input_data, t_start, split_time, dt);
+
+        // --------------------------------------Debug----------------------------------------------------
+        // Debug: print first training sample
+        {
+            auto train_inputs = net.getInputData(DataType::Train);
+            std::cout << "\n[DEBUG] First training sample features ("
+                      << train_inputs.size(1) << " features):" << std::endl;
+
+            auto first_row = train_inputs[0];  // first sample (1D tensor)
+            for (int i = 0; i < first_row.size(0); ++i) {
+                std::cout << "  Feature[" << i << "] = "
+                          << first_row[i].item<double>() << std::endl;
+            }
+        }
+        // --------------------------------------Debug----------------------------------------------------
+
         net.setTargetData(DataType::Train, target_series, t_start, split_time, dt);
 
         net.setInputDataFromHyperParams(DataType::Test, input_data, split_time, t_end, dt);
@@ -172,6 +252,13 @@ int main(int argc, char *argv[]) {
 
         std::cout << "Training data: " << net.getInputData(DataType::Train).size(0) << " samples" << std::endl;
         std::cout << "Test data: " << net.getInputData(DataType::Test).size(0) << " samples" << std::endl;
+
+        // --------------------------------------Debug----------------------------------------------------
+        std::cout << "\n[DEBUG] Network architecture initialized." << std::endl;
+        std::cout << "  Total parameters = " << net.getTotalParameters() << std::endl;
+        std::cout << "  Expected input dimension (features per sample) = "
+                  << net.getInputData(DataType::Train).size(1) << std::endl;
+        // --------------------------------------Debug----------------------------------------------------
 
         // Step 5: Train
         std::cout << "\n5. Training network..." << std::endl;
@@ -192,6 +279,8 @@ int main(int argc, char *argv[]) {
             std::cout << "  Epoch " << (i+1) << ": " << training_losses[i] << std::endl;
         }
 
+
+
         std::cout << "Training completed. Final loss: " << training_losses.back() << std::endl;
         double train_r2 = net.calculateR2(DataType::Train);
         std::cout << "Training R²: " << std::fixed << std::setprecision(4) << train_r2 << std::endl;
@@ -204,12 +293,21 @@ int main(int argc, char *argv[]) {
         // Inverse-transform predictions back to original scale
         targetScaler.inverseTransform(test_predictions);
 
+
         // Optionally also inverse-transform target series if you want
         // to save or visualize them on original scale
         // targetScaler.inverseTransform(target_series);
 
         // Save predictions in original units
         test_predictions.write("test_predictions_rescaled.csv");
+
+        // --------------------------------------Debug----------------------------------------------------
+                std::cout << "\n[DEBUG] Predictions generated: " << test_predictions.size() << " series" << std::endl;
+        for (size_t i = 0; i < std::min<size_t>(5, test_predictions[0].size()); ++i) {
+            std::cout << "  t=" << test_predictions[0][i].t
+                      << " pred=" << test_predictions[0][i].c << std::endl;
+        }
+        // --------------------------------------Debug----------------------------------------------------
 
         // Normalized-space metrics
         auto metrics = net.evaluate();
