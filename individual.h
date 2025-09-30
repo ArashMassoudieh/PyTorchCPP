@@ -99,6 +99,18 @@ public:
         std::string out = key + "=" + aquiutils::numbertostring(fitness_measures[key]);
         return out;
     }
+
+    /**
+     * @brief Mutate the individual's genome.
+     * Applies mutation to each BinaryNumber gene.
+     * @param mutationProbability Probability of flipping each bit.
+     */
+    void mutate(const double &mutationProbability) {
+        for (auto &gene : *this) {
+            gene.mutate(mutationProbability);
+        }
+    }
+
 };
 
 #endif // INDIVIDUAL_H
