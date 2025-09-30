@@ -17,7 +17,8 @@ void testIndividualParameters();
 std::vector<unsigned long int> binaryStringToParameters(const std::string& binary_str,
                                                         const std::vector<int>& split_locations);
 
-int _main(int argc, char *argv[]) {
+// This is the fixed hyperparameters
+int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     std::cout << "Running HyperParameters class tests...\n" << std::endl;
@@ -46,17 +47,17 @@ int _main(int argc, char *argv[]) {
     try {
         std::cout << "=== Neural Network Wrapper with HyperParameters Example ===" << std::endl;
         std::cout << "\n1. Creating synthetic data..." << std::endl;
-        //createSyntheticData();
+        createSyntheticData();
 
         // Step 1: Load your data
         std::cout << "\n1. Loading data..." << std::endl;
         TimeSeriesSet<double> input_data;
-        input_data.read("/mnt/3rd900/Projects/PyTorchCPP/Data/Inputs.txt", true);
-        //input_data.read("input_data.csv", true); // CSV with multiple time series
+        //input_data.read("/mnt/3rd900/Projects/PyTorchCPP/Data/Inputs.txt", true);
+        input_data.read("input_data.csv", true); // CSV with multiple time series
 
         TimeSeries<double> target_series;
-        target_series.readfile("/mnt/3rd900/Projects/PyTorchCPP/Data/Output.txt");
-        //target_series.readfile("target_output.txt"); // Single target series
+        //target_series.readfile("/mnt/3rd900/Projects/PyTorchCPP/Data/Output.txt");
+        target_series.readfile("target_output.txt"); // Single target series
 
         std::cout << "Loaded " << input_data.size() << " input time series" << std::endl;
         std::cout << "Target series has " << target_series.size() << " points" << std::endl;
@@ -132,7 +133,7 @@ int _main(int argc, char *argv[]) {
         HyperParameters hyperparams;
 
         // --- Time series selection ---
-        hyperparams.setSelectedSeriesFromBinary(511L, 9); // 9 of 9 inputs (All)
+        hyperparams.setSelectedSeriesFromBinary(7L, 3); // 511L, 9 of 9 inputs (All)
 
         /*
         | Bitmask | Binary | Selected series (0-based) |
@@ -167,20 +168,20 @@ int _main(int argc, char *argv[]) {
         hyperparams.setLagSelectionOdd(2);
 
         std::vector<std::vector<int>> lags = {
-                {0,1,2,5,10},  // input 1
-                {0,1,2,5,10},  // input 2
-                {0,1,2,5,10},  // input 3
-                {0,1,2,5,10},
-                {0,1,2,5,10},
-                {0,1,2,5,10},
-                {0,1,2,5,10},
-                {0,1,2,5,10},
-                {0,1,2,5,10}
+                {0,1,2},  // input 1
+                {0,1,2},  // input 2
+                {0,1,2},  // input 3
+                //{0,1,2},
+                //{0,1,2},
+                //{0,1,2},
+                //{0,1,2},
+                //{0,1,2},
+                //{0,1,2}
         };
         hyperparams.setLags(lags);
 
         // --- Lag multipliers ---
-        std::vector<int> lag_multipliers = {1, 1, 1, 1, 1, 1, 1, 1, 1};
+        std::vector<int> lag_multipliers = {1, 1, 1};//, 1, 1, 1, 1, 1, 1}; // for 9 inputs
         hyperparams.setLagMultiplier(lag_multipliers);
         hyperparams.setMaxLagMultiplier(10);
 
@@ -190,7 +191,7 @@ int _main(int argc, char *argv[]) {
         hyperparams.setHiddenLayers({64, 32, 16});
 
         // --- Activation functions ---
-        hyperparams.setInputActivation("sigmoid");
+        hyperparams.setInputActivation("relu");
         hyperparams.setHiddenActivation("relu");
         hyperparams.setOutputActivation("");
 
@@ -234,7 +235,15 @@ int _main(int argc, char *argv[]) {
         double split_ratio = hyperparams.getTrainTestSplit();
         double split_time = t_start + split_ratio * (t_end - t_start);
 
+        input_data.write("input_data_unlagged.csv");
+
         net.setInputDataFromHyperParams(DataType::Train, input_data, t_start, split_time, dt);
+
+        torch::Tensor input_data_lagged = net.getInputData(DataType::Train);
+
+        TimeSeriesSet<double> input_data_ts = TimeSeriesSet<double>::fromTensor(input_data_lagged, t_start, t_start + split_ratio * (t_end - t_start));
+
+        input_data_ts.write("input_data_for_testing.csv");
 
         // --------------------------------------Debug----------------------------------------------------
         // Debug: print first training sample
@@ -439,7 +448,9 @@ void createSyntheticData() {
 
 void createSyntheticGATestData();
 
-int main(int argc, char *argv[]) {
+
+//This is for GA
+int _main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     at::set_num_threads(1);         // intra-op threads
@@ -461,7 +472,7 @@ int main(int argc, char *argv[]) {
 
         // Step 1: Create synthetic data for GA testing
         std::cout << "\n1. Creating synthetic test data..." << std::endl;
-        //createSyntheticGATestData();
+        createSyntheticGATestData();
 
         // Step 2: Load test data
         TimeSeriesSet<double> training_data;
@@ -479,7 +490,7 @@ int main(int argc, char *argv[]) {
         double t_start = 0.0;
         double t_end = 100.0;    // Adjust based on your data range
         double dt = 0.1;         // Adjust based on your data time step
-        double split_ratio = 0.8;
+        double split_ratio = 0.7;
         int available_series_count = training_data.size(); // Use actual number of series
 
         base_model.setTimeSeriesData(training_data, target_data);
@@ -897,7 +908,9 @@ void testIndividualParameters() {
     hyperparams.setNumEpochs(50);
 
     // Set other parameters to match your GA defaults
-    hyperparams.setActivationFunction("relu");
+    hyperparams.setInputActivation("sigmoid");
+    hyperparams.setHiddenActivation("relu");
+    hyperparams.setOutputActivation("");
     hyperparams.setNumEpochs(100);
     hyperparams.setBatchSize(32);
     hyperparams.setLearningRate(0.001);
