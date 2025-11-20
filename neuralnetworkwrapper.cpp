@@ -8,15 +8,15 @@
 // In constructor:
 // Default constructor - no inheritance from torch::nn::Module
 NeuralNetworkWrapper::NeuralNetworkWrapper()
-    : current_loss_(0.0), is_initialized_(false),
-    activation_function_("relu"), input_size_(0), output_size_(0),
-    layers_(),  // Empty vector of Linear layers
-    train_input_data_(torch::Tensor()), train_target_data_(torch::Tensor()),
+    : hyperparams_(), original_series_names_(),
+    current_loss_(0.0), is_initialized_(false), train_input_data_(torch::Tensor()),
+    train_target_data_(torch::Tensor()),  // Empty vector of Linear layers
     test_input_data_(torch::Tensor()), test_target_data_(torch::Tensor()),
-    original_series_names_(), hyperparams_(),
-    ga_t_start_(0.0), ga_t_end_(100.0), ga_dt_(0.1), ga_split_ratio_(0.8),
-    ga_available_series_count_(3), ga_data_configured_(false),
-    verbose_(false) {
+    layers_(), input_activation_function_("relu"), hidden_activation_function_("relu"), output_activation_function_(""),
+    input_size_(0), output_size_(0),
+    verbose_(false), ga_t_start_(0.0), ga_t_end_(100.0), ga_dt_(0.1),
+    ga_split_ratio_(0.8), ga_available_series_count_(3),
+    ga_data_configured_(false) {
     // No PyTorch module initialization needed
 }
 
@@ -29,10 +29,13 @@ NeuralNetworkWrapper::NeuralNetworkWrapper(const NeuralNetworkWrapper& other)
     training_history_(),  // Start fresh
     current_loss_(0.0),   // Reset
     is_initialized_(false),  // Will be initialized when needed
-    activation_function_(other.activation_function_),
+    layers_(),
+    input_activation_function_(other.input_activation_function_),
+    hidden_activation_function_(other.hidden_activation_function_),
+    output_activation_function_(other.output_activation_function_),
     input_size_(other.input_size_),
-    output_size_(other.output_size_),
-    layers_(),  // Empty vector - will be created in CreateModel()
+    output_size_(other.output_size_),  // Empty vector - will be created in CreateModel()
+    verbose_(other.verbose_),
     ga_input_data_(other.ga_input_data_),
     ga_target_data_(other.ga_target_data_),
     ga_t_start_(other.ga_t_start_),
@@ -40,8 +43,7 @@ NeuralNetworkWrapper::NeuralNetworkWrapper(const NeuralNetworkWrapper& other)
     ga_dt_(other.ga_dt_),
     ga_split_ratio_(other.ga_split_ratio_),
     ga_available_series_count_(other.ga_available_series_count_),
-    ga_data_configured_(other.ga_data_configured_),
-    verbose_(other.verbose_) {
+    ga_data_configured_(other.ga_data_configured_) {
 
     // Copy tensor data if it exists
     if (other.train_input_data_.defined()) {
@@ -69,7 +71,9 @@ NeuralNetworkWrapper& NeuralNetworkWrapper::operator=(const NeuralNetworkWrapper
         hidden_layers_ = other.hidden_layers_;
         hyperparams_ = other.hyperparams_;
         original_series_names_ = other.original_series_names_;
-        activation_function_ = other.activation_function_;
+        input_activation_function_ = other.input_activation_function_;
+        hidden_activation_function_ = other.hidden_activation_function_;
+        output_activation_function_ = other.output_activation_function_;
         input_size_ = other.input_size_;
         output_size_ = other.output_size_;
         verbose_ = other.verbose_;
@@ -119,7 +123,9 @@ NeuralNetworkWrapper& NeuralNetworkWrapper::operator=(const NeuralNetworkWrapper
 void NeuralNetworkWrapper::clear() {
     training_history_.clear();
     current_loss_ = 0.0;
-    activation_function_ = "relu";
+    input_activation_function_ = "sigmoid";
+    hidden_activation_function_ = "sigmoid";
+    output_activation_function_ = "";
     input_size_ = 0;
     output_size_ = 0;
     train_input_data_ = torch::Tensor();
@@ -213,7 +219,9 @@ void NeuralNetworkWrapper::initializeNetwork(int output_size,
     }
 
     // Store configuration
-    activation_function_ = activation_function;
+    input_activation_function_ = activation_function;
+    hidden_activation_function_ = activation_function;
+    output_activation_function_ = activation_function;
     input_size_ = actual_input_size;
     output_size_ = output_size;
 
@@ -300,7 +308,9 @@ void NeuralNetworkWrapper::initializeNetwork(HyperParameters* hyperparams, int o
     }
 
     // Store configuration
-    activation_function_ = hyperparams->getActivationFunction();
+    input_activation_function_ = hyperparams->getInputActivation();
+    hidden_activation_function_ = hyperparams->getHiddenActivation();
+    output_activation_function_ = hyperparams->getOutputActivation();
     input_size_ = actual_input_size;
     output_size_ = output_size;
 
@@ -383,7 +393,9 @@ void NeuralNetworkWrapper::initializeNetwork(HyperParameters* hyperparams, int o
         }
         std::cout << "]" << std::endl;
         std::cout << "  Output size: " << output_size << std::endl;
-        std::cout << "  Activation: " << activation_function_ << std::endl;
+        std::cout << "  Input Activation: " << input_activation_function_ << std::endl;
+        std::cout << "  Hidden Activation: " << hidden_activation_function_ << std::endl;
+        std::cout << "  Output Activation: " << output_activation_function_ << std::endl;
         std::cout << "  Total parameters: " << getTotalParameters() << std::endl;
 
         // Print lag details for selected series
@@ -436,16 +448,38 @@ torch::Tensor NeuralNetworkWrapper::forward(DataType data_type) {
         // Apply linear transformation - direct access to Linear layer
         x = layers_[i]->forward(x);
 
-        // Apply activation function
-        if (activation_function_ == "relu") {
+        // Apply input activation function
+        if (input_activation_function_ == "relu") {
             x = torch::relu(x);
-        } else if (activation_function_ == "tanh") {
+        } else if (input_activation_function_ == "tanh") {
             x = torch::tanh(x);
-        } else if (activation_function_ == "sigmoid") {
+        } else if (input_activation_function_ == "sigmoid") {
             x = torch::sigmoid(x);
         } else {
-            throw std::runtime_error("Unknown activation function: " + activation_function_);
+            throw std::runtime_error("Unknown activation function: " + input_activation_function_);
         }
+        // Apply hidden activation function
+        if (hidden_activation_function_ == "relu") {
+            x = torch::relu(x);
+        } else if (hidden_activation_function_ == "tanh") {
+            x = torch::tanh(x);
+        } else if (hidden_activation_function_ == "sigmoid") {
+            x = torch::sigmoid(x);
+        } else {
+            throw std::runtime_error("Unknown activation function: " + hidden_activation_function_);
+        }
+        // Apply output activation function
+        /*
+        if (output_activation_function_ == "relu") {
+            x = torch::relu(x);
+        } else if (output_activation_function_ == "tanh") {
+            x = torch::tanh(x);
+        } else if (output_activation_function_ == "sigmoid") {
+            x = torch::sigmoid(x);
+        } else {
+            throw std::runtime_error("Unknown activation function: " + output_activation_function_);
+        }
+        */
     }
 
     // Final layer without activation (for regression)
@@ -935,12 +969,28 @@ torch::Tensor NeuralNetworkWrapper::forward_internal(torch::Tensor input) {
     for (size_t i = 0; i < layers_.size() - 1; ++i) {
         x = layers_[i]->forward(x);
 
-        // Apply activation function
-        if (activation_function_ == "relu") {
+        // Apply input activation function
+        if (input_activation_function_ == "relu") {
             x = torch::relu(x);
-        } else if (activation_function_ == "tanh") {
+        } else if (input_activation_function_ == "tanh") {
             x = torch::tanh(x);
-        } else if (activation_function_ == "sigmoid") {
+        } else if (input_activation_function_ == "sigmoid") {
+            x = torch::sigmoid(x);
+        }
+        // Apply hidden activation function
+        if (hidden_activation_function_ == "relu") {
+            x = torch::relu(x);
+        } else if (hidden_activation_function_ == "tanh") {
+            x = torch::tanh(x);
+        } else if (hidden_activation_function_ == "sigmoid") {
+            x = torch::sigmoid(x);
+        }
+        // Apply output activation function
+        if (output_activation_function_ == "relu") {
+            x = torch::relu(x);
+        } else if (output_activation_function_ == "tanh") {
+            x = torch::tanh(x);
+        } else if (output_activation_function_ == "sigmoid") {
             x = torch::sigmoid(x);
         }
     }
@@ -1274,6 +1324,12 @@ void NeuralNetworkWrapper::setInputDataFromHyperParams(DataType data_type,
     {   std::cout << "Input data created: " << num_time_steps << " samples, "
                   << total_features << " features" << std::endl;
     }
+
+#ifdef DEBUG_
+    TimeSeriesSet<double> inputdata;
+    inputdata.fromTensor(input_tensor,t_start,t_end);
+    inputdata.write("input_data_lagged.csv");
+#endif
 }
 
 

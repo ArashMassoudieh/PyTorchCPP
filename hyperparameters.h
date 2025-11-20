@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include "Normalization.h"  // for NormType
 
 /**
  * @brief Class to hold and manage all hyperparameters for neural network optimization.
@@ -24,8 +25,15 @@ public:
     const std::vector<int>& getHiddenLayers() const;
     void setHiddenLayers(const std::vector<int>& hidden_layers);
 
-    const std::string& getActivationFunction() const;
-    void setActivationFunction(const std::string& activation_function);
+    // Activation functions
+    const std::string& getInputActivation() const;
+    void setInputActivation(const std::string& activation);
+
+    const std::string& getHiddenActivation() const;
+    void setHiddenActivation(const std::string& activation);
+
+    const std::string& getOutputActivation() const;
+    void setOutputActivation(const std::string& activation);
 
     // Lag Configuration
     const std::vector<std::vector<int>>& getLags() const;
@@ -243,13 +251,20 @@ public:
     void setVerbose(bool verbose);
     bool getVerbose() const;
 
+    // Normalization
+    void setNormalization(NormType mode);
+    NormType getNormalization() const;
+    std::string getNormalizationString() const;
+
 private:
     // Time Series Selection
     std::vector<int> selected_series_ids_;        ///< IDs of selected time series from input
 
     // Network Architecture
     std::vector<int> hidden_layers_;              ///< Number of nodes in each hidden layer
-    std::string activation_function_;             ///< Activation function ("relu", "tanh", "sigmoid")
+    std::string input_activation_function_;   ///< Activation for input pre-processing
+    std::string hidden_activation_function_;  ///< Activation for hidden layers
+    std::string output_activation_function_;  ///< Activation for output layer
     int max_number_of_hidden_nodes_;               ///< Maximum nodes allowed in any hidden layer
     int max_number_of_hidden_layers_;              ///< Maximum number of hidden layers allowed
 
@@ -276,4 +291,7 @@ private:
     void validateSelectedSeriesIds(const std::vector<int>& selected_ids) const;
     void validateHiddenLayers(const std::vector<int>& hidden_layers) const;
     void validateActivationFunction(const std::string& activation_function) const;
+
+    // Normalization
+    NormType normalization_ = NormType::Standardize;  ///< Default
 };

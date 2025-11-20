@@ -6,20 +6,22 @@
 #include <sstream>  // for std::ostringstream
 #include <cmath>
 #include <iostream>
-
+#include "Normalization.h"  // for NormType
 
 // Constructor
 HyperParameters::HyperParameters()
     : selected_series_ids_(),
     hidden_layers_{64, 32},
-    activation_function_("relu"),
+    input_activation_function_("sigmoid"),         // NEW: default linear input
+    hidden_activation_function_("sigmoid"),    // NEW: default hidden relu
+    output_activation_function_(""),        // NEW: default linear output,
+    max_number_of_hidden_nodes_(128),
+    max_number_of_hidden_layers_(5),
     lags_(),
     lag_multiplier_{1},
     max_lag_multiplier_(10),
-    max_lags_(10),
-    lag_selection_odd_(3),
-    max_number_of_hidden_nodes_(128),        // Default max nodes per layer
-    max_number_of_hidden_layers_(5),         // Default max layers
+    max_lags_(10),        // Default max nodes per layer
+    lag_selection_odd_(3),         // Default max layers
     num_epochs_(100),
     batch_size_(32),
     learning_rate_(0.001),
@@ -93,14 +95,40 @@ void HyperParameters::setHiddenLayers(const std::vector<int>& hidden_layers) {
     hidden_layers_ = hidden_layers;
 }
 
-const std::string& HyperParameters::getActivationFunction() const {
-    return activation_function_;
+// === Input Activation ===
+const std::string& HyperParameters::getInputActivation() const {
+    return input_activation_function_;
+}
+void HyperParameters::setInputActivation(const std::string& activation) {
+    if (activation != "relu" && activation != "tanh" && activation != "sigmoid") {
+        throw std::runtime_error("Invalid hidden activation: " + activation);
+    }
+    input_activation_function_ = activation;
 }
 
-void HyperParameters::setActivationFunction(const std::string& activation_function) {
-    validateActivationFunction(activation_function);
-    activation_function_ = activation_function;
+// === Hidden Activation ===
+const std::string& HyperParameters::getHiddenActivation() const {
+    return hidden_activation_function_;
 }
+void HyperParameters::setHiddenActivation(const std::string& activation) {
+    if (activation != "relu" && activation != "tanh" && activation != "sigmoid") {
+        throw std::runtime_error("Invalid hidden activation: " + activation);
+    }
+    hidden_activation_function_ = activation;
+}
+
+// === Output Activation ===
+const std::string& HyperParameters::getOutputActivation() const {
+    return output_activation_function_;
+}
+void HyperParameters::setOutputActivation(const std::string& activation) {
+    if (!activation.empty() &&
+        activation != "relu" && activation != "tanh" && activation != "sigmoid") {
+        throw std::runtime_error("Invalid output activation: " + activation);
+    }
+    output_activation_function_ = activation;
+}
+
 
 // Lag Configuration
 const std::vector<std::vector<int>>& HyperParameters::getLags() const {
@@ -157,6 +185,24 @@ void HyperParameters::setTrainTestSplit(double train_test_split) {
     train_test_split_ = train_test_split;
 }
 
+void HyperParameters::setNormalization(NormType mode) {
+    normalization_ = mode;
+}
+
+NormType HyperParameters::getNormalization() const {
+    return normalization_;
+}
+
+std::string HyperParameters::getNormalizationString() const {
+    switch (normalization_) {
+        case NormType::None: return "none";
+        case NormType::Standardize: return "standardize";
+        case NormType::MinMax: return "minmax";
+        default: return "unknown";
+    }
+}
+
+
 std::string HyperParameters::toString() const {
     std::string out;
 
@@ -177,7 +223,9 @@ std::string HyperParameters::toString() const {
     out += "]";
 
     // Activation
-    out += ", Activation: " + activation_function_;
+    out += ", Input Activation: " + input_activation_function_;
+    out += ", Hidden Activation: " + hidden_activation_function_;
+    out += ", Output Activation: " + output_activation_function_;
 
     // Lags
     out += ", Lags: [";
@@ -203,7 +251,6 @@ std::string HyperParameters::toString() const {
     // Max lag multiplier
     out += ", Max lag multiplier: " + std::to_string(max_lag_multiplier_);
     out += ", Multiplier generation base: " + std::to_string(max_lag_multiplier_ + 1);
-
 
     // Max lags - THIS WAS MISSING
     out += ", Max lags: " + std::to_string(max_lags_);
@@ -236,9 +283,11 @@ std::string HyperParameters::toString() const {
     out += ", Max hidden nodes: " + std::to_string(max_number_of_hidden_nodes_);
     out += ", Max hidden layers: " + std::to_string(max_number_of_hidden_layers_);
 
-
+    // Add normalization
+    out += ", Normalization: " + getNormalizationString() + "\n";
 
     return out;
+
 }
 bool HyperParameters::isValid() const {
     // Check selected series
@@ -278,11 +327,21 @@ bool HyperParameters::isValid() const {
     if (lag_selection_odd_ <= 1) return false;
 
     // Check activation function
-    if (activation_function_ != "relu" &&
-        activation_function_ != "tanh" &&
-        activation_function_ != "sigmoid") {
+    if (input_activation_function_ != "relu" &&
+        input_activation_function_ != "tanh" &&
+        input_activation_function_ != "sigmoid") {
         return false;
     }
+    if (hidden_activation_function_ != "relu" &&
+        hidden_activation_function_ != "tanh" &&
+        hidden_activation_function_ != "sigmoid") {
+        return false;
+    }
+    /*if (output_activation_function_ != "relu" &&
+        //output_activation_function_ != "tanh" &&
+        //output_activation_function_ != "sigmoid") {
+        //return false;
+    }*/
 
     return true;
 }
@@ -290,7 +349,9 @@ bool HyperParameters::isValid() const {
 void HyperParameters::reset() {
     selected_series_ids_.clear();
     hidden_layers_ = {64, 32};
-    activation_function_ = "relu";
+    input_activation_function_= "sigmoid";     // NEW
+    hidden_activation_function_ = "sigmoid";   // NEW
+    output_activation_function_.clear();    // NEW
     lags_.clear();
     lag_multiplier_ = {1};
     max_lag_multiplier_ = 10;
@@ -724,7 +785,9 @@ void HyperParameters::setFromOptimizationParameters(const std::vector<long int>&
     }
 
     // Set other default training parameters
-    setActivationFunction("relu");
+    setInputActivation("relu");
+    setHiddenActivation("relu");
+    setOutputActivation("relu");
     setNumEpochs(100);
     setBatchSize(32);
     setLearningRate(0.001);
