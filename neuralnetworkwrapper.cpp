@@ -24,12 +24,12 @@ NeuralNetworkWrapper::NeuralNetworkWrapper()
 NeuralNetworkWrapper::NeuralNetworkWrapper(const NeuralNetworkWrapper& other)
     : lags_(other.lags_),
     hidden_layers_(other.hidden_layers_),
+    layers_ (other.layers_),
     hyperparams_(other.hyperparams_),
     original_series_names_(other.original_series_names_),
     training_history_(),  // Start fresh
     current_loss_(0.0),   // Reset
     is_initialized_(false),  // Will be initialized when needed
-    layers_(),
     input_activation_function_(other.input_activation_function_),
     hidden_activation_function_(other.hidden_activation_function_),
     output_activation_function_(other.output_activation_function_),

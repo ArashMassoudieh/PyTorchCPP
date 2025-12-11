@@ -18,7 +18,7 @@ std::vector<unsigned long int> binaryStringToParameters(const std::string& binar
                                                         const std::vector<int>& split_locations);
 
 // This is the fixed hyperparameters
-int main(int argc, char *argv[]) {
+int _main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     std::cout << "Running HyperParameters class tests...\n" << std::endl;
@@ -450,7 +450,7 @@ void createSyntheticGATestData();
 
 
 //This is for GA
-int _main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     at::set_num_threads(1);         // intra-op threads
@@ -505,8 +505,8 @@ int _main(int argc, char *argv[]) {
 
         // Step 4: Configure GA settings
         GeneticAlgorithmsettings ga_settings;
-        ga_settings.totalpopulation = 40;
-        ga_settings.generations = 40;
+        ga_settings.totalpopulation = 10;
+        ga_settings.generations = 10;
         ga_settings.mutation_probability = 0.03;
         ga_settings.outputpath = ".";
         ga_settings.MSE_optimization = true;
@@ -540,9 +540,11 @@ int _main(int argc, char *argv[]) {
 
         std::cout << "\n6. Saving the best model ... " << std::endl;
 
+        std::cout << "Returned model config: " << best_model.ParametersToString() << std::endl;
+        best_model.setInitialized(true);
         best_model.saveModel("best_model.pt");
 
-        std::cout << "Returned model config: " << best_model.ParametersToString() << std::endl;
+
 
         try {
             if (best_model.hasInputData(DataType::Test) && best_model.hasTargetData(DataType::Test)) {

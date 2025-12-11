@@ -157,6 +157,8 @@ public:
      */
     bool isInitialized() const;
 
+    void setInitialized(bool initialized) { is_initialized_ = initialized; }
+
     // Getters and Setters for Lag Configuration
     const std::vector<std::vector<int>>& getLags() const;
     void setLags(const std::vector<std::vector<int>>& lags);

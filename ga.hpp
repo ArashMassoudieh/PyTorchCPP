@@ -423,7 +423,7 @@ const Individual& GeneticAlgorithm<T>::selectIndividualByRank() {
     return Individuals.back();
 }
 
-void SortIndices(const std::vector<Individual>& individuals, std::vector<int>& indices) {
+inline void SortIndices(const std::vector<Individual>& individuals, std::vector<int>& indices) {
     size_t n = indices.size();
 
     // Perform Bubble Sort on indices based on fitness values
