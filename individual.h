@@ -1,7 +1,7 @@
 #ifndef INDIVIDUAL_H
 #define INDIVIDUAL_H
 
-#include <Binary.h>
+#include "Binary.h"
 #include "Utilities.h"
 #include <map>
 #include <vector>

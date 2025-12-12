@@ -43,6 +43,7 @@ private Q_SLOTS:
     void onStartGA();
     void onStopGA();
     void onLoadData();
+    void onPlotResults();
 private:
     Ui::MainWindow *ui;
 
@@ -62,13 +63,64 @@ private:
     void setupUI();
     void setupMenus();
     void connectSignals();
-    void logMessage(const QString &message);
+    void logMessage(const QString &message) const;
     void updateProgress(int value);
+    /**
+     * @brief Plot predictions vs target scatter plot
+     * @param model Neural network model to use for predictions
+     * @param data_type Which dataset to plot (Train or Test)
+     */
+    void plotPredictionsVsTarget(NeuralNetworkWrapper& model, DataType data_type);
+
+    /**
+     * @brief Plot predictions vs target over time
+     * @param model Neural network model to use for predictions
+     * @param data_type Which dataset to plot (Train or Test)
+     */
+    void plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType data_type);
+
+    NeuralNetworkWrapper* bestModel_ = nullptr;
 
     GeneticAlgorithm<NeuralNetworkWrapper> ga_;
     bool gaRunning_;
     QAction* startGAAction_;
     QAction* stopGAAction_;
+
+    /**
+     * @brief Get start time for given data type
+     * @param data_type Train or Test
+     * @return Start time
+     */
+    double TimeStart(DataType data_type) const;
+
+    /**
+     * @brief Get end time for given data type
+     * @param data_type Train or Test
+     * @return End time
+     */
+    double TimeEnd(DataType data_type) const;
+
+    /**
+     * @brief Get time delta (sampling interval)
+     * @return Time delta
+     */
+    double dt() const;
+
+    double split_ratio = 0.7;
+
+    /**
+     * @brief Get the train/test split ratio
+     * @return Split ratio (0.0 to 1.0)
+     */
+    double getSplitRatio() const { return split_ratio; }
+
+    /**
+     * @brief Set the train/test split ratio
+     * @param ratio Split ratio (0.0 to 1.0), where ratio is the fraction for training
+     */
+    void setSplitRatio(double ratio);
+
+
 
 
 };

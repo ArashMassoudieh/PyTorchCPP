@@ -8,6 +8,7 @@
 #include <QDateTime>
 #include "gasettingsdialog.h"
 #include "DataLoadDialog.h"
+#include "chartwindow.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -151,7 +152,7 @@ void MainWindow::connectSignals()
     // You'll add these connections as you implement the functionality
 }
 
-void MainWindow::logMessage(const QString &message)
+void MainWindow::logMessage(const QString &message) const
 {
     QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
     logOutput->append(QString("[%1] %2").arg(timestamp).arg(message));
@@ -225,88 +226,152 @@ void MainWindow::onConfigureGA()
 
 void MainWindow::onStartGA()
 {
-    // Check if data is loaded
-    if (inputData.size() == 0 || targetData.size() == 0) {
-        QMessageBox::warning(this, "No Data",
-                             "Please load input and target data before starting GA optimization.");
-        logMessage("ERROR: Cannot start GA - no data loaded");
-        return;
-    }
-
-    // Check if already running
-    if (gaRunning_) {
-        QMessageBox::information(this, "Already Running",
-                                 "GA optimization is already in progress.");
-        return;
-    }
-
-    logMessage("=== Starting GA Optimization ===");
-    statusLabel->setText("Status: Running GA Optimization...");
-
-    // Disable start button, enable stop button
-    startGAAction_->setEnabled(false);
-    startButton->setEnabled(false);
-    stopGAAction_->setEnabled(true);
-    stopButton->setEnabled(true);
-    gaRunning_ = true;
-
-    progressBar->setValue(0);
+    // ... existing validation code ...
 
     try {
-        // Configure GA with current data
+        // Reset GA state
+        ga_.Reset();
+
+        ga_.model.clear();
+        ga_.model.setTimeSeriesData(inputData, targetData);
+        ga_.model.setTimeRange(TimeStart(DataType::Train), TimeEnd(DataType::Test), dt(), split_ratio);
+        ga_.model.setAvailableSeriesCount(inputData.size());
+
+        // Create progress window
         ProgressWindow* progressWindow = new ProgressWindow(this, "GA Optimization");
         progressWindow->SetPrimaryChartVisible(true);
         progressWindow->SetSecondaryChartVisible(true);
+        progressWindow->SetPrimaryChartXRange(0, ga_.Settings.generations);
+        progressWindow->SetSecondaryChartXRange(0, ga_.Settings.generations);
         progressWindow->SetPrimaryChartAutoScale(true);
         progressWindow->SetSecondaryChartAutoScale(true);
         progressWindow->show();
+        QApplication::processEvents();
 
-        logMessage(QString("Population: %1, Generations: %2")
-                       .arg(ga_.Settings.totalpopulation)
-                       .arg(ga_.Settings.generations));
-
-        // Set up GA data interface
-        double t_start = 0.0;
-        double t_end = 100.0;
-        double dt = 0.1;
-        double split_ratio = 0.7;
-
-        ga_.model.setTimeSeriesData(inputData, targetData);
-        ga_.model.setTimeRange(t_start, t_end, dt, split_ratio);
-        ga_.model.setAvailableSeriesCount(inputData.size());
-
-        // Initialize GA
-        logMessage("Initializing GA population...");
         ga_.setProgressWindow(progressWindow);
 
-        logMessage(QString("Population: %1, Generations: %2")
-                       .arg(ga_.Settings.totalpopulation)
-                       .arg(ga_.Settings.generations));
-
+        logMessage("Initializing GA population...");
         ga_.Initialize();
 
-        // Run optimization
         logMessage("Running optimization...");
+        gaRunning_ = true;
+        startGAAction_->setEnabled(false);
+        stopGAAction_->setEnabled(true);
+
         NeuralNetworkWrapper& bestModel = ga_.Optimize();
 
-        // Get results
-        auto ranks = ga_.getRanks();
-        Individual bestIndividual = ga_.Individuals[ranks[0]];
+        auto sorted_indices = ga_.getRanks();
+        Individual bestIndividual = ga_.Individuals[sorted_indices[0]];
 
         logMessage(QString("Optimization complete! Best fitness: %1")
                        .arg(bestIndividual.fitness));
 
-        // Update progress
-        progressBar->setValue(100);
-        statusLabel->setText("Status: GA Optimization Complete");
+        // ===== STORE BEST MODEL FOR PLOTTING =====
+        if (bestModel_) {
+            delete bestModel_;
+        }
 
-        // Save results
-        bestModel.saveModel("best_ga_model.pt");
-        logMessage("Best model saved to: best_ga_model.pt");
+        logMessage(QString("DEBUG: Original model state BEFORE copy:"));
+        logMessage(QString("  - Initialized: %1").arg(bestModel.isInitialized()));
+        logMessage(QString("  - Total parameters: %1").arg(bestModel.getTotalParameters()));
 
-        QMessageBox::information(this, "Complete",
-                                 QString("GA optimization completed!\nBest fitness: %1")
-                                     .arg(bestIndividual.fitness));
+        bestModel_ = new NeuralNetworkWrapper(bestModel);
+
+        logMessage(QString("DEBUG: Copied model state AFTER copy:"));
+        logMessage(QString("  - Initialized: %1").arg(bestModel_->isInitialized()));
+        logMessage(QString("  - Total parameters: %1").arg(bestModel_->getTotalParameters()));
+
+        // Make predictions and compare
+        try {
+            logMessage("DEBUG: Testing original model predictions...");
+            TimeSeriesSet<double> orig_pred = bestModel.predict(
+                DataType::Test,
+                TimeStart(DataType::Test),
+                TimeEnd(DataType::Test),
+                dt()
+                );
+
+            // Show first 5 prediction values
+            QString orig_values = "DEBUG: Original predictions: ";
+            for (size_t i = 0; i < std::min(size_t(5), orig_pred[0].size()); i++) {
+                orig_values += QString::number(orig_pred[0][i].c, 'f', 4) + " ";
+            }
+            logMessage(orig_values);
+
+            // Check if all predictions are the same
+            bool all_same = true;
+            double first_val = orig_pred[0][0].c;
+            for (size_t i = 1; i < std::min(size_t(20), orig_pred[0].size()); i++) {
+                if (std::abs(orig_pred[0][i].c - first_val) > 1e-6) {
+                    all_same = false;
+                    break;
+                }
+            }
+            logMessage(QString("DEBUG: Original predictions constant? %1").arg(all_same ? "YES" : "NO"));
+
+        } catch (const std::exception& e) {
+            logMessage(QString("ERROR: Original model prediction failed: %1").arg(e.what()));
+        }
+
+        try {
+            logMessage("DEBUG: Testing copied model predictions...");
+            TimeSeriesSet<double> copy_pred = bestModel_->predict(
+                DataType::Test,
+                TimeStart(DataType::Test),
+                TimeEnd(DataType::Test),
+                dt()
+                );
+
+            // Show first 5 prediction values
+            QString copy_values = "DEBUG: Copied predictions: ";
+            for (size_t i = 0; i < std::min(size_t(5), copy_pred[0].size()); i++) {
+                copy_values += QString::number(copy_pred[0][i].c, 'f', 4) + " ";
+            }
+            logMessage(copy_values);
+
+            // Check if all predictions are the same
+            bool all_same = true;
+            double first_val = copy_pred[0][0].c;
+            for (size_t i = 1; i < std::min(size_t(20), copy_pred[0].size()); i++) {
+                if (std::abs(copy_pred[0][i].c - first_val) > 1e-6) {
+                    all_same = false;
+                    break;
+                }
+            }
+            logMessage(QString("DEBUG: Copied predictions constant? %1").arg(all_same ? "YES" : "NO"));
+
+        } catch (const std::exception& e) {
+            logMessage(QString("ERROR: Copied model prediction failed: %1").arg(e.what()));
+        }
+
+        // Save model
+        QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+        QString modelPath = QString("best_model_%1.pt").arg(timestamp);
+
+        //bestModel.saveModel(modelPath.toStdString());
+        //logMessage(QString("Best model saved to: %1").arg(modelPath));
+
+        ga_.setProgressWindow(nullptr);
+
+        // ===== ASK USER IF THEY WANT TO SEE PLOTS =====
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            "Optimization Complete",
+            QString("GA optimization completed!\n\n"
+                    "Best fitness: %1\n"
+                    "Model saved to:\n%2\n\n"
+                    "Would you like to view the prediction plots?")
+                .arg(bestIndividual.fitness)
+                .arg(modelPath),
+            QMessageBox::Yes | QMessageBox::No
+            );
+
+        if (reply == QMessageBox::Yes) {
+            onPlotResults();
+        }
+
+        progressWindow->close();
+        progressWindow->deleteLater();
 
     } catch (const std::exception& e) {
         logMessage(QString("ERROR: %1").arg(e.what()));
@@ -314,14 +379,10 @@ void MainWindow::onStartGA()
                               QString("GA optimization failed:\n%1").arg(e.what()));
     }
 
-    // Re-enable controls
-    startGAAction_->setEnabled(true);
-    startButton->setEnabled(true);
-    stopGAAction_->setEnabled(false);
-    stopButton->setEnabled(false);
     gaRunning_ = false;
+    startGAAction_->setEnabled(true);
+    stopGAAction_->setEnabled(false);
 
-    statusLabel->setText("Status: Ready");
     logMessage("=== GA Optimization Finished ===");
 }
 
@@ -373,4 +434,331 @@ void MainWindow::onLoadData()
                                      .arg(inputData.size())
                                      .arg(targetData.size()));
     }
+}
+
+
+void MainWindow::plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType data_type)
+{
+    try {
+        // Get data type name for titles
+        QString dataTypeName = (data_type == DataType::Train) ? "Train" : "Test";
+
+        // Get target data as tensor
+        torch::Tensor targetTensor = model.getTargetData(data_type);
+
+        // Get the actual number of points in tensor
+        int64_t num_points = targetTensor.size(0);
+
+        logMessage(QString("DEBUG: %1 tensor has %2 points").arg(dataTypeName).arg(num_points));
+
+        // Compute time range from target data
+        double t_min = targetData.mint();
+        double t_max = targetData.maxt();
+        double full_range = t_max - t_min;
+
+        // Calculate start and end based on data type
+        double data_start, data_end;
+        if (data_type == DataType::Train) {
+            data_start = t_min;
+            data_end = t_min + (getSplitRatio() * full_range);
+        } else {
+            data_start = t_min + (getSplitRatio() * full_range);
+            data_end = t_max;
+        }
+
+        double dt_val = dt();
+
+        // Adjust end time to match actual tensor size
+        data_end = data_start + (num_points - 1) * dt_val;
+
+        logMessage(QString("DEBUG: %1 time range [%2, %3], dt=%4")
+                       .arg(dataTypeName).arg(data_start).arg(data_end).arg(dt_val));
+
+        // Convert tensor to TimeSeries
+        TimeSeries<double> dataTarget = TimeSeries<double>::fromTensor(
+            targetTensor,
+            false,       // has_time = false
+            data_start,  // time_offset
+            dt_val       // time_step
+            );
+
+        if (dataTarget.empty()) {
+            throw std::runtime_error(QString("%1 target data is empty after conversion")
+                                         .arg(dataTypeName).toStdString());
+        }
+
+        logMessage(QString("DEBUG: %1 target TimeSeries: %2 points, range [%3, %4]")
+                       .arg(dataTypeName)
+                       .arg(dataTarget.size())
+                       .arg(dataTarget.mint())
+                       .arg(dataTarget.maxt()));
+
+        // Make predictions - use actual bounds from dataTarget
+        double pred_start = dataTarget.mint();
+        double pred_end = dataTarget.maxt();
+
+        TimeSeriesSet<double> predictions = model.predict(data_type, pred_start, pred_end, dt_val);
+
+        if (predictions.size() == 0) {
+            throw std::runtime_error("No predictions generated");
+        }
+
+        TimeSeries<double> predSeries = predictions[0];
+
+        logMessage(QString("DEBUG: Prediction TimeSeries: %1 points").arg(predSeries.size()));
+
+        // Calculate R²
+        double r2 = R2(dataTarget, predSeries);
+
+        // Calculate MSE
+        double mse = 0.0;
+        int n = 0;
+        for (double t = pred_start; t <= pred_end; t += dt_val) {
+            double target_val = dataTarget.interpol(t);
+            double pred_val = predSeries.interpol(t);
+            double error = target_val - pred_val;
+            mse += error * error;
+            n++;
+        }
+        if (n > 0) {
+            mse /= n;
+        }
+
+        // Create TimeSeriesSet for plotting
+        TimeSeriesSet<double> plotData;
+
+        dataTarget.setName("Target");
+        plotData.append(dataTarget);
+
+        predSeries.setName("Predicted");
+        plotData.append(predSeries);
+
+        // Show chart
+        QString title = QString("Predictions vs Target over Time (%1 Data)\nR² = %2, MSE = %3")
+                            .arg(dataTypeName)
+                            .arg(r2, 0, 'f', 4)
+                            .arg(mse, 0, 'f', 6);
+
+        ChartWindow* chartWin = ChartWindow::showChart(plotData, title, this);
+        chartWin->setAxisLabels("Time", "Value");
+        chartWin->chartViewer()->setPlotMode(ChartViewer::Lines);
+
+        logMessage(QString("Opened predictions vs time plot (%1: R² = %2, MSE = %3)")
+                       .arg(dataTypeName)
+                       .arg(r2, 0, 'f', 4)
+                       .arg(mse, 0, 'f', 6));
+
+    } catch (const std::exception& e) {
+        logMessage(QString("Plot error: %1").arg(e.what()));
+        QMessageBox::warning(this, "Plot Error",
+                             QString("Failed to plot predictions vs time:\n%1").arg(e.what()));
+    }
+}
+
+void MainWindow::plotPredictionsVsTarget(NeuralNetworkWrapper& model, DataType data_type)
+{
+    try {
+        // Get data type name for titles
+        QString dataTypeName = (data_type == DataType::Train) ? "Train" : "Test";
+
+        // Get target data as tensor
+        torch::Tensor targetTensor = model.getTargetData(data_type);
+
+        // Get actual number of points
+        int64_t num_points = targetTensor.size(0);
+
+        // Compute time range
+        double t_min = targetData.mint();
+        double t_max = targetData.maxt();
+        double full_range = t_max - t_min;
+
+        double data_start, data_end;
+        if (data_type == DataType::Train) {
+            data_start = t_min;
+            data_end = t_min + (getSplitRatio() * full_range);
+        } else {
+            data_start = t_min + (getSplitRatio() * full_range);
+            data_end = t_max;
+        }
+
+        double dt_val = dt();
+
+        // Adjust to match tensor size
+        data_end = data_start + (num_points - 1) * dt_val;
+
+        // Convert tensor to TimeSeries
+        TimeSeries<double> dataTarget = TimeSeries<double>::fromTensor(
+            targetTensor,
+            false,
+            data_start,
+            dt_val
+            );
+
+        if (dataTarget.empty()) {
+            throw std::runtime_error(QString("%1 target data is empty after conversion")
+                                         .arg(dataTypeName).toStdString());
+        }
+
+        // Use actual bounds from dataTarget
+        double pred_start = dataTarget.mint();
+        double pred_end = dataTarget.maxt();
+
+        // Make predictions
+        TimeSeriesSet<double> predictions = model.predict(data_type, pred_start, pred_end, dt_val);
+
+        if (predictions.size() == 0) {
+            throw std::runtime_error("No predictions generated");
+        }
+
+        TimeSeries<double> predSeries = predictions[0];
+
+        // Calculate R²
+        double r2 = R2(dataTarget, predSeries);
+
+        // Calculate MSE
+        double mse = 0.0;
+        int n = 0;
+        for (double t = pred_start; t <= pred_end; t += dt_val) {
+            double target_val = dataTarget.interpol(t);
+            double pred_val = predSeries.interpol(t);
+            double error = target_val - pred_val;
+            mse += error * error;
+            n++;
+        }
+        if (n > 0) {
+            mse /= n;
+        }
+
+        // Create scatter plot
+        TimeSeriesSet<double> scatterData;
+
+        TimeSeries<double> scatterSeries;
+        scatterSeries.setName(QString("%1 Data").arg(dataTypeName).toStdString());
+
+        for (double t = pred_start; t <= pred_end; t += dt_val) {
+            double target_val = dataTarget.interpol(t);
+            double pred_val = predSeries.interpol(t);
+            scatterSeries.append(target_val, pred_val);
+        }
+        scatterData.append(scatterSeries);
+
+        // Add perfect prediction line (y = x)
+        TimeSeries<double> perfectLine;
+        perfectLine.setName("Perfect Prediction (y=x)");
+
+        double minVal = dataTarget.minC();
+        double maxVal = dataTarget.maxC();
+        double range = maxVal - minVal;
+        double margin = range * 0.05;
+
+        perfectLine.append(minVal - margin, minVal - margin);
+        perfectLine.append(maxVal + margin, maxVal + margin);
+        scatterData.append(perfectLine);
+
+        // Show chart
+        QString title = QString("Predicted vs Target (%1 Data)\nR² = %2, MSE = %3, N = %4")
+                            .arg(dataTypeName)
+                            .arg(r2, 0, 'f', 4)
+                            .arg(mse, 0, 'f', 6)
+                            .arg(n);
+
+        ChartWindow* chartWin = ChartWindow::showChart(scatterData, title, this);
+        chartWin->setAxisLabels("Target", "Predicted");
+        chartWin->chartViewer()->setPlotMode(ChartViewer::Symbols);
+
+        logMessage(QString("Opened predicted vs target scatter plot (%1: R² = %2, MSE = %3)")
+                       .arg(dataTypeName)
+                       .arg(r2, 0, 'f', 4)
+                       .arg(mse, 0, 'f', 6));
+
+    } catch (const std::exception& e) {
+        logMessage(QString("Plot error: %1").arg(e.what()));
+        QMessageBox::warning(this, "Plot Error",
+                             QString("Failed to plot predicted vs target:\n%1").arg(e.what()));
+    }
+}
+
+void MainWindow::onPlotResults()
+{
+    if (!bestModel_ || !bestModel_->isInitialized()) {
+        QMessageBox::information(this, "No Results",
+                                 "Please run GA optimization first to generate results.");
+        return;
+    }
+
+    // Show both plots
+    plotPredictionsVsTime(*bestModel_, DataType::Test);
+    plotPredictionsVsTarget(*bestModel_, DataType::Test);
+}
+
+double MainWindow::TimeStart(DataType data_type) const
+{
+
+    if (data_type == DataType::Train) {
+        return targetData.mint();
+    } else {
+        // Test data starts after train data
+        double full_range = targetData.maxt() - targetData.mint();
+        return targetData.mint() + (split_ratio * full_range);
+    }
+}
+
+double MainWindow::TimeEnd(DataType data_type) const
+{
+    if (data_type == DataType::Train) {
+        // Train data ends at split point
+        double full_range = targetData.maxt() - targetData.mint();
+        return targetData.mint() + (split_ratio * full_range);
+    } else {
+        return targetData.maxt();
+    }
+}
+
+
+double MainWindow::dt() const
+{
+    // Compute dt from actual target data
+    if (targetData.size() == 0) {
+        // No data loaded, return default
+        return 0.1;
+    }
+
+    if (targetData.size() < 2) {
+        // Not enough points to compute dt
+        return 0.1;
+    }
+
+    // Compute dt as the difference between first two time points
+    double dt = targetData.getTime(1) - targetData.getTime(0);
+
+    // Validate that dt is positive
+    if (dt <= 0) {
+        logMessage("WARNING: Computed dt <= 0, using default 0.1");
+        return 0.1;
+    }
+
+    return dt;
+}
+
+void MainWindow::setSplitRatio(double ratio)
+{
+    // Validate the split ratio
+    if (ratio < 0.0 || ratio > 1.0) {
+        logMessage(QString("WARNING: Invalid split ratio %1, must be between 0.0 and 1.0. "
+                           "Clamping to valid range.").arg(ratio));
+        ratio = std::max(0.0, std::min(1.0, ratio));
+    }
+
+    // Warn if using extreme values
+    if (ratio < 0.1 || ratio > 0.9) {
+        logMessage(QString("WARNING: Unusual split ratio %1. "
+                           "Typically values between 0.5 and 0.9 are used.").arg(ratio));
+    }
+
+    split_ratio = ratio;
+
+    logMessage(QString("Split ratio set to %1 (Train: %2%, Test: %3%)")
+                   .arg(split_ratio)
+                   .arg(split_ratio * 100, 0, 'f', 1)
+                   .arg((1.0 - split_ratio) * 100, 0, 'f', 1));
 }

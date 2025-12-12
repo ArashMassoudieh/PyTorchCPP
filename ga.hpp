@@ -243,18 +243,6 @@ T& GeneticAlgorithm<T>::Optimize()
             std::cout << "]" << std::endl;
         }
 
-        // FORCE clear and reinitialize
-        if (verbose_) std::cout << "DEBUG: Calling clear()..." << std::endl;
-        models[max_rank].clear();
-
-        if (verbose_) std::cout << "DEBUG: Calling AssignParameters..." << std::endl;
-        models[max_rank].AssignParameters(best_params);
-
-        if (verbose_) std::cout << "DEBUG: Calling CreateModel..." << std::endl;
-        models[max_rank].CreateModel();
-
-        if (verbose_) std::cout << "DEBUG: After CreateModel, initialized: " << models[max_rank].isInitialized() << std::endl;
-
         if (!models[max_rank].isInitialized()) {
             throw std::runtime_error("CreateModel() completed but model still not initialized");
         }
@@ -708,4 +696,29 @@ const Individual& GeneticAlgorithm<T>::selectIndividualByRank()
     }
 
     return Individuals[best_idx];
+}
+
+template<class T>
+void GeneticAlgorithm<T>::Reset()
+{
+    if (verbose_) {
+        std::cout << "Resetting GA state..." << std::endl;
+    }
+
+    // Clear individuals and models
+    Individuals.clear();
+    models.clear();
+
+    // Reset counters
+    current_generation = 0;
+    max_rank = 0;
+
+    // Close output file if open
+    if (file.is_open()) {
+        file.close();
+    }
+
+    if (verbose_) {
+        std::cout << "GA state reset complete" << std::endl;
+    }
 }

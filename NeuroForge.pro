@@ -21,6 +21,8 @@ SOURCES += \
     DataLoadDialog.cpp \
     GASettingsDialog.cpp \
     ProgressWindow.cpp \
+    chartviewer.cpp \
+    chartwindow.cpp \
     main.cpp \
     mainwindow.cpp \
     hyperparameters.cpp \
@@ -39,6 +41,8 @@ HEADERS += \
     DataLoadDialog.h \
     GASettingsDialog.h \
     ProgressWindow.h \
+    chartviewer.h \
+    chartwindow.h \
     mainwindow.h \
     Binary.h \
     Normalization.h \

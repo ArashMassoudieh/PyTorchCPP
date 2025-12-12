@@ -24,17 +24,13 @@ NeuralNetworkWrapper::NeuralNetworkWrapper()
 NeuralNetworkWrapper::NeuralNetworkWrapper(const NeuralNetworkWrapper& other)
     : lags_(other.lags_),
     hidden_layers_(other.hidden_layers_),
-    layers_ (other.layers_),
     hyperparams_(other.hyperparams_),
     original_series_names_(other.original_series_names_),
-    training_history_(),  // Start fresh
-    current_loss_(0.0),   // Reset
-    is_initialized_(false),  // Will be initialized when needed
     input_activation_function_(other.input_activation_function_),
     hidden_activation_function_(other.hidden_activation_function_),
     output_activation_function_(other.output_activation_function_),
     input_size_(other.input_size_),
-    output_size_(other.output_size_),  // Empty vector - will be created in CreateModel()
+    output_size_(other.output_size_),
     verbose_(other.verbose_),
     ga_input_data_(other.ga_input_data_),
     ga_target_data_(other.ga_target_data_),
@@ -43,7 +39,10 @@ NeuralNetworkWrapper::NeuralNetworkWrapper(const NeuralNetworkWrapper& other)
     ga_dt_(other.ga_dt_),
     ga_split_ratio_(other.ga_split_ratio_),
     ga_available_series_count_(other.ga_available_series_count_),
-    ga_data_configured_(other.ga_data_configured_) {
+    ga_data_configured_(other.ga_data_configured_),
+    training_history_(),
+    current_loss_(0.0),
+    is_initialized_(false) {
 
     // Copy tensor data if it exists
     if (other.train_input_data_.defined()) {
@@ -59,11 +58,36 @@ NeuralNetworkWrapper::NeuralNetworkWrapper(const NeuralNetworkWrapper& other)
         test_target_data_ = other.test_target_data_.clone();
     }
 
-    // Note: layers_ starts empty and will be created when CreateModel() is called
-    // This avoids all PyTorch module copying issues
+    if (other.is_initialized_ && !other.layers_.empty()) {
+        layers_.reserve(other.layers_.size());
+
+        // Deep copy each layer with its trained weights
+        torch::NoGradGuard no_grad;
+        for (const auto& layer : other.layers_) {
+            // Create new layer with same dimensions
+            auto new_layer = torch::nn::Linear(
+                layer->weight.size(1),  // in_features
+                layer->weight.size(0)   // out_features
+                );
+
+            // Copy the trained weights and biases
+            new_layer->weight.copy_(layer->weight.detach());
+            new_layer->bias.copy_(layer->bias.detach());
+
+            layers_.push_back(new_layer);
+        }
+
+        // Copy training state
+        training_history_ = other.training_history_;
+        current_loss_ = other.current_loss_;
+        is_initialized_ = true;
+
+        if (verbose_) {
+            std::cout << "Copy constructor: Copied " << layers_.size() << " trained layers" << std::endl;
+        }
+    }
 }
 
-// Assignment operator - clean and simple
 NeuralNetworkWrapper& NeuralNetworkWrapper::operator=(const NeuralNetworkWrapper& other) {
     if (this != &other) {
         // Copy configuration data
@@ -110,11 +134,43 @@ NeuralNetworkWrapper& NeuralNetworkWrapper::operator=(const NeuralNetworkWrapper
             test_target_data_ = torch::Tensor();
         }
 
-        // Reset state
-        training_history_.clear();
-        current_loss_ = 0.0;
-        is_initialized_ = false;
-        layers_.clear();  // Clear the vector
+        // ===== FIX: COPY THE TRAINED LAYERS =====
+        if (other.is_initialized_ && !other.layers_.empty()) {
+            // Copy the layers structure
+            layers_.clear();
+            layers_.reserve(other.layers_.size());
+
+            // Deep copy each layer with its trained weights
+            torch::NoGradGuard no_grad;
+            for (const auto& layer : other.layers_) {
+                // Create new layer with same dimensions
+                auto new_layer = torch::nn::Linear(
+                    layer->weight.size(1),  // in_features
+                    layer->weight.size(0)   // out_features
+                    );
+
+                // Copy the trained weights and biases
+                new_layer->weight.copy_(layer->weight.detach());
+                new_layer->bias.copy_(layer->bias.detach());
+
+                layers_.push_back(new_layer);
+            }
+
+            // Copy training state
+            training_history_ = other.training_history_;
+            current_loss_ = other.current_loss_;
+            is_initialized_ = true;  // Mark as initialized with copied weights
+
+            if (verbose_) {
+                std::cout << "Copied " << layers_.size() << " trained layers" << std::endl;
+            }
+        } else {
+            // Other model not initialized, just reset
+            training_history_.clear();
+            current_loss_ = 0.0;
+            is_initialized_ = false;
+            layers_.clear();
+        }
     }
     return *this;
 }

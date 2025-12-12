@@ -175,7 +175,10 @@ public:
     }
     bool getVerbose() const { return verbose_; }
 
-
+    /**
+     * @brief Reset GA state for a fresh run
+     */
+    void Reset();
 
 #ifdef QT_GUI_SUPPORT
         /**
