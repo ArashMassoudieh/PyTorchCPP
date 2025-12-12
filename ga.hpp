@@ -4,6 +4,12 @@
 #include <omp.h>
 #include "Utilities.h"
 #include "neuralnetworkwrapper.h"
+#ifdef QT_GUI_SUPPORT
+#include <QThread>
+#include <QApplication>
+#include <QString>
+#endif
+#include <random>
 
 template<class T>
 GeneticAlgorithm<T>::GeneticAlgorithm()
@@ -15,16 +21,177 @@ GeneticAlgorithm<T>::GeneticAlgorithm()
 template<class T>
 T& GeneticAlgorithm<T>::Optimize()
 {
-    for (current_generation = 0; current_generation < Settings.generations; current_generation++) {
-        if (verbose_) {
-            std::cout << "\n=== Generation " << current_generation << " ===" << std::endl;
+#ifdef QT_GUI_SUPPORT
+    if (progressWindow_) {
+        progressWindow_->SetStatus("Starting GA Optimization...");
+        progressWindow_->SetProgress(0.0);
+        progressWindow_->ClearPrimaryChartData();
+        progressWindow_->ClearSecondaryChartData();
+        progressWindow_->SetPrimaryChartTitle("Test R² vs Generation");
+        progressWindow_->SetPrimaryChartXAxisTitle("Generation");
+        progressWindow_->SetPrimaryChartYAxisTitle("R²");
+        progressWindow_->SetSecondaryChartTitle("Test MSE vs Generation");
+        progressWindow_->SetSecondaryChartXAxisTitle("Generation");
+        progressWindow_->SetSecondaryChartYAxisTitle("MSE");
+
+        // Set X-axis range to [0, total_generations] so user sees full range
+        progressWindow_->SetPrimaryChartXRange(0, Settings.generations);
+        progressWindow_->SetSecondaryChartXRange(0, Settings.generations);
+
+        // Enable auto-scaling for Y-axis (but not X-axis)
+        progressWindow_->SetPrimaryChartAutoScale(true);   // Only Y-axis
+        progressWindow_->SetSecondaryChartAutoScale(true); // Only Y-axis
+
+        progressWindow_->AppendLog("GA Optimization Started");
+        QApplication::processEvents();
+    }
+#endif
+
+    for (unsigned int generation = 0; generation < Settings.generations; generation++)
+    {
+        current_generation = generation;
+
+#ifdef QT_GUI_SUPPORT
+        // Process events to keep UI responsive
+        if (progressWindow_) {
+            QApplication::processEvents();
         }
 
-        // Evaluate fitness
+        // Check for cancel request
+        if (progressWindow_ && progressWindow_->IsCancelRequested()) {
+            progressWindow_->AppendLog("Optimization cancelled by user");
+            progressWindow_->SetStatus("Cancelled");
+            QApplication::processEvents();
+            break;
+        }
+
+        // Update progress bar
+        if (progressWindow_) {
+            double progress = static_cast<double>(generation) / Settings.generations;
+            progressWindow_->SetProgress(progress);
+            progressWindow_->SetStatus(QString("Generation %1 / %2")
+                                           .arg(generation + 1)
+                                           .arg(Settings.generations));
+            QApplication::processEvents();
+        }
+#endif
+
+        // Assign fitness to all individuals
         AssignFitnesses();
+
+#ifdef QT_GUI_SUPPORT
+        // Process events after fitness calculation
+        if (progressWindow_) {
+            QApplication::processEvents();
+        }
+#endif
 
         // Rank individuals
         vector<int> ranks = getRanks();
+        Individual& bestIndividual = Individuals[ranks[0]];
+
+#ifdef QT_GUI_SUPPORT
+        // Update charts with best individual's metrics
+        if (progressWindow_ && bestIndividual.fitness_measures.size() > 0) {
+            // Extract R² and MSE from fitness measures using CORRECT key names
+            double r2_test = 0.0;
+            double mse_test = 0.0;
+            double r2_train = 0.0;
+            double mse_train = 0.0;
+
+            // Use the actual key names from fitness_measures map
+            if (bestIndividual.fitness_measures.count("R2_Test_0")) {
+                r2_test = bestIndividual.fitness_measures["R2_Test_0"];
+            }
+            if (bestIndividual.fitness_measures.count("MSE_Test_0")) {
+                mse_test = bestIndividual.fitness_measures["MSE_Test_0"];
+            }
+            if (bestIndividual.fitness_measures.count("R2_Train_0")) {
+                r2_train = bestIndividual.fitness_measures["R2_Train_0"];
+            }
+            if (bestIndividual.fitness_measures.count("MSE_Train_0")) {
+                mse_train = bestIndividual.fitness_measures["MSE_Train_0"];
+            }
+
+            // Add points to charts
+            progressWindow_->AddPrimaryChartPoint(generation, r2_test);
+            progressWindow_->AddSecondaryChartPoint(generation, mse_test);
+
+            // Log every 10 generations with complete information
+            if (generation % 10 == 0) {
+                progressWindow_->AppendLog(
+                    QString("Gen %1: R²_test=%2, MSE_test=%3, R²_train=%4, MSE_train=%5, Fitness=%6")
+                        .arg(generation)
+                        .arg(r2_test, 0, 'f', 4)
+                        .arg(mse_test, 0, 'f', 6)
+                        .arg(r2_train, 0, 'f', 4)
+                        .arg(mse_train, 0, 'f', 6)
+                        .arg(bestIndividual.fitness, 0, 'f', 6));
+            }
+
+            QApplication::processEvents();
+        }
+
+        // Handle pause request
+        if (progressWindow_ && progressWindow_->IsPauseRequested()) {
+            progressWindow_->SetStatus("Paused");
+            progressWindow_->AppendLog("Optimization paused");
+            QApplication::processEvents();
+
+            // Wait until resumed or cancelled
+            while (progressWindow_->IsPauseRequested() &&
+                   !progressWindow_->IsCancelRequested()) {
+                QThread::msleep(100);
+                QApplication::processEvents();
+            }
+
+            if (progressWindow_->IsCancelRequested()) {
+                progressWindow_->AppendLog("Optimization cancelled during pause");
+                QApplication::processEvents();
+                break;
+            }
+
+            progressWindow_->ResetPauseRequest();
+            progressWindow_->SetStatus(QString("Resumed - Generation %1 / %2")
+                                           .arg(generation + 1)
+                                           .arg(Settings.generations));
+            progressWindow_->AppendLog("Optimization resumed");
+            QApplication::processEvents();
+        }
+#endif
+
+#ifdef QT_GUI_SUPPORT
+        if (progressWindow_ && generation % 10 == 0) {
+            vector<int> ranks = getRanks();
+            Individual& best = Individuals[ranks[0]];
+
+            progressWindow_->AppendLog(QString("\n=== Generation %1 Best Individual ===").arg(generation));
+            progressWindow_->AppendLog(QString("  FITNESS = %1 (lower is better)").arg(best.fitness, 0, 'f', 6));
+            progressWindow_->AppendLog(QString("  MSE_Train = %1").arg(best.fitness_measures["MSE_Train_0"], 0, 'f', 6));
+            progressWindow_->AppendLog(QString("  MSE_Test  = %1 %2")
+                                           .arg(best.fitness_measures["MSE_Test_0"], 0, 'f', 6)
+                                           .arg(Settings.MSE_optimization ? "<-- FITNESS TARGET" : ""));
+            progressWindow_->AppendLog(QString("  R2_Train  = %1").arg(best.fitness_measures["R2_Train_0"], 0, 'f', 4));
+            progressWindow_->AppendLog(QString("  R2_Test   = %1").arg(best.fitness_measures["R2_Test_0"], 0, 'f', 4));
+
+            // Show the individual with best MSE_Train for comparison
+            double best_train_mse = std::numeric_limits<double>::max();
+            int best_train_idx = 0;
+            for (int i = 0; i < Individuals.size(); i++) {
+                if (Individuals[i].fitness_measures["MSE_Train_0"] < best_train_mse) {
+                    best_train_mse = Individuals[i].fitness_measures["MSE_Train_0"];
+                    best_train_idx = i;
+                }
+            }
+
+            if (best_train_idx != ranks[0]) {
+                progressWindow_->AppendLog(QString("\n  Note: Individual with best MSE_Train (%1) has:").arg(best_train_mse, 0, 'f', 6));
+                progressWindow_->AppendLog(QString("    MSE_Test = %1 (worse than best)").arg(Individuals[best_train_idx].fitness_measures["MSE_Test_0"], 0, 'f', 6));
+                progressWindow_->AppendLog(QString("    Fitness  = %1 (rejected as overfitted)").arg(Individuals[best_train_idx].fitness, 0, 'f', 6));
+            }
+        }
+#endif
+
         max_rank = ranks[0];
 
         if (verbose_) {
@@ -34,12 +201,9 @@ T& GeneticAlgorithm<T>::Optimize()
 
         if (current_generation < Settings.generations - 1) {
             // Apply GA operators for the next generation
-            AssignFitnesses();
             WriteToFile();
             CrossOver();
-
-
-
+            mutatePopulation();
         }
     }
 
@@ -125,6 +289,39 @@ T& GeneticAlgorithm<T>::Optimize()
                                      ". Fresh model error: " + std::string(e2.what()));
         }
     }
+
+#ifdef QT_GUI_SUPPORT
+    if (progressWindow_) {
+        progressWindow_->SetProgress(1.0);
+        progressWindow_->SetComplete("GA Optimization Complete!");
+
+        auto ranks = getRanks();
+        Individual& bestIndividual = Individuals[ranks[0]];
+
+        progressWindow_->AppendLog(QString("\n=== Final Results ==="));
+        progressWindow_->AppendLog(QString("Best Fitness: %1").arg(bestIndividual.fitness));
+
+        // Use correct key names for final results
+        if (bestIndividual.fitness_measures.count("R2_Test_0")) {
+            progressWindow_->AppendLog(QString("Best Test R²: %1")
+                                           .arg(bestIndividual.fitness_measures["R2_Test_0"], 0, 'f', 4));
+        }
+        if (bestIndividual.fitness_measures.count("MSE_Test_0")) {
+            progressWindow_->AppendLog(QString("Best Test MSE: %1")
+                                           .arg(bestIndividual.fitness_measures["MSE_Test_0"], 0, 'f', 6));
+        }
+        if (bestIndividual.fitness_measures.count("R2_Train_0")) {
+            progressWindow_->AppendLog(QString("Best Train R²: %1")
+                                           .arg(bestIndividual.fitness_measures["R2_Train_0"], 0, 'f', 4));
+        }
+        if (bestIndividual.fitness_measures.count("MSE_Train_0")) {
+            progressWindow_->AppendLog(QString("Best Train MSE: %1")
+                                           .arg(bestIndividual.fitness_measures["MSE_Train_0"], 0, 'f', 6));
+        }
+
+        QApplication::processEvents();
+    }
+#endif
 
     // FINAL CHECK
     if (verbose_) {
@@ -290,6 +487,9 @@ void GeneticAlgorithm<T>::AssignFitnesses()
                 }
 
                 // Calculate total fitness from measures
+
+                Individuals[i].fitness = 0;
+
                 for (int constituent = 0; constituent < models[i].getOutputSize(); constituent++) {
                     if (Settings.MSE_optimization) // true for MSE_Test and false for (MSE_Test + MSE_Train)
                         Individuals[i].fitness += Individuals[i].fitness_measures["MSE_Test_" + aquiutils::numbertostring(constituent)]; // MSE_Test
@@ -363,64 +563,57 @@ void GeneticAlgorithm<T>::AssignFitnesses()
 template<class T>
 void GeneticAlgorithm<T>::CrossOver()
 {
-    vector<Individual> newIndividuals = Individuals;
+    vector<Individual> newIndividuals(Individuals.size());
+    vector<int> sorted_indices = getRanks();
+    int best_idx = sorted_indices[0];
 
-    // Elite preservation - just keep the best individual
-    newIndividuals[0] = Individuals[max_rank];
-    // models[0] stays as is with its trained weights
+    // Elite preservation
+    newIndividuals[0] = Individuals[best_idx];
 
-    for (unsigned int i = 1; i < Individuals.size(); i++)
-    {
-        // Generate new individual through crossover/mutation
-        Individual Ind1 = selectIndividualByRank();
-        Individual Ind2 = selectIndividualByRank();
-        BinaryNumber FullBinary = Ind1.toBinary();
-        FullBinary.mutate(Settings.mutation_probability);
-        newIndividuals[i] = FullBinary.split(Individuals[i].splitlocations);
-
-        // Clear existing model instead of creating new one
-        // This avoids any copy constructor calls
-        models[i].clear();
-    }
-
-    Individuals = newIndividuals;
-    // models vector stays the same size, just individual models are cleared/reset
-}
-
-// Function to randomly select an Individual based on inverse rank probability
-template<class T>
-const Individual& GeneticAlgorithm<T>::selectIndividualByRank() {
-    // Calculate weights as the inverse of rank
-    std::vector<double> weights(Individuals.size());
-    for (size_t i = 0; i < Individuals.size(); ++i) {
-        weights[i] = 1.0 / std::pow(Individuals[i].rank, 2.0);  // Quadratic decay
-    }
-
-    // Create a cumulative probability distribution
-    std::vector<double> cumulative(weights.size());
-    std::partial_sum(weights.begin(), weights.end(), cumulative.begin());
-
-    // Normalize the cumulative probabilities
-    double totalWeight = cumulative.back();
-    for (double& value : cumulative) {
-        value /= totalWeight;
-    }
-
-    // Generate a random number between 0 and 1
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    double randomValue = dis(gen);
-
-    // Find the corresponding individual
-    for (size_t i = 0; i < cumulative.size(); ++i) {
-        if (randomValue <= cumulative[i]) {
-            return Individuals[i];
+    // Check if all individuals have same binary length
+    if (verbose_) {
+        std::cout << "\n=== Checking Individual Binary Lengths ===" << std::endl;
+        for (size_t i = 0; i < std::min(size_t(5), Individuals.size()); i++) {
+            BinaryNumber bin = Individuals[i].toBinary();
+            std::cout << "Individual " << i << " binary length: " << bin.numDigits() << std::endl;
         }
     }
 
-    // Fallback (shouldn't be reached)
-    return Individuals.back();
+    for (unsigned int i = 1; i < Individuals.size(); i++)
+    {
+        const Individual& parent1 = selectIndividualByRank();
+        const Individual& parent2 = selectIndividualByRank();
+
+        BinaryNumber binary1 = parent1.toBinary();
+        BinaryNumber binary2 = parent2.toBinary();
+
+        if (verbose_ && i == 1) {
+            std::cout << "Parent1 length: " << binary1.numDigits() << std::endl;
+            std::cout << "Parent2 length: " << binary2.numDigits() << std::endl;
+        }
+
+        BinaryNumber offspring_binary = BinaryNumber::crossover(binary1, binary2);
+
+        if (verbose_ && i == 1) {
+            std::cout << "Offspring length: " << offspring_binary.numDigits() << std::endl;
+            std::cout << "Expected from splitlocations: ";
+            int expected = 0;
+            for (auto split : parent1.splitlocations) {
+                expected += split;
+            }
+            std::cout << expected << std::endl;
+        }
+
+        offspring_binary.mutate(Settings.mutation_probability);
+
+        // Use parent1's splitlocations
+        newIndividuals[i] = offspring_binary.split(parent1.splitlocations);
+        newIndividuals[i].splitlocations = parent1.splitlocations;
+        models[i].clear();
+    }
+
+    models[0].clear();
+    Individuals = newIndividuals;
 }
 
 inline void SortIndices(const std::vector<Individual>& individuals, std::vector<int>& indices) {
@@ -448,30 +641,22 @@ std::vector<int> GeneticAlgorithm<T>::getRanks() {
         indices[i] = i;
     }
 
-    // Sort indices based on fitness using our custom bubble sort
+    // Sort indices based on fitness (best first)
     SortIndices(Individuals, indices);
 
-    // Create a vector to store ranks
-    std::vector<int> ranks(n);
-    for (size_t i = 0; i < n; ++i) {
-        ranks[indices[i]] = i + 1; // Rank starts from 1
-    }
+    // Set max_rank to the index of the best individual
+    max_rank = indices[0];
 
     if (verbose_) {
         std::cout << "\n=== Ranking Debug ===" << std::endl;
         std::cout << "After sorting (best to worst):" << std::endl;
         for (size_t i = 0; i < std::min(size_t(5), indices.size()); i++) {
             int idx = indices[i];
-            if (Individuals[idx].fitness_measures.count("MSE_Test_0") == 0)
-            {
+            if (Individuals[idx].fitness_measures.count("MSE_Test_0") == 0) {
                 std::cout << "XXX: Missing MSE_Test_0 for Individual " << idx << std::endl;
-
-                // Optional extra debug info
                 std::cout << "  fitness = " << Individuals[idx].fitness << std::endl;
                 std::cout << "  fitness_measures size = "
                           << Individuals[idx].fitness_measures.size() << std::endl;
-
-                // Print available keys, if any
                 for (const auto& kv : Individuals[idx].fitness_measures) {
                     std::cout << "  has key: " << kv.first
                               << " = " << kv.second << std::endl;
@@ -482,12 +667,15 @@ std::vector<int> GeneticAlgorithm<T>::getRanks() {
                       << ", MSE_Test: " << Individuals[idx].fitness_measures.at("MSE_Test_0")
                       << std::endl;
         }
-        std::cout << "Best individual (max_rank): " << indices[0] << std::endl;
+        std::cout << "Best individual index: " << indices[0] << std::endl;
     }
 
-    max_rank = indices[0];
-    return ranks;
+    // Return the sorted indices directly (0-indexed)
+    // indices[0] = index of best individual
+    // indices[1] = index of 2nd best individual, etc.
+    return indices;
 }
+
 
 template<class T>
 void GeneticAlgorithm<T>::mutatePopulation() {
@@ -495,4 +683,29 @@ void GeneticAlgorithm<T>::mutatePopulation() {
         if (i == max_rank) continue;  // skip elite
         Individuals[i].mutate(Settings.mutation_probability);
     }
+}
+
+
+template<class T>
+const Individual& GeneticAlgorithm<T>::selectIndividualByRank()
+{
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+
+    const int tournament_size = 3;
+    std::uniform_int_distribution<int> dist(0, Individuals.size() - 1);
+
+    int best_idx = dist(gen);
+    double best_fitness = Individuals[best_idx].fitness;
+
+    for (int i = 1; i < tournament_size; i++) {
+        int candidate_idx = dist(gen);
+
+        if (Individuals[candidate_idx].fitness < best_fitness) {
+            best_idx = candidate_idx;
+            best_fitness = Individuals[candidate_idx].fitness;
+        }
+    }
+
+    return Individuals[best_idx];
 }

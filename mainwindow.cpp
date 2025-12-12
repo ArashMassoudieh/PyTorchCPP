@@ -7,6 +7,7 @@
 #include <QFileDialog>
 #include <QDateTime>
 #include "gasettingsdialog.h"
+#include "DataLoadDialog.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -83,6 +84,7 @@ void MainWindow::setupMenus()
     
     QAction *loadDataAction = new QAction("&Load Data...", this);
     loadDataAction->setShortcut(QKeySequence::Open);
+    connect(loadDataAction, &QAction::triggered, this, &MainWindow::onLoadData);
     fileMenu->addAction(loadDataAction);
     
     QAction *saveModelAction = new QAction("&Save Model...", this);
@@ -252,6 +254,13 @@ void MainWindow::onStartGA()
 
     try {
         // Configure GA with current data
+        ProgressWindow* progressWindow = new ProgressWindow(this, "GA Optimization");
+        progressWindow->SetPrimaryChartVisible(true);
+        progressWindow->SetSecondaryChartVisible(true);
+        progressWindow->SetPrimaryChartAutoScale(true);
+        progressWindow->SetSecondaryChartAutoScale(true);
+        progressWindow->show();
+
         logMessage(QString("Population: %1, Generations: %2")
                        .arg(ga_.Settings.totalpopulation)
                        .arg(ga_.Settings.generations));
@@ -268,6 +277,12 @@ void MainWindow::onStartGA()
 
         // Initialize GA
         logMessage("Initializing GA population...");
+        ga_.setProgressWindow(progressWindow);
+
+        logMessage(QString("Population: %1, Generations: %2")
+                       .arg(ga_.Settings.totalpopulation)
+                       .arg(ga_.Settings.generations));
+
         ga_.Initialize();
 
         // Run optimization
@@ -323,4 +338,39 @@ void MainWindow::onStopGA()
 
     // Note: Full stop implementation requires running GA in a separate thread
     // and checking a stop flag periodically
+}
+
+void MainWindow::onLoadData()
+{
+    DataLoadDialog dialog(this);
+
+    if (dialog.exec() == QDialog::Accepted && dialog.isDataValid()) {
+        // Get loaded data
+        inputData = dialog.getInputData();
+        targetData = dialog.getTargetData();
+
+        // Log success
+        logMessage("=== Data Loaded Successfully ===");
+        logMessage(QString("Input: %1 time series with %2 points each")
+                       .arg(inputData.size())
+                       .arg(inputData[0].size()));
+        logMessage(QString("Target: %1 points").arg(targetData.size()));
+        logMessage(QString("Time range: %1 to %2")
+                       .arg(inputData[0].front().t)
+                       .arg(inputData[0].back().t));
+
+        // Enable optimization
+        startButton->setEnabled(true);
+        startGAAction_->setEnabled(true);
+
+        statusBar()->showMessage("Data loaded successfully", 3000);
+        statusLabel->setText("Status: Data loaded - Ready to optimize");
+
+        QMessageBox::information(this, "Success",
+                                 QString("Data loaded successfully!\n\n"
+                                         "Input: %1 series\n"
+                                         "Target: %2 points")
+                                     .arg(inputData.size())
+                                     .arg(targetData.size()));
+    }
 }

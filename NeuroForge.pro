@@ -1,4 +1,4 @@
-QT += core gui widgets
+QT += core gui widgets charts
 CONFIG += c++17
 CONFIG -= app_bundle
 TEMPLATE = app
@@ -13,12 +13,14 @@ DEFINES += TORCH_SUPPORT
 DEFINES += _arma
 DEFINES += ARMA_USE_OPENMP
 DEFINES += QT_NO_KEYWORDS  # Required for Qt + LibTorch compatibility
-
+DEFINES += QT_GUI_SUPPORT
 # =========================
 # Project Sources & Headers
 # =========================
 SOURCES += \
+    DataLoadDialog.cpp \
     GASettingsDialog.cpp \
+    ProgressWindow.cpp \
     main.cpp \
     mainwindow.cpp \
     hyperparameters.cpp \
@@ -34,7 +36,9 @@ SOURCES += \
     Utilities/Vector_arma.cpp
 
 HEADERS += \
+    DataLoadDialog.h \
     GASettingsDialog.h \
+    ProgressWindow.h \
     mainwindow.h \
     Binary.h \
     Normalization.h \

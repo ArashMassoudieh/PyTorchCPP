@@ -42,6 +42,7 @@ private Q_SLOTS:
     void onConfigureGA();
     void onStartGA();
     void onStopGA();
+    void onLoadData();
 private:
     Ui::MainWindow *ui;
 

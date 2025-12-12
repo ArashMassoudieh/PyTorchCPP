@@ -8,6 +8,11 @@
 #include "Binary.h"
 #include "individual.h"
 
+#ifdef QT_GUI_SUPPORT
+#include "ProgressWindow.h"
+#endif
+
+
 /**
  * @brief Settings structure for configuring the genetic algorithm.
  *
@@ -170,6 +175,26 @@ public:
     }
     bool getVerbose() const { return verbose_; }
 
+
+
+#ifdef QT_GUI_SUPPORT
+        /**
+     * @brief Set progress window for visualization
+     * @param progressWindow Pointer to ProgressWindow
+     */
+        void setProgressWindow(ProgressWindow* progressWindow) {
+            progressWindow_ = progressWindow;
+        }
+
+        /**
+     * @brief Get progress window pointer
+     * @return Pointer to ProgressWindow or nullptr
+     */
+        ProgressWindow* getProgressWindow() const {
+            return progressWindow_;
+        }
+#endif
+
 private:
     /**
      * @brief Maximum rank assigned within the population.
@@ -186,7 +211,11 @@ private:
      */
     unsigned int current_generation = 0;
 
-    bool verbose_ = false;
+    bool verbose_ = true;
+
+#ifdef QT_GUI_SUPPORT
+    ProgressWindow* progressWindow_ = nullptr;
+#endif
 };
 
 #include "ga.hpp"
