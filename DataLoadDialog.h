@@ -24,6 +24,18 @@ public:
     // Check if data was successfully loaded
     bool isDataValid() const { return dataValid_; }
 
+    /**
+     * @brief Get the input data file path
+     * @return Path to the loaded input file
+     */
+    QString getInputFilePath() const { return inputFilePath_; }
+
+    /**
+     * @brief Get the target data file path
+     * @return Path to the loaded target file
+     */
+    QString getTargetFilePath() const { return targetFilePath_; }
+
 private Q_SLOTS:
     void onBrowseInput();
     void onBrowseTarget();
@@ -53,6 +65,9 @@ private:
     TimeSeriesSet<double> inputData_;
     TimeSeries<double> targetData_;
     bool dataValid_;
+
+    QString inputFilePath_;   ///< Path to input data file
+    QString targetFilePath_;  ///< Path to target data file
 };
 
 #endif // DATALOADDIALOG_H

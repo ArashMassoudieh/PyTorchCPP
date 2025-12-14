@@ -118,8 +118,14 @@ void DataLoadDialog::onBrowseInput()
         // Enable preview if both files selected
         if (!targetFileEdit_->text().isEmpty()) {
             previewBtn_->setEnabled(true);
+
         }
+        inputFilePath_ = filename;
     }
+
+
+
+
 }
 
 void DataLoadDialog::onBrowseTarget()
@@ -138,7 +144,11 @@ void DataLoadDialog::onBrowseTarget()
         if (!inputFileEdit_->text().isEmpty()) {
             previewBtn_->setEnabled(true);
         }
+
+        targetFilePath_ = filename;
     }
+
+
 }
 
 void DataLoadDialog::onPreviewData()

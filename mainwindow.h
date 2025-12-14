@@ -15,6 +15,7 @@
 #include "ga.h"
 #include "TimeSeriesSet.h"
 #include "TimeSeries.h"
+#include "commontypes.h"
 
 // IMPORTANT: QT_NO_KEYWORDS is REQUIRED when using Qt with LibTorch
 // LibTorch has methods named "slots()" which conflicts with Qt's 'slots' macro
@@ -23,6 +24,8 @@
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
+
+
 
 /**
  * @brief Main window for Neural Network GA Optimizer
@@ -44,6 +47,16 @@ private Q_SLOTS:
     void onStopGA();
     void onLoadData();
     void onPlotResults();
+    void onGenerateSyntheticData();
+    void onConfigureNetwork();
+    void onConfigureIncrementalTraining();
+    void onStartIncrementalTraining();
+    void onSaveProject();
+    void onSaveProjectAs();
+    void onLoadProject();
+    void onNewProject();
+
+
 private:
     Ui::MainWindow *ui;
 
@@ -58,6 +71,16 @@ private:
     TimeSeriesSet<double> inputData;
     TimeSeries<double> targetData;
     NeuralNetworkWrapper currentModel;
+
+    bool saveProject(const QString& filepath);
+    bool loadProject(const QString& filepath);
+    void updateProjectFromUI();
+    void updateUIFromProject();
+    void setCurrentProjectPath(const QString& path);
+    bool maybeSaveProject();  // Ask to save if modified
+    void loadLastProject();
+    void saveLastProjectPath(const QString& path);
+    QString getLastProjectPath() const;
 
     // Helper methods
     void setupUI();
@@ -80,11 +103,15 @@ private:
     void plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType data_type);
 
     NeuralNetworkWrapper* bestModel_ = nullptr;
-
+    NeuralNetworkWrapper manualModel_;
+    IncrementalTrainingParams incrementalParams_;
+    ProjectConfig currentProject_;                  ///< Current project configuration
+    QString currentProjectPath_;                    ///< Path to current project file
     GeneticAlgorithm<NeuralNetworkWrapper> ga_;
     bool gaRunning_;
     QAction* startGAAction_;
     QAction* stopGAAction_;
+
 
     /**
      * @brief Get start time for given data type

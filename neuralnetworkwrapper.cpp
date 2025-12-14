@@ -1750,3 +1750,96 @@ void NeuralNetworkWrapper::setHyperParameters(const HyperParameters& hyperparams
 const HyperParameters& NeuralNetworkWrapper::getHyperParameters() const {
     return hyperparams_;
 }
+
+std::vector<double> NeuralNetworkWrapper::trainMore(int additional_epochs,
+                                                    int batch_size,
+                                                    double learning_rate) {
+    if (!is_initialized_) {
+        throw std::runtime_error("Network must be initialized before training. Call initializeNetwork() first.");
+    }
+
+    if (!hasInputData(DataType::Train) || !hasTargetData(DataType::Train)) {
+        throw std::runtime_error("Training data not available. Use setInputData() and setOutputData() with DataType::Train first.");
+    }
+
+    // Get training data
+    torch::Tensor train_inputs = getInputData(DataType::Train);
+    torch::Tensor train_targets = getTargetData(DataType::Train);
+
+    // Validate data compatibility
+    if (train_inputs.size(0) != train_targets.size(0)) {
+        throw std::runtime_error("Training input and output data must have the same number of samples.");
+    }
+
+    const int num_train_samples = train_inputs.size(0);
+
+    // Create optimizer - collect parameters manually from vector
+    std::vector<torch::Tensor> params_vector;
+    for (auto& layer : layers_) {
+        params_vector.push_back(layer->weight);
+        params_vector.push_back(layer->bias);
+    }
+
+    torch::optim::Adam optimizer(params_vector, torch::optim::AdamOptions(learning_rate));
+
+    // Store losses for just these additional epochs
+    std::vector<double> additional_losses;
+    additional_losses.reserve(additional_epochs);
+
+    int starting_epoch = training_history_.size(); // Continue from where we left off
+
+    if (verbose_) {
+        std::cout << "Continuing training for " << additional_epochs << " more epochs..." << std::endl;
+        std::cout << "Starting from epoch " << starting_epoch << std::endl;
+        std::cout << "Batch size: " << batch_size << ", Learning rate: " << learning_rate << std::endl;
+    }
+
+    // Training loop for additional epochs
+    for (int epoch = 0; epoch < additional_epochs; ++epoch) {
+        double total_loss = 0.0;
+        int num_batches = 0;
+
+        // Mini-batch training
+        for (int i = 0; i < num_train_samples; i += batch_size) {
+            int current_batch_size = std::min(batch_size, num_train_samples - i);
+
+            // Get batch
+            torch::Tensor batch_inputs = train_inputs.slice(0, i, i + current_batch_size);
+            torch::Tensor batch_targets = train_targets.slice(0, i, i + current_batch_size);
+
+            // Zero gradients
+            optimizer.zero_grad();
+
+            // Forward pass
+            torch::Tensor predictions = this->forward_internal(batch_inputs);
+
+            // Compute loss
+            torch::Tensor loss = torch::mse_loss(predictions, batch_targets);
+
+            // Backward pass
+            loss.backward();
+
+            // Update weights
+            optimizer.step();
+
+            total_loss += loss.item<double>();
+            num_batches++;
+        }
+
+        double avg_loss = total_loss / num_batches;
+        current_loss_ = avg_loss;
+        training_history_.push_back(avg_loss);      // Add to overall history
+        additional_losses.push_back(avg_loss);      // Also track separately
+
+        // Print progress
+        if (verbose_) {
+            if ((epoch + 1) % 20 == 0 || epoch == 0) {
+                std::cout << "Epoch [" << (starting_epoch + epoch + 1) << "], Average Loss: "
+                          << std::fixed << std::setprecision(6) << avg_loss << std::endl;
+            }
+        }
+    }
+
+    if (verbose_) std::cout << "Additional training completed!" << std::endl;
+    return additional_losses;
+}

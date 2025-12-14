@@ -350,6 +350,17 @@ public:
     void setVerbose(bool verbose);
     bool getVerbose() const;
 
+    // In neuralnetworkwrapper.h - add this declaration around line 92:
+    /**
+ * @brief Continue training the network for additional epochs from current state.
+ * @param additional_epochs Number of additional epochs to train
+ * @param batch_size Batch size for mini-batch training
+ * @param learning_rate Learning rate for optimizer
+ * @return Vector of loss values for the additional epochs only
+ */
+    std::vector<double> trainMore(int additional_epochs,
+                                  int batch_size = 32,
+                                  double learning_rate = 0.001);
 private:
     // Member variables
     std::vector<std::vector<int>> lags_;                  ///< Lag configuration for each TimeSeries

@@ -23,9 +23,11 @@ SOURCES += \
     ProgressWindow.cpp \
     chartviewer.cpp \
     chartwindow.cpp \
+    incrementaltrainingdialog.cpp \
     main.cpp \
     mainwindow.cpp \
     hyperparameters.cpp \
+    networkarchitecturedialog.cpp \
     neuralnetworkfactory.cpp \
     neuralnetworkwrapper.cpp \
     Utilities/Distribution.cpp \
@@ -35,7 +37,8 @@ SOURCES += \
     Utilities/QuickSort.cpp \
     Utilities/Utilities.cpp \
     Utilities/Vector.cpp \
-    Utilities/Vector_arma.cpp
+    Utilities/Vector_arma.cpp \
+    syntheticdatadialog.cpp
 
 HEADERS += \
     DataLoadDialog.h \
@@ -43,6 +46,8 @@ HEADERS += \
     ProgressWindow.h \
     chartviewer.h \
     chartwindow.h \
+    commontypes.h \
+    incrementaltrainingdialog.h \
     mainwindow.h \
     Binary.h \
     Normalization.h \
@@ -51,6 +56,7 @@ HEADERS += \
     ga.hpp \
     hyperparameters.h \
     individual.h \
+    networkarchitecturedialog.h \
     neuralnetworkfactory.h \
     neuralnetworkwrapper.h \
     Utilities/TimeSeries.h \
@@ -64,7 +70,8 @@ HEADERS += \
     Utilities/QuickSort.h \
     Utilities/Utilities.h \
     Utilities/Vector.h \
-    Utilities/Vector_arma.h
+    Utilities/Vector_arma.h \
+    syntheticdatadialog.h
 
 FORMS += \
     mainwindow.ui

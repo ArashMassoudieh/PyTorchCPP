@@ -1,0 +1,55 @@
+{
+    "dataSettings": {
+        "dt": 0.1,
+        "splitRatio": 0.7,
+        "tEnd": 100,
+        "tStart": 0
+    },
+    "gaSettings": {
+        "eliteCount": 2,
+        "generations": 20,
+        "mutationRate": 0.05,
+        "population": 20
+    },
+    "incrementalTraining": {
+        "batchSize": 32,
+        "epochsPerWindow": 50,
+        "learningRate": 0.001,
+        "resetOnNewWindow": false,
+        "useOverlap": false,
+        "windowSize": 200,
+        "windowStep": 200
+    },
+    "inputDataPath": "/home/arash/Projects/PyTorchCPP/build/Desktop_Qt_6_8_2-Debug/ga_test_input.csv",
+    "networkArchitecture": {
+        "activations": [
+            "relu",
+            "tanh"
+        ],
+        "hiddenLayers": [
+            64,
+            32
+        ],
+        "isConfigured": true,
+        "lags": [
+            [
+                0
+            ],
+            [
+                0
+            ],
+            [
+                0
+            ],
+            [
+                0
+            ],
+            [
+                0
+            ]
+        ],
+        "outputActivation": "linear"
+    },
+    "projectName": "",
+    "targetDataPath": "/home/arash/Projects/PyTorchCPP/build/Desktop_Qt_6_8_2-Debug/ga_test_target.txt"
+}

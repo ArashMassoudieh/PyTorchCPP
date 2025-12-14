@@ -9,11 +9,19 @@
 #include "gasettingsdialog.h"
 #include "DataLoadDialog.h"
 #include "chartwindow.h"
+#include "syntheticdatadialog.h"
+#include "networkarchitecturedialog.h"
+#include "incrementaltrainingdialog.h"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QFile>
+#include <QSettings>
+#include <QTimer>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , gaRunning_(false)     // <-- ADD THIS
+    , gaRunning_(false)
 {
     ui->setupUi(this);
 
@@ -25,6 +33,9 @@ MainWindow::MainWindow(QWidget *parent)
     connectSignals();
 
     logMessage("Application started. Ready to load data and configure optimization.");
+
+    // Load last project if available
+    QTimer::singleShot(100, this, &MainWindow::loadLastProject);
 }
 
 MainWindow::~MainWindow()
@@ -82,9 +93,32 @@ void MainWindow::setupMenus()
 {
     // File menu
     QMenu *fileMenu = menuBar()->addMenu("&File");
-    
+
+    QAction *newProjectAction = new QAction("&New Project", this);
+    newProjectAction->setShortcut(QKeySequence::New);
+    connect(newProjectAction, &QAction::triggered, this, &MainWindow::onNewProject);
+    fileMenu->addAction(newProjectAction);
+
+    QAction *loadProjectAction = new QAction("&Open Project...", this);
+    loadProjectAction->setShortcut(QKeySequence::Open);
+    connect(loadProjectAction, &QAction::triggered, this, &MainWindow::onLoadProject);
+    fileMenu->addAction(loadProjectAction);
+
+    fileMenu->addSeparator();
+
+    QAction *saveProjectAction = new QAction("&Save Project", this);
+    saveProjectAction->setShortcut(QKeySequence::Save);
+    connect(saveProjectAction, &QAction::triggered, this, &MainWindow::onSaveProject);
+    fileMenu->addAction(saveProjectAction);
+
+    QAction *saveProjectAsAction = new QAction("Save Project &As...", this);
+    saveProjectAsAction->setShortcut(QKeySequence::SaveAs);
+    connect(saveProjectAsAction, &QAction::triggered, this, &MainWindow::onSaveProjectAs);
+    fileMenu->addAction(saveProjectAsAction);
+
+    fileMenu->addSeparator();
+
     QAction *loadDataAction = new QAction("&Load Data...", this);
-    loadDataAction->setShortcut(QKeySequence::Open);
     connect(loadDataAction, &QAction::triggered, this, &MainWindow::onLoadData);
     fileMenu->addAction(loadDataAction);
     
@@ -130,7 +164,25 @@ void MainWindow::setupMenus()
     QAction *clearLogAction = new QAction("&Clear Log", this);
     connect(clearLogAction, &QAction::triggered, logOutput, &QTextEdit::clear);
     viewMenu->addAction(clearLogAction);
-    
+
+    QAction *generateDataAction = new QAction("&Generate Synthetic Data...", this);
+    generateDataAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
+    connect(generateDataAction, &QAction::triggered, this, &MainWindow::onGenerateSyntheticData);
+    fileMenu->addAction(generateDataAction);
+
+    QAction* networkArchAction = new QAction("&Network Architecture...", this);
+    connect(networkArchAction, &QAction::triggered, this, &MainWindow::onConfigureNetwork);
+    configMenu->addAction(networkArchAction);
+
+    QAction* configIncrementalAction = new QAction("Configure &Incremental Training...", this);
+    connect(configIncrementalAction, &QAction::triggered, this, &MainWindow::onConfigureIncrementalTraining);
+    runMenu->addAction(configIncrementalAction);
+
+    QAction* startIncrementalAction = new QAction("Start &Incremental Training", this);
+    startIncrementalAction->setShortcut(Qt::Key_F6);
+    connect(startIncrementalAction, &QAction::triggered, this, &MainWindow::onStartIncrementalTraining);
+    runMenu->addAction(startIncrementalAction);
+
     // Help menu
     QMenu *helpMenu = menuBar()->addMenu("&Help");
     
@@ -409,6 +461,9 @@ void MainWindow::onLoadData()
         // Get loaded data
         inputData = dialog.getInputData();
         targetData = dialog.getTargetData();
+
+        currentProject_.inputDataPath = dialog.getInputFilePath();
+        currentProject_.targetDataPath = dialog.getTargetFilePath();
 
         // Log success
         logMessage("=== Data Loaded Successfully ===");
@@ -761,4 +816,472 @@ void MainWindow::setSplitRatio(double ratio)
                    .arg(split_ratio)
                    .arg(split_ratio * 100, 0, 'f', 1)
                    .arg((1.0 - split_ratio) * 100, 0, 'f', 1));
+}
+
+std::pair<TimeSeriesSet<double>, TimeSeries<double>> createSyntheticGATestData(
+    double t_start, double t_end, double dt, const std::string& output_path = "./") {
+
+    // Seed for reproducibility
+    srand(42);
+
+    // Create 5 stationary input time series
+    TimeSeriesSet<double> synthetic_input(5);
+    double buffer_start = t_start - 1.0;  // Buffer for lag interpolation
+
+    for (double t = buffer_start; t <= t_end; t += dt) {
+        // Series 0: Sine wave
+        synthetic_input[0].addPoint(t, 2.0 * std::sin(0.1 * t) + 0.5 * std::sin(0.3 * t));
+
+        // Series 1: Cosine wave
+        synthetic_input[1].addPoint(t, 1.5 * std::cos(0.15 * t) + 0.8 * std::cos(0.4 * t));
+
+        // Series 2: White noise
+        synthetic_input[2].addPoint(t, 1.0 + 0.5 * (static_cast<double>(rand()) / RAND_MAX - 0.5));
+
+        // Series 3: AR(1) process
+        static double prev_val = 0.0;
+        double ar_val = 0.7 * prev_val + 0.3 * (static_cast<double>(rand()) / RAND_MAX - 0.5);
+        synthetic_input[3].addPoint(t, ar_val);
+        prev_val = ar_val;
+
+        // Series 4: Multiple periodic components
+        synthetic_input[4].addPoint(t, 1.2 * std::sin(0.2 * t) + 0.8 * std::cos(0.5 * t) + 0.4 * std::sin(0.8 * t));
+    }
+
+    synthetic_input.setSeriesName(0, "temperature");
+    synthetic_input.setSeriesName(1, "pressure");
+    synthetic_input.setSeriesName(2, "flow_rate");
+    synthetic_input.setSeriesName(3, "concentration");
+    synthetic_input.setSeriesName(4, "velocity");
+
+    // Create target data (linear combination with lags)
+    TimeSeries<double> synthetic_target;
+    for (double t = t_start; t <= t_end; t += dt) {
+        double target = 0.4 * synthetic_input[0].interpol(t - 0.1) +
+                        0.3 * synthetic_input[1].interpol(t - 0.3) +
+                        0.2 * synthetic_input[3].interpol(t - 0.2) +
+                        0.1 * synthetic_input[4].interpol(t - 0.5) +
+                        0.05 * (static_cast<double>(rand()) / RAND_MAX - 0.5);
+        synthetic_target.addPoint(t, target);
+    }
+
+    // Save files
+    std::string path_prefix = output_path;
+    if (!output_path.empty() && output_path.back() != '/' && output_path.back() != '\\') {
+        path_prefix += "/";
+    }
+
+    synthetic_input.write(path_prefix + "ga_test_input.csv");
+
+    std::ofstream target_file(path_prefix + "ga_test_target.txt");
+    if (target_file.is_open()) {
+        for (size_t i = 0; i < synthetic_target.size(); ++i) {
+            target_file << std::fixed << std::setprecision(6)
+            << synthetic_target.getTime(i) << ","
+            << synthetic_target.getValue(i) << std::endl;
+        }
+        target_file.close();
+    }
+
+    std::cout << "Synthetic data created: " << path_prefix + "ga_test_input.csv" << std::endl;
+    std::cout << "Target combines: series 0 (lag1), series 1 (lag3), series 3 (lag2), series 4 (lag5)" << std::endl;
+
+    return {synthetic_input, synthetic_target};
+}
+
+void MainWindow::onGenerateSyntheticData()
+{
+    SyntheticDataDialog dialog(this);
+
+    if (dialog.exec() == QDialog::Accepted && dialog.dataGenerated()) {
+        // Get generated data
+        inputData = dialog.getInputData();
+        targetData = dialog.getTargetData();
+
+        // Log success
+        logMessage("=== Synthetic Data Generated Successfully ===");
+        logMessage(QString("Input: %1 time series with %2 points each")
+                       .arg(inputData.size())
+                       .arg(inputData[0].size()));
+        logMessage(QString("Target: %1 points").arg(targetData.size()));
+        logMessage(QString("Time range: %1 to %2")
+                       .arg(inputData[0].front().t)
+                       .arg(inputData[0].back().t));
+
+        // Enable optimization
+        startButton->setEnabled(true);
+        startGAAction_->setEnabled(true);
+
+        statusBar()->showMessage("Synthetic data generated successfully", 3000);
+        statusLabel->setText("Status: Synthetic data loaded - Ready to optimize");
+    }
+}
+
+void MainWindow::onConfigureNetwork()
+{
+    if (inputData.size() == 0 || targetData.size() == 0) {
+        QMessageBox::warning(this, "No Data", "Please load or generate data first.");
+        return;
+    }
+
+    // ... your debug code ...
+
+    NetworkArchitectureDialog dialog(inputData, targetData,
+                                     currentProject_.networkArchitecture, this);
+
+    if (dialog.exec() == QDialog::Accepted && dialog.isModelValid()) {
+        NeuralNetworkWrapper* configuredModel = dialog.getModel();
+
+        if (configuredModel) {
+            // Copy to our current model
+            currentModel = *configuredModel;
+            delete configuredModel;
+
+            // IMPORTANT: Get architecture from dialog (which has correct activations)
+            currentProject_.networkArchitecture = dialog.getArchitecture();
+
+            logMessage("=== Network Architecture Configured ===");
+            logMessage(QString("Network initialized with %1 parameters")
+                           .arg(currentModel.getTotalParameters()));
+
+            // DEBUG: Show saved activations
+            logMessage("Saved activations:");
+            for (size_t i = 0; i < currentProject_.networkArchitecture.activations.size(); ++i) {
+                logMessage(QString("  Layer %1: %2")
+                               .arg(i)
+                               .arg(QString::fromStdString(currentProject_.networkArchitecture.activations[i])));
+            }
+
+            // Enable training
+            startButton->setEnabled(true);
+
+            statusBar()->showMessage("Network configured successfully", 3000);
+            statusLabel->setText("Status: Network configured - Ready to train");
+        }
+    }
+}
+
+void MainWindow::onConfigureIncrementalTraining()
+{
+    IncrementalTrainingDialog dialog(incrementalParams_, this);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        logMessage("=== Incremental Training Parameters Updated ===");
+        logMessage(QString("Window size: %1, Step: %2")
+                       .arg(incrementalParams_.windowSize)
+                       .arg(incrementalParams_.windowStep));
+        logMessage(QString("Epochs per window: %1, Batch size: %2")
+                       .arg(incrementalParams_.epochsPerWindow)
+                       .arg(incrementalParams_.batchSize));
+        logMessage(QString("Learning rate: %1")
+                       .arg(incrementalParams_.learningRate));
+
+        if (incrementalParams_.useOverlap) {
+            double overlap = incrementalParams_.windowSize - incrementalParams_.windowStep;
+            logMessage(QString("Window overlap: %1 time units").arg(overlap));
+        }
+    }
+}
+
+void MainWindow::onStartIncrementalTraining()
+{
+    // Validate prerequisites
+    if (inputData.size() == 0 || targetData.size() == 0) {
+        QMessageBox::warning(this, "No Data", "Please load or generate data first.");
+        return;
+    }
+
+    if (!currentModel.isInitialized()) {
+        QMessageBox::warning(this, "No Model",
+                             "Please create a network first using:\n"
+                             "• Configuration → Network Architecture, or\n"
+                             "• Run → Start GA Optimization");
+        return;
+    }
+
+    // TODO: Create and show the incremental training execution dialog
+    // This will use the incrementalParams_ and actually perform the training
+
+    logMessage("=== Starting Incremental Training ===");
+    logMessage("This feature will be implemented next...");
+
+    QMessageBox::information(this, "Coming Soon",
+                             "Incremental training execution will be implemented next.\n\n"
+                             "Current parameters:\n"
+                                 + QString("Window: %1, Step: %2\n").arg(incrementalParams_.windowSize).arg(incrementalParams_.windowStep)
+                                 + QString("Epochs: %1, Batch: %2\n").arg(incrementalParams_.epochsPerWindow).arg(incrementalParams_.batchSize)
+                                 + QString("Learning rate: %1").arg(incrementalParams_.learningRate));
+}
+
+void MainWindow::onNewProject()
+{
+    if (maybeSaveProject()) {
+        currentProject_ = ProjectConfig();
+        currentProjectPath_.clear();
+        inputData = TimeSeriesSet<double>();
+        targetData = TimeSeries<double>();
+
+        setWindowTitle("NeuroForge - New Project");
+        logMessage("New project created");
+    }
+}
+
+void MainWindow::onLoadProject()
+{
+    if (!maybeSaveProject()) {
+        return;
+    }
+
+    QString filepath = QFileDialog::getOpenFileName(
+        this,
+        "Load Project",
+        QDir::homePath(),
+        "NeuroForge Projects (*.nfproj);;All Files (*)"
+        );
+
+    if (!filepath.isEmpty()) {
+        if (loadProject(filepath)) {
+            setCurrentProjectPath(filepath);
+            saveLastProjectPath(filepath);
+        }
+    }
+}
+
+void MainWindow::onSaveProject()
+{
+    if (currentProjectPath_.isEmpty()) {
+        onSaveProjectAs();
+    } else {
+        saveProject(currentProjectPath_);
+    }
+}
+
+void MainWindow::onSaveProjectAs()
+{
+    QString filepath = QFileDialog::getSaveFileName(
+        this,
+        "Save Project As",
+        QDir::homePath(),
+        "NeuroForge Projects (*.nfproj);;All Files (*)"
+        );
+
+    if (!filepath.isEmpty()) {
+        if (!filepath.endsWith(".nfproj", Qt::CaseInsensitive)) {
+            filepath += ".nfproj";
+        }
+
+        if (saveProject(filepath)) {
+            setCurrentProjectPath(filepath);
+            saveLastProjectPath(filepath);
+        }
+    }
+}
+
+bool MainWindow::saveProject(const QString& filepath)
+{
+    updateProjectFromUI();
+
+    QJsonObject json = currentProject_.toJson();
+    QJsonDocument doc(json);
+
+    QFile file(filepath);
+    if (!file.open(QIODevice::WriteOnly)) {
+        QMessageBox::critical(this, "Error",
+                              QString("Could not save project:\n%1").arg(file.errorString()));
+        return false;
+    }
+
+    file.write(doc.toJson());
+    file.close();
+
+    logMessage(QString("Project saved: %1").arg(filepath));
+    statusBar()->showMessage("Project saved successfully", 3000);
+
+    return true;
+}
+
+bool MainWindow::loadProject(const QString& filepath)
+{
+    QFile file(filepath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::critical(this, "Error",
+                              QString("Could not load project:\n%1").arg(file.errorString()));
+        return false;
+    }
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (doc.isNull() || !doc.isObject()) {
+        QMessageBox::critical(this, "Error", "Invalid project file format");
+        return false;
+    }
+
+    currentProject_.fromJson(doc.object());
+    updateUIFromProject();
+
+    logMessage(QString("Project loaded: %1").arg(filepath));
+    statusBar()->showMessage("Project loaded successfully", 3000);
+
+    return true;
+}
+
+void MainWindow::updateProjectFromUI()
+{
+    // Store current GA settings
+    currentProject_.gaPopulation = ga_.Settings.totalpopulation;
+    currentProject_.gaGenerations = ga_.Settings.generations;
+    currentProject_.gaMutationRate = ga_.Settings.mutation_probability;
+    currentProject_.gaOutputPath = QString::fromStdString(ga_.Settings.outputpath);
+
+    // Store data settings
+    currentProject_.splitRatio = split_ratio;
+
+    if (currentModel.isInitialized() && !currentProject_.networkArchitecture.isConfigured) {
+        // If model exists but architecture wasn't saved via dialog, mark as configured
+        currentProject_.networkArchitecture.isConfigured = true;
+    }
+
+    // Store incremental training params
+    currentProject_.incrementalParams = incrementalParams_;
+}
+
+void MainWindow::updateUIFromProject()
+{
+    // Restore GA settings
+    ga_.Settings.totalpopulation = currentProject_.gaPopulation;
+    ga_.Settings.generations = currentProject_.gaGenerations;
+    ga_.Settings.mutation_probability = currentProject_.gaMutationRate;
+    ga_.Settings.outputpath = currentProject_.gaOutputPath.toStdString();
+    // Restore data settings
+    split_ratio = currentProject_.splitRatio;
+
+    // Restore incremental training params
+    incrementalParams_ = currentProject_.incrementalParams;
+
+    // Load data files if specified
+    if (!currentProject_.inputDataPath.isEmpty() && !currentProject_.targetDataPath.isEmpty()) {
+        try {
+            // Load input data (TimeSeriesSet from CSV)
+            inputData = TimeSeriesSet<double>(currentProject_.inputDataPath.toStdString(), true);
+
+            // Load target data (TimeSeries from text file)
+            std::ifstream targetFile(currentProject_.targetDataPath.toStdString());
+            if (!targetFile.is_open()) {
+                throw std::runtime_error("Could not open target file: " + currentProject_.targetDataPath.toStdString());
+            }
+
+            targetData = TimeSeries<double>();
+            targetData.setName("target");
+
+            std::string line;
+            while (std::getline(targetFile, line)) {
+                std::stringstream ss(line);
+                std::string timeStr, valueStr;
+
+                if (std::getline(ss, timeStr, ',') && std::getline(ss, valueStr)) {
+                    double t = std::stod(timeStr);
+                    double v = std::stod(valueStr);
+                    targetData.addPoint(t, v);
+                }
+            }
+            targetFile.close();
+
+            logMessage(QString("Data loaded from project: %1 input series, %2 target points")
+                           .arg(inputData.size())
+                           .arg(targetData.size()));
+
+            startButton->setEnabled(true);
+            startGAAction_->setEnabled(true);
+            statusLabel->setText("Status: Data loaded - Ready to optimize");
+
+        } catch (const std::exception& e) {
+            logMessage(QString("ERROR: Could not load data files: %1").arg(e.what()));
+            QMessageBox::warning(this, "Data Load Error",
+                                 QString("Could not load data files:\n%1").arg(e.what()));
+        }
+    }
+
+    // Restore network architecture if configured
+    if (currentProject_.networkArchitecture.isConfigured && inputData.size() > 0) {
+        try {
+            currentModel.clear();
+            currentModel.setHiddenLayers(currentProject_.networkArchitecture.hiddenLayers);
+            currentModel.setLags(currentProject_.networkArchitecture.lags);
+
+            // Initialize network
+            currentModel.initializeNetwork(1, "relu"); // 1 output
+
+            logMessage(QString("Network architecture restored: %1 hidden layers, %2 parameters")
+                           .arg(currentProject_.networkArchitecture.hiddenLayers.size())
+                           .arg(currentModel.getTotalParameters()));
+
+            logMessage(currentModel.ParametersToString().c_str());
+
+        } catch (const std::exception& e) {
+            logMessage(QString("ERROR: Could not restore network architecture: %1").arg(e.what()));
+        }
+    }
+
+    logMessage("Project configuration restored");
+}
+
+void MainWindow::setCurrentProjectPath(const QString& path)
+{
+    currentProjectPath_ = path;
+    QFileInfo fileInfo(path);
+    setWindowTitle(QString("NeuroForge - %1").arg(fileInfo.fileName()));
+}
+
+bool MainWindow::maybeSaveProject()
+{
+    // For now, just ask without checking if modified
+    // You could add a "modified" flag to track changes
+    if (!currentProjectPath_.isEmpty()) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            "Save Project?",
+            "Do you want to save the current project?",
+            QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel
+            );
+
+        if (reply == QMessageBox::Cancel) {
+            return false;
+        } else if (reply == QMessageBox::Yes) {
+            return saveProject(currentProjectPath_);
+        }
+    }
+    return true;
+}
+
+void MainWindow::loadLastProject()
+{
+    QString lastPath = getLastProjectPath();
+
+    if (!lastPath.isEmpty() && QFile::exists(lastPath)) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            "Load Last Project",
+            QString("Load the last project?\n\n%1").arg(lastPath),
+            QMessageBox::Yes | QMessageBox::No
+            );
+
+        if (reply == QMessageBox::Yes) {
+            loadProject(lastPath);
+            setCurrentProjectPath(lastPath);
+        }
+    }
+}
+
+void MainWindow::saveLastProjectPath(const QString& path)
+{
+    QSettings settings("NeuroForge", "NeuroForge");
+    settings.setValue("lastProject", path);
+}
+
+QString MainWindow::getLastProjectPath() const
+{
+    QSettings settings("NeuroForge", "NeuroForge");
+    return settings.value("lastProject", "").toString();
 }
