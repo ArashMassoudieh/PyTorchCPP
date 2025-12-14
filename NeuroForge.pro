@@ -19,11 +19,13 @@ DEFINES += QT_GUI_SUPPORT
 # =========================
 SOURCES += \
     DataLoadDialog.cpp \
+    DataPlotDialog.cpp \
     GASettingsDialog.cpp \
     ProgressWindow.cpp \
     chartviewer.cpp \
     chartwindow.cpp \
     incrementaltrainingdialog.cpp \
+    lagconfigdialog.cpp \
     main.cpp \
     mainwindow.cpp \
     hyperparameters.cpp \
@@ -42,12 +44,14 @@ SOURCES += \
 
 HEADERS += \
     DataLoadDialog.h \
+    DataPlotDialog.h \
     GASettingsDialog.h \
     ProgressWindow.h \
     chartviewer.h \
     chartwindow.h \
     commontypes.h \
     incrementaltrainingdialog.h \
+    lagconfigdialog.h \
     mainwindow.h \
     Binary.h \
     Normalization.h \

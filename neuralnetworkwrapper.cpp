@@ -5,6 +5,12 @@
 #include <cmath>
 #include "hyperparameters.h"
 
+#ifdef QT_GUI_SUPPORT
+#include "ProgressWindow.h"
+#include <QApplication>
+#include <QThread>
+#endif
+
 // In constructor:
 // Default constructor - no inheritance from torch::nn::Module
 NeuralNetworkWrapper::NeuralNetworkWrapper()
@@ -1061,56 +1067,83 @@ torch::Tensor NeuralNetworkWrapper::forward_internal(torch::Tensor input) {
 
 TimeSeriesSet<double> NeuralNetworkWrapper::predict(DataType data_type,
                                                     double t_start, double t_end, double dt,
-                                                    const std::vector<std::string>& output_names) {
+                                                    const std::vector<std::string>& output_names)
+{
     if (!is_initialized_) {
-        throw std::runtime_error("Network must be initialized before prediction. Call initializeNetwork() first.");
+        throw std::runtime_error("Network must be initialized before making predictions");
     }
 
-    if (!hasInputData(data_type)) {
-        std::string data_type_str = (data_type == DataType::Train) ? "training" : "test";
-        throw std::runtime_error("No " + data_type_str + " input data available. Use setInputData() first.");
+    // Get the appropriate input data
+    torch::Tensor input_data;
+    if (data_type == DataType::Train) {
+        if (!train_input_data_.defined()) {
+            throw std::runtime_error("Training input data not set");
+        }
+        input_data = train_input_data_;
+    } else {
+        if (!test_input_data_.defined()) {
+            throw std::runtime_error("Test input data not set");
+        }
+        input_data = test_input_data_;
     }
 
-    // Get predictions from the network
-    torch::Tensor predictions;
-    {
-        torch::NoGradGuard no_grad;  // Disable gradient computation for inference
-        predictions = forward(data_type);
+    // Forward pass
+    torch::NoGradGuard no_grad;
+    torch::Tensor predictions = forward_internal(input_data);
+
+    // Get actual number of predictions
+    int64_t num_predictions = predictions.size(0);
+
+    // Calculate expected steps INCLUDING both endpoints
+    // For range [t_start, t_end] with step dt:
+    // Number of points = floor((t_end - t_start) / dt) + 1
+    int64_t expected_steps = static_cast<int64_t>(std::round((t_end - t_start) / dt)) + 1;
+
+    if (verbose_) {
+        std::cout << "Predict: t_start=" << t_start << ", t_end=" << t_end
+                  << ", dt=" << dt << std::endl;
+        std::cout << "  Actual predictions: " << num_predictions << std::endl;
+        std::cout << "  Expected steps: " << expected_steps << std::endl;
     }
 
-    // Calculate number of time steps
-    int num_time_steps = static_cast<int>((t_end - t_start) / dt) + 1;
+    // Use actual prediction size, not expected
+    // The input data tensor size is the source of truth
+    int64_t actual_steps = num_predictions;
 
-    // Validate that predictions match expected time steps
-    if (predictions.size(0) != num_time_steps) {
-        throw std::runtime_error("Prediction tensor size (" + std::to_string(predictions.size(0)) +
-                                 ") doesn't match expected time steps (" + std::to_string(num_time_steps) + ")");
+    // Adjust t_end to match actual number of predictions
+    double actual_t_end = t_start + (actual_steps - 1) * dt;
+
+    if (std::abs(actual_t_end - t_end) > dt * 0.5) {
+        if (verbose_) {
+            std::cout << "  WARNING: Adjusted t_end from " << t_end
+                      << " to " << actual_t_end << " to match data" << std::endl;
+        }
     }
 
-    // Get number of output features
+    // Create TimeSeriesSet from predictions
+    TimeSeriesSet<double> result;
+
+    // Handle multi-output case
     int num_outputs = predictions.size(1);
 
-    // Create TimeSeriesSet for results
-    TimeSeriesSet<double> result(num_outputs);
+    for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
+        TimeSeries<double> output_series;
 
-    // Set names for each output TimeSeries
-    for (int output_idx = 0; output_idx < num_outputs; ++output_idx) {
-        std::string name;
-        if (output_idx < static_cast<int>(output_names.size()) && !output_names[output_idx].empty()) {
-            name = output_names[output_idx];
+        // Set name
+        if (output_idx < output_names.size()) {
+            output_series.setName(output_names[output_idx]);
         } else {
-            name = "output_" + std::to_string(output_idx);
+            output_series.setName("output_" + std::to_string(output_idx));
         }
-        result.setSeriesName(output_idx, name);
-    }
 
-    // Fill TimeSeries with predicted values
-    for (int time_idx = 0; time_idx < num_time_steps; ++time_idx) {
-        double current_time = t_start + time_idx * dt;
-        for (int output_idx = 0; output_idx < num_outputs; ++output_idx) {
-            double predicted_value = predictions[time_idx][output_idx].item<double>();
-            result[output_idx].addPoint(current_time, predicted_value);
+        // Fill with predictions
+        for (int64_t i = 0; i < actual_steps; i++) {
+            double t = t_start + i * dt;
+            double value = predictions[i][output_idx].item<double>();
+            output_series.addPoint(t, value);
         }
+
+        result.append(output_series);
     }
 
     return result;
@@ -1842,4 +1875,389 @@ std::vector<double> NeuralNetworkWrapper::trainMore(int additional_epochs,
 
     if (verbose_) std::cout << "Additional training completed!" << std::endl;
     return additional_losses;
+}
+
+std::vector<double> NeuralNetworkWrapper::trainIncremental(const IncrementalTrainingParams& params,
+                                                           ProgressWindow* progressWindow)
+{
+    if (!is_initialized_) {
+        throw std::runtime_error("Network must be initialized before incremental training");
+    }
+
+    if (!hasInputData(DataType::Train) || !hasTargetData(DataType::Train)) {
+        throw std::runtime_error("Training data must be set before incremental training");
+    }
+
+    std::vector<double> window_losses;
+
+    // Get total training data size
+    int64_t total_train_samples = train_input_data_.size(0);
+
+    // Calculate time parameters
+    double train_start = ga_t_start_;
+    double train_end = ga_t_start_ + (ga_split_ratio_ * (ga_t_end_ - ga_t_start_));
+    double total_train_time = train_end - train_start;
+
+    // Calculate samples per window and step
+    int samples_per_window = static_cast<int>(params.windowSize / ga_dt_);
+    int samples_per_step = static_cast<int>(params.windowStep / ga_dt_);
+
+    // Calculate number of windows
+    int num_windows = ((total_train_samples - samples_per_window) / samples_per_step) + 1;
+
+    if (samples_per_window > total_train_samples) {
+        throw std::runtime_error("Window size exceeds available training data");
+    }
+
+#ifdef QT_GUI_SUPPORT
+    // Setup progress window if provided
+    if (progressWindow) {
+        progressWindow->SetStatus("Initializing Incremental Training...");
+        progressWindow->SetProgressLabel("Overall Progress");
+        progressWindow->SetSecondaryProgressLabel("Current Window");
+        progressWindow->SetSecondaryProgressVisible(true);
+
+        // Setup charts
+        progressWindow->SetPrimaryChartVisible(true);
+        progressWindow->SetPrimaryChartTitle("Window Loss Over Time");
+        progressWindow->SetPrimaryChartXAxisTitle("Window Number");
+        progressWindow->SetPrimaryChartYAxisTitle("Loss (MSE)");
+        progressWindow->SetPrimaryChartXRange(0, num_windows);
+        progressWindow->SetPrimaryChartAutoScale(true);
+        progressWindow->ClearPrimaryChartData();
+
+        progressWindow->SetSecondaryChartVisible(true);
+        progressWindow->SetSecondaryChartTitle("Epoch Loss (Current Window)");
+        progressWindow->SetSecondaryChartXAxisTitle("Epoch");
+        progressWindow->SetSecondaryChartYAxisTitle("Loss");
+        progressWindow->SetSecondaryChartXRange(0, params.epochsPerWindow);
+        progressWindow->SetSecondaryChartAutoScale(true);
+
+        progressWindow->AppendLog("=== Incremental Training Started ===");
+        progressWindow->AppendLog(QString("Total training samples: %1").arg(total_train_samples));
+        progressWindow->AppendLog(QString("Window size: %1 samples (%2 time units)")
+                                      .arg(samples_per_window).arg(params.windowSize));
+        progressWindow->AppendLog(QString("Window step: %1 samples (%2 time units)")
+                                      .arg(samples_per_step).arg(params.windowStep));
+        progressWindow->AppendLog(QString("Number of windows: %1").arg(num_windows));
+        progressWindow->AppendLog(QString("Epochs per window: %1").arg(params.epochsPerWindow));
+
+        QApplication::processEvents();
+    }
+#endif
+
+    if (verbose_) {
+        std::cout << "=== Incremental Training ===" << std::endl;
+        std::cout << "Total training samples: " << total_train_samples << std::endl;
+        std::cout << "Samples per window: " << samples_per_window << std::endl;
+        std::cout << "Number of windows: " << num_windows << std::endl;
+    }
+
+    // Create optimizer using unique_ptr so we can reset it
+    auto optimizer = std::make_unique<torch::optim::Adam>(
+        getParameters(),
+        torch::optim::AdamOptions(params.learningRate)
+        );
+
+    // Train on each window
+    for (int window_idx = 0; window_idx < num_windows; window_idx++) {
+
+#ifdef QT_GUI_SUPPORT
+        // Check for cancel
+        if (progressWindow && progressWindow->IsCancelRequested()) {
+            progressWindow->AppendLog("Training cancelled by user");
+            progressWindow->SetStatus("Cancelled");
+            break;
+        }
+
+        // Handle pause
+        if (progressWindow && progressWindow->IsPauseRequested()) {
+            progressWindow->SetStatus("Paused");
+            progressWindow->AppendLog("Training paused");
+            QApplication::processEvents();
+
+            while (progressWindow->IsPauseRequested() && !progressWindow->IsCancelRequested()) {
+                QThread::msleep(100);
+                QApplication::processEvents();
+            }
+
+            if (progressWindow->IsCancelRequested()) {
+                progressWindow->AppendLog("Training cancelled during pause");
+                break;
+            }
+
+            progressWindow->ResetPauseRequest();
+            progressWindow->SetStatus("Resumed");
+            progressWindow->AppendLog("Training resumed");
+        }
+
+        // Update overall progress
+        if (progressWindow) {
+            double progress = static_cast<double>(window_idx) / num_windows;
+            progressWindow->SetProgress(progress);
+            progressWindow->SetStatus(QString("Window %1 / %2").arg(window_idx + 1).arg(num_windows));
+            progressWindow->ClearSecondaryChartData();
+            QApplication::processEvents();
+        }
+#endif
+
+        // Calculate window bounds in sample indices
+        int window_start_idx = window_idx * samples_per_step;
+        int window_end_idx = window_start_idx + samples_per_window;
+
+        // Ensure we don't exceed bounds
+        if (window_end_idx > total_train_samples) {
+            window_end_idx = total_train_samples;
+        }
+
+        int actual_window_size = window_end_idx - window_start_idx;
+
+        if (verbose_) {
+            std::cout << "\n--- Window " << (window_idx + 1) << "/" << num_windows << " ---" << std::endl;
+            std::cout << "Samples: [" << window_start_idx << ", " << window_end_idx << ")" << std::endl;
+        }
+
+#ifdef QT_GUI_SUPPORT
+        if (progressWindow) {
+            progressWindow->AppendLog(QString("\n--- Window %1/%2 ---").arg(window_idx + 1).arg(num_windows));
+            progressWindow->AppendLog(QString("Sample range: [%1, %2)").arg(window_start_idx).arg(window_end_idx));
+            QApplication::processEvents();
+        }
+#endif
+
+        // Extract window data by slicing the existing tensors
+        torch::Tensor window_input = train_input_data_.narrow(0, window_start_idx, actual_window_size).clone();
+        torch::Tensor window_target = train_target_data_.narrow(0, window_start_idx, actual_window_size).clone();
+
+        if (verbose_) {
+            std::cout << "Window input shape: [" << window_input.size(0) << ", " << window_input.size(1) << "]" << std::endl;
+        }
+
+        // Reset optimizer if requested by creating a new one
+        if (params.resetOnNewWindow && window_idx > 0) {
+            optimizer = std::make_unique<torch::optim::Adam>(
+                getParameters(),
+                torch::optim::AdamOptions(params.learningRate)
+                );
+#ifdef QT_GUI_SUPPORT
+            if (progressWindow) {
+                progressWindow->AppendLog("Optimizer state reset");
+            }
+#endif
+        }
+
+        // Train on this window with epoch-level progress
+        double window_loss = 0.0;
+        for (int epoch = 0; epoch < params.epochsPerWindow; epoch++) {
+
+#ifdef QT_GUI_SUPPORT
+            // Update window progress
+            if (progressWindow) {
+                double epoch_progress = static_cast<double>(epoch) / params.epochsPerWindow;
+                progressWindow->SetSecondaryProgress(epoch_progress);
+                QApplication::processEvents();
+            }
+#endif
+
+            int num_batches = (window_input.size(0) + params.batchSize - 1) / params.batchSize;
+            double epoch_loss = 0.0;
+
+            for (int batch_idx = 0; batch_idx < num_batches; batch_idx++) {
+                int batch_start = batch_idx * params.batchSize;
+                int batch_end = std::min(batch_start + params.batchSize, static_cast<int>(window_input.size(0)));
+
+                torch::Tensor batch_input = window_input.narrow(0, batch_start, batch_end - batch_start);
+                torch::Tensor batch_target = window_target.narrow(0, batch_start, batch_end - batch_start);
+
+                optimizer->zero_grad();
+                torch::Tensor output = forward_internal(batch_input);
+                torch::Tensor loss = torch::mse_loss(output, batch_target);
+                loss.backward();
+                optimizer->step();
+
+                epoch_loss += loss.item<double>();
+            }
+
+            epoch_loss /= num_batches;
+            window_loss = epoch_loss;
+
+#ifdef QT_GUI_SUPPORT
+            // Plot epoch loss for current window
+            if (progressWindow) {
+                progressWindow->AddSecondaryChartPoint(epoch, epoch_loss);
+                QApplication::processEvents();
+            }
+#endif
+
+            if (verbose_ && epoch % 10 == 0) {
+                std::cout << "  Epoch " << epoch << "/" << params.epochsPerWindow
+                          << ", Loss: " << epoch_loss << std::endl;
+            }
+        }
+
+        window_losses.push_back(window_loss);
+
+#ifdef QT_GUI_SUPPORT
+        // Add window loss to primary chart
+        if (progressWindow) {
+            progressWindow->AddPrimaryChartPoint(window_idx + 1, window_loss);
+            progressWindow->AppendLog(QString("Window %1 final loss: %2")
+                                          .arg(window_idx + 1).arg(window_loss, 0, 'f', 6));
+            progressWindow->SetSecondaryProgress(1.0);
+            QApplication::processEvents();
+        }
+#endif
+
+        if (verbose_) {
+            std::cout << "Window " << (window_idx + 1) << " final loss: " << window_loss << std::endl;
+        }
+    }
+
+#ifdef QT_GUI_SUPPORT
+    if (progressWindow) {
+        progressWindow->SetProgress(1.0);
+        progressWindow->SetSecondaryProgress(1.0);
+
+        if (!window_losses.empty()) {
+            double avg_loss = std::accumulate(window_losses.begin(), window_losses.end(), 0.0) / window_losses.size();
+            double min_loss = *std::min_element(window_losses.begin(), window_losses.end());
+            double max_loss = *std::max_element(window_losses.begin(), window_losses.end());
+
+            progressWindow->AppendLog("\n=== Training Complete ===");
+            progressWindow->AppendLog(QString("Average window loss: %1").arg(avg_loss, 0, 'f', 6));
+            progressWindow->AppendLog(QString("Best window loss: %1").arg(min_loss, 0, 'f', 6));
+            progressWindow->AppendLog(QString("Worst window loss: %1").arg(max_loss, 0, 'f', 6));
+            progressWindow->SetComplete("Incremental Training Complete!");
+        }
+
+        QApplication::processEvents();
+    }
+#endif
+
+    if (verbose_) {
+        std::cout << "\n=== Incremental Training Complete ===" << std::endl;
+        if (!window_losses.empty()) {
+            std::cout << "Average window loss: "
+                      << std::accumulate(window_losses.begin(), window_losses.end(), 0.0) / window_losses.size()
+                      << std::endl;
+        }
+    }
+
+    return window_losses;
+}
+
+std::vector<torch::Tensor> NeuralNetworkWrapper::getParameters()
+{
+    std::vector<torch::Tensor> params;
+
+    for (auto& layer : layers_) {
+        params.push_back(layer->weight);
+        params.push_back(layer->bias);
+    }
+
+    return params;
+}
+
+void NeuralNetworkWrapper::setNetworkArchitecture(const NetworkArchitecture& architecture)
+{
+    if (!architecture.isConfigured) {
+        throw std::runtime_error("NetworkArchitecture is not configured");
+    }
+
+    // Convert NetworkArchitecture to internal configuration
+    hidden_layers_ = architecture.hiddenLayers;
+    lags_ = architecture.lags;
+
+    // Set activation functions
+    if (!architecture.activations.empty()) {
+        input_activation_function_ = architecture.activations[0];
+        hidden_activation_function_ = architecture.activations.size() > 1 ?
+                                          architecture.activations[1] : architecture.activations[0];
+    } else {
+        input_activation_function_ = "relu";
+        hidden_activation_function_ = "relu";
+    }
+
+    output_activation_function_ = architecture.outputActivation;
+
+    // Update HyperParameters object
+    hyperparams_.setHiddenLayers(architecture.hiddenLayers);
+    hyperparams_.setLags(architecture.lags);
+
+    if (verbose_) {
+        std::cout << "Network architecture configured from NetworkArchitecture struct" << std::endl;
+        std::cout << "  Hidden layers: " << hidden_layers_.size() << std::endl;
+        std::cout << "  Lag configuration: " << lags_.size() << " series" << std::endl;
+    }
+}
+
+std::vector<double> NeuralNetworkWrapper::trainOnWindow(const torch::Tensor& input_data,
+                                                        const torch::Tensor& target_data,
+                                                        int num_epochs,
+                                                        int batch_size,
+                                                        double learning_rate)
+{
+    if (!is_initialized_) {
+        throw std::runtime_error("Network must be initialized before training");
+    }
+
+    if (input_data.size(0) != target_data.size(0)) {
+        throw std::runtime_error("Input and target data must have same number of samples");
+    }
+
+    std::vector<double> loss_history;
+
+    if (verbose_) {
+        std::cout << "Training on window with " << input_data.size(0) << " samples" << std::endl;
+        std::cout << "  Epochs: " << num_epochs << ", Batch size: " << batch_size
+                  << ", Learning rate: " << learning_rate << std::endl;
+    }
+
+    // Create optimizer
+    auto optimizer = std::make_unique<torch::optim::Adam>(
+        getParameters(),
+        torch::optim::AdamOptions(learning_rate)
+        );
+
+    // Training loop
+    for (int epoch = 0; epoch < num_epochs; epoch++) {
+        int num_batches = (input_data.size(0) + batch_size - 1) / batch_size;
+        double epoch_loss = 0.0;
+
+        for (int batch_idx = 0; batch_idx < num_batches; batch_idx++) {
+            int batch_start = batch_idx * batch_size;
+            int batch_end = std::min(batch_start + batch_size,
+                                     static_cast<int>(input_data.size(0)));
+
+            torch::Tensor batch_input = input_data.narrow(0, batch_start, batch_end - batch_start);
+            torch::Tensor batch_target = target_data.narrow(0, batch_start, batch_end - batch_start);
+
+            // Forward pass
+            optimizer->zero_grad();
+            torch::Tensor output = forward_internal(batch_input);
+
+            // Compute loss
+            torch::Tensor loss = torch::mse_loss(output, batch_target);
+
+            // Backward pass
+            loss.backward();
+            optimizer->step();
+
+            epoch_loss += loss.item<double>();
+        }
+
+        epoch_loss /= num_batches;
+        loss_history.push_back(epoch_loss);
+
+        if (verbose_ && (epoch % 10 == 0 || epoch == num_epochs - 1)) {
+            std::cout << "  Epoch " << epoch << "/" << num_epochs
+                      << ", Loss: " << epoch_loss << std::endl;
+        }
+    }
+
+    if (verbose_) {
+        std::cout << "Training complete. Final loss: " << loss_history.back() << std::endl;
+    }
+
+    return loss_history;
 }

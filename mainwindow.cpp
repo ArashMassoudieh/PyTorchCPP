@@ -17,6 +17,9 @@
 #include <QFile>
 #include <QSettings>
 #include <QTimer>
+#include "lagconfigdialog.h"
+#include "DataPlotDialog.h"
+#include <QInputDialog>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -92,108 +95,125 @@ void MainWindow::setupUI()
 void MainWindow::setupMenus()
 {
     // File menu
-    QMenu *fileMenu = menuBar()->addMenu("&File");
+    QMenu* fileMenu = menuBar()->addMenu("File");
 
-    QAction *newProjectAction = new QAction("&New Project", this);
+    QAction* loadDataAction = new QAction("Load Data...", this);
+    loadDataAction->setShortcut(QKeySequence::Open);
+    connect(loadDataAction, &QAction::triggered, this, &MainWindow::onLoadData);
+    fileMenu->addAction(loadDataAction);
+
+    QAction* generateDataAction = new QAction("Generate Synthetic Data...", this);
+    connect(generateDataAction, &QAction::triggered, this, &MainWindow::onGenerateSyntheticData);
+    fileMenu->addAction(generateDataAction);
+
+    fileMenu->addSeparator();
+
+    QAction* newProjectAction = new QAction("New Project", this);
     newProjectAction->setShortcut(QKeySequence::New);
     connect(newProjectAction, &QAction::triggered, this, &MainWindow::onNewProject);
     fileMenu->addAction(newProjectAction);
 
-    QAction *loadProjectAction = new QAction("&Open Project...", this);
-    loadProjectAction->setShortcut(QKeySequence::Open);
+    QAction* loadProjectAction = new QAction("Load Project...", this);
+    loadProjectAction->setShortcut(QKeySequence("Ctrl+Shift+O"));
     connect(loadProjectAction, &QAction::triggered, this, &MainWindow::onLoadProject);
     fileMenu->addAction(loadProjectAction);
 
-    fileMenu->addSeparator();
-
-    QAction *saveProjectAction = new QAction("&Save Project", this);
+    QAction* saveProjectAction = new QAction("Save Project", this);
     saveProjectAction->setShortcut(QKeySequence::Save);
     connect(saveProjectAction, &QAction::triggered, this, &MainWindow::onSaveProject);
     fileMenu->addAction(saveProjectAction);
 
-    QAction *saveProjectAsAction = new QAction("Save Project &As...", this);
+    QAction* saveProjectAsAction = new QAction("Save Project As...", this);
     saveProjectAsAction->setShortcut(QKeySequence::SaveAs);
     connect(saveProjectAsAction, &QAction::triggered, this, &MainWindow::onSaveProjectAs);
     fileMenu->addAction(saveProjectAsAction);
 
     fileMenu->addSeparator();
 
-    QAction *loadDataAction = new QAction("&Load Data...", this);
-    connect(loadDataAction, &QAction::triggered, this, &MainWindow::onLoadData);
-    fileMenu->addAction(loadDataAction);
-    
-    QAction *saveModelAction = new QAction("&Save Model...", this);
-    saveModelAction->setShortcut(QKeySequence::Save);
-    fileMenu->addAction(saveModelAction);
-    
-    fileMenu->addSeparator();
-    
-    QAction *exitAction = new QAction("E&xit", this);
+    QAction* exitAction = new QAction("Exit", this);
     exitAction->setShortcut(QKeySequence::Quit);
     connect(exitAction, &QAction::triggered, this, &MainWindow::onExit);
     fileMenu->addAction(exitAction);
-    
+
     // Configuration menu
-    QMenu *configMenu = menuBar()->addMenu("&Configuration");
-    
-    QAction *hyperparamsAction = new QAction("&Hyperparameters...", this);
-    configMenu->addAction(hyperparamsAction);
-    
-    QAction *gaSettingsAction = new QAction("&GA Settings...", this);
-    configMenu->addAction(gaSettingsAction);
-    connect(gaSettingsAction, &QAction::triggered, this, &MainWindow::onConfigureGA);
-    
+    QMenu* configMenu = menuBar()->addMenu("Configuration");
+
+    QAction* configLagsAction = new QAction("Configure Time Lags...", this);
+    configLagsAction->setShortcut(QKeySequence("Ctrl+L"));
+    configLagsAction->setToolTip("Define which past time steps to use as input features");
+    connect(configLagsAction, &QAction::triggered, this, &MainWindow::onConfigureLags);
+    configMenu->addAction(configLagsAction);
+
+    QAction* configNetworkAction = new QAction("Configure Network Architecture...", this);
+    configNetworkAction->setToolTip("Set hidden layers and activation functions");
+    connect(configNetworkAction, &QAction::triggered, this, &MainWindow::onConfigureNetwork);
+    configMenu->addAction(configNetworkAction);
+
+    configMenu->addSeparator();
+
+    QAction* configGAAction = new QAction("Configure GA Settings...", this);
+    configGAAction->setToolTip("Set genetic algorithm parameters");
+    connect(configGAAction, &QAction::triggered, this, &MainWindow::onConfigureGA);
+    configMenu->addAction(configGAAction);
+
+    QAction* configIncrementalAction = new QAction("Configure Incremental Training...", this);
+    configIncrementalAction->setToolTip("Set rolling window training parameters");
+    connect(configIncrementalAction, &QAction::triggered, this, &MainWindow::onConfigureIncrementalTraining);
+    configMenu->addAction(configIncrementalAction);
+
     // Run menu
-    QMenu *runMenu = menuBar()->addMenu("&Run");
-    
-    startGAAction_ = new QAction("&Start GA Optimization", this);
-    startGAAction_->setShortcut(Qt::Key_F5);
-    connect(startGAAction_, &QAction::triggered, this, &MainWindow::onStartGA);  // <-- ADD THIS
+    QMenu* runMenu = menuBar()->addMenu("Run");
+
+    startGAAction_ = new QAction("Start GA Optimization", this);
+    startGAAction_->setShortcut(QKeySequence("Ctrl+G"));
+    startGAAction_->setEnabled(false);
+    connect(startGAAction_, &QAction::triggered, this, &MainWindow::onStartGA);
     runMenu->addAction(startGAAction_);
 
-    stopGAAction_ = new QAction("S&top", this);
-    stopGAAction_->setShortcut(Qt::Key_Escape);
-    stopGAAction_->setEnabled(false);  // Disabled until GA starts
-    connect(stopGAAction_, &QAction::triggered, this, &MainWindow::onStopGA);  // <-- ADD THIS
+    stopGAAction_ = new QAction("Stop GA", this);
+    stopGAAction_->setEnabled(false);
+    connect(stopGAAction_, &QAction::triggered, this, &MainWindow::onStopGA);
     runMenu->addAction(stopGAAction_);
 
+    runMenu->addSeparator();
 
-    // View menu
-    QMenu *viewMenu = menuBar()->addMenu("&View");
-    
-    QAction *clearLogAction = new QAction("&Clear Log", this);
-    connect(clearLogAction, &QAction::triggered, logOutput, &QTextEdit::clear);
-    viewMenu->addAction(clearLogAction);
-
-    QAction *generateDataAction = new QAction("&Generate Synthetic Data...", this);
-    generateDataAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
-    connect(generateDataAction, &QAction::triggered, this, &MainWindow::onGenerateSyntheticData);
-    fileMenu->addAction(generateDataAction);
-
-    QAction* networkArchAction = new QAction("&Network Architecture...", this);
-    connect(networkArchAction, &QAction::triggered, this, &MainWindow::onConfigureNetwork);
-    configMenu->addAction(networkArchAction);
-
-    QAction* configIncrementalAction = new QAction("Configure &Incremental Training...", this);
-    connect(configIncrementalAction, &QAction::triggered, this, &MainWindow::onConfigureIncrementalTraining);
-    runMenu->addAction(configIncrementalAction);
-
-    QAction* startIncrementalAction = new QAction("Start &Incremental Training", this);
-    startIncrementalAction->setShortcut(Qt::Key_F6);
+    QAction* startIncrementalAction = new QAction("Start Incremental Training", this);
+    startIncrementalAction->setShortcut(QKeySequence("Ctrl+T"));
+    startIncrementalAction->setToolTip("Train network using rolling windows");
     connect(startIncrementalAction, &QAction::triggered, this, &MainWindow::onStartIncrementalTraining);
     runMenu->addAction(startIncrementalAction);
 
+    QAction* trainWindowAction = new QAction("Train on Latest Window", this);
+    trainWindowAction->setShortcut(QKeySequence("Ctrl+W"));
+    trainWindowAction->setToolTip("Train on the most recent data window (online learning)");
+    connect(trainWindowAction, &QAction::triggered, this, &MainWindow::onTrainOnLatestWindow);
+    runMenu->addAction(trainWindowAction);
+
+    // View menu
+    QMenu* viewMenu = menuBar()->addMenu("View");
+
+    QAction* plotDataAction = new QAction("Plot Raw Data...", this);
+    plotDataAction->setShortcut(QKeySequence("Ctrl+D"));
+    plotDataAction->setToolTip("Visualize input and target data");
+    connect(plotDataAction, &QAction::triggered, this, &MainWindow::onPlotData);
+    viewMenu->addAction(plotDataAction);
+
+    viewMenu->addSeparator();
+
+    QAction* plotResultsAction = new QAction("Plot Prediction Results", this);
+    plotResultsAction->setShortcut(QKeySequence("Ctrl+P"));
+    plotResultsAction->setToolTip("Plot model predictions vs actual values");
+    connect(plotResultsAction, &QAction::triggered, this, &MainWindow::onPlotResults);
+    viewMenu->addAction(plotResultsAction);
+
     // Help menu
-    QMenu *helpMenu = menuBar()->addMenu("&Help");
-    
-    QAction *aboutAction = new QAction("&About", this);
+    QMenu* helpMenu = menuBar()->addMenu("Help");
+
+    QAction* aboutAction = new QAction("About", this);
     connect(aboutAction, &QAction::triggered, this, &MainWindow::onAbout);
     helpMenu->addAction(aboutAction);
-    
-    QAction *aboutQtAction = new QAction("About &Qt", this);
-    connect(aboutQtAction, &QAction::triggered, qApp, &QApplication::aboutQt);
-    helpMenu->addAction(aboutQtAction);
 }
+
 
 void MainWindow::connectSignals()
 {
@@ -495,7 +515,6 @@ void MainWindow::onLoadData()
 void MainWindow::plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType data_type)
 {
     try {
-        // Get data type name for titles
         QString dataTypeName = (data_type == DataType::Train) ? "Train" : "Test";
 
         // Get target data as tensor
@@ -506,35 +525,25 @@ void MainWindow::plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType dat
 
         logMessage(QString("DEBUG: %1 tensor has %2 points").arg(dataTypeName).arg(num_points));
 
-        // Compute time range from target data
-        double t_min = targetData.mint();
-        double t_max = targetData.maxt();
-        double full_range = t_max - t_min;
-
-        // Calculate start and end based on data type
-        double data_start, data_end;
-        if (data_type == DataType::Train) {
-            data_start = t_min;
-            data_end = t_min + (getSplitRatio() * full_range);
-        } else {
-            data_start = t_min + (getSplitRatio() * full_range);
-            data_end = t_max;
-        }
-
+        // Get time range
+        double data_start = TimeStart(data_type);
+        double data_end = TimeEnd(data_type);
         double dt_val = dt();
 
-        // Adjust end time to match actual tensor size
-        data_end = data_start + (num_points - 1) * dt_val;
+        // The tensor size tells us the ACTUAL number of points
+        // Adjust end time to match: end = start + (n-1) * dt
+        double adjusted_end = data_start + (num_points - 1) * dt_val;
 
-        logMessage(QString("DEBUG: %1 time range [%2, %3], dt=%4")
-                       .arg(dataTypeName).arg(data_start).arg(data_end).arg(dt_val));
+        logMessage(QString("DEBUG: Original range [%1, %2], adjusted to [%3, %4]")
+                       .arg(data_start).arg(data_end)
+                       .arg(data_start).arg(adjusted_end));
 
-        // Convert tensor to TimeSeries
+        // Convert tensor to TimeSeries using adjusted range
         TimeSeries<double> dataTarget = TimeSeries<double>::fromTensor(
             targetTensor,
-            false,       // has_time = false
-            data_start,  // time_offset
-            dt_val       // time_step
+            false,           // has_time = false
+            data_start,      // time_offset
+            dt_val           // time_step
             );
 
         if (dataTarget.empty()) {
@@ -548,7 +557,7 @@ void MainWindow::plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType dat
                        .arg(dataTarget.mint())
                        .arg(dataTarget.maxt()));
 
-        // Make predictions - use actual bounds from dataTarget
+        // Make predictions using the actual bounds from TimeSeries
         double pred_start = dataTarget.mint();
         double pred_end = dataTarget.maxt();
 
@@ -560,7 +569,10 @@ void MainWindow::plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType dat
 
         TimeSeries<double> predSeries = predictions[0];
 
-        logMessage(QString("DEBUG: Prediction TimeSeries: %1 points").arg(predSeries.size()));
+        logMessage(QString("DEBUG: Prediction TimeSeries: %1 points, range [%2, %3]")
+                       .arg(predSeries.size())
+                       .arg(predSeries.mint())
+                       .arg(predSeries.maxt()));
 
         // Calculate R²
         double r2 = R2(dataTarget, predSeries);
@@ -613,7 +625,6 @@ void MainWindow::plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType dat
 void MainWindow::plotPredictionsVsTarget(NeuralNetworkWrapper& model, DataType data_type)
 {
     try {
-        // Get data type name for titles
         QString dataTypeName = (data_type == DataType::Train) ? "Train" : "Test";
 
         // Get target data as tensor
@@ -622,24 +633,12 @@ void MainWindow::plotPredictionsVsTarget(NeuralNetworkWrapper& model, DataType d
         // Get actual number of points
         int64_t num_points = targetTensor.size(0);
 
-        // Compute time range
-        double t_min = targetData.mint();
-        double t_max = targetData.maxt();
-        double full_range = t_max - t_min;
-
-        double data_start, data_end;
-        if (data_type == DataType::Train) {
-            data_start = t_min;
-            data_end = t_min + (getSplitRatio() * full_range);
-        } else {
-            data_start = t_min + (getSplitRatio() * full_range);
-            data_end = t_max;
-        }
-
+        // Get time range
+        double data_start = TimeStart(data_type);
         double dt_val = dt();
 
-        // Adjust to match tensor size
-        data_end = data_start + (num_points - 1) * dt_val;
+        // Adjust end time to match tensor size: end = start + (n-1) * dt
+        double adjusted_end = data_start + (num_points - 1) * dt_val;
 
         // Convert tensor to TimeSeries
         TimeSeries<double> dataTarget = TimeSeries<double>::fromTensor(
@@ -690,7 +689,13 @@ void MainWindow::plotPredictionsVsTarget(NeuralNetworkWrapper& model, DataType d
         TimeSeries<double> scatterSeries;
         scatterSeries.setName(QString("%1 Data").arg(dataTypeName).toStdString());
 
-        for (double t = pred_start; t <= pred_end; t += dt_val) {
+        // Sample points for scatter plot (don't plot every single point if too many)
+        int sample_interval = std::max(1, static_cast<int>(num_points / 1000));
+
+        for (int i = 0; i < num_points; i += sample_interval) {
+            double t = pred_start + i * dt_val;
+            if (t > pred_end) break;
+
             double target_val = dataTarget.interpol(t);
             double pred_val = predSeries.interpol(t);
             scatterSeries.append(target_val, pred_val);
@@ -985,32 +990,208 @@ void MainWindow::onConfigureIncrementalTraining()
 
 void MainWindow::onStartIncrementalTraining()
 {
-    // Validate prerequisites
+    // Validate data is loaded
     if (inputData.size() == 0 || targetData.size() == 0) {
-        QMessageBox::warning(this, "No Data", "Please load or generate data first.");
+        QMessageBox::warning(this, "No Data",
+                             "Please load data before starting incremental training.");
         return;
     }
 
-    if (!currentModel.isInitialized()) {
-        QMessageBox::warning(this, "No Model",
-                             "Please create a network first using:\n"
-                             "• Configuration → Network Architecture, or\n"
-                             "• Run → Start GA Optimization");
+    // Check if network is configured
+    if (!currentProject_.networkArchitecture.isConfigured) {
+        QMessageBox::warning(this, "Network Not Configured",
+                             "Please configure the network architecture first.\n"
+                             "(Training → Configure Network Architecture)");
         return;
     }
 
-    // TODO: Create and show the incremental training execution dialog
-    // This will use the incrementalParams_ and actually perform the training
+    try {
+        logMessage("=== Starting Incremental Training ===");
 
-    logMessage("=== Starting Incremental Training ===");
-    logMessage("This feature will be implemented next...");
+        // Clear and configure the model
+        manualModel_.clear();
 
-    QMessageBox::information(this, "Coming Soon",
-                             "Incremental training execution will be implemented next.\n\n"
-                             "Current parameters:\n"
-                                 + QString("Window: %1, Step: %2\n").arg(incrementalParams_.windowSize).arg(incrementalParams_.windowStep)
-                                 + QString("Epochs: %1, Batch: %2\n").arg(incrementalParams_.epochsPerWindow).arg(incrementalParams_.batchSize)
-                                 + QString("Learning rate: %1").arg(incrementalParams_.learningRate));
+        // Set architecture directly (not using CreateModel - that's for GA)
+        logMessage("Configuring network architecture...");
+        manualModel_.setLags(currentProject_.networkArchitecture.lags);
+        manualModel_.setHiddenLayers(currentProject_.networkArchitecture.hiddenLayers);
+
+        // Set original series names if available
+        std::vector<std::string> series_names;
+        for (int i = 0; i < inputData.size(); i++) {
+            series_names.push_back(inputData[i].name());
+        }
+        manualModel_.setOriginalSeriesNames(series_names);
+
+        // Calculate time parameters
+        double t_start = TimeStart(DataType::Train);
+        double t_end = TimeEnd(DataType::Test);
+        double dt_val = dt();
+        double ratio = getSplitRatio();
+        double train_end = t_start + (ratio * (t_end - t_start));
+
+        logMessage(QString("Time configuration:"));
+        logMessage(QString("  Full range: %1 to %2").arg(t_start).arg(t_end));
+        logMessage(QString("  Train: %1 to %2").arg(t_start).arg(train_end));
+        logMessage(QString("  Test: %1 to %2").arg(train_end).arg(t_end));
+        logMessage(QString("  dt: %1, split ratio: %2").arg(dt_val).arg(ratio));
+
+        // Initialize the network structure
+        logMessage("Initializing network...");
+        int output_size = 1;  // Time series prediction typically has 1 output
+
+        std::string activation = "relu";
+        if (!currentProject_.networkArchitecture.activations.empty()) {
+            activation = currentProject_.networkArchitecture.activations[0];
+        }
+
+        manualModel_.initializeNetwork(output_size, activation);
+
+        if (!manualModel_.isInitialized()) {
+            throw std::runtime_error("Network initialization failed");
+        }
+
+        logMessage(QString("Network initialized successfully"));
+        logMessage(QString("  Total parameters: %1").arg(manualModel_.getTotalParameters()));
+        logMessage(QString("  Hidden layers: %1").arg(currentProject_.networkArchitecture.hiddenLayers.size()));
+
+        // Prepare training data
+        logMessage("Preparing training data...");
+        manualModel_.setInputData(DataType::Train, inputData, t_start, train_end, dt_val);
+        manualModel_.setTargetData(DataType::Train, targetData, t_start, train_end, dt_val);
+
+        logMessage("Preparing test data...");
+        manualModel_.setInputData(DataType::Test, inputData, train_end, t_end, dt_val);
+        manualModel_.setTargetData(DataType::Test, targetData, train_end, t_end, dt_val);
+
+        logMessage("Data preparation complete");
+
+        // Store configuration for incremental training
+        // The trainIncremental method will need this
+        manualModel_.setTimeSeriesData(inputData, targetData);
+        manualModel_.setTimeRange(t_start, t_end, dt_val, ratio);
+        manualModel_.setAvailableSeriesCount(inputData.size());
+
+        // Create HyperParameters object and set it
+        HyperParameters hyperparams;
+        hyperparams.setLags(currentProject_.networkArchitecture.lags);
+        hyperparams.setHiddenLayers(currentProject_.networkArchitecture.hiddenLayers);
+
+        // Mark which series are selected (all of them for manual training)
+        std::vector<int> selected_series;
+        for (int i = 0; i < inputData.size(); i++) {
+            selected_series.push_back(i);
+        }
+        hyperparams.setSelectedSeriesIds(selected_series);
+
+        manualModel_.setHyperParameters(hyperparams);
+
+        // Create progress window
+        ProgressWindow* progressWindow = new ProgressWindow(this, "Incremental Training");
+        progressWindow->SetPauseEnabled(true);
+        progressWindow->show();
+        QApplication::processEvents();
+
+        // Disable main window controls
+        startButton->setEnabled(false);
+        startGAAction_->setEnabled(false);
+
+        // Start incremental training with progress window
+        logMessage("Starting incremental training...");
+        std::vector<double> window_losses = manualModel_.trainIncremental(incrementalParams_, progressWindow);
+
+        // Re-enable controls
+        startButton->setEnabled(true);
+        startGAAction_->setEnabled(true);
+
+        // Check if cancelled
+        if (progressWindow->IsCancelRequested()) {
+            logMessage("Training was cancelled");
+            statusLabel->setText("Status: Training cancelled");
+            progressWindow->close();
+            progressWindow->deleteLater();
+            return;
+        }
+
+        // Report results
+        logMessage(QString("\n=== Training Complete ==="));
+        logMessage(QString("Trained on %1 windows").arg(window_losses.size()));
+
+        if (!window_losses.empty()) {
+            double avg_loss = std::accumulate(window_losses.begin(), window_losses.end(), 0.0) / window_losses.size();
+            double min_loss = *std::min_element(window_losses.begin(), window_losses.end());
+            double max_loss = *std::max_element(window_losses.begin(), window_losses.end());
+
+            logMessage(QString("Average window loss: %1").arg(avg_loss, 0, 'f', 6));
+            logMessage(QString("Best window loss: %1").arg(min_loss, 0, 'f', 6));
+            logMessage(QString("Worst window loss: %1").arg(max_loss, 0, 'f', 6));
+        }
+
+        // Evaluate on full dataset
+        logMessage("\n=== Evaluation ===");
+        auto metrics = manualModel_.evaluate();
+
+        // DEBUG: Print all available keys
+        logMessage(QString("DEBUG: evaluate() returned %1 metrics:").arg(metrics.size()));
+        for (const auto& pair : metrics) {
+            logMessage(QString("  Key: '%1' = %2")
+                           .arg(QString::fromStdString(pair.first))
+                           .arg(pair.second, 0, 'f', 6));
+        }
+
+        // Now try to access the metrics
+        if (metrics.count("MSE_Train_0") > 0) {
+            logMessage(QString("Train - MSE: %1, R²: %2")
+                           .arg(metrics["MSE_Train_0"], 0, 'f', 6)
+                           .arg(metrics["R2_Train_0"], 0, 'f', 4));
+        } else {
+            logMessage("WARNING: MSE_Train_0 key not found in metrics");
+        }
+
+        if (metrics.count("MSE_Test_0") > 0) {
+            logMessage(QString("Test  - MSE: %1, R²: %2")
+                           .arg(metrics["MSE_Test_0"], 0, 'f', 6)
+                           .arg(metrics["R2_Test_0"], 0, 'f', 4));
+        } else {
+            logMessage("WARNING: MSE_Test_0 key not found in metrics");
+        }
+
+        // Ask if user wants to see plots
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            progressWindow,
+            "Training Complete",
+            QString("Incremental training completed!\n\n"
+                    "Test R² = %1\n"
+                    "Test MSE = %2\n\n"
+                    "Would you like to view the prediction plots?")
+                .arg(metrics["R2_Test_0"], 0, 'f', 4)
+                .arg(metrics["MSE_Test_0"], 0, 'f', 6),
+            QMessageBox::Yes | QMessageBox::No
+            );
+
+        if (reply == QMessageBox::Yes) {
+            // Store as best model for plotting
+            if (bestModel_) {
+                delete bestModel_;
+            }
+            bestModel_ = new NeuralNetworkWrapper(manualModel_);
+
+            onPlotResults();
+        }
+
+        progressWindow->close();
+        progressWindow->deleteLater();
+
+        statusLabel->setText("Status: Training complete");
+
+    } catch (const std::exception& e) {
+        logMessage(QString("ERROR: %1").arg(e.what()));
+        QMessageBox::critical(this, "Training Error",
+                              QString("Incremental training failed:\n%1").arg(e.what()));
+        statusLabel->setText("Status: Training failed");
+        startButton->setEnabled(true);
+        startGAAction_->setEnabled(true);
+    }
 }
 
 void MainWindow::onNewProject()
@@ -1285,3 +1466,365 @@ QString MainWindow::getLastProjectPath() const
     QSettings settings("NeuroForge", "NeuroForge");
     return settings.value("lastProject", "").toString();
 }
+
+void MainWindow::onConfigureLags()
+{
+    if (inputData.size() == 0) {
+        QMessageBox::warning(this, "No Data",
+                             "Please load data before configuring lags.");
+        return;
+    }
+
+    LagConfigDialog dialog(currentProject_.networkArchitecture, inputData, this);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        logMessage("Lag configuration updated");
+
+        // Log new configuration
+        for (size_t i = 0; i < currentProject_.networkArchitecture.lags.size(); i++) {
+            QString lag_str = QString("Series %1 lags: [").arg(i);
+            for (size_t j = 0; j < currentProject_.networkArchitecture.lags[i].size(); j++) {
+                lag_str += QString::number(currentProject_.networkArchitecture.lags[i][j]);
+                if (j < currentProject_.networkArchitecture.lags[i].size() - 1) {
+                    lag_str += ", ";
+                }
+            }
+            lag_str += "]";
+            logMessage(lag_str);
+        }
+    }
+}
+
+void MainWindow::onPlotData()
+{
+    // Check if data is loaded
+    if (inputData.size() == 0 || targetData.size() == 0) {
+        QMessageBox::information(this, "No Data",
+                                 "No data loaded. Please load data first.\n\n"
+                                 "Use File → Load Data or File → Generate Synthetic Data.");
+        return;
+    }
+
+    // Show selection dialog
+    DataPlotDialog dialog(inputData, targetData, this);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        std::vector<int> selectedSeries = dialog.getSelectedInputSeries();
+        bool plotTarget = dialog.shouldPlotTarget();
+
+        // Create dataset for plotting
+        TimeSeriesSet<double> plotData;
+
+        // Add selected input series
+        for (int idx : selectedSeries) {
+            TimeSeries<double> series = inputData[idx];
+            series.setName(QString("Input %1: %2")
+                               .arg(idx)
+                               .arg(QString::fromStdString(inputData[idx].name()))
+                               .toStdString());
+            plotData.append(series);
+        }
+
+        // Add target series
+        if (plotTarget) {
+            TimeSeries<double> target = targetData;
+            target.setName(QString("Target: %1")
+                               .arg(QString::fromStdString(targetData.name()))
+                               .toStdString());
+            plotData.append(target);
+        }
+
+        // Create chart title
+        QString title = "Raw Data Visualization";
+        if (selectedSeries.size() > 0 && plotTarget) {
+            title += QString(" (%1 input series + target)").arg(selectedSeries.size());
+        } else if (selectedSeries.size() > 0) {
+            title += QString(" (%1 input series)").arg(selectedSeries.size());
+        } else if (plotTarget) {
+            title += " (target only)";
+        }
+
+        // Show chart
+        ChartWindow* chartWin = ChartWindow::showChart(plotData, title, this);
+        chartWin->setAxisLabels("Time", "Value");
+        chartWin->chartViewer()->setPlotMode(ChartViewer::Lines);
+
+        logMessage(QString("Plotted %1 series").arg(plotData.size()));
+    }
+}
+
+bool MainWindow::extractLatestWindow(double window_size_time,
+                                     torch::Tensor& window_input,
+                                     torch::Tensor& window_target)
+{
+    if (inputData.size() == 0 || targetData.size() == 0) {
+        logMessage("ERROR: No data loaded");
+        return false;
+    }
+
+    // Get time range
+    double t_min = targetData.mint();
+    double t_max = targetData.maxt();
+    double total_time = t_max - t_min;
+
+    if (window_size_time > total_time) {
+        logMessage(QString("ERROR: Window size (%1) exceeds available data (%2)")
+                       .arg(window_size_time).arg(total_time));
+        return false;
+    }
+
+    // Calculate window boundaries (last window)
+    double window_start = t_max - window_size_time;
+    double window_end = t_max;
+    double dt_val = dt();
+
+    logMessage(QString("Extracting window: [%1, %2] (size: %3 time units)")
+                   .arg(window_start).arg(window_end).arg(window_size_time));
+
+    // Create tensors for this window
+    try {
+        createTensorsFromTimeRange(inputData, targetData,
+                                   window_start, window_end, dt_val,
+                                   currentProject_.networkArchitecture.lags,
+                                   window_input, window_target);
+
+        logMessage(QString("Window extracted: %1 samples, %2 features")
+                       .arg(window_input.size(0))
+                       .arg(window_input.size(1)));
+
+        return true;
+
+    } catch (const std::exception& e) {
+        logMessage(QString("ERROR extracting window: %1").arg(e.what()));
+        return false;
+    }
+}
+
+void MainWindow::createTensorsFromTimeRange(const TimeSeriesSet<double>& input_series,
+                                            const TimeSeries<double>& target_series,
+                                            double t_start, double t_end, double dt,
+                                            const std::vector<std::vector<int>>& lags,
+                                            torch::Tensor& output_input,
+                                            torch::Tensor& output_target)
+{
+    // Calculate number of time steps
+    int num_samples = static_cast<int>(std::round((t_end - t_start) / dt)) + 1;
+
+    // Calculate total number of input features
+    int total_features = 0;
+    for (const auto& series_lags : lags) {
+        total_features += series_lags.size();
+    }
+
+    if (total_features == 0) {
+        throw std::runtime_error("No lags configured");
+    }
+
+    // Create input tensor
+    output_input = torch::zeros({num_samples, total_features});
+
+    // Fill input tensor with lagged values
+    int feature_idx = 0;
+    for (size_t series_idx = 0; series_idx < input_series.size(); series_idx++) {
+        if (series_idx >= lags.size()) break;
+
+        const TimeSeries<double>& series = input_series[series_idx];
+        const std::vector<int>& series_lags = lags[series_idx];
+
+        for (int lag : series_lags) {
+            for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+                double t = t_start + sample_idx * dt;
+                double lagged_t = t - (lag * dt);
+
+                // Get value at lagged time (or 0 if outside range)
+                double value = 0.0;
+                if (lagged_t >= series.mint() && lagged_t <= series.maxt()) {
+                    value = series.interpol(lagged_t);
+                }
+
+                output_input[sample_idx][feature_idx] = value;
+            }
+            feature_idx++;
+        }
+    }
+
+    // Create target tensor
+    output_target = torch::zeros({num_samples, 1});
+
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+        double t = t_start + sample_idx * dt;
+
+        if (t >= target_series.mint() && t <= target_series.maxt()) {
+            output_target[sample_idx][0] = target_series.interpol(t);
+        }
+    }
+}
+
+void MainWindow::onTrainOnLatestWindow()
+{
+    // Validate data and model
+    if (inputData.size() == 0 || targetData.size() == 0) {
+        QMessageBox::warning(this, "No Data",
+                             "Please load data before training.");
+        return;
+    }
+
+    if (!manualModel_.isInitialized()) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            "Model Not Initialized",
+            "The model has not been initialized yet.\n\n"
+            "Would you like to initialize it now?",
+            QMessageBox::Yes | QMessageBox::No
+            );
+
+        if (reply == QMessageBox::No) {
+            return;
+        }
+
+        // Initialize model
+        try {
+            manualModel_.clear();
+            manualModel_.setLags(currentProject_.networkArchitecture.lags);
+            manualModel_.setHiddenLayers(currentProject_.networkArchitecture.hiddenLayers);
+
+            int output_size = 1;
+            std::string activation = "relu";
+            if (!currentProject_.networkArchitecture.activations.empty()) {
+                activation = currentProject_.networkArchitecture.activations[0];
+            }
+
+            manualModel_.initializeNetwork(output_size, activation);
+
+            logMessage("Model initialized for online training");
+
+        } catch (const std::exception& e) {
+            QMessageBox::critical(this, "Initialization Error",
+                                  QString("Failed to initialize model:\n%1").arg(e.what()));
+            return;
+        }
+    }
+
+    // Get parameters from user
+    bool ok;
+
+    double window_size = QInputDialog::getDouble(
+        this,
+        "Window Size",
+        "Enter window size (in time units):",
+        200.0,  // default
+        10.0,   // min
+        10000.0, // max
+        1,      // decimals
+        &ok
+        );
+
+    if (!ok) return;
+
+    int epochs = QInputDialog::getInt(
+        this,
+        "Training Epochs",
+        "Number of epochs to train:",
+        50,   // default
+        1,    // min
+        1000, // max
+        1,    // step
+        &ok
+        );
+
+    if (!ok) return;
+
+    int batch_size = QInputDialog::getInt(
+        this,
+        "Batch Size",
+        "Batch size for training:",
+        32,   // default
+        1,    // min
+        512,  // max
+        1,    // step
+        &ok
+        );
+
+    if (!ok) return;
+
+    double learning_rate = QInputDialog::getDouble(
+        this,
+        "Learning Rate",
+        "Learning rate:",
+        0.001,   // default
+        0.000001, // min
+        0.1,     // max
+        6,       // decimals
+        &ok
+        );
+
+    if (!ok) return;
+
+    // Extract latest window
+    logMessage("=== Training on Latest Window ===");
+    logMessage(QString("Window size: %1, Epochs: %2, Batch size: %3, LR: %4")
+                   .arg(window_size).arg(epochs).arg(batch_size).arg(learning_rate));
+
+    torch::Tensor window_input, window_target;
+
+    if (!extractLatestWindow(window_size, window_input, window_target)) {
+        QMessageBox::critical(this, "Error", "Failed to extract window from data");
+        return;
+    }
+
+    // Train on this window
+    try {
+        statusLabel->setText("Status: Training on latest window...");
+        progressBar->setRange(0, 0); // Indeterminate
+        QApplication::processEvents();
+
+        std::vector<double> loss_history = manualModel_.trainOnWindow(
+            window_input, window_target,
+            epochs, batch_size, learning_rate
+            );
+
+        progressBar->setRange(0, 100);
+        progressBar->setValue(100);
+
+        // Report results
+        double initial_loss = loss_history.front();
+        double final_loss = loss_history.back();
+        double improvement = ((initial_loss - final_loss) / initial_loss) * 100.0;
+
+        logMessage(QString("Training complete:"));
+        logMessage(QString("  Initial loss: %1").arg(initial_loss, 0, 'f', 6));
+        logMessage(QString("  Final loss: %2").arg(final_loss, 0, 'f', 6));
+        logMessage(QString("  Improvement: %3%").arg(improvement, 0, 'f', 2));
+
+        statusLabel->setText("Status: Window training complete");
+
+        QMessageBox::information(
+            this,
+            "Training Complete",
+            QString("Training on latest window complete!\n\n"
+                    "Initial loss: %1\n"
+                    "Final loss: %2\n"
+                    "Improvement: %3%\n\n"
+                    "The model has been updated with the latest data.")
+                .arg(initial_loss, 0, 'f', 6)
+                .arg(final_loss, 0, 'f', 6)
+                .arg(improvement, 0, 'f', 2)
+            );
+
+        // Update best model for plotting
+        if (bestModel_) {
+            delete bestModel_;
+        }
+        bestModel_ = new NeuralNetworkWrapper(manualModel_);
+
+    } catch (const std::exception& e) {
+        progressBar->setRange(0, 100);
+        progressBar->setValue(0);
+        statusLabel->setText("Status: Training failed");
+
+        logMessage(QString("ERROR: %1").arg(e.what()));
+        QMessageBox::critical(this, "Training Error",
+                              QString("Training failed:\n%1").arg(e.what()));
+    }
+}
+

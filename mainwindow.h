@@ -55,7 +55,9 @@ private Q_SLOTS:
     void onSaveProjectAs();
     void onLoadProject();
     void onNewProject();
-
+    void onConfigureLags();
+    void onPlotData();
+    void onTrainOnLatestWindow();
 
 private:
     Ui::MainWindow *ui;
@@ -147,7 +149,34 @@ private:
      */
     void setSplitRatio(double ratio);
 
+    /**
+     * @brief Extract the latest window from loaded data
+     * @param window_size_time Window size in time units
+     * @param window_input Output: extracted input data tensor
+     * @param window_target Output: extracted target data tensor
+     * @return True if successful, false if insufficient data
+     */
+    bool extractLatestWindow(double window_size_time,
+                             torch::Tensor& window_input,
+                             torch::Tensor& window_target);
 
+    /**
+     * @brief Create tensors from time series data for a specific time range
+     * @param input_series Input time series set
+     * @param target_series Target time series
+     * @param t_start Start time
+     * @param t_end End time
+     * @param dt Time step
+     * @param lags Lag configuration for input features
+     * @param output_input Output: created input tensor
+     * @param output_target Output: created target tensor
+     */
+    void createTensorsFromTimeRange(const TimeSeriesSet<double>& input_series,
+                                    const TimeSeries<double>& target_series,
+                                    double t_start, double t_end, double dt,
+                                    const std::vector<std::vector<int>>& lags,
+                                    torch::Tensor& output_input,
+                                    torch::Tensor& output_target);
 
 
 };

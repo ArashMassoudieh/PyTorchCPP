@@ -7,6 +7,11 @@
 #include <vector>
 #include "TimeSeriesSet.h"
 #include "hyperparameters.h"
+#include "commontypes.h"
+
+#ifdef QT_GUI_SUPPORT
+class ProgressWindow;  // Forward declaration
+#endif
 
 /**
  * @brief Enum to specify whether data is for training or testing.
@@ -361,6 +366,38 @@ public:
     std::vector<double> trainMore(int additional_epochs,
                                   int batch_size = 32,
                                   double learning_rate = 0.001);
+
+    /**
+     * @brief Perform incremental/rolling horizon training with progress window.
+     * @param params Incremental training parameters
+     * @param progressWindow Optional progress window for visualization (default: nullptr)
+     * @return Vector of loss values for each window
+     */
+    std::vector<double> trainIncremental(const IncrementalTrainingParams& params,
+                                         ProgressWindow* progressWindow = nullptr);
+
+    /**
+     * @brief Configure network from NetworkArchitecture structure
+     * @param architecture Network architecture configuration
+     */
+    void setNetworkArchitecture(const NetworkArchitecture& architecture);
+
+    /**
+    * @brief Train on a specific window of data without storing it permanently.
+     * Useful for online/incremental learning where new data arrives.
+     * @param input_data Input tensor for this window
+     * @param target_data Target tensor for this window
+     * @param num_epochs Number of training epochs
+     * @param batch_size Batch size for training
+     * @param learning_rate Learning rate for optimizer
+     * @return Vector of loss values per epoch
+     */
+    std::vector<double> trainOnWindow(const torch::Tensor& input_data,
+                                     const torch::Tensor& target_data,
+                                     int num_epochs,
+                                     int batch_size = 32,
+                                     double learning_rate = 0.001);
+
 private:
     // Member variables
     std::vector<std::vector<int>> lags_;                  ///< Lag configuration for each TimeSeries
@@ -428,8 +465,6 @@ private:
      */
     void copyWeightsFrom(const NeuralNetworkWrapper& other);
 
-
-
     // GA Interface data
     TimeSeriesSet<double> ga_input_data_;        ///< Input data for GA optimization
     TimeSeries<double> ga_target_data_;          ///< Target data for GA optimization
@@ -437,4 +472,11 @@ private:
     double ga_split_ratio_;                      ///< Train/test split ratio for GA
     int ga_available_series_count_;              ///< Number of available time series
     bool ga_data_configured_;                    ///< Whether GA data has been set
+
+    /**
+     * @brief Get all trainable parameters for optimizer
+     * @return Vector of parameter tensors (weights and biases from all layers)
+     */
+    std::vector<torch::Tensor> getParameters();
+
 };
