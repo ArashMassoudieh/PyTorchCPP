@@ -1711,7 +1711,8 @@ void MainWindow::onTrainOnLatestWindow()
     double window_size = QInputDialog::getDouble(
         this,
         "Window Size",
-        "Enter window size (in time units):",
+        "Enter window size (in time units):\n"
+        "Suggested: 100-500 for quick updates, 500-1000 for deeper retraining",
         200.0,  // default
         10.0,   // min
         10000.0, // max
@@ -1724,10 +1725,11 @@ void MainWindow::onTrainOnLatestWindow()
     int epochs = QInputDialog::getInt(
         this,
         "Training Epochs",
-        "Number of epochs to train:",
-        50,   // default
+        "Number of epochs to train:\n"
+        "Suggested: 5-10 for fine-tuning, 20-50 for deeper retraining",
+        10,   // default: 10 instead of 50 ← CHANGED
         1,    // min
-        1000, // max
+        200,  // max: reduced from 1000 ← CHANGED
         1,    // step
         &ok
         );
@@ -1750,11 +1752,12 @@ void MainWindow::onTrainOnLatestWindow()
     double learning_rate = QInputDialog::getDouble(
         this,
         "Learning Rate",
-        "Learning rate:",
-        0.001,   // default
+        "Learning rate:\n"
+        "Suggested: 0.0001-0.0005 for fine-tuning (lower than initial training)",
+        0.0001,   // default: 0.0001 instead of 0.001 ← CHANGED (10x lower)
         0.000001, // min
-        0.1,     // max
-        6,       // decimals
+        0.01,     // max: reduced from 0.1 ← CHANGED
+        6,        // decimals
         &ok
         );
 
