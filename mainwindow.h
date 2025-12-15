@@ -91,18 +91,22 @@ private:
     void logMessage(const QString &message) const;
     void updateProgress(int value);
     /**
-     * @brief Plot predictions vs target scatter plot
+     * @brief Plot predictions vs time
      * @param model Neural network model to use for predictions
-     * @param data_type Which dataset to plot (Train or Test)
+     * @param data_type Train or Test data
+     * @param title_prefix Optional prefix for window title (default: "Neural Network")
      */
-    void plotPredictionsVsTarget(NeuralNetworkWrapper& model, DataType data_type);
+    void plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType data_type,
+                               const QString& title_prefix = "Neural Network");
 
     /**
-     * @brief Plot predictions vs target over time
+     * @brief Plot predictions vs target (scatter plot)
      * @param model Neural network model to use for predictions
-     * @param data_type Which dataset to plot (Train or Test)
+     * @param data_type Train or Test data
+     * @param title_prefix Optional prefix for window title (default: "Neural Network")
      */
-    void plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType data_type);
+    void plotPredictionsVsTarget(NeuralNetworkWrapper& model, DataType data_type,
+                                 const QString& title_prefix = "Neural Network");
 
     NeuralNetworkWrapper* bestModel_ = nullptr;
     NeuralNetworkWrapper manualModel_;

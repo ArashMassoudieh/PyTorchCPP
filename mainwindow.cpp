@@ -512,7 +512,8 @@ void MainWindow::onLoadData()
 }
 
 
-void MainWindow::plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType data_type)
+void MainWindow::plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType data_type,
+                                       const QString& title_prefix)
 {
     try {
         QString dataTypeName = (data_type == DataType::Train) ? "Train" : "Test";
@@ -600,13 +601,16 @@ void MainWindow::plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType dat
         predSeries.setName("Predicted");
         plotData.append(predSeries);
 
-        // Show chart
-        QString title = QString("Predictions vs Target over Time (%1 Data)\nR² = %2, MSE = %3")
-                            .arg(dataTypeName)
-                            .arg(r2, 0, 'f', 4)
-                            .arg(mse, 0, 'f', 6);
+        // Show chart with custom window title
+        QString chartTitle = QString("Predictions vs Target over Time (%1 Data)\nR² = %2, MSE = %3")
+                                 .arg(dataTypeName)
+                                 .arg(r2, 0, 'f', 4)
+                                 .arg(mse, 0, 'f', 6);
 
-        ChartWindow* chartWin = ChartWindow::showChart(plotData, title, this);
+        ChartWindow* chartWin = ChartWindow::showChart(plotData, chartTitle, this);
+        chartWin->setWindowTitle(QString("%1 - Predictions vs Time (%2)")
+                                     .arg(title_prefix)
+                                     .arg(dataTypeName));
         chartWin->setAxisLabels("Time", "Value");
         chartWin->chartViewer()->setPlotMode(ChartViewer::Lines);
 
@@ -622,7 +626,8 @@ void MainWindow::plotPredictionsVsTime(NeuralNetworkWrapper& model, DataType dat
     }
 }
 
-void MainWindow::plotPredictionsVsTarget(NeuralNetworkWrapper& model, DataType data_type)
+void MainWindow::plotPredictionsVsTarget(NeuralNetworkWrapper& model, DataType data_type,
+                                         const QString& title_prefix)
 {
     try {
         QString dataTypeName = (data_type == DataType::Train) ? "Train" : "Test";
@@ -715,14 +720,17 @@ void MainWindow::plotPredictionsVsTarget(NeuralNetworkWrapper& model, DataType d
         perfectLine.append(maxVal + margin, maxVal + margin);
         scatterData.append(perfectLine);
 
-        // Show chart
-        QString title = QString("Predicted vs Target (%1 Data)\nR² = %2, MSE = %3, N = %4")
-                            .arg(dataTypeName)
-                            .arg(r2, 0, 'f', 4)
-                            .arg(mse, 0, 'f', 6)
-                            .arg(n);
+        // Show chart with custom window title
+        QString chartTitle = QString("Predicted vs Target (%1 Data)\nR² = %2, MSE = %3, N = %4")
+                                 .arg(dataTypeName)
+                                 .arg(r2, 0, 'f', 4)
+                                 .arg(mse, 0, 'f', 6)
+                                 .arg(n);
 
-        ChartWindow* chartWin = ChartWindow::showChart(scatterData, title, this);
+        ChartWindow* chartWin = ChartWindow::showChart(scatterData, chartTitle, this);
+        chartWin->setWindowTitle(QString("%1 - Predicted vs Target (%2)")
+                                     .arg(title_prefix)
+                                     .arg(dataTypeName));
         chartWin->setAxisLabels("Target", "Predicted");
         chartWin->chartViewer()->setPlotMode(ChartViewer::Symbols);
 
@@ -737,6 +745,7 @@ void MainWindow::plotPredictionsVsTarget(NeuralNetworkWrapper& model, DataType d
                              QString("Failed to plot predicted vs target:\n%1").arg(e.what()));
     }
 }
+
 
 void MainWindow::onPlotResults()
 {
@@ -1011,7 +1020,7 @@ void MainWindow::onStartIncrementalTraining()
         // Clear and configure the model
         manualModel_.clear();
 
-        // Set architecture directly (not using CreateModel - that's for GA)
+        // Set architecture directly
         logMessage("Configuring network architecture...");
         manualModel_.setLags(currentProject_.networkArchitecture.lags);
         manualModel_.setHiddenLayers(currentProject_.networkArchitecture.hiddenLayers);
@@ -1023,22 +1032,20 @@ void MainWindow::onStartIncrementalTraining()
         }
         manualModel_.setOriginalSeriesNames(series_names);
 
-        // Calculate time parameters
-        double t_start = TimeStart(DataType::Train);
-        double t_end = TimeEnd(DataType::Test);
+        // Calculate time parameters - USE ALL DATA (split_ratio = 1.0)
+        double t_start = targetData.mint();
+        double t_end = targetData.maxt();
         double dt_val = dt();
-        double ratio = getSplitRatio();
-        double train_end = t_start + (ratio * (t_end - t_start));
+        double incremental_split_ratio = 1.0;  // USE ALL DATA ← CHANGED
 
         logMessage(QString("Time configuration:"));
         logMessage(QString("  Full range: %1 to %2").arg(t_start).arg(t_end));
-        logMessage(QString("  Train: %1 to %2").arg(t_start).arg(train_end));
-        logMessage(QString("  Test: %1 to %2").arg(train_end).arg(t_end));
-        logMessage(QString("  dt: %1, split ratio: %2").arg(dt_val).arg(ratio));
+        logMessage(QString("  Using 100% of data for incremental training"));
+        logMessage(QString("  dt: %1").arg(dt_val));
 
         // Initialize the network structure
         logMessage("Initializing network...");
-        int output_size = 1;  // Time series prediction typically has 1 output
+        int output_size = 1;
 
         std::string activation = "relu";
         if (!currentProject_.networkArchitecture.activations.empty()) {
@@ -1055,21 +1062,16 @@ void MainWindow::onStartIncrementalTraining()
         logMessage(QString("  Total parameters: %1").arg(manualModel_.getTotalParameters()));
         logMessage(QString("  Hidden layers: %1").arg(currentProject_.networkArchitecture.hiddenLayers.size()));
 
-        // Prepare training data
+        // Prepare training data - USE FULL RANGE
         logMessage("Preparing training data...");
-        manualModel_.setInputData(DataType::Train, inputData, t_start, train_end, dt_val);
-        manualModel_.setTargetData(DataType::Train, targetData, t_start, train_end, dt_val);
-
-        logMessage("Preparing test data...");
-        manualModel_.setInputData(DataType::Test, inputData, train_end, t_end, dt_val);
-        manualModel_.setTargetData(DataType::Test, targetData, train_end, t_end, dt_val);
+        manualModel_.setInputData(DataType::Train, inputData, t_start, t_end, dt_val);  // ← CHANGED (use t_end, not train_end)
+        manualModel_.setTargetData(DataType::Train, targetData, t_start, t_end, dt_val); // ← CHANGED
 
         logMessage("Data preparation complete");
 
         // Store configuration for incremental training
-        // The trainIncremental method will need this
         manualModel_.setTimeSeriesData(inputData, targetData);
-        manualModel_.setTimeRange(t_start, t_end, dt_val, ratio);
+        manualModel_.setTimeRange(t_start, t_end, dt_val, incremental_split_ratio);  // ← CHANGED (split_ratio = 1.0)
         manualModel_.setAvailableSeriesCount(inputData.size());
 
         // Create HyperParameters object and set it
@@ -1127,56 +1129,67 @@ void MainWindow::onStartIncrementalTraining()
             logMessage(QString("Worst window loss: %1").arg(max_loss, 0, 'f', 6));
         }
 
-        // Evaluate on full dataset
+        // Evaluate on full dataset (training data = all data)
         logMessage("\n=== Evaluation ===");
-        auto metrics = manualModel_.evaluate();
 
-        // DEBUG: Print all available keys
-        logMessage(QString("DEBUG: evaluate() returned %1 metrics:").arg(metrics.size()));
-        for (const auto& pair : metrics) {
-            logMessage(QString("  Key: '%1' = %2")
-                           .arg(QString::fromStdString(pair.first))
-                           .arg(pair.second, 0, 'f', 6));
-        }
+        try {
+            // Calculate metrics on the full training dataset (which is all the data)
+            double train_r2 = manualModel_.calculateR2(DataType::Train);
 
-        // Now try to access the metrics
-        if (metrics.count("MSE_Train_0") > 0) {
-            logMessage(QString("Train - MSE: %1, R²: %2")
-                           .arg(metrics["MSE_Train_0"], 0, 'f', 6)
-                           .arg(metrics["R2_Train_0"], 0, 'f', 4));
-        } else {
-            logMessage("WARNING: MSE_Train_0 key not found in metrics");
-        }
+            torch::NoGradGuard no_grad;
+            torch::Tensor train_predictions = manualModel_.forward(DataType::Train);
+            torch::Tensor train_targets = manualModel_.getTargetData(DataType::Train);
+            double train_mse = torch::mse_loss(train_predictions, train_targets).item<double>();
 
-        if (metrics.count("MSE_Test_0") > 0) {
-            logMessage(QString("Test  - MSE: %1, R²: %2")
-                           .arg(metrics["MSE_Test_0"], 0, 'f', 6)
-                           .arg(metrics["R2_Test_0"], 0, 'f', 4));
-        } else {
-            logMessage("WARNING: MSE_Test_0 key not found in metrics");
-        }
+            logMessage(QString("Full Dataset - MSE: %1, R²: %2")
+                           .arg(train_mse, 0, 'f', 6)
+                           .arg(train_r2, 0, 'f', 4));
+            logMessage("Note: Incremental training used all available data");
 
-        // Ask if user wants to see plots
-        QMessageBox::StandardButton reply = QMessageBox::question(
-            progressWindow,
-            "Training Complete",
-            QString("Incremental training completed!\n\n"
-                    "Test R² = %1\n"
-                    "Test MSE = %2\n\n"
-                    "Would you like to view the prediction plots?")
-                .arg(metrics["R2_Test_0"], 0, 'f', 4)
-                .arg(metrics["MSE_Test_0"], 0, 'f', 6),
-            QMessageBox::Yes | QMessageBox::No
-            );
+            // Ask if user wants to see plots
+            QMessageBox::StandardButton reply = QMessageBox::question(
+                progressWindow,
+                "Training Complete",
+                QString("Incremental training completed!\n\n"
+                        "Full Dataset Performance:\n"
+                        "R² = %1\n"
+                        "MSE = %2\n\n"
+                        "Note: Incremental training used 100%% of available data.\n"
+                        "No separate test set was held out.\n\n"
+                        "Would you like to view the prediction plots?")
+                    .arg(train_r2, 0, 'f', 4)
+                    .arg(train_mse, 0, 'f', 6),
+                QMessageBox::Yes | QMessageBox::No
+                );
 
-        if (reply == QMessageBox::Yes) {
-            // Store as best model for plotting
+            if (reply == QMessageBox::Yes) {
+                // Store as best model for plotting
+                if (bestModel_) {
+                    delete bestModel_;
+                }
+                bestModel_ = new NeuralNetworkWrapper(manualModel_);
+
+                // Plot full dataset (stored as "Train" but contains all data)
+                plotPredictionsVsTime(*bestModel_, DataType::Train);
+                plotPredictionsVsTarget(*bestModel_, DataType::Train);
+            }
+
+        } catch (const std::exception& e) {
+            logMessage(QString("ERROR calculating metrics: %1").arg(e.what()));
+
+            // Still allow plotting even if metrics fail
             if (bestModel_) {
                 delete bestModel_;
             }
             bestModel_ = new NeuralNetworkWrapper(manualModel_);
 
-            onPlotResults();
+            if (QMessageBox::question(progressWindow, "Metrics Error",
+                                      QString("Could not calculate metrics:\n%1\n\n"
+                                              "Would you still like to plot results?").arg(e.what()),
+                                      QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+                plotPredictionsVsTime(*bestModel_, DataType::Train);
+                plotPredictionsVsTarget(*bestModel_, DataType::Train);
+            }
         }
 
         progressWindow->close();
@@ -1193,6 +1206,7 @@ void MainWindow::onStartIncrementalTraining()
         startGAAction_->setEnabled(true);
     }
 }
+
 
 void MainWindow::onNewProject()
 {
