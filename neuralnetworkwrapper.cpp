@@ -3,6 +3,8 @@
 #include <stdexcept>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
+#include <iomanip>
 #include "hyperparameters.h"
 
 #ifdef QT_GUI_SUPPORT
@@ -654,6 +656,19 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
         throw std::runtime_error("Network must be initialized before training. Call initializeNetwork() first.");
     }
 
+    if (num_epochs <= 0) {
+        throw std::runtime_error("Number of epochs must be positive for PINN training.");
+    }
+    if (batch_size <= 0) {
+        throw std::runtime_error("Batch size must be positive for PINN training.");
+    }
+    if (learning_rate <= 0.0) {
+        throw std::runtime_error("Learning rate must be positive for PINN training.");
+    }
+    if (data_weight < 0.0 || physics_weight < 0.0) {
+        throw std::runtime_error("Data and physics loss weights must be non-negative.");
+    }
+
     if (!hasInputData(DataType::Train) || !hasTargetData(DataType::Train)) {
         throw std::runtime_error("Training data not available. Use setInputData() and setOutputData() with DataType::Train first.");
     }
@@ -692,13 +707,18 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
 
     for (int epoch = 0; epoch < num_epochs; ++epoch) {
         double total_epoch_loss = 0.0;
+        double total_data_loss = 0.0;
+        double total_physics_loss = 0.0;
         int num_batches = 0;
+
+        torch::Tensor permutation = torch::randperm(num_train_samples, torch::kLong);
 
         for (int i = 0; i < num_train_samples; i += batch_size) {
             const int current_batch_size = std::min(batch_size, num_train_samples - i);
+            torch::Tensor batch_indices = permutation.slice(0, i, i + current_batch_size);
 
-            torch::Tensor batch_inputs = train_inputs.slice(0, i, i + current_batch_size);
-            torch::Tensor batch_targets = train_targets.slice(0, i, i + current_batch_size);
+            torch::Tensor batch_inputs = train_inputs.index_select(0, batch_indices);
+            torch::Tensor batch_targets = train_targets.index_select(0, batch_indices);
 
             // Build computation graph with respect to time inputs for autograd-based residual.
             torch::Tensor pinn_inputs = batch_inputs.clone().detach().set_requires_grad(true);
@@ -712,10 +732,10 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
             auto grads = torch::autograd::grad({predictions},
                                                {pinn_inputs},
                                                {grad_outputs},
-                                               true,
+                                               false,
                                                true);
 
-            if (grads.empty()) {
+            if (grads.empty() || !grads[0].defined()) {
                 throw std::runtime_error("Failed to compute PINN gradient dy/dt.");
             }
 
@@ -728,16 +748,24 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
             optimizer.step();
 
             total_epoch_loss += total_loss.item<double>();
+            total_data_loss += data_loss.item<double>();
+            total_physics_loss += physics_loss.item<double>();
             num_batches++;
         }
 
-        const double avg_loss = total_epoch_loss / std::max(1, num_batches);
+        const double inv_batches = 1.0 / static_cast<double>(std::max(1, num_batches));
+        const double avg_loss = total_epoch_loss * inv_batches;
+        const double avg_data_loss = total_data_loss * inv_batches;
+        const double avg_physics_loss = total_physics_loss * inv_batches;
+
         current_loss_ = avg_loss;
         training_history_.push_back(avg_loss);
 
         if (verbose_ && ((epoch + 1) % 20 == 0 || epoch == 0)) {
             std::cout << "PINN Epoch [" << (epoch + 1) << "/" << num_epochs
-                      << "], Total Loss: " << std::fixed << std::setprecision(6) << avg_loss << std::endl;
+                      << "] Total: " << std::fixed << std::setprecision(6) << avg_loss
+                      << " | Data: " << avg_data_loss
+                      << " | Physics: " << avg_physics_loss << std::endl;
         }
     }
 
