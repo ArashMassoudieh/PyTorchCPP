@@ -6,9 +6,11 @@
 #include "models/lstm_pinn_wrapper.h"
 
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QTextEdit>
 #include <QVBoxLayout>
@@ -59,7 +61,11 @@ void HydroPINNWindow::runSelectedMode() {
     appendLog(QString("Starting mode: %1").arg(mode));
 
     runButton_->setEnabled(false);
+    runButton_->setText("Running...");
     statusLabel_->setText(QString("Running mode: %1 ...").arg(mode));
+    appendLog("Dispatch started.");
+
+    QCoreApplication::processEvents();
 
     QElapsedTimer timer;
     timer.start();
@@ -86,10 +92,15 @@ void HydroPINNWindow::runSelectedMode() {
     if (ok) {
         statusLabel_->setText(QString("Completed mode: %1 (%2 ms)").arg(mode).arg(elapsedMs));
         appendLog(QString("Mode '%1' finished successfully in %2 ms.").arg(mode).arg(elapsedMs));
+        QMessageBox::information(this, "HydroPINN",
+                                 QString("Mode '%1' completed in %2 ms.").arg(mode).arg(elapsedMs));
     } else {
         statusLabel_->setText(QString("Mode failed: %1").arg(mode));
         appendLog(QString("Mode '%1' failed.").arg(mode));
+        QMessageBox::warning(this, "HydroPINN",
+                             QString("Mode '%1' failed. Check log panel for details.").arg(mode));
     }
 
+    runButton_->setText("Run");
     runButton_->setEnabled(true);
 }
