@@ -9,9 +9,7 @@
 #include "hyperparameters.h"
 #include "commontypes.h"
 
-#ifdef QT_GUI_SUPPORT
 class ProgressWindow;  // Forward declaration
-#endif
 
 /**
  * @brief Enum to specify whether data is for training or testing.
