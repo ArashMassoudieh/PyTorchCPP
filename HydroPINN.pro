@@ -37,7 +37,11 @@ DEFINES += TORCH_SUPPORT
 DEFINES += _arma
 DEFINES += ARMA_USE_OPENMP
 DEFINES += QT_NO_KEYWORDS
-DEFINES += QT_GUI_SUPPORT
+
+# NOTE:
+# Do not enable QT_GUI_SUPPORT here. It activates ProgressWindow-dependent
+# code paths in neuralnetworkwrapper.cpp, but HydroPINN does not link
+# ProgressWindow.cpp, which causes unresolved symbol linker errors.
 
 # =========================
 # LibTorch Configuration
