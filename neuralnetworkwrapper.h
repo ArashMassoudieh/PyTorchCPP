@@ -259,6 +259,20 @@ public:
     bool hasTargetData(DataType data_type) const;
 
     /**
+     * @brief Set input/target tensors directly for train or test partitions.
+     *
+     * Useful for synthetic experiments and integration wrappers that already
+     * prepare tensor data without TimeSeriesSet conversion.
+     *
+     * @param data_type Train or Test partition
+     * @param inputs Input tensor with shape [N, input_size]
+     * @param targets Target tensor with shape [N, output_size]
+     */
+    void setTensorData(DataType data_type,
+                       const torch::Tensor& inputs,
+                       const torch::Tensor& targets);
+
+    /**
      * @brief Calculate R² (coefficient of determination) for specified data type.
      * @param data_type Specify whether to calculate for training or test data
      * @return R² value

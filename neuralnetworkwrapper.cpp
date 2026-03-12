@@ -1279,6 +1279,32 @@ TimeSeriesSet<double> NeuralNetworkWrapper::predict(DataType data_type,
     return result;
 }
 
+void NeuralNetworkWrapper::setTensorData(DataType data_type,
+                                         const torch::Tensor& inputs,
+                                         const torch::Tensor& targets) {
+    if (!inputs.defined() || !targets.defined()) {
+        throw std::runtime_error("Input/target tensors must be defined.");
+    }
+    if (inputs.dim() != 2 || targets.dim() != 2) {
+        throw std::runtime_error("Input/target tensors must be 2D.");
+    }
+    if (inputs.size(0) != targets.size(0)) {
+        throw std::runtime_error("Input and target tensors must have the same sample count.");
+    }
+
+    torch::Tensor in = inputs.clone().detach().to(torch::kFloat32).contiguous();
+    torch::Tensor out = targets.clone().detach().to(torch::kFloat32).contiguous();
+
+    if (data_type == DataType::Train) {
+        train_input_data_ = in;
+        train_target_data_ = out;
+    } else {
+        test_input_data_ = in;
+        test_target_data_ = out;
+    }
+}
+
+
 double NeuralNetworkWrapper::calculateR2(DataType data_type) {
     if (!is_initialized_) {
         throw std::runtime_error("Network must be initialized before calculating R². Call initializeNetwork() first.");
