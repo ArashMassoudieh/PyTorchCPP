@@ -1,5 +1,5 @@
 QT += core gui widgets charts
-CONFIG += c++17
+CONFIG += c++17 console
 CONFIG -= app_bundle
 TEMPLATE = app
 TARGET = NeuroForge

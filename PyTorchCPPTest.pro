@@ -1,4 +1,4 @@
-QT -= gui
+QT += core gui widgets
 CONFIG += c++17 console
 CONFIG -= app_bundle
 
@@ -56,6 +56,7 @@ DEFINES += TORCH_SUPPORT
 DEFINES += _arma
 DEFINES += ARMA_USE_OPENMP
 DEFINES += QT_NO_KEYWORDS
+DEFINES += QT_GUI_SUPPORT
 
 # =========================
 # LibTorch configuration

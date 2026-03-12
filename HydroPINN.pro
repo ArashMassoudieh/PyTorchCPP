@@ -1,12 +1,12 @@
 # ============================================================
 # HydroPINN.pro
-# Separate console-first project for hydrology / PINN work
+# Separate window app project for hydrology / PINN work
 # Keeps existing GUI app (e.g. NeuroForge.pro) untouched
 # ============================================================
 
-QT += core
+QT += core gui widgets
 
-CONFIG += console c++17
+CONFIG += c++17 console
 CONFIG -= app_bundle
 TEMPLATE = app
 TARGET = HydroPINN
@@ -37,12 +37,14 @@ DEFINES += TORCH_SUPPORT
 DEFINES += _arma
 DEFINES += ARMA_USE_OPENMP
 DEFINES += QT_NO_KEYWORDS
+DEFINES += QT_GUI_SUPPORT
 
 # =========================
 # LibTorch Configuration
 # =========================
-LIBTORCH_PATH = /usr/local/libtorch
+LIBTORCH_PATH =
 
+# Host-preferred defaults
 contains(DEFINES, Jason) {
     LIBTORCH_PATH = /usr/local/libtorch
 }
@@ -63,6 +65,23 @@ contains(DEFINES, PowerEdge) {
 # contains(DEFINES, SligoCreek) {
 #     LIBTORCH_PATH = /path/to/libtorch
 # }
+
+# Automatic fallback detection when host default is missing/unset.
+!exists($$LIBTORCH_PATH/include/torch/torch.h) {
+    exists(/mnt/3rd900/Projects/libtorch/include/torch/torch.h) {
+        LIBTORCH_PATH = /mnt/3rd900/Projects/libtorch
+    } else: exists(/usr/local/libtorch/include/torch/torch.h) {
+        LIBTORCH_PATH = /usr/local/libtorch
+    } else: exists(/opt/libtorch/include/torch/torch.h) {
+        LIBTORCH_PATH = /opt/libtorch
+    }
+}
+
+!exists($$LIBTORCH_PATH/include/torch/torch.h) {
+    error("LibTorch not found. Set LIBTORCH_PATH or install to /mnt/3rd900/Projects/libtorch, /usr/local/libtorch, or /opt/libtorch.")
+}
+
+message("Using LIBTORCH_PATH=$$LIBTORCH_PATH")
 
 INCLUDEPATH += $$LIBTORCH_PATH/include/torch/csrc/api/include
 INCLUDEPATH += $$LIBTORCH_PATH/include
@@ -94,6 +113,7 @@ CONFIG(release, debug|release) {
 # =========================
 SOURCES += \
     Hydro/main_hydropinn.cpp \
+    Hydro/hydropinnwindow.cpp \
     neuralnetworkwrapper.cpp \
     neuralnetworkfactory.cpp \
     hyperparameters.cpp \
@@ -145,6 +165,7 @@ HEADERS += \
     Utilities/Vector_arma.h
 
 HEADERS += \
+    Hydro/hydropinnwindow.h \
     Hydro/dataset/ddrr_loader.h \
     Hydro/dataset/lag_builder.h \
     Hydro/dataset/sequence_builder.h \
