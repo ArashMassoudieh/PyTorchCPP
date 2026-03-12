@@ -16,3 +16,10 @@ Use `trainPINNExponentialDecay(...)` to combine:
 
 This is a practical baseline for continuing PINN work while keeping the current
 Qt/libtorch training workflow intact.
+
+
+## Doxygen notes
+
+HydroPINN headers now include Doxygen comments for key classes and APIs
+(dataset builders, model wrappers, physics config/residuals, and main window).
+Regenerate docs with your usual Doxygen config to include these pages.
