@@ -1,12 +1,12 @@
 #include "hydropinnwindow.h"
 
 #include <QApplication>
-#include <ATen/ATen.h>
+#include <torch/torch.h>
 
 int main(int argc, char *argv[])
 {
-    at::set_num_threads(1);
-    at::set_num_interop_threads(1);
+    torch::set_num_threads(1);
+    torch::set_num_interop_threads(1);
 
     QApplication app(argc, argv);
 
