@@ -77,17 +77,17 @@ contains(DEFINES, PowerEdge) {
 
 
 # Automatic fallback detection when host default is missing/unset.
-!exists($$LIBTORCH_PATH/include/torch/torch.h) {
-    exists(/mnt/3rd900/Projects/libtorch/include/torch/torch.h) {
+!exists($$LIBTORCH_PATH/include/torch/csrc/api/include/torch/torch.h) {
+    exists(/mnt/3rd900/Projects/libtorch/include/torch/csrc/api/include/torch/torch.h) {
         LIBTORCH_PATH = /mnt/3rd900/Projects/libtorch
-    } else: exists(/usr/local/libtorch/include/torch/torch.h) {
+    } else: exists(/usr/local/libtorch/include/torch/csrc/api/include/torch/torch.h) {
         LIBTORCH_PATH = /usr/local/libtorch
-    } else: exists(/opt/libtorch/include/torch/torch.h) {
+    } else: exists(/opt/libtorch/include/torch/csrc/api/include/torch/torch.h) {
         LIBTORCH_PATH = /opt/libtorch
     }
 }
 
-!exists($$LIBTORCH_PATH/include/torch/torch.h) {
+!exists($$LIBTORCH_PATH/include/torch/csrc/api/include/torch/torch.h) {
     error("LibTorch not found. Set LIBTORCH_PATH or install to /mnt/3rd900/Projects/libtorch, /usr/local/libtorch, or /opt/libtorch.")
 }
 
