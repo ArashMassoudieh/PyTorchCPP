@@ -113,6 +113,7 @@ SOURCES += \
     Hydro/dataset/sequence_builder.cpp \
     Hydro/physics/physics_config.cpp \
     Hydro/physics/rr_physics.cpp \
+    Hydro/models/ffn_wrapper.cpp \
     Hydro/models/ffn_pinn_wrapper.cpp \
     Hydro/models/lstm_wrapper.cpp \
     Hydro/models/lstm_pinn_wrapper.cpp
@@ -149,6 +150,7 @@ HEADERS += \
     Hydro/dataset/sequence_builder.h \
     Hydro/physics/physics_config.h \
     Hydro/physics/rr_physics.h \
+    Hydro/models/ffn_wrapper.h \
     Hydro/models/ffn_pinn_wrapper.h \
     Hydro/models/lstm_wrapper.h \
     Hydro/models/lstm_pinn_wrapper.h
