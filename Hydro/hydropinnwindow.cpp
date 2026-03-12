@@ -16,6 +16,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <exception>
+
 HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     : QMainWindow(parent), statusLabel_(new QLabel(this)), modeCombo_(new QComboBox(this)),
       runButton_(new QPushButton("Run", this)), logText_(new QTextEdit(this)) {
@@ -71,21 +73,33 @@ void HydroPINNWindow::runSelectedMode() {
     timer.start();
 
     bool ok = false;
+    QString errorDetails;
 
-    if (mode == "ffn") {
-        FFNWrapper runner;
-        ok = runner.train();
-    } else if (mode == "ffn_pinn") {
-        FFNPINNWrapper runner;
-        ok = runner.train();
-    } else if (mode == "lstm") {
-        LSTMWrapper runner;
-        ok = runner.train();
-    } else if (mode == "lstm_pinn") {
-        LSTMPINNWrapper runner;
-        ok = runner.train();
-    } else {
-        appendLog(QString("Unknown mode selected: %1").arg(mode));
+    try {
+        if (mode == "ffn") {
+            FFNWrapper runner;
+            ok = runner.train();
+        } else if (mode == "ffn_pinn") {
+            FFNPINNWrapper runner;
+            ok = runner.train();
+        } else if (mode == "lstm") {
+            LSTMWrapper runner;
+            ok = runner.train();
+        } else if (mode == "lstm_pinn") {
+            LSTMPINNWrapper runner;
+            ok = runner.train();
+        } else {
+            errorDetails = QString("Unknown mode selected: %1").arg(mode);
+            appendLog(errorDetails);
+        }
+    } catch (const std::exception& e) {
+        ok = false;
+        errorDetails = QString("Exception: %1").arg(e.what());
+        appendLog(errorDetails);
+    } catch (...) {
+        ok = false;
+        errorDetails = "Unknown non-std exception during mode execution.";
+        appendLog(errorDetails);
     }
 
     const qint64 elapsedMs = timer.elapsed();
@@ -97,8 +111,13 @@ void HydroPINNWindow::runSelectedMode() {
     } else {
         statusLabel_->setText(QString("Mode failed: %1").arg(mode));
         appendLog(QString("Mode '%1' failed.").arg(mode));
+        if (!errorDetails.isEmpty()) {
+            appendLog(QString("Failure details: %1").arg(errorDetails));
+        }
         QMessageBox::warning(this, "HydroPINN",
-                             QString("Mode '%1' failed. Check log panel for details.").arg(mode));
+                             QString("Mode '%1' failed.%2")
+                                 .arg(mode)
+                                 .arg(errorDetails.isEmpty() ? "" : QString("\n\n%1").arg(errorDetails)));
     }
 
     runButton_->setText("Run");
