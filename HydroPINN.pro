@@ -1,12 +1,12 @@
 # ============================================================
 # HydroPINN.pro
-# Separate console-first project for hydrology / PINN work
+# Separate window app project for hydrology / PINN work
 # Keeps existing GUI app (e.g. NeuroForge.pro) untouched
 # ============================================================
 
-QT += core
+QT += core gui widgets
 
-CONFIG += console c++17
+CONFIG += c++17
 CONFIG -= app_bundle
 TEMPLATE = app
 TARGET = HydroPINN
@@ -112,6 +112,7 @@ CONFIG(release, debug|release) {
 # =========================
 SOURCES += \
     Hydro/main_hydropinn.cpp \
+    Hydro/hydropinnwindow.cpp \
     neuralnetworkwrapper.cpp \
     neuralnetworkfactory.cpp \
     hyperparameters.cpp \
@@ -163,6 +164,7 @@ HEADERS += \
     Utilities/Vector_arma.h
 
 HEADERS += \
+    Hydro/hydropinnwindow.h \
     Hydro/dataset/ddrr_loader.h \
     Hydro/dataset/lag_builder.h \
     Hydro/dataset/sequence_builder.h \
