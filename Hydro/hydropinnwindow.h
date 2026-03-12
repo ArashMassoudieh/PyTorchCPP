@@ -5,6 +5,7 @@
 class QLabel;
 class QComboBox;
 class QPushButton;
+class QTextEdit;
 
 /**
  * @file hydropinnwindow.h
@@ -14,9 +15,7 @@ class QPushButton;
 /**
  * @brief Simple Qt main window for HydroPINN experiments.
  *
- * Provides a mode selector for baseline/PINN model variants and a run action
- * entry point. This class is intentionally lightweight while the Hydro module
- * is under active development.
+ * Provides mode selection and run orchestration for baseline/PINN variants.
  */
 class HydroPINNWindow : public QMainWindow {
     Q_OBJECT
@@ -32,9 +31,20 @@ private:
     QLabel* statusLabel_;   ///< Status label with current mode information.
     QComboBox* modeCombo_;  ///< Mode selector (ffn, ffn_pinn, lstm, lstm_pinn).
     QPushButton* runButton_;
+    QTextEdit* logText_;    ///< Runtime log output for mode execution.
 
     /**
      * @brief Update status text according to the selected mode.
      */
     void updateStatus();
+
+    /**
+     * @brief Dispatch and execute the currently selected mode.
+     */
+    void runSelectedMode();
+
+    /**
+     * @brief Append a timestamped line to the runtime log panel.
+     */
+    void appendLog(const QString& line);
 };

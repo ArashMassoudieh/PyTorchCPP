@@ -1,17 +1,24 @@
 #include "hydropinnwindow.h"
 
+#include "models/ffn_wrapper.h"
+#include "models/ffn_pinn_wrapper.h"
+#include "models/lstm_wrapper.h"
+#include "models/lstm_pinn_wrapper.h"
+
 #include <QComboBox>
+#include <QDateTime>
+#include <QElapsedTimer>
 #include <QLabel>
-#include <QMainWindow>
 #include <QPushButton>
+#include <QTextEdit>
 #include <QVBoxLayout>
 #include <QWidget>
 
 HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     : QMainWindow(parent), statusLabel_(new QLabel(this)), modeCombo_(new QComboBox(this)),
-      runButton_(new QPushButton("Run", this)) {
+      runButton_(new QPushButton("Run", this)), logText_(new QTextEdit(this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
-    resize(640, 240);
+    resize(720, 380);
 
     auto* central = new QWidget(this);
     auto* layout = new QVBoxLayout(central);
@@ -20,21 +27,69 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     title->setStyleSheet("font-size: 18px; font-weight: bold;");
 
     modeCombo_->addItems({"ffn", "ffn_pinn", "lstm", "lstm_pinn"});
+    logText_->setReadOnly(true);
+    logText_->setPlaceholderText("Run logs will appear here...");
 
     layout->addWidget(title);
     layout->addWidget(modeCombo_);
     layout->addWidget(runButton_);
     layout->addWidget(statusLabel_);
-    layout->addStretch();
+    layout->addWidget(logText_);
 
     setCentralWidget(central);
 
-    connect(runButton_, &QPushButton::clicked, this, &HydroPINNWindow::updateStatus);
+    connect(runButton_, &QPushButton::clicked, this, &HydroPINNWindow::runSelectedMode);
     connect(modeCombo_, &QComboBox::currentTextChanged, this, [this](const QString&) { updateStatus(); });
 
     updateStatus();
+    appendLog("HydroPINN ready.");
+}
+
+void HydroPINNWindow::appendLog(const QString& line) {
+    const QString ts = QDateTime::currentDateTime().toString("hh:mm:ss");
+    logText_->append(QString("[%1] %2").arg(ts, line));
 }
 
 void HydroPINNWindow::updateStatus() {
     statusLabel_->setText(QString("Ready to run mode: %1").arg(modeCombo_->currentText()));
+}
+
+void HydroPINNWindow::runSelectedMode() {
+    const QString mode = modeCombo_->currentText();
+    appendLog(QString("Starting mode: %1").arg(mode));
+
+    runButton_->setEnabled(false);
+    statusLabel_->setText(QString("Running mode: %1 ...").arg(mode));
+
+    QElapsedTimer timer;
+    timer.start();
+
+    bool ok = false;
+
+    if (mode == "ffn") {
+        FFNWrapper runner;
+        ok = runner.train();
+    } else if (mode == "ffn_pinn") {
+        FFNPINNWrapper runner;
+        ok = runner.train();
+    } else if (mode == "lstm") {
+        LSTMWrapper runner;
+        ok = runner.train();
+    } else if (mode == "lstm_pinn") {
+        LSTMPINNWrapper runner;
+        ok = runner.train();
+    } else {
+        appendLog(QString("Unknown mode selected: %1").arg(mode));
+    }
+
+    const qint64 elapsedMs = timer.elapsed();
+    if (ok) {
+        statusLabel_->setText(QString("Completed mode: %1 (%2 ms)").arg(mode).arg(elapsedMs));
+        appendLog(QString("Mode '%1' finished successfully in %2 ms.").arg(mode).arg(elapsedMs));
+    } else {
+        statusLabel_->setText(QString("Mode failed: %1").arg(mode));
+        appendLog(QString("Mode '%1' failed.").arg(mode));
+    }
+
+    runButton_->setEnabled(true);
 }
