@@ -1,5 +1,5 @@
 QT += core gui widgets charts
-CONFIG += c++17
+CONFIG += c++17 console
 CONFIG -= app_bundle
 TEMPLATE = app
 TARGET = NeuroForge
@@ -95,6 +95,23 @@ contains(DEFINES, Arash) {
 contains(DEFINES, PowerEdge) {
     LIBTORCH_PATH = /mnt/3rd900/Projects/libtorch
 }
+
+# Automatic fallback detection when host default is missing/unset.
+!exists($$LIBTORCH_PATH/include/torch/torch.h) {
+    exists(/mnt/3rd900/Projects/libtorch/include/torch/torch.h) {
+        LIBTORCH_PATH = /mnt/3rd900/Projects/libtorch
+    } else: exists(/usr/local/libtorch/include/torch/torch.h) {
+        LIBTORCH_PATH = /usr/local/libtorch
+    } else: exists(/opt/libtorch/include/torch/torch.h) {
+        LIBTORCH_PATH = /opt/libtorch
+    }
+}
+
+!exists($$LIBTORCH_PATH/include/torch/torch.h) {
+    error("LibTorch not found. Set LIBTORCH_PATH or install to /mnt/3rd900/Projects/libtorch, /usr/local/libtorch, or /opt/libtorch.")
+}
+
+message("Using LIBTORCH_PATH=$$LIBTORCH_PATH")
 
 # Includes (order matters!)
 INCLUDEPATH += $$LIBTORCH_PATH/include/torch/csrc/api/include
