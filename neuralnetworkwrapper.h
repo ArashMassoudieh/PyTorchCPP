@@ -9,9 +9,7 @@
 #include "hyperparameters.h"
 #include "commontypes.h"
 
-#ifdef QT_GUI_SUPPORT
 class ProgressWindow;  // Forward declaration
-#endif
 
 /**
  * @brief Enum to specify whether data is for training or testing.
@@ -94,6 +92,31 @@ public:
     std::vector<double> train(int num_epochs,
                               int batch_size = 32,
                               double learning_rate = 0.001);
+
+    /**
+     * @brief Physics-informed training for the exponential decay ODE: dy/dt + lambda*y = 0.
+     *
+     * This method combines standard data loss (MSE between prediction and target)
+     * with a physics residual loss derived from automatic differentiation.
+     *
+     * Expected tensor shapes:
+     * - train input:  [N, 1] where column is time t
+     * - train target: [N, 1] where column is y(t)
+     *
+     * @param num_epochs Number of epochs.
+     * @param batch_size Batch size for mini-batch optimization.
+     * @param learning_rate Optimizer learning rate.
+     * @param lambda_decay Coefficient lambda in dy/dt + lambda*y = 0.
+     * @param data_weight Weight for supervised data loss term.
+     * @param physics_weight Weight for physics residual loss term.
+     * @return Vector of total loss values for each epoch.
+     */
+    std::vector<double> trainPINNExponentialDecay(int num_epochs,
+                                                  int batch_size,
+                                                  double learning_rate,
+                                                  double lambda_decay,
+                                                  double data_weight = 1.0,
+                                                  double physics_weight = 1.0);
 
     // Evaluation
     /**
@@ -234,6 +257,20 @@ public:
      * @return True if output data is available
      */
     bool hasTargetData(DataType data_type) const;
+
+    /**
+     * @brief Set input/target tensors directly for train or test partitions.
+     *
+     * Useful for synthetic experiments and integration wrappers that already
+     * prepare tensor data without TimeSeriesSet conversion.
+     *
+     * @param data_type Train or Test partition
+     * @param inputs Input tensor with shape [N, input_size]
+     * @param targets Target tensor with shape [N, output_size]
+     */
+    void setTensorData(DataType data_type,
+                       const torch::Tensor& inputs,
+                       const torch::Tensor& targets);
 
     /**
      * @brief Calculate R² (coefficient of determination) for specified data type.
