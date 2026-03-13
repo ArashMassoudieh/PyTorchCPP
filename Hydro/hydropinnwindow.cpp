@@ -960,6 +960,9 @@ void HydroPINNWindow::runMode(const QString& mode) {
                       .arg(cfg.sample_count)
                       .arg(cfg.t_start, 0, 'g', 6)
                       .arg(cfg.t_end, 0, 'g', 6));
+        if ((mode == "ffn_pinn" || mode == "lstm_pinn") && cfg.synthetic_profile != "exp_decay") {
+            appendLog("Note: PINN modes use exponential-decay residual physics; non-exp synthetic profiles may reduce physics consistency.");
+        }
     }
 
     QCoreApplication::processEvents();

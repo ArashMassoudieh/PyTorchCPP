@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 
@@ -190,6 +191,17 @@ HydroRunResult LSTMWrapper::train(const HydroRunConfig& config) {
     torch::Tensor pred = model.forward(DataType::Test);
     if (!pred.defined() || pred.size(0) != yTest.size(0) || !pred.isfinite().all().item<bool>()) {
         throw std::runtime_error("LSTM-baseline prediction failed or produced non-finite values.");
+    }
+
+    if (config.evaluate_metrics) {
+        std::map<std::string, double> metrics = model.evaluate();
+        auto it = metrics.find("mse");
+        if (it != metrics.end()) {
+            if (!std::isfinite(it->second)) {
+                throw std::runtime_error("LSTM-baseline evaluation produced non-finite MSE.");
+            }
+            result.mse = it->second;
+        }
     }
 
     fillPlotVectors(result, tTest, yTest, pred);

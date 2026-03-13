@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 
@@ -70,6 +72,79 @@ bool loadSeriesFromCsv(const HydroRunConfig& config, torch::Tensor& t, torch::Te
     return true;
 }
 
+torch::Tensor buildTargetFromProfile(const torch::Tensor& t, const HydroRunConfig& config) {
+    if (config.synthetic_profile == "neuroforge_inputs_target") {
+        std::srand(42);
+        auto tc = t.squeeze(1).contiguous();
+        const int64_t n = tc.size(0);
+        std::vector<float> ys(static_cast<size_t>(n), 0.0f);
+
+        const double tStart = tc[0].item<double>();
+        const double tEnd = tc[n - 1].item<double>();
+        const double dt = (n > 1) ? (tEnd - tStart) / static_cast<double>(n - 1) : 1.0;
+        const double bufferStart = tStart - 1.0;
+        const int totalSteps = static_cast<int>(std::floor((tEnd - bufferStart) / dt)) + 1;
+
+        std::vector<double> allT;
+        std::vector<double> allTemp;
+        std::vector<double> allPress;
+        std::vector<double> allConc;
+        std::vector<double> allVel;
+        allT.reserve(static_cast<size_t>(totalSteps));
+        allTemp.reserve(static_cast<size_t>(totalSteps));
+        allPress.reserve(static_cast<size_t>(totalSteps));
+        allConc.reserve(static_cast<size_t>(totalSteps));
+        allVel.reserve(static_cast<size_t>(totalSteps));
+
+        double x0 = 0.0, x1 = 0.0, x3 = 0.0, x4 = 0.0;
+        auto noise = []() { return (static_cast<double>(std::rand()) / RAND_MAX - 0.5) * 2.0; };
+
+        for (int i = 0; i < totalSteps; ++i) {
+            const double tt = bufferStart + dt * static_cast<double>(i);
+            x0 = x0 + 0.5 * (0.0 - x0) * dt + 1.5 * std::sqrt(dt) * noise();
+            x1 = x1 + 1.0 * (0.0 - x1) * dt + 1.2 * std::sqrt(dt) * noise();
+            x3 = x3 + 0.3 * (0.0 - x3) * dt + 1.0 * std::sqrt(dt) * noise();
+            x4 = x4 + 0.8 * (0.0 - x4) * dt + 1.8 * std::sqrt(dt) * noise();
+            allT.push_back(tt);
+            allTemp.push_back(x0);
+            allPress.push_back(x1);
+            allConc.push_back(x3);
+            allVel.push_back(x4);
+        }
+
+        auto interpol = [&](const std::vector<double>& vals, double tq) {
+            if (tq <= allT.front()) return vals.front();
+            if (tq >= allT.back()) return vals.back();
+            const auto it = std::lower_bound(allT.begin(), allT.end(), tq);
+            const size_t hi = static_cast<size_t>(it - allT.begin());
+            const size_t lo = hi - 1;
+            const double t0 = allT[lo];
+            const double t1 = allT[hi];
+            const double r = (tq - t0) / (t1 - t0);
+            return vals[lo] * (1.0 - r) + vals[hi] * r;
+        };
+
+        for (int64_t i = 0; i < n; ++i) {
+            const double tt = tc[i].item<double>();
+            const double target = 0.4 * interpol(allTemp, tt - 0.1) +
+                                  0.3 * interpol(allPress, tt - 0.3) +
+                                  0.2 * interpol(allConc, tt - 0.2) +
+                                  0.1 * interpol(allVel, tt - 0.5) +
+                                  0.05 * (static_cast<double>(std::rand()) / RAND_MAX - 0.5);
+            ys[static_cast<size_t>(i)] = static_cast<float>(target);
+        }
+        return torch::from_blob(ys.data(), {n, 1}, torch::kFloat32).clone();
+    }
+
+    if (config.synthetic_profile == "mixed_wave") {
+        return 0.7 * torch::sin(1.5 * t) + 0.3 * torch::cos(0.5 * t);
+    }
+    if (config.synthetic_profile == "damped_sine") {
+        return torch::sin(t) * torch::exp(-0.15 * t);
+    }
+    return torch::exp(-config.lambda_decay * t);
+}
+
 void fillPlotVectors(HydroRunResult& result, const torch::Tensor& x, const torch::Tensor& yTrue, const torch::Tensor& yPred) {
     auto xc = x.squeeze(1).contiguous();
     auto tc = yTrue.squeeze(1).contiguous();
@@ -101,7 +176,7 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     if (!loadSeriesFromCsv(config, t, y)) {
         const int samples = std::max(32, config.sample_count);
         t = torch::linspace(config.t_start, config.t_end, samples, torch::kFloat32).unsqueeze(1);
-        y = torch::exp(-lambda * t);
+        y = buildTargetFromProfile(t, config);
     }
 
     const int64_t nTrain = static_cast<int64_t>(t.size(0) * 0.8);
@@ -127,6 +202,17 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     torch::Tensor pred = model.forward(DataType::Test);
     if (!pred.defined() || pred.size(0) != yTest.size(0) || !pred.isfinite().all().item<bool>()) {
         throw std::runtime_error("LSTM-PINN prediction failed or produced non-finite values.");
+    }
+
+    if (config.evaluate_metrics) {
+        std::map<std::string, double> metrics = model.evaluate();
+        auto it = metrics.find("mse");
+        if (it != metrics.end()) {
+            if (!std::isfinite(it->second)) {
+                throw std::runtime_error("LSTM-PINN evaluation produced non-finite MSE.");
+            }
+            result.mse = it->second;
+        }
     }
 
     fillPlotVectors(result, tTest, yTest, pred);
