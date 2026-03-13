@@ -729,10 +729,12 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
             torch::Tensor data_loss = torch::mse_loss(predictions, batch_targets);
 
             torch::Tensor grad_outputs = torch::ones_like(predictions);
+            // retain_graph=true is required because total_loss.backward() below
+            // still needs graph tensors that participate in dy/dt physics loss.
             auto grads = torch::autograd::grad({predictions},
                                                {pinn_inputs},
                                                {grad_outputs},
-                                               false,
+                                               true,
                                                true);
 
             if (grads.empty() || !grads[0].defined()) {
