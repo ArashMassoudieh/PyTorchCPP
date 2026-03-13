@@ -13,6 +13,7 @@ class QDoubleSpinBox;
 class QCheckBox;
 class QLineEdit;
 class QChartView;
+class QTextBrowser;
 
 /**
  * @file hydropinnwindow.h
@@ -35,6 +36,7 @@ private:
     QPushButton* runLSTMPINNButton_;
     QTextEdit* logText_;
     QChartView* chartView_;
+    QTextBrowser* perfSummaryText_;
 
     // Training/network controls
     QSpinBox* epochsSpin_;
@@ -62,6 +64,19 @@ private:
     QLineEdit* syntheticExportPathEdit_;
     QPushButton* browseSyntheticExportButton_;
 
+    // NeuroForge-style workflow actions
+    QPushButton* runPredictionButton_;
+    QPushButton* runAllPredictionButton_;
+    QPushButton* runPredictionFFNButton_;
+    QPushButton* runPredictionFFNPINNButton_;
+    QPushButton* runPredictionLSTMButton_;
+    QPushButton* runPredictionLSTMPINNButton_;
+    QPushButton* configureGAButton_;
+    QPushButton* startGAButton_;
+    QPushButton* stopGAButton_;
+    QPushButton* refreshPerformanceButton_;
+    QPushButton* clearPlotButton_;
+
     void updateStatus();
     void runSelectedMode();
     void runAllModes();
@@ -74,4 +89,9 @@ private:
     void appendLog(const QString& line);
     HydroRunConfig currentConfig() const;
     void updatePlot(const QString& mode, const HydroRunResult& result);
+    void configureGAPlaceholder();
+    void startGAPlaceholder();
+    void stopGAPlaceholder();
+    void refreshPerformanceAssessment();
+    void clearPlot();
 };
