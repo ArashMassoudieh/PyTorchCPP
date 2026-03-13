@@ -18,11 +18,12 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
-#include <QSplitter>
 #include <QTabWidget>
+#include <QTextBrowser>
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -31,6 +32,7 @@
 #include <QtCharts/QChartView>
 #include <QtCharts/QLegend>
 #include <QtCharts/QLineSeries>
+#include <QtCharts/QAbstractAxis>
 #include <QtCharts/QValueAxis>
 
 #include <algorithm>
@@ -40,14 +42,14 @@
 
 HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     : QMainWindow(parent), statusLabel_(new QLabel(this)), modeCombo_(new QComboBox(this)),
-      runButton_(new QPushButton("Run Selected", this)), runAllButton_(new QPushButton("Run All", this)),
-      runFFNButton_(new QPushButton("Run FFN", this)), runFFNPINNButton_(new QPushButton("Run FFN_PINN", this)),
-      runLSTMButton_(new QPushButton("Run LSTM", this)), runLSTMPINNButton_(new QPushButton("Run LSTM_PINN", this)),
-      logText_(new QTextEdit(this)), chartView_(new QChartView(this)),
+      logText_(new QTextEdit(this)), chartView_(new QChartView(this)), perfSummaryText_(new QTextBrowser(this)),
       epochsSpin_(new QSpinBox(this)), batchSpin_(new QSpinBox(this)), lrSpin_(new QDoubleSpinBox(this)),
       lambdaSpin_(new QDoubleSpinBox(this)), dataWeightSpin_(new QDoubleSpinBox(this)),
       physicsWeightSpin_(new QDoubleSpinBox(this)), hiddenLayersEdit_(new QLineEdit(this)),
-      activationCombo_(new QComboBox(this)), evalCheck_(new QCheckBox("Evaluate test metrics", this)),
+      activationCombo_(new QComboBox(this)), layerSizeSpin_(new QSpinBox(this)), layerActivationCombo_(new QComboBox(this)),
+      addLayerButton_(new QPushButton("Add Layer", this)), removeLayerButton_(new QPushButton("Remove Selected", this)),
+      layersList_(new QListWidget(this)), outputActivationCombo_(new QComboBox(this)),
+      evalCheck_(new QCheckBox("Evaluate test metrics", this)),
       dataSourceCombo_(new QComboBox(this)), csvPathEdit_(new QLineEdit(this)),
       browseCsvButton_(new QPushButton("Browse...", this)), csvXColSpin_(new QSpinBox(this)),
       csvYColSpin_(new QSpinBox(this)), csvHeaderCheck_(new QCheckBox("CSV has header row", this)),
@@ -55,7 +57,16 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       tEndSpin_(new QDoubleSpinBox(this)), profileCombo_(new QComboBox(this)),
       generateSyntheticButton_(new QPushButton("Generate Synthetic Data", this)),
       syntheticExportPathEdit_(new QLineEdit(this)),
-      browseSyntheticExportButton_(new QPushButton("Browse...", this)) {
+      browseSyntheticExportButton_(new QPushButton("Browse...", this)),
+      runPredictionButton_(new QPushButton("Run Selected", this)), runAllPredictionButton_(new QPushButton("Run All", this)),
+      runPredictionFFNButton_(new QPushButton("Run FFN", this)), runPredictionFFNPINNButton_(new QPushButton("Run FFN_PINN", this)),
+      runPredictionLSTMButton_(new QPushButton("Run LSTM", this)), runPredictionLSTMPINNButton_(new QPushButton("Run LSTM_PINN", this)),
+      runTrainingButton_(new QPushButton("Train Selected", this)), runAllTrainingButton_(new QPushButton("Train All", this)),
+      runTrainingFFNButton_(new QPushButton("Train FFN", this)), runTrainingFFNPINNButton_(new QPushButton("Train FFN_PINN", this)),
+      runTrainingLSTMButton_(new QPushButton("Train LSTM", this)), runTrainingLSTMPINNButton_(new QPushButton("Train LSTM_PINN", this)),
+      configureGAButton_(new QPushButton("Configure GA", this)), startGAButton_(new QPushButton("Start GA", this)),
+      stopGAButton_(new QPushButton("Stop GA", this)), refreshPerformanceButton_(new QPushButton("Refresh Assessment", this)),
+      clearPlotButton_(new QPushButton("Clear Plot", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
     resize(1200, 760);
 
@@ -65,44 +76,15 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     auto* title = new QLabel("HydroPINN Modes", central);
     title->setStyleSheet("font-size: 18px; font-weight: bold;");
 
-    modeCombo_->addItems({"ffn", "ffn_pinn", "lstm", "lstm_pinn"});
+    modeCombo_->addItem("FFN", "ffn");
+    modeCombo_->addItem("FFN + PINN", "ffn_pinn");
+    modeCombo_->addItem("LSTM", "lstm");
+    modeCombo_->addItem("LSTM + PINN (temporary FFN backend)", "lstm_pinn");
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
     dataSourceCombo_->addItems({"Synthetic", "CSV File"});
     profileCombo_->addItems({"exp_decay", "damped_sine", "mixed_wave"});
 
     auto* tabs = new QTabWidget(central);
-
-    auto* trainTab = new QWidget(tabs);
-    auto* trainForm = new QFormLayout(trainTab);
-    epochsSpin_->setRange(1, 20000);
-    epochsSpin_->setValue(180);
-    batchSpin_->setRange(1, 4096);
-    batchSpin_->setValue(32);
-    lrSpin_->setDecimals(6);
-    lrSpin_->setRange(1e-6, 1.0);
-    lrSpin_->setSingleStep(0.001);
-    lrSpin_->setValue(0.002);
-    lambdaSpin_->setDecimals(4);
-    lambdaSpin_->setRange(0.0, 100.0);
-    lambdaSpin_->setValue(0.8);
-    dataWeightSpin_->setDecimals(4);
-    dataWeightSpin_->setRange(0.0, 100.0);
-    dataWeightSpin_->setValue(1.0);
-    physicsWeightSpin_->setDecimals(4);
-    physicsWeightSpin_->setRange(0.0, 100.0);
-    physicsWeightSpin_->setValue(0.2);
-    hiddenLayersEdit_->setText("24,24");
-    evalCheck_->setChecked(true);
-    trainForm->addRow("Epochs", epochsSpin_);
-    trainForm->addRow("Batch size", batchSpin_);
-    trainForm->addRow("Learning rate", lrSpin_);
-    trainForm->addRow("Lambda (PINN)", lambdaSpin_);
-    trainForm->addRow("Data loss weight", dataWeightSpin_);
-    trainForm->addRow("Physics loss weight", physicsWeightSpin_);
-    trainForm->addRow("Hidden layers (csv)", hiddenLayersEdit_);
-    trainForm->addRow("Activation", activationCombo_);
-    trainForm->addRow(evalCheck_);
-    tabs->addTab(trainTab, "Training");
 
     auto* dataTab = new QWidget(tabs);
     auto* dataForm = new QFormLayout(dataTab);
@@ -149,21 +131,145 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     dataForm->addRow(generateSyntheticButton_);
     tabs->addTab(dataTab, "Data");
 
-    // Button panel
-    auto* btnBox = new QGroupBox("Actions", central);
-    auto* btnGrid = new QGridLayout(btnBox);
-    btnGrid->addWidget(runButton_, 0, 0);
-    btnGrid->addWidget(runAllButton_, 0, 1);
-    btnGrid->addWidget(runFFNButton_, 1, 0);
-    btnGrid->addWidget(runFFNPINNButton_, 1, 1);
-    btnGrid->addWidget(runLSTMButton_, 2, 0);
-    btnGrid->addWidget(runLSTMPINNButton_, 2, 1);
+    auto* networkTab = new QWidget(tabs);
+    auto* networkLayout = new QVBoxLayout(networkTab);
+    auto* networkTopForm = new QFormLayout();
+    hiddenLayersEdit_->setText("24,24");
+    activationCombo_->setCurrentText("tanh");
+    networkTopForm->addRow("Hidden layers (csv)", hiddenLayersEdit_);
+    networkTopForm->addRow("Default activation", activationCombo_);
+
+    auto* layerBuilderGroup = new QGroupBox("Layer Builder (NeuroForge-style)", networkTab);
+    auto* layerBuilderForm = new QFormLayout(layerBuilderGroup);
+    layerSizeSpin_->setRange(1, 2000);
+    layerSizeSpin_->setValue(24);
+    layerActivationCombo_->addItems({"relu", "tanh", "sigmoid", "linear"});
+    layerActivationCombo_->setCurrentText("tanh");
+    outputActivationCombo_->addItems({"linear", "relu", "tanh", "sigmoid"});
+    outputActivationCombo_->setCurrentText("linear");
+
+    auto* layerButtons = new QWidget(layerBuilderGroup);
+    auto* layerButtonsLayout = new QHBoxLayout(layerButtons);
+    layerButtonsLayout->setContentsMargins(0, 0, 0, 0);
+    layerButtonsLayout->addWidget(addLayerButton_);
+    layerButtonsLayout->addWidget(removeLayerButton_);
+
+    layersList_->addItem("Layer 1: 24 nodes, tanh");
+    layersList_->addItem("Layer 2: 24 nodes, tanh");
+
+    layerBuilderForm->addRow("Layer size", layerSizeSpin_);
+    layerBuilderForm->addRow("Layer activation", layerActivationCombo_);
+    layerBuilderForm->addRow(layerButtons);
+    layerBuilderForm->addRow("Configured layers", layersList_);
+    layerBuilderForm->addRow("Output activation", outputActivationCombo_);
+
+    auto* lagsGroup = new QGroupBox("Lag Configuration", networkTab);
+    auto* lagsLayout = new QVBoxLayout(lagsGroup);
+    lagsLayout->addWidget(new QLabel("Hydro wrappers currently use a fixed lag setup internally ({1}) for compatibility.\nThis section is provided to match NeuroForge workflow and future lag backend support.", lagsGroup));
+
+    networkLayout->addLayout(networkTopForm);
+    networkLayout->addWidget(layerBuilderGroup);
+    networkLayout->addWidget(lagsGroup);
+    networkLayout->addStretch(1);
+    tabs->addTab(networkTab, "Network Structure");
+
+    auto* trainTab = new QWidget(tabs);
+    auto* trainForm = new QFormLayout(trainTab);
+    epochsSpin_->setRange(1, 20000);
+    epochsSpin_->setValue(180);
+    batchSpin_->setRange(1, 4096);
+    batchSpin_->setValue(32);
+    lrSpin_->setDecimals(6);
+    lrSpin_->setRange(1e-6, 1.0);
+    lrSpin_->setSingleStep(0.001);
+    lrSpin_->setValue(0.002);
+    lambdaSpin_->setDecimals(4);
+    lambdaSpin_->setRange(0.0, 100.0);
+    lambdaSpin_->setValue(0.8);
+    dataWeightSpin_->setDecimals(4);
+    dataWeightSpin_->setRange(0.0, 100.0);
+    dataWeightSpin_->setValue(1.0);
+    physicsWeightSpin_->setDecimals(4);
+    physicsWeightSpin_->setRange(0.0, 100.0);
+    physicsWeightSpin_->setValue(0.2);
+    evalCheck_->setChecked(true);
+    trainForm->addRow("Epochs", epochsSpin_);
+    trainForm->addRow("Batch size", batchSpin_);
+    trainForm->addRow("Learning rate", lrSpin_);
+    trainForm->addRow("Lambda (PINN)", lambdaSpin_);
+    trainForm->addRow("Data loss weight", dataWeightSpin_);
+    trainForm->addRow("Physics loss weight", physicsWeightSpin_);
+
+    auto* trainingButtons = new QWidget(trainTab);
+    auto* trainingGrid = new QGridLayout(trainingButtons);
+    trainingGrid->setContentsMargins(0, 0, 0, 0);
+    trainingGrid->addWidget(runTrainingButton_, 0, 0);
+    trainingGrid->addWidget(runAllTrainingButton_, 0, 1);
+    trainingGrid->addWidget(runTrainingFFNButton_, 1, 0);
+    trainingGrid->addWidget(runTrainingFFNPINNButton_, 1, 1);
+    trainingGrid->addWidget(runTrainingLSTMButton_, 2, 0);
+    trainingGrid->addWidget(runTrainingLSTMPINNButton_, 2, 1);
+    trainForm->addRow(trainingButtons);
+    tabs->addTab(trainTab, "Training");
+
+    auto* predictionTab = new QWidget(tabs);
+    auto* predictionLayout = new QVBoxLayout(predictionTab);
+    predictionLayout->addWidget(new QLabel("NeuroForge-like flow: first train mode(s) in Training tab, then review stored prediction curves here.", predictionTab));
+    auto* predictionButtons = new QGroupBox("Prediction Plot Actions (from last successful runs)", predictionTab);
+    auto* predictionGrid = new QGridLayout(predictionButtons);
+    predictionGrid->addWidget(runPredictionButton_, 0, 0);
+    predictionGrid->addWidget(runAllPredictionButton_, 0, 1);
+    predictionGrid->addWidget(runPredictionFFNButton_, 1, 0);
+    predictionGrid->addWidget(runPredictionFFNPINNButton_, 1, 1);
+    predictionGrid->addWidget(runPredictionLSTMButton_, 2, 0);
+    predictionGrid->addWidget(runPredictionLSTMPINNButton_, 2, 1);
+
+    runPredictionButton_->setText("Show Selected");
+    runAllPredictionButton_->setText("Show All");
+    runPredictionFFNButton_->setText("Show FFN");
+    runPredictionFFNPINNButton_->setText("Show FFN_PINN");
+    runPredictionLSTMButton_->setText("Show LSTM");
+    runPredictionLSTMPINNButton_->setText("Show LSTM_PINN");
+    predictionLayout->addWidget(predictionButtons);
+    predictionLayout->addStretch(1);
+    tabs->addTab(predictionTab, "Prediction");
+
+    auto* gaTab = new QWidget(tabs);
+    auto* gaLayout = new QVBoxLayout(gaTab);
+    auto* gaBox = new QGroupBox("Genetic Algorithm (workflow-compatible)", gaTab);
+    auto* gaButtonLayout = new QHBoxLayout(gaBox);
+    gaButtonLayout->addWidget(configureGAButton_);
+    gaButtonLayout->addWidget(startGAButton_);
+    gaButtonLayout->addWidget(stopGAButton_);
+    stopGAButton_->setEnabled(false);
+    gaLayout->addWidget(gaBox);
+    gaLayout->addWidget(new QLabel("Hydro modes keep current 4-mode training flow; GA controls are prepared for future Hydro-specific optimization hooks.", gaTab));
+    gaLayout->addStretch(1);
+    tabs->addTab(gaTab, "GA");
+
+    auto* performanceTab = new QWidget(tabs);
+    auto* performanceLayout = new QVBoxLayout(performanceTab);
+    performanceLayout->addWidget(evalCheck_);
+    performanceLayout->addWidget(refreshPerformanceButton_);
+    perfSummaryText_->setPlaceholderText("Performance assessment summary appears here after runs.");
+    performanceLayout->addWidget(perfSummaryText_, 1);
+    tabs->addTab(performanceTab, "Performance Assessment");
+
+    auto* plotTab = new QWidget(tabs);
+    auto* plotLayout = new QVBoxLayout(plotTab);
+    plotLayout->addWidget(clearPlotButton_, 0);
+    plotLayout->addWidget(chartView_, 1);
+    tabs->addTab(plotTab, "Plot");
+
+    auto* logTab = new QWidget(tabs);
+    auto* logLayout = new QVBoxLayout(logTab);
+    logText_->setReadOnly(true);
+    logText_->setPlaceholderText("Run logs will appear here...");
+    logLayout->addWidget(logText_, 1);
+    tabs->addTab(logTab, "Logs");
 
     auto* topRow = new QHBoxLayout();
     topRow->addWidget(modeCombo_, 1);
-
-    logText_->setReadOnly(true);
-    logText_->setPlaceholderText("Run logs will appear here...");
 
     auto* chart = new QChart();
     chart->setTitle("Prediction vs Target (Test Set)");
@@ -171,31 +277,62 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     chartView_->setRenderHint(QPainter::Antialiasing);
     chartView_->setMinimumHeight(260);
 
-    auto* splitter = new QSplitter(Qt::Vertical, central);
-    auto* lower = new QWidget(splitter);
-    auto* lowerLayout = new QVBoxLayout(lower);
-    lowerLayout->addWidget(statusLabel_);
-    lowerLayout->addWidget(logText_);
-    splitter->addWidget(chartView_);
-    splitter->addWidget(lower);
-    splitter->setStretchFactor(0, 2);
-    splitter->setStretchFactor(1, 1);
-
     root->addWidget(title);
     root->addLayout(topRow);
     root->addWidget(tabs);
-    root->addWidget(btnBox);
-    root->addWidget(splitter, 1);
+    root->addWidget(statusLabel_);
+    auto* modeInfo = new QLabel("4 modes are available: FFN, FFN+PINN, LSTM, and LSTM+PINN (currently uses a temporary FFN backend).", central);
+    modeInfo->setWordWrap(true);
+    root->addWidget(modeInfo);
 
     setCentralWidget(central);
 
-    connect(runButton_, &QPushButton::clicked, this, &HydroPINNWindow::runSelectedMode);
-    connect(runAllButton_, &QPushButton::clicked, this, &HydroPINNWindow::runAllModes);
-    connect(runFFNButton_, &QPushButton::clicked, this, [this]() { runMode("ffn"); });
-    connect(runFFNPINNButton_, &QPushButton::clicked, this, [this]() { runMode("ffn_pinn"); });
-    connect(runLSTMButton_, &QPushButton::clicked, this, [this]() { runMode("lstm"); });
-    connect(runLSTMPINNButton_, &QPushButton::clicked, this, [this]() { runMode("lstm_pinn"); });
+    connect(runTrainingButton_, &QPushButton::clicked, this, &HydroPINNWindow::runSelectedMode);
+    connect(runAllTrainingButton_, &QPushButton::clicked, this, &HydroPINNWindow::runAllModes);
+    connect(runTrainingFFNButton_, &QPushButton::clicked, this, [this]() { runMode("ffn"); });
+    connect(runTrainingFFNPINNButton_, &QPushButton::clicked, this, [this]() { runMode("ffn_pinn"); });
+    connect(runTrainingLSTMButton_, &QPushButton::clicked, this, [this]() { runMode("lstm"); });
+    connect(runTrainingLSTMPINNButton_, &QPushButton::clicked, this, [this]() { runMode("lstm_pinn"); });
+    connect(runPredictionButton_, &QPushButton::clicked, this, &HydroPINNWindow::showSelectedPrediction);
+    connect(runAllPredictionButton_, &QPushButton::clicked, this, &HydroPINNWindow::showAllPredictions);
+    connect(runPredictionFFNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("ffn"); });
+    connect(runPredictionFFNPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("ffn_pinn"); });
+    connect(runPredictionLSTMButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm"); });
+    connect(runPredictionLSTMPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm_pinn"); });
     connect(modeCombo_, &QComboBox::currentTextChanged, this, [this](const QString&) { updateStatus(); });
+    connect(addLayerButton_, &QPushButton::clicked, this, [this]() {
+        const int layerSize = layerSizeSpin_->value();
+        const QString layerAct = layerActivationCombo_->currentText();
+        layersList_->addItem(QString("Layer %1: %2 nodes, %3")
+                                 .arg(layersList_->count() + 1)
+                                 .arg(layerSize)
+                                 .arg(layerAct));
+        syncNetworkCsvFromLayerList();
+    });
+    connect(removeLayerButton_, &QPushButton::clicked, this, [this]() {
+        const int row = layersList_->currentRow();
+        if (row >= 0) {
+            delete layersList_->takeItem(row);
+            syncNetworkCsvFromLayerList();
+        }
+    });
+    connect(hiddenLayersEdit_, &QLineEdit::editingFinished, this, [this]() {
+        if (!hiddenLayersEdit_->text().trimmed().isEmpty()) {
+            layersList_->clear();
+            const QStringList parts = hiddenLayersEdit_->text().split(',', Qt::SkipEmptyParts);
+            for (int i = 0; i < parts.size(); ++i) {
+                const QString p = parts[i].trimmed();
+                bool ok = false;
+                const int n = p.toInt(&ok);
+                if (ok && n > 0) {
+                    layersList_->addItem(QString("Layer %1: %2 nodes, %3")
+                                             .arg(i + 1)
+                                             .arg(n)
+                                             .arg(activationCombo_->currentText()));
+                }
+            }
+        }
+    });
     connect(dataSourceCombo_, &QComboBox::currentTextChanged, this, [this](const QString&) {
         updateDataSourceUiState();
         updateStatus();
@@ -203,6 +340,11 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(browseCsvButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseCsv);
     connect(browseSyntheticExportButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseSyntheticExportPath);
     connect(generateSyntheticButton_, &QPushButton::clicked, this, &HydroPINNWindow::generateSyntheticDataPreview);
+    connect(configureGAButton_, &QPushButton::clicked, this, &HydroPINNWindow::configureGAPlaceholder);
+    connect(startGAButton_, &QPushButton::clicked, this, &HydroPINNWindow::startGAPlaceholder);
+    connect(stopGAButton_, &QPushButton::clicked, this, &HydroPINNWindow::stopGAPlaceholder);
+    connect(refreshPerformanceButton_, &QPushButton::clicked, this, &HydroPINNWindow::refreshPerformanceAssessment);
+    connect(clearPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::clearPlot);
 
     updateDataSourceUiState();
     updateStatus();
@@ -234,18 +376,46 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
 }
 
 void HydroPINNWindow::setRunningUiState(bool running) {
-    runButton_->setEnabled(!running);
-    runAllButton_->setEnabled(!running);
-    runFFNButton_->setEnabled(!running);
-    runFFNPINNButton_->setEnabled(!running);
-    runLSTMButton_->setEnabled(!running);
-    runLSTMPINNButton_->setEnabled(!running);
     dataSourceCombo_->setEnabled(!running);
     browseCsvButton_->setEnabled(!running && dataSourceCombo_->currentText() == "CSV File");
     generateSyntheticButton_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
     syntheticExportPathEdit_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
     browseSyntheticExportButton_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
-    runButton_->setText(running ? "Running..." : "Run Selected");
+    runPredictionButton_->setText(running ? "Running..." : "Show Selected");
+    runPredictionButton_->setEnabled(!running);
+    runAllPredictionButton_->setEnabled(!running);
+    runPredictionFFNButton_->setEnabled(!running);
+    runPredictionFFNPINNButton_->setEnabled(!running);
+    runPredictionLSTMButton_->setEnabled(!running);
+    runPredictionLSTMPINNButton_->setEnabled(!running);
+    runTrainingButton_->setEnabled(!running);
+    runAllTrainingButton_->setEnabled(!running);
+    runTrainingFFNButton_->setEnabled(!running);
+    runTrainingFFNPINNButton_->setEnabled(!running);
+    runTrainingLSTMButton_->setEnabled(!running);
+    runTrainingLSTMPINNButton_->setEnabled(!running);
+}
+
+QString HydroPINNWindow::selectedModeKey() const {
+    return modeCombo_->currentData().toString();
+}
+
+void HydroPINNWindow::syncNetworkCsvFromLayerList() {
+    QStringList layerSizes;
+    for (int i = 0; i < layersList_->count(); ++i) {
+        const QString txt = layersList_->item(i)->text();
+        const int colon = txt.indexOf(':');
+        const int nodesPos = txt.indexOf("nodes");
+        if (colon < 0 || nodesPos < 0) continue;
+        const QString between = txt.mid(colon + 1, nodesPos - (colon + 1)).trimmed();
+        const QString firstNumber = between.split(' ', Qt::SkipEmptyParts).value(0);
+        bool ok = false;
+        const int n = firstNumber.toInt(&ok);
+        if (ok && n > 0) layerSizes << QString::number(n);
+    }
+    if (!layerSizes.isEmpty()) {
+        hiddenLayersEdit_->setText(layerSizes.join(','));
+    }
 }
 
 void HydroPINNWindow::updateDataSourceUiState() {
@@ -362,14 +532,102 @@ void HydroPINNWindow::updateStatus() {
     statusLabel_->setText(QString("Ready: mode=%1, data=%2").arg(modeCombo_->currentText(), source));
 }
 
+void HydroPINNWindow::configureGAPlaceholder() {
+    appendLog("GA configuration requested (Hydro GA backend is not implemented yet).");
+    QMessageBox::information(this,
+                             "HydroPINN GA",
+                             "GA controls are available in the workflow, but Hydro-specific GA optimization is not wired yet.");
+}
+
+void HydroPINNWindow::startGAPlaceholder() {
+    appendLog("GA start requested (placeholder).");
+    startGAButton_->setEnabled(false);
+    stopGAButton_->setEnabled(true);
+    statusLabel_->setText("GA placeholder run started (no backend yet).");
+}
+
+void HydroPINNWindow::stopGAPlaceholder() {
+    appendLog("GA stop requested (placeholder).");
+    startGAButton_->setEnabled(true);
+    stopGAButton_->setEnabled(false);
+    updateStatus();
+}
+
+void HydroPINNWindow::refreshPerformanceAssessment() {
+    const HydroRunConfig cfg = currentConfig();
+    const QString summary = QString(
+                                "<b>Performance Assessment Snapshot</b><br/>"
+                                "Mode: %1<br/>"
+                                "Data source: %2<br/>"
+                                "Evaluate metrics: %3<br/>"
+                                "Training: epochs=%4, batch=%5, lr=%6<br/>"
+                                "PINN: lambda=%7, data_w=%8, physics_w=%9<br/>"
+                                "Network: layers=%10, activation=%11")
+                                .arg(modeCombo_->currentText())
+                                .arg(cfg.use_csv_data ? "CSV" : "Synthetic")
+                                .arg(cfg.evaluate_metrics ? "yes" : "no")
+                                .arg(cfg.epochs)
+                                .arg(cfg.batch_size)
+                                .arg(cfg.learning_rate, 0, 'g', 6)
+                                .arg(cfg.lambda_decay, 0, 'g', 6)
+                                .arg(cfg.data_weight, 0, 'g', 6)
+                                .arg(cfg.physics_weight, 0, 'g', 6)
+                                .arg(QString::fromStdString(cfg.hidden_layers_csv))
+                                .arg(QString::fromStdString(cfg.activation));
+    perfSummaryText_->setHtml(summary);
+    appendLog("Performance assessment snapshot refreshed.");
+}
+
+void HydroPINNWindow::clearPlot() {
+    auto* chart = chartView_->chart();
+    chart->removeAllSeries();
+
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) {
+        chart->removeAxis(axis);
+        delete axis;
+    }
+
+    chart->setTitle("Prediction vs Target (Test Set)");
+    appendLog("Plot cleared.");
+}
+
 void HydroPINNWindow::runSelectedMode() {
-    runMode(modeCombo_->currentText());
+    runMode(selectedModeKey());
 }
 
 void HydroPINNWindow::runAllModes() {
     const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
     for (const QString& m : modes) {
         runMode(m);
+    }
+}
+
+void HydroPINNWindow::showPredictionForMode(const QString& mode) {
+    const auto it = lastModeResults_.find(mode);
+    if (it == lastModeResults_.end()) {
+        appendLog(QString("No stored prediction available for mode '%1'. Run training first.").arg(mode));
+        QMessageBox::information(this,
+                                 "HydroPINN Prediction",
+                                 QString("No stored result for mode '%1'.\nRun it from Training tab first.").arg(mode));
+        return;
+    }
+    updatePlot(mode, it->second);
+    appendLog(QString("Displayed stored target vs prediction for mode '%1'.").arg(mode));
+}
+
+void HydroPINNWindow::showSelectedPrediction() {
+    showPredictionForMode(selectedModeKey());
+}
+
+void HydroPINNWindow::showAllPredictions() {
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    for (const QString& mode : modes) {
+        if (lastModeResults_.find(mode) == lastModeResults_.end()) {
+            appendLog(QString("Skipping mode '%1' (no stored prediction yet).").arg(mode));
+            continue;
+        }
+        updatePlot(mode, lastModeResults_[mode]);
     }
 }
 
@@ -380,6 +638,12 @@ void HydroPINNWindow::updatePlot(const QString& mode, const HydroRunResult& resu
 
     auto* chart = chartView_->chart();
     chart->removeAllSeries();
+
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) {
+        chart->removeAxis(axis);
+        delete axis;
+    }
 
     auto* trueSeries = new QLineSeries(chart);
     trueSeries->setName("Target");
@@ -473,6 +737,7 @@ void HydroPINNWindow::runMode(const QString& mode) {
                       .arg(result.final_loss, 0, 'g', 8)
                       .arg(result.mse, 0, 'g', 8)
                       .arg(QString::fromStdString(result.message)));
+        lastModeResults_[mode] = result;
         updatePlot(mode, result);
     } else {
         statusLabel_->setText(QString("Mode failed: %1").arg(mode));
