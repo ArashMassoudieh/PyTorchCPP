@@ -17,6 +17,12 @@ struct HydroRunConfig {
     double physics_weight = 0.2;
 
     // Data input options
+    bool use_csv_data = false;
+    std::string csv_path;
+    int csv_x_column = 0;
+    int csv_y_column = 1;
+    bool csv_has_header = true;
+
     int sample_count = 220;
     double t_start = 0.0;
     double t_end = 5.0;

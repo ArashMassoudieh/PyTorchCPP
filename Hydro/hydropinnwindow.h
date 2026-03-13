@@ -36,26 +36,36 @@ private:
     QTextEdit* logText_;
     QChartView* chartView_;
 
-    // Config controls
+    // Training/network controls
     QSpinBox* epochsSpin_;
     QSpinBox* batchSpin_;
     QDoubleSpinBox* lrSpin_;
     QDoubleSpinBox* lambdaSpin_;
     QDoubleSpinBox* dataWeightSpin_;
     QDoubleSpinBox* physicsWeightSpin_;
+    QLineEdit* hiddenLayersEdit_;
+    QComboBox* activationCombo_;
+    QCheckBox* evalCheck_;
+
+    // Data controls
+    QComboBox* dataSourceCombo_;
+    QLineEdit* csvPathEdit_;
+    QPushButton* browseCsvButton_;
+    QSpinBox* csvXColSpin_;
+    QSpinBox* csvYColSpin_;
+    QCheckBox* csvHeaderCheck_;
     QSpinBox* sampleCountSpin_;
     QDoubleSpinBox* tStartSpin_;
     QDoubleSpinBox* tEndSpin_;
-    QLineEdit* hiddenLayersEdit_;
-    QComboBox* activationCombo_;
     QComboBox* profileCombo_;
-    QCheckBox* evalCheck_;
 
     void updateStatus();
     void runSelectedMode();
     void runAllModes();
     void runMode(const QString& mode);
     void setRunningUiState(bool running);
+    void updateDataSourceUiState();
+    void browseCsv();
     void appendLog(const QString& line);
     HydroRunConfig currentConfig() const;
     void updatePlot(const QString& mode, const HydroRunResult& result);
