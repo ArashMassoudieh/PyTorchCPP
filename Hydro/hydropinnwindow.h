@@ -1,6 +1,9 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QString>
+
+#include <map>
 
 #include "models/hydro_run_types.h"
 
@@ -72,16 +75,26 @@ private:
     QPushButton* runPredictionFFNPINNButton_;
     QPushButton* runPredictionLSTMButton_;
     QPushButton* runPredictionLSTMPINNButton_;
+    QPushButton* runTrainingButton_;
+    QPushButton* runAllTrainingButton_;
+    QPushButton* runTrainingFFNButton_;
+    QPushButton* runTrainingFFNPINNButton_;
+    QPushButton* runTrainingLSTMButton_;
+    QPushButton* runTrainingLSTMPINNButton_;
     QPushButton* configureGAButton_;
     QPushButton* startGAButton_;
     QPushButton* stopGAButton_;
     QPushButton* refreshPerformanceButton_;
     QPushButton* clearPlotButton_;
+    std::map<QString, HydroRunResult> lastModeResults_;
 
     void updateStatus();
     void runSelectedMode();
     void runAllModes();
     void runMode(const QString& mode);
+    void showSelectedPrediction();
+    void showAllPredictions();
+    void showPredictionForMode(const QString& mode);
     void setRunningUiState(bool running);
     void updateDataSourceUiState();
     void browseCsv();
