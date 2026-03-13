@@ -4,9 +4,10 @@
 
 #include <cmath>
 #include <map>
-#include <stdexcept>
 
-bool FFNWrapper::train() {
+HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
+    HydroRunResult result;
+
     NeuralNetworkWrapper model;
     model.setHiddenLayers({24, 24});
     model.setLags({{1}});
@@ -24,21 +25,29 @@ bool FFNWrapper::train() {
     model.setTensorData(DataType::Train, tTrain, yTrain);
     model.setTensorData(DataType::Test, tTest, yTest);
 
-    std::vector<double> losses = model.train(120, 32, 0.004);
+    std::vector<double> losses = model.train(config.epochs, config.batch_size, config.learning_rate);
     if (losses.empty() || !std::isfinite(losses.back())) {
         throw std::runtime_error("FFN training produced empty/non-finite loss history.");
     }
+    result.final_loss = losses.back();
 
     torch::Tensor pred = model.forward(DataType::Test);
     if (!pred.defined() || pred.size(0) != yTest.size(0) || !pred.isfinite().all().item<bool>()) {
         throw std::runtime_error("FFN prediction on test set failed or produced non-finite values.");
     }
 
-    std::map<std::string, double> metrics = model.evaluate();
-    auto it = metrics.find("mse");
-    if (it != metrics.end() && !std::isfinite(it->second)) {
-        throw std::runtime_error("FFN evaluation produced non-finite MSE.");
+    if (config.evaluate_metrics) {
+        std::map<std::string, double> metrics = model.evaluate();
+        auto it = metrics.find("mse");
+        if (it != metrics.end()) {
+            if (!std::isfinite(it->second)) {
+                throw std::runtime_error("FFN evaluation produced non-finite MSE.");
+            }
+            result.mse = it->second;
+        }
     }
 
-    return true;
+    result.success = true;
+    result.message = "FFN run completed.";
+    return result;
 }

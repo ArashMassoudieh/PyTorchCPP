@@ -1,5 +1,7 @@
 #pragma once
 
+#include "hydro_run_types.h"
+
 /**
  * @file ffn_pinn_wrapper.h
  * @brief PINN-enabled feed-forward wrapper interface.
@@ -11,8 +13,9 @@
 class FFNPINNWrapper {
 public:
     /**
-     * @brief Run training for FFN with physics residual terms.
-     * @return True on successful completion.
+     * @brief Run FFN training with physics residual terms.
+     * @param config Runtime configuration.
+     * @return Run result with status and summary metrics.
      */
-    bool train();
+    HydroRunResult train(const HydroRunConfig& config);
 };

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "hydro_run_types.h"
+
 /**
  * @file lstm_pinn_wrapper.h
  * @brief PINN-enabled LSTM wrapper interface.
@@ -11,8 +13,9 @@
 class LSTMPINNWrapper {
 public:
     /**
-     * @brief Run LSTM training with physics constraints.
-     * @return True on successful completion.
+     * @brief Run LSTM-like backend with physics constraints.
+     * @param config Runtime configuration.
+     * @return Run result with status and summary metrics.
      */
-    bool train();
+    HydroRunResult train(const HydroRunConfig& config);
 };

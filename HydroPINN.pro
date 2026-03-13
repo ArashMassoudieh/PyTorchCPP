@@ -175,6 +175,7 @@ HEADERS += \
     Hydro/dataset/sequence_builder.h \
     Hydro/physics/physics_config.h \
     Hydro/physics/rr_physics.h \
+    Hydro/models/hydro_run_types.h \
     Hydro/models/ffn_wrapper.h \
     Hydro/models/ffn_pinn_wrapper.h \
     Hydro/models/lstm_wrapper.h \
