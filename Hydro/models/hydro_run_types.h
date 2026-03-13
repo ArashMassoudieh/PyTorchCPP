@@ -26,7 +26,7 @@ struct HydroRunConfig {
     int sample_count = 220;
     double t_start = 0.0;
     double t_end = 5.0;
-    std::string synthetic_profile = "exp_decay"; // exp_decay | damped_sine | mixed_wave
+    std::string synthetic_profile = "exp_decay"; // exp_decay | damped_sine | mixed_wave | neuroforge_inputs_target
 
     // Network options
     std::string hidden_layers_csv = "24,24";
