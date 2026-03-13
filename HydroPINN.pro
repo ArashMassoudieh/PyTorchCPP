@@ -4,7 +4,7 @@
 # Keeps existing GUI app (e.g. NeuroForge.pro) untouched
 # ============================================================
 
-QT += core gui widgets
+QT += core gui widgets charts
 
 CONFIG += c++17 console
 CONFIG -= app_bundle

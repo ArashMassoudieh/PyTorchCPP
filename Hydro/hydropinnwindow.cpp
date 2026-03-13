@@ -16,26 +16,39 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QSplitter>
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <QtCharts/QChart>
+#include <QtCharts/QChartView>
+#include <QtCharts/QLineSeries>
+#include <QtCharts/QLegend>
+#include <QtCharts/QValueAxis>
+
 #include <exception>
+
+using namespace QtCharts;
 
 HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     : QMainWindow(parent), statusLabel_(new QLabel(this)), modeCombo_(new QComboBox(this)),
       runButton_(new QPushButton("Run Selected", this)), runAllButton_(new QPushButton("Run All", this)),
       runFFNButton_(new QPushButton("Run FFN", this)), runFFNPINNButton_(new QPushButton("Run FFN_PINN", this)),
       runLSTMButton_(new QPushButton("Run LSTM", this)), runLSTMPINNButton_(new QPushButton("Run LSTM_PINN", this)),
-      logText_(new QTextEdit(this)), epochsSpin_(new QSpinBox(this)), batchSpin_(new QSpinBox(this)),
-      lrSpin_(new QDoubleSpinBox(this)), lambdaSpin_(new QDoubleSpinBox(this)),
-      dataWeightSpin_(new QDoubleSpinBox(this)), physicsWeightSpin_(new QDoubleSpinBox(this)),
-      evalCheck_(new QCheckBox("Evaluate test metrics", this)) {
+      logText_(new QTextEdit(this)), chartView_(new QChartView(this)),
+      epochsSpin_(new QSpinBox(this)), batchSpin_(new QSpinBox(this)), lrSpin_(new QDoubleSpinBox(this)),
+      lambdaSpin_(new QDoubleSpinBox(this)), dataWeightSpin_(new QDoubleSpinBox(this)),
+      physicsWeightSpin_(new QDoubleSpinBox(this)), sampleCountSpin_(new QSpinBox(this)),
+      tStartSpin_(new QDoubleSpinBox(this)), tEndSpin_(new QDoubleSpinBox(this)),
+      hiddenLayersEdit_(new QLineEdit(this)), activationCombo_(new QComboBox(this)),
+      profileCombo_(new QComboBox(this)), evalCheck_(new QCheckBox("Evaluate test metrics", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
-    resize(920, 560);
+    resize(1100, 700);
 
     auto* central = new QWidget(this);
     auto* root = new QVBoxLayout(central);
@@ -44,15 +57,19 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     title->setStyleSheet("font-size: 18px; font-weight: bold;");
 
     modeCombo_->addItems({"ffn", "ffn_pinn", "lstm", "lstm_pinn"});
+    activationCombo_->addItems({"relu", "tanh", "sigmoid"});
+    profileCombo_->addItems({"exp_decay", "damped_sine", "mixed_wave"});
 
     // Config panel
     auto* cfgBox = new QGroupBox("Run Configuration", central);
     auto* cfgForm = new QFormLayout(cfgBox);
 
-    epochsSpin_->setRange(1, 10000);
+    epochsSpin_->setRange(1, 20000);
     epochsSpin_->setValue(180);
     batchSpin_->setRange(1, 4096);
     batchSpin_->setValue(32);
+    sampleCountSpin_->setRange(32, 20000);
+    sampleCountSpin_->setValue(240);
 
     lrSpin_->setDecimals(6);
     lrSpin_->setRange(1e-6, 1.0);
@@ -71,6 +88,15 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     physicsWeightSpin_->setRange(0.0, 100.0);
     physicsWeightSpin_->setValue(0.2);
 
+    tStartSpin_->setDecimals(3);
+    tStartSpin_->setRange(-1000.0, 1000.0);
+    tStartSpin_->setValue(0.0);
+
+    tEndSpin_->setDecimals(3);
+    tEndSpin_->setRange(-1000.0, 1000.0);
+    tEndSpin_->setValue(5.0);
+
+    hiddenLayersEdit_->setText("24,24");
     evalCheck_->setChecked(true);
 
     cfgForm->addRow("Epochs", epochsSpin_);
@@ -79,6 +105,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     cfgForm->addRow("Lambda (PINN)", lambdaSpin_);
     cfgForm->addRow("Data weight", dataWeightSpin_);
     cfgForm->addRow("Physics weight", physicsWeightSpin_);
+    cfgForm->addRow("Sample count", sampleCountSpin_);
+    cfgForm->addRow("t_start", tStartSpin_);
+    cfgForm->addRow("t_end", tEndSpin_);
+    cfgForm->addRow("Hidden layers (csv)", hiddenLayersEdit_);
+    cfgForm->addRow("Activation", activationCombo_);
+    cfgForm->addRow("Data profile", profileCombo_);
     cfgForm->addRow(evalCheck_);
 
     // Button panel
@@ -97,12 +129,27 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     logText_->setReadOnly(true);
     logText_->setPlaceholderText("Run logs will appear here...");
 
+    auto* chart = new QChart();
+    chart->setTitle("Prediction vs Target (Test Set)");
+    chartView_->setChart(chart);
+    chartView_->setRenderHint(QPainter::Antialiasing);
+    chartView_->setMinimumHeight(260);
+
+    auto* splitter = new QSplitter(Qt::Vertical, central);
+    auto* lower = new QWidget(splitter);
+    auto* lowerLayout = new QVBoxLayout(lower);
+    lowerLayout->addWidget(statusLabel_);
+    lowerLayout->addWidget(logText_);
+    splitter->addWidget(chartView_);
+    splitter->addWidget(lower);
+    splitter->setStretchFactor(0, 2);
+    splitter->setStretchFactor(1, 1);
+
     root->addWidget(title);
     root->addLayout(topRow);
     root->addWidget(cfgBox);
     root->addWidget(btnBox);
-    root->addWidget(statusLabel_);
-    root->addWidget(logText_, 1);
+    root->addWidget(splitter, 1);
 
     setCentralWidget(central);
 
@@ -126,6 +173,12 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
     cfg.lambda_decay = lambdaSpin_->value();
     cfg.data_weight = dataWeightSpin_->value();
     cfg.physics_weight = physicsWeightSpin_->value();
+    cfg.sample_count = sampleCountSpin_->value();
+    cfg.t_start = tStartSpin_->value();
+    cfg.t_end = tEndSpin_->value();
+    cfg.hidden_layers_csv = hiddenLayersEdit_->text().toStdString();
+    cfg.activation = activationCombo_->currentText().toStdString();
+    cfg.synthetic_profile = profileCombo_->currentText().toStdString();
     cfg.evaluate_metrics = evalCheck_->isChecked();
     return cfg;
 }
@@ -158,6 +211,44 @@ void HydroPINNWindow::runAllModes() {
     for (const QString& m : modes) {
         runMode(m);
     }
+}
+
+void HydroPINNWindow::updatePlot(const QString& mode, const HydroRunResult& result) {
+    if (result.x.empty() || result.y_true.empty() || result.y_pred.empty()) {
+        return;
+    }
+
+    auto* chart = chartView_->chart();
+    chart->removeAllSeries();
+
+    auto* trueSeries = new QLineSeries(chart);
+    trueSeries->setName("Target");
+    auto* predSeries = new QLineSeries(chart);
+    predSeries->setName("Prediction");
+
+    const size_t n = std::min(result.x.size(), std::min(result.y_true.size(), result.y_pred.size()));
+    for (size_t i = 0; i < n; ++i) {
+        trueSeries->append(result.x[i], result.y_true[i]);
+        predSeries->append(result.x[i], result.y_pred[i]);
+    }
+
+    chart->addSeries(trueSeries);
+    chart->addSeries(predSeries);
+
+    auto* axisX = new QValueAxis(chart);
+    axisX->setTitleText("t");
+    auto* axisY = new QValueAxis(chart);
+    axisY->setTitleText("y");
+
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    trueSeries->attachAxis(axisX);
+    trueSeries->attachAxis(axisY);
+    predSeries->attachAxis(axisX);
+    predSeries->attachAxis(axisY);
+
+    chart->setTitle(QString("Prediction vs Target - %1").arg(mode));
+    chart->legend()->setVisible(true);
 }
 
 void HydroPINNWindow::runMode(const QString& mode) {
@@ -207,6 +298,7 @@ void HydroPINNWindow::runMode(const QString& mode) {
                       .arg(result.final_loss, 0, 'g', 8)
                       .arg(result.mse, 0, 'g', 8)
                       .arg(QString::fromStdString(result.message)));
+        updatePlot(mode, result);
     } else {
         statusLabel_->setText(QString("Mode failed: %1").arg(mode));
         appendLog(QString("Mode '%1' failed.").arg(mode));
