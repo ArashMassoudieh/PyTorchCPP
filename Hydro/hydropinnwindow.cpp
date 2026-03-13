@@ -33,8 +33,6 @@
 
 #include <exception>
 
-using namespace QtCharts;
-
 HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     : QMainWindow(parent), statusLabel_(new QLabel(this)), modeCombo_(new QComboBox(this)),
       runButton_(new QPushButton("Run Selected", this)), runAllButton_(new QPushButton("Run All", this)),
