@@ -32,6 +32,7 @@
 #include <QtCharts/QChartView>
 #include <QtCharts/QLegend>
 #include <QtCharts/QLineSeries>
+#include <QtCharts/QAbstractAxis>
 #include <QtCharts/QValueAxis>
 
 #include <algorithm>
@@ -580,6 +581,13 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
 void HydroPINNWindow::clearPlot() {
     auto* chart = chartView_->chart();
     chart->removeAllSeries();
+
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) {
+        chart->removeAxis(axis);
+        delete axis;
+    }
+
     chart->setTitle("Prediction vs Target (Test Set)");
     appendLog("Plot cleared.");
 }
@@ -630,6 +638,12 @@ void HydroPINNWindow::updatePlot(const QString& mode, const HydroRunResult& resu
 
     auto* chart = chartView_->chart();
     chart->removeAllSeries();
+
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) {
+        chart->removeAxis(axis);
+        delete axis;
+    }
 
     auto* trueSeries = new QLineSeries(chart);
     trueSeries->setName("Target");
