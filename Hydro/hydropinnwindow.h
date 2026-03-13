@@ -14,6 +14,7 @@ class QCheckBox;
 class QLineEdit;
 class QChartView;
 class QTextBrowser;
+class QListWidget;
 
 /**
  * @file hydropinnwindow.h
@@ -28,12 +29,6 @@ public:
 private:
     QLabel* statusLabel_;
     QComboBox* modeCombo_;
-    QPushButton* runButton_;
-    QPushButton* runAllButton_;
-    QPushButton* runFFNButton_;
-    QPushButton* runFFNPINNButton_;
-    QPushButton* runLSTMButton_;
-    QPushButton* runLSTMPINNButton_;
     QTextEdit* logText_;
     QChartView* chartView_;
     QTextBrowser* perfSummaryText_;
@@ -47,6 +42,12 @@ private:
     QDoubleSpinBox* physicsWeightSpin_;
     QLineEdit* hiddenLayersEdit_;
     QComboBox* activationCombo_;
+    QSpinBox* layerSizeSpin_;
+    QComboBox* layerActivationCombo_;
+    QPushButton* addLayerButton_;
+    QPushButton* removeLayerButton_;
+    QListWidget* layersList_;
+    QComboBox* outputActivationCombo_;
     QCheckBox* evalCheck_;
 
     // Data controls
@@ -88,6 +89,8 @@ private:
     void generateSyntheticDataPreview();
     void appendLog(const QString& line);
     HydroRunConfig currentConfig() const;
+    QString selectedModeKey() const;
+    void syncNetworkCsvFromLayerList();
     void updatePlot(const QString& mode, const HydroRunResult& result);
     void configureGAPlaceholder();
     void startGAPlaceholder();

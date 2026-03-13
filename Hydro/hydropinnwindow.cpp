@@ -18,6 +18,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
@@ -40,14 +41,14 @@
 
 HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     : QMainWindow(parent), statusLabel_(new QLabel(this)), modeCombo_(new QComboBox(this)),
-      runButton_(new QPushButton("Run Selected", this)), runAllButton_(new QPushButton("Run All", this)),
-      runFFNButton_(new QPushButton("Run FFN", this)), runFFNPINNButton_(new QPushButton("Run FFN_PINN", this)),
-      runLSTMButton_(new QPushButton("Run LSTM", this)), runLSTMPINNButton_(new QPushButton("Run LSTM_PINN", this)),
       logText_(new QTextEdit(this)), chartView_(new QChartView(this)), perfSummaryText_(new QTextBrowser(this)),
       epochsSpin_(new QSpinBox(this)), batchSpin_(new QSpinBox(this)), lrSpin_(new QDoubleSpinBox(this)),
       lambdaSpin_(new QDoubleSpinBox(this)), dataWeightSpin_(new QDoubleSpinBox(this)),
       physicsWeightSpin_(new QDoubleSpinBox(this)), hiddenLayersEdit_(new QLineEdit(this)),
-      activationCombo_(new QComboBox(this)), evalCheck_(new QCheckBox("Evaluate test metrics", this)),
+      activationCombo_(new QComboBox(this)), layerSizeSpin_(new QSpinBox(this)), layerActivationCombo_(new QComboBox(this)),
+      addLayerButton_(new QPushButton("Add Layer", this)), removeLayerButton_(new QPushButton("Remove Selected", this)),
+      layersList_(new QListWidget(this)), outputActivationCombo_(new QComboBox(this)),
+      evalCheck_(new QCheckBox("Evaluate test metrics", this)),
       dataSourceCombo_(new QComboBox(this)), csvPathEdit_(new QLineEdit(this)),
       browseCsvButton_(new QPushButton("Browse...", this)), csvXColSpin_(new QSpinBox(this)),
       csvYColSpin_(new QSpinBox(this)), csvHeaderCheck_(new QCheckBox("CSV has header row", this)),
@@ -71,7 +72,10 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     auto* title = new QLabel("HydroPINN Modes", central);
     title->setStyleSheet("font-size: 18px; font-weight: bold;");
 
-    modeCombo_->addItems({"ffn", "ffn_pinn", "lstm", "lstm_pinn"});
+    modeCombo_->addItem("FFN", "ffn");
+    modeCombo_->addItem("FFN + PINN", "ffn_pinn");
+    modeCombo_->addItem("LSTM", "lstm");
+    modeCombo_->addItem("LSTM + PINN (temporary FFN backend)", "lstm_pinn");
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
     dataSourceCombo_->addItems({"Synthetic", "CSV File"});
     profileCombo_->addItems({"exp_decay", "damped_sine", "mixed_wave"});
@@ -124,10 +128,45 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     tabs->addTab(dataTab, "Data");
 
     auto* networkTab = new QWidget(tabs);
-    auto* networkForm = new QFormLayout(networkTab);
+    auto* networkLayout = new QVBoxLayout(networkTab);
+    auto* networkTopForm = new QFormLayout();
     hiddenLayersEdit_->setText("24,24");
-    networkForm->addRow("Hidden layers (csv)", hiddenLayersEdit_);
-    networkForm->addRow("Activation", activationCombo_);
+    activationCombo_->setCurrentText("tanh");
+    networkTopForm->addRow("Hidden layers (csv)", hiddenLayersEdit_);
+    networkTopForm->addRow("Default activation", activationCombo_);
+
+    auto* layerBuilderGroup = new QGroupBox("Layer Builder (NeuroForge-style)", networkTab);
+    auto* layerBuilderForm = new QFormLayout(layerBuilderGroup);
+    layerSizeSpin_->setRange(1, 2000);
+    layerSizeSpin_->setValue(24);
+    layerActivationCombo_->addItems({"relu", "tanh", "sigmoid", "linear"});
+    layerActivationCombo_->setCurrentText("tanh");
+    outputActivationCombo_->addItems({"linear", "relu", "tanh", "sigmoid"});
+    outputActivationCombo_->setCurrentText("linear");
+
+    auto* layerButtons = new QWidget(layerBuilderGroup);
+    auto* layerButtonsLayout = new QHBoxLayout(layerButtons);
+    layerButtonsLayout->setContentsMargins(0, 0, 0, 0);
+    layerButtonsLayout->addWidget(addLayerButton_);
+    layerButtonsLayout->addWidget(removeLayerButton_);
+
+    layersList_->addItem("Layer 1: 24 nodes, tanh");
+    layersList_->addItem("Layer 2: 24 nodes, tanh");
+
+    layerBuilderForm->addRow("Layer size", layerSizeSpin_);
+    layerBuilderForm->addRow("Layer activation", layerActivationCombo_);
+    layerBuilderForm->addRow(layerButtons);
+    layerBuilderForm->addRow("Configured layers", layersList_);
+    layerBuilderForm->addRow("Output activation", outputActivationCombo_);
+
+    auto* lagsGroup = new QGroupBox("Lag Configuration", networkTab);
+    auto* lagsLayout = new QVBoxLayout(lagsGroup);
+    lagsLayout->addWidget(new QLabel("Hydro wrappers currently use a fixed lag setup internally ({1}) for compatibility.\nThis section is provided to match NeuroForge workflow and future lag backend support.", lagsGroup));
+
+    networkLayout->addLayout(networkTopForm);
+    networkLayout->addWidget(layerBuilderGroup);
+    networkLayout->addWidget(lagsGroup);
+    networkLayout->addStretch(1);
     tabs->addTab(networkTab, "Network Structure");
 
     auto* trainTab = new QWidget(tabs);
@@ -219,15 +258,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     root->addLayout(topRow);
     root->addWidget(tabs);
     root->addWidget(statusLabel_);
+    auto* modeInfo = new QLabel("4 modes are available: FFN, FFN+PINN, LSTM, and LSTM+PINN (currently uses a temporary FFN backend).", central);
+    modeInfo->setWordWrap(true);
+    root->addWidget(modeInfo);
 
     setCentralWidget(central);
 
-    connect(runButton_, &QPushButton::clicked, this, &HydroPINNWindow::runSelectedMode);
-    connect(runAllButton_, &QPushButton::clicked, this, &HydroPINNWindow::runAllModes);
-    connect(runFFNButton_, &QPushButton::clicked, this, [this]() { runMode("ffn"); });
-    connect(runFFNPINNButton_, &QPushButton::clicked, this, [this]() { runMode("ffn_pinn"); });
-    connect(runLSTMButton_, &QPushButton::clicked, this, [this]() { runMode("lstm"); });
-    connect(runLSTMPINNButton_, &QPushButton::clicked, this, [this]() { runMode("lstm_pinn"); });
     connect(runPredictionButton_, &QPushButton::clicked, this, &HydroPINNWindow::runSelectedMode);
     connect(runAllPredictionButton_, &QPushButton::clicked, this, &HydroPINNWindow::runAllModes);
     connect(runPredictionFFNButton_, &QPushButton::clicked, this, [this]() { runMode("ffn"); });
@@ -235,6 +271,39 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(runPredictionLSTMButton_, &QPushButton::clicked, this, [this]() { runMode("lstm"); });
     connect(runPredictionLSTMPINNButton_, &QPushButton::clicked, this, [this]() { runMode("lstm_pinn"); });
     connect(modeCombo_, &QComboBox::currentTextChanged, this, [this](const QString&) { updateStatus(); });
+    connect(addLayerButton_, &QPushButton::clicked, this, [this]() {
+        const int layerSize = layerSizeSpin_->value();
+        const QString layerAct = layerActivationCombo_->currentText();
+        layersList_->addItem(QString("Layer %1: %2 nodes, %3")
+                                 .arg(layersList_->count() + 1)
+                                 .arg(layerSize)
+                                 .arg(layerAct));
+        syncNetworkCsvFromLayerList();
+    });
+    connect(removeLayerButton_, &QPushButton::clicked, this, [this]() {
+        const int row = layersList_->currentRow();
+        if (row >= 0) {
+            delete layersList_->takeItem(row);
+            syncNetworkCsvFromLayerList();
+        }
+    });
+    connect(hiddenLayersEdit_, &QLineEdit::editingFinished, this, [this]() {
+        if (!hiddenLayersEdit_->text().trimmed().isEmpty()) {
+            layersList_->clear();
+            const QStringList parts = hiddenLayersEdit_->text().split(',', Qt::SkipEmptyParts);
+            for (int i = 0; i < parts.size(); ++i) {
+                const QString p = parts[i].trimmed();
+                bool ok = false;
+                const int n = p.toInt(&ok);
+                if (ok && n > 0) {
+                    layersList_->addItem(QString("Layer %1: %2 nodes, %3")
+                                             .arg(i + 1)
+                                             .arg(n)
+                                             .arg(activationCombo_->currentText()));
+                }
+            }
+        }
+    });
     connect(dataSourceCombo_, &QComboBox::currentTextChanged, this, [this](const QString&) {
         updateDataSourceUiState();
         updateStatus();
@@ -278,24 +347,40 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
 }
 
 void HydroPINNWindow::setRunningUiState(bool running) {
-    runButton_->setEnabled(!running);
-    runAllButton_->setEnabled(!running);
-    runFFNButton_->setEnabled(!running);
-    runFFNPINNButton_->setEnabled(!running);
-    runLSTMButton_->setEnabled(!running);
-    runLSTMPINNButton_->setEnabled(!running);
     dataSourceCombo_->setEnabled(!running);
     browseCsvButton_->setEnabled(!running && dataSourceCombo_->currentText() == "CSV File");
     generateSyntheticButton_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
     syntheticExportPathEdit_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
     browseSyntheticExportButton_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
-    runButton_->setText(running ? "Running..." : "Run Selected");
+    runPredictionButton_->setText(running ? "Running..." : "Run Selected");
     runPredictionButton_->setEnabled(!running);
     runAllPredictionButton_->setEnabled(!running);
     runPredictionFFNButton_->setEnabled(!running);
     runPredictionFFNPINNButton_->setEnabled(!running);
     runPredictionLSTMButton_->setEnabled(!running);
     runPredictionLSTMPINNButton_->setEnabled(!running);
+}
+
+QString HydroPINNWindow::selectedModeKey() const {
+    return modeCombo_->currentData().toString();
+}
+
+void HydroPINNWindow::syncNetworkCsvFromLayerList() {
+    QStringList layerSizes;
+    for (int i = 0; i < layersList_->count(); ++i) {
+        const QString txt = layersList_->item(i)->text();
+        const int colon = txt.indexOf(':');
+        const int nodesPos = txt.indexOf("nodes");
+        if (colon < 0 || nodesPos < 0) continue;
+        const QString between = txt.mid(colon + 1, nodesPos - (colon + 1)).trimmed();
+        const QString firstNumber = between.split(' ', Qt::SkipEmptyParts).value(0);
+        bool ok = false;
+        const int n = firstNumber.toInt(&ok);
+        if (ok && n > 0) layerSizes << QString::number(n);
+    }
+    if (!layerSizes.isEmpty()) {
+        hiddenLayersEdit_->setText(layerSizes.join(','));
+    }
 }
 
 void HydroPINNWindow::updateDataSourceUiState() {
@@ -466,7 +551,7 @@ void HydroPINNWindow::clearPlot() {
 }
 
 void HydroPINNWindow::runSelectedMode() {
-    runMode(modeCombo_->currentText());
+    runMode(selectedModeKey());
 }
 
 void HydroPINNWindow::runAllModes() {
