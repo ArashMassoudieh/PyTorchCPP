@@ -60,6 +60,7 @@ private:
     QSpinBox* csvXColSpin_;
     QSpinBox* csvYColSpin_;
     QCheckBox* csvHeaderCheck_;
+    QPushButton* useNeuroforgeCsvPresetButton_;
     QSpinBox* sampleCountSpin_;
     QDoubleSpinBox* tStartSpin_;
     QDoubleSpinBox* tEndSpin_;
@@ -75,6 +76,7 @@ private:
     QPushButton* runPredictionFFNPINNButton_;
     QPushButton* runPredictionLSTMButton_;
     QPushButton* runPredictionLSTMPINNButton_;
+    QCheckBox* predictionUseCurrentDataCheck_;
     QPushButton* runTrainingButton_;
     QPushButton* runAllTrainingButton_;
     QPushButton* runTrainingFFNButton_;
@@ -103,6 +105,7 @@ private:
     void showAllPredictions();
     void showPredictionForMode(const QString& mode);
     void showSyntheticInputsOutputs();
+    void applyNeuroforgeCsvPreset();
     void setRunningUiState(bool running);
     void updateDataSourceUiState();
     void browseCsv();

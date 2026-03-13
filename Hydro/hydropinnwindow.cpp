@@ -63,6 +63,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       dataSourceCombo_(new QComboBox(this)), csvPathEdit_(new QLineEdit(this)),
       browseCsvButton_(new QPushButton("Browse...", this)), csvXColSpin_(new QSpinBox(this)),
       csvYColSpin_(new QSpinBox(this)), csvHeaderCheck_(new QCheckBox("CSV has header row", this)),
+      useNeuroforgeCsvPresetButton_(new QPushButton("Use NeuroForge CSV Preset (x=t, y=target)", this)),
       sampleCountSpin_(new QSpinBox(this)), tStartSpin_(new QDoubleSpinBox(this)),
       tEndSpin_(new QDoubleSpinBox(this)), profileCombo_(new QComboBox(this)),
       generateSyntheticButton_(new QPushButton("Generate Synthetic Data", this)),
@@ -71,6 +72,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       runPredictionButton_(new QPushButton("Run Selected", this)), runAllPredictionButton_(new QPushButton("Run All", this)),
       runPredictionFFNButton_(new QPushButton("Run FFN", this)), runPredictionFFNPINNButton_(new QPushButton("Run FFN_PINN", this)),
       runPredictionLSTMButton_(new QPushButton("Run LSTM", this)), runPredictionLSTMPINNButton_(new QPushButton("Run LSTM_PINN", this)),
+      predictionUseCurrentDataCheck_(new QCheckBox("Prediction uses current Data tab settings (re-run mode)", this)),
       runTrainingButton_(new QPushButton("Train Selected", this)), runAllTrainingButton_(new QPushButton("Train All", this)),
       runTrainingFFNButton_(new QPushButton("Train FFN", this)), runTrainingFFNPINNButton_(new QPushButton("Train FFN_PINN", this)),
       runTrainingLSTMButton_(new QPushButton("Train LSTM", this)), runTrainingLSTMPINNButton_(new QPushButton("Train LSTM_PINN", this)),
@@ -131,6 +133,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     dataForm->addRow("CSV x column (0-based)", csvXColSpin_);
     dataForm->addRow("CSV y column (0-based)", csvYColSpin_);
     dataForm->addRow(csvHeaderCheck_);
+    dataForm->addRow(useNeuroforgeCsvPresetButton_);
 
     syntheticExportPathEdit_->setPlaceholderText("Optional export path for generated synthetic CSV");
     auto* syntheticExportRow = new QWidget(dataTab);
@@ -243,6 +246,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     runPredictionFFNPINNButton_->setText("Show FFN_PINN");
     runPredictionLSTMButton_->setText("Show LSTM");
     runPredictionLSTMPINNButton_->setText("Show LSTM_PINN");
+    predictionUseCurrentDataCheck_->setChecked(false);
+    predictionLayout->addWidget(predictionUseCurrentDataCheck_);
     predictionLayout->addWidget(predictionButtons);
     predictionLayout->addStretch(1);
     tabs->addTab(predictionTab, "Prediction");
@@ -321,6 +326,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(runPredictionFFNPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("ffn_pinn"); });
     connect(runPredictionLSTMButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm"); });
     connect(runPredictionLSTMPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm_pinn"); });
+    connect(useNeuroforgeCsvPresetButton_, &QPushButton::clicked, this, &HydroPINNWindow::applyNeuroforgeCsvPreset);
     connect(modeCombo_, &QComboBox::currentTextChanged, this, [this](const QString&) { updateStatus(); });
     connect(addLayerButton_, &QPushButton::clicked, this, [this]() {
         const int layerSize = layerSizeSpin_->value();
@@ -419,12 +425,14 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     runPredictionFFNPINNButton_->setEnabled(!running);
     runPredictionLSTMButton_->setEnabled(!running);
     runPredictionLSTMPINNButton_->setEnabled(!running);
+    predictionUseCurrentDataCheck_->setEnabled(!running);
     runTrainingButton_->setEnabled(!running);
     runAllTrainingButton_->setEnabled(!running);
     runTrainingFFNButton_->setEnabled(!running);
     runTrainingFFNPINNButton_->setEnabled(!running);
     runTrainingLSTMButton_->setEnabled(!running);
     runTrainingLSTMPINNButton_->setEnabled(!running);
+    useNeuroforgeCsvPresetButton_->setEnabled(!running && dataSourceCombo_->currentText() == "CSV File");
 }
 
 QString HydroPINNWindow::selectedModeKey() const {
@@ -466,6 +474,7 @@ void HydroPINNWindow::updateDataSourceUiState() {
     csvXColSpin_->setEnabled(useCsv);
     csvYColSpin_->setEnabled(useCsv);
     csvHeaderCheck_->setEnabled(useCsv);
+    useNeuroforgeCsvPresetButton_->setEnabled(useCsv);
 
     profileCombo_->setEnabled(!useCsv);
     sampleCountSpin_->setEnabled(!useCsv);
@@ -474,6 +483,13 @@ void HydroPINNWindow::updateDataSourceUiState() {
     generateSyntheticButton_->setEnabled(!useCsv);
     syntheticExportPathEdit_->setEnabled(!useCsv);
     browseSyntheticExportButton_->setEnabled(!useCsv);
+}
+
+void HydroPINNWindow::applyNeuroforgeCsvPreset() {
+    csvXColSpin_->setValue(0);
+    csvYColSpin_->setValue(6);
+    csvHeaderCheck_->setChecked(true);
+    appendLog("Applied NeuroForge CSV preset: x=0 (t), y=6 (target), header=yes.");
 }
 
 void HydroPINNWindow::browseCsv() {
@@ -825,6 +841,12 @@ void HydroPINNWindow::runAllModes() {
 }
 
 void HydroPINNWindow::showPredictionForMode(const QString& mode) {
+    if (predictionUseCurrentDataCheck_->isChecked()) {
+        appendLog(QString("Prediction is set to current data settings; re-running mode '%1'.").arg(mode));
+        runMode(mode);
+        return;
+    }
+
     const auto it = lastModeResults_.find(mode);
     if (it == lastModeResults_.end()) {
         appendLog(QString("No stored prediction available for mode '%1'. Run training first.").arg(mode));
@@ -842,6 +864,12 @@ void HydroPINNWindow::showSelectedPrediction() {
 }
 
 void HydroPINNWindow::showAllPredictions() {
+    if (predictionUseCurrentDataCheck_->isChecked()) {
+        appendLog("Prediction is set to current data settings; re-running all modes.");
+        runAllModes();
+        return;
+    }
+
     const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
     for (const QString& mode : modes) {
         if (lastModeResults_.find(mode) == lastModeResults_.end()) {
