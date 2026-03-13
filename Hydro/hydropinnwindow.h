@@ -87,6 +87,9 @@ private:
     QPushButton* refreshPerformanceButton_;
     QPushButton* clearPlotButton_;
     QPushButton* showInputsOutputsButton_;
+    QPushButton* zoomInPlotButton_;
+    QPushButton* zoomOutPlotButton_;
+    QPushButton* fitPlotButton_;
     std::map<QString, HydroRunResult> lastModeResults_;
     std::vector<double> lastSyntheticX_;
     std::vector<double> lastSyntheticTarget_;
@@ -115,4 +118,7 @@ private:
     void stopGAPlaceholder();
     void refreshPerformanceAssessment();
     void clearPlot();
+    void zoomInPlot();
+    void zoomOutPlot();
+    void fitPlotAxes();
 };

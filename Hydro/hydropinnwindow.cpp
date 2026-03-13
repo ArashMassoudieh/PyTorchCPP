@@ -68,7 +68,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       runTrainingLSTMButton_(new QPushButton("Train LSTM", this)), runTrainingLSTMPINNButton_(new QPushButton("Train LSTM_PINN", this)),
       configureGAButton_(new QPushButton("Configure GA", this)), startGAButton_(new QPushButton("Start GA", this)),
       stopGAButton_(new QPushButton("Stop GA", this)), refreshPerformanceButton_(new QPushButton("Refresh Assessment", this)),
-      clearPlotButton_(new QPushButton("Clear Plot", this)), showInputsOutputsButton_(new QPushButton("Show Inputs + Output", this)) {
+      clearPlotButton_(new QPushButton("Clear Plot", this)), showInputsOutputsButton_(new QPushButton("Show Inputs + Output", this)),
+      zoomInPlotButton_(new QPushButton("Zoom In", this)), zoomOutPlotButton_(new QPushButton("Zoom Out", this)),
+      fitPlotButton_(new QPushButton("Fit Axes", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
     resize(1200, 760);
 
@@ -264,6 +266,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     auto* plotButtonsLayout = new QHBoxLayout(plotButtons);
     plotButtonsLayout->setContentsMargins(0, 0, 0, 0);
     plotButtonsLayout->addWidget(showInputsOutputsButton_);
+    plotButtonsLayout->addWidget(zoomInPlotButton_);
+    plotButtonsLayout->addWidget(zoomOutPlotButton_);
+    plotButtonsLayout->addWidget(fitPlotButton_);
     plotButtonsLayout->addWidget(clearPlotButton_);
     plotLayout->addWidget(plotButtons, 0);
     plotLayout->addWidget(chartView_, 1);
@@ -284,6 +289,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     chartView_->setChart(chart);
     chartView_->setRenderHint(QPainter::Antialiasing);
     chartView_->setMinimumHeight(260);
+    chartView_->setRubberBand(QChartView::RectangleRubberBand);
 
     root->addWidget(title);
     root->addLayout(topRow);
@@ -354,6 +360,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(refreshPerformanceButton_, &QPushButton::clicked, this, &HydroPINNWindow::refreshPerformanceAssessment);
     connect(clearPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::clearPlot);
     connect(showInputsOutputsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showSyntheticInputsOutputs);
+    connect(zoomInPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::zoomInPlot);
+    connect(zoomOutPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::zoomOutPlot);
+    connect(fitPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::fitPlotAxes);
 
     updateDataSourceUiState();
     updateStatus();
@@ -717,6 +726,21 @@ void HydroPINNWindow::clearPlot() {
 
     chart->setTitle("Prediction vs Target (Test Set)");
     appendLog("Plot cleared.");
+}
+
+void HydroPINNWindow::zoomInPlot() {
+    chartView_->chart()->zoomIn();
+    appendLog("Plot zoomed in.");
+}
+
+void HydroPINNWindow::zoomOutPlot() {
+    chartView_->chart()->zoomOut();
+    appendLog("Plot zoomed out.");
+}
+
+void HydroPINNWindow::fitPlotAxes() {
+    chartView_->chart()->zoomReset();
+    appendLog("Plot axes fit/reset.");
 }
 
 void HydroPINNWindow::showSyntheticInputsOutputs() {
