@@ -58,6 +58,9 @@ private:
     QDoubleSpinBox* tStartSpin_;
     QDoubleSpinBox* tEndSpin_;
     QComboBox* profileCombo_;
+    QPushButton* generateSyntheticButton_;
+    QLineEdit* syntheticExportPathEdit_;
+    QPushButton* browseSyntheticExportButton_;
 
     void updateStatus();
     void runSelectedMode();
@@ -66,6 +69,8 @@ private:
     void setRunningUiState(bool running);
     void updateDataSourceUiState();
     void browseCsv();
+    void browseSyntheticExportPath();
+    void generateSyntheticDataPreview();
     void appendLog(const QString& line);
     HydroRunConfig currentConfig() const;
     void updatePlot(const QString& mode, const HydroRunResult& result);

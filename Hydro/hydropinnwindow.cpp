@@ -34,7 +34,9 @@
 #include <QtCharts/QValueAxis>
 
 #include <algorithm>
+#include <cmath>
 #include <exception>
+#include <fstream>
 
 HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     : QMainWindow(parent), statusLabel_(new QLabel(this)), modeCombo_(new QComboBox(this)),
@@ -50,7 +52,10 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       browseCsvButton_(new QPushButton("Browse...", this)), csvXColSpin_(new QSpinBox(this)),
       csvYColSpin_(new QSpinBox(this)), csvHeaderCheck_(new QCheckBox("CSV has header row", this)),
       sampleCountSpin_(new QSpinBox(this)), tStartSpin_(new QDoubleSpinBox(this)),
-      tEndSpin_(new QDoubleSpinBox(this)), profileCombo_(new QComboBox(this)) {
+      tEndSpin_(new QDoubleSpinBox(this)), profileCombo_(new QComboBox(this)),
+      generateSyntheticButton_(new QPushButton("Generate Synthetic Data", this)),
+      syntheticExportPathEdit_(new QLineEdit(this)),
+      browseSyntheticExportButton_(new QPushButton("Browse...", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
     resize(1200, 760);
 
@@ -132,6 +137,16 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     dataForm->addRow("CSV x column (0-based)", csvXColSpin_);
     dataForm->addRow("CSV y column (0-based)", csvYColSpin_);
     dataForm->addRow(csvHeaderCheck_);
+
+    syntheticExportPathEdit_->setPlaceholderText("Optional export path for generated synthetic CSV");
+    auto* syntheticExportRow = new QWidget(dataTab);
+    auto* syntheticExportLayout = new QHBoxLayout(syntheticExportRow);
+    syntheticExportLayout->setContentsMargins(0, 0, 0, 0);
+    syntheticExportLayout->addWidget(syntheticExportPathEdit_, 1);
+    syntheticExportLayout->addWidget(browseSyntheticExportButton_);
+
+    dataForm->addRow("Synthetic export", syntheticExportRow);
+    dataForm->addRow(generateSyntheticButton_);
     tabs->addTab(dataTab, "Data");
 
     // Button panel
@@ -186,6 +201,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
         updateStatus();
     });
     connect(browseCsvButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseCsv);
+    connect(browseSyntheticExportButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseSyntheticExportPath);
+    connect(generateSyntheticButton_, &QPushButton::clicked, this, &HydroPINNWindow::generateSyntheticDataPreview);
 
     updateDataSourceUiState();
     updateStatus();
@@ -225,6 +242,9 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     runLSTMPINNButton_->setEnabled(!running);
     dataSourceCombo_->setEnabled(!running);
     browseCsvButton_->setEnabled(!running && dataSourceCombo_->currentText() == "CSV File");
+    generateSyntheticButton_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
+    syntheticExportPathEdit_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
+    browseSyntheticExportButton_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
     runButton_->setText(running ? "Running..." : "Run Selected");
 }
 
@@ -240,6 +260,9 @@ void HydroPINNWindow::updateDataSourceUiState() {
     sampleCountSpin_->setEnabled(!useCsv);
     tStartSpin_->setEnabled(!useCsv);
     tEndSpin_->setEnabled(!useCsv);
+    generateSyntheticButton_->setEnabled(!useCsv);
+    syntheticExportPathEdit_->setEnabled(!useCsv);
+    browseSyntheticExportButton_->setEnabled(!useCsv);
 }
 
 void HydroPINNWindow::browseCsv() {
@@ -249,6 +272,83 @@ void HydroPINNWindow::browseCsv() {
                                                       "CSV Files (*.csv);;All Files (*)");
     if (!path.isEmpty()) {
         csvPathEdit_->setText(path);
+    }
+}
+
+
+void HydroPINNWindow::browseSyntheticExportPath() {
+    const QString path = QFileDialog::getSaveFileName(this,
+                                                      "Save generated synthetic CSV",
+                                                      QString(),
+                                                      "CSV Files (*.csv);;All Files (*)");
+    if (!path.isEmpty()) {
+        syntheticExportPathEdit_->setText(path);
+    }
+}
+
+void HydroPINNWindow::generateSyntheticDataPreview() {
+    if (dataSourceCombo_->currentText() == "CSV File") {
+        QMessageBox::information(this, "HydroPINN", "Synthetic preview is available only when Data source is set to Synthetic.");
+        return;
+    }
+
+    const int samples = sampleCountSpin_->value();
+    const double tStart = tStartSpin_->value();
+    const double tEnd = tEndSpin_->value();
+    const QString profile = profileCombo_->currentText();
+
+    if (samples < 2 || tEnd <= tStart) {
+        QMessageBox::warning(this, "HydroPINN", "Invalid synthetic range/sample settings.");
+        return;
+    }
+
+    std::vector<double> xs;
+    std::vector<double> ys;
+    xs.reserve(static_cast<size_t>(samples));
+    ys.reserve(static_cast<size_t>(samples));
+
+    for (int i = 0; i < samples; ++i) {
+        const double r = static_cast<double>(i) / static_cast<double>(samples - 1);
+        const double t = tStart + (tEnd - tStart) * r;
+        double y = 0.0;
+        if (profile == "damped_sine") {
+            y = std::sin(t) * std::exp(-0.15 * t);
+        } else if (profile == "mixed_wave") {
+            y = 0.7 * std::sin(1.5 * t) + 0.3 * std::cos(0.5 * t);
+        } else {
+            y = std::exp(-0.8 * t);
+        }
+        xs.push_back(t);
+        ys.push_back(y);
+    }
+
+    HydroRunResult preview;
+    preview.success = true;
+    preview.message = "Synthetic preview generated.";
+    preview.x = xs;
+    preview.y_true = ys;
+    preview.y_pred = ys;
+    updatePlot("synthetic_preview", preview);
+
+    appendLog(QString("Generated synthetic preview: profile=%1, samples=%2, range=[%3,%4]")
+                  .arg(profile)
+                  .arg(samples)
+                  .arg(tStart, 0, 'g', 6)
+                  .arg(tEnd, 0, 'g', 6));
+
+    const QString outPath = syntheticExportPathEdit_->text().trimmed();
+    if (!outPath.isEmpty()) {
+        std::ofstream out(outPath.toStdString());
+        if (!out.is_open()) {
+            QMessageBox::warning(this, "HydroPINN", QString("Failed to open export file: %1").arg(outPath));
+            return;
+        }
+        out << "t,y\n";
+        for (int i = 0; i < samples; ++i) {
+            out << xs[static_cast<size_t>(i)] << "," << ys[static_cast<size_t>(i)] << "\n";
+        }
+        out.close();
+        appendLog(QString("Synthetic data exported to: %1").arg(outPath));
     }
 }
 
