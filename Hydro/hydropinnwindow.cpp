@@ -37,6 +37,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <exception>
 #include <fstream>
 
@@ -82,7 +83,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     modeCombo_->addItem("LSTM + PINN (temporary FFN backend)", "lstm_pinn");
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
     dataSourceCombo_->addItems({"Synthetic", "CSV File"});
-    profileCombo_->addItems({"exp_decay", "damped_sine", "mixed_wave"});
+    profileCombo_->addItems({"exp_decay", "damped_sine", "mixed_wave", "neuroforge_inputs_target"});
 
     auto* tabs = new QTabWidget(central);
 
@@ -129,6 +130,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
 
     dataForm->addRow("Synthetic export", syntheticExportRow);
     dataForm->addRow(generateSyntheticButton_);
+    dataForm->addRow(new QLabel("Tip: for neuroforge_inputs_target export, set CSV x column=0 (t) and y column=6 (target).", dataTab));
     tabs->addTab(dataTab, "Data");
 
     auto* networkTab = new QWidget(tabs);
@@ -474,22 +476,113 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
 
     std::vector<double> xs;
     std::vector<double> ys;
+    std::vector<double> temperature;
+    std::vector<double> pressure;
+    std::vector<double> flowRate;
+    std::vector<double> concentration;
+    std::vector<double> velocity;
     xs.reserve(static_cast<size_t>(samples));
     ys.reserve(static_cast<size_t>(samples));
+    temperature.reserve(static_cast<size_t>(samples));
+    pressure.reserve(static_cast<size_t>(samples));
+    flowRate.reserve(static_cast<size_t>(samples));
+    concentration.reserve(static_cast<size_t>(samples));
+    velocity.reserve(static_cast<size_t>(samples));
 
-    for (int i = 0; i < samples; ++i) {
-        const double r = static_cast<double>(i) / static_cast<double>(samples - 1);
-        const double t = tStart + (tEnd - tStart) * r;
-        double y = 0.0;
-        if (profile == "damped_sine") {
-            y = std::sin(t) * std::exp(-0.15 * t);
-        } else if (profile == "mixed_wave") {
-            y = 0.7 * std::sin(1.5 * t) + 0.3 * std::cos(0.5 * t);
-        } else {
-            y = std::exp(-0.8 * t);
+    if (profile == "neuroforge_inputs_target") {
+        std::srand(42);
+        const double dt = (tEnd - tStart) / static_cast<double>(samples - 1);
+        const double bufferStart = tStart - 1.0;
+        std::vector<double> allT;
+        std::vector<double> allTemp;
+        std::vector<double> allPress;
+        std::vector<double> allFlow;
+        std::vector<double> allConc;
+        std::vector<double> allVel;
+
+        double x0 = 0.0;
+        double x1 = 0.0;
+        double x2 = 1.0;
+        double x3 = 0.0;
+        double x4 = 0.0;
+
+        const int totalSteps = static_cast<int>(std::floor((tEnd - bufferStart) / dt)) + 1;
+        allT.reserve(static_cast<size_t>(totalSteps));
+        allTemp.reserve(static_cast<size_t>(totalSteps));
+        allPress.reserve(static_cast<size_t>(totalSteps));
+        allFlow.reserve(static_cast<size_t>(totalSteps));
+        allConc.reserve(static_cast<size_t>(totalSteps));
+        allVel.reserve(static_cast<size_t>(totalSteps));
+
+        auto uniformNoise = []() {
+            return (static_cast<double>(std::rand()) / RAND_MAX - 0.5) * 2.0;
+        };
+
+        for (int i = 0; i < totalSteps; ++i) {
+            const double t = bufferStart + dt * static_cast<double>(i);
+
+            x0 = x0 + 0.5 * (0.0 - x0) * dt + 1.5 * std::sqrt(dt) * uniformNoise();
+            x1 = x1 + 1.0 * (0.0 - x1) * dt + 1.2 * std::sqrt(dt) * uniformNoise();
+            x2 = x2 + 2.0 * (1.0 - x2) * dt + 0.8 * std::sqrt(dt) * uniformNoise();
+            x3 = x3 + 0.3 * (0.0 - x3) * dt + 1.0 * std::sqrt(dt) * uniformNoise();
+            x4 = x4 + 0.8 * (0.0 - x4) * dt + 1.8 * std::sqrt(dt) * uniformNoise();
+
+            allT.push_back(t);
+            allTemp.push_back(x0);
+            allPress.push_back(x1);
+            allFlow.push_back(x2);
+            allConc.push_back(x3);
+            allVel.push_back(x4);
         }
-        xs.push_back(t);
-        ys.push_back(y);
+
+        auto interpol = [&](const std::vector<double>& vals, double tq) {
+            if (tq <= allT.front()) return vals.front();
+            if (tq >= allT.back()) return vals.back();
+            const auto it = std::lower_bound(allT.begin(), allT.end(), tq);
+            const size_t hi = static_cast<size_t>(it - allT.begin());
+            const size_t lo = hi - 1;
+            const double t0 = allT[lo];
+            const double t1 = allT[hi];
+            const double r = (tq - t0) / (t1 - t0);
+            return vals[lo] * (1.0 - r) + vals[hi] * r;
+        };
+
+        for (int i = 0; i < samples; ++i) {
+            const double t = tStart + dt * static_cast<double>(i);
+            const double temp = interpol(allTemp, t);
+            const double press = interpol(allPress, t);
+            const double flow = interpol(allFlow, t);
+            const double conc = interpol(allConc, t);
+            const double vel = interpol(allVel, t);
+            const double target = 0.4 * interpol(allTemp, t - 0.1) +
+                                  0.3 * interpol(allPress, t - 0.3) +
+                                  0.2 * interpol(allConc, t - 0.2) +
+                                  0.1 * interpol(allVel, t - 0.5) +
+                                  0.05 * (static_cast<double>(std::rand()) / RAND_MAX - 0.5);
+
+            xs.push_back(t);
+            temperature.push_back(temp);
+            pressure.push_back(press);
+            flowRate.push_back(flow);
+            concentration.push_back(conc);
+            velocity.push_back(vel);
+            ys.push_back(target);
+        }
+    } else {
+        for (int i = 0; i < samples; ++i) {
+            const double r = static_cast<double>(i) / static_cast<double>(samples - 1);
+            const double t = tStart + (tEnd - tStart) * r;
+            double y = 0.0;
+            if (profile == "damped_sine") {
+                y = std::sin(t) * std::exp(-0.15 * t);
+            } else if (profile == "mixed_wave") {
+                y = 0.7 * std::sin(1.5 * t) + 0.3 * std::cos(0.5 * t);
+            } else {
+                y = std::exp(-0.8 * t);
+            }
+            xs.push_back(t);
+            ys.push_back(y);
+        }
     }
 
     HydroRunResult preview;
@@ -513,9 +606,23 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
             QMessageBox::warning(this, "HydroPINN", QString("Failed to open export file: %1").arg(outPath));
             return;
         }
-        out << "t,y\n";
-        for (int i = 0; i < samples; ++i) {
-            out << xs[static_cast<size_t>(i)] << "," << ys[static_cast<size_t>(i)] << "\n";
+        if (profile == "neuroforge_inputs_target") {
+            out << "t,temperature,pressure,flow_rate,concentration,velocity,target\n";
+            for (int i = 0; i < samples; ++i) {
+                const size_t k = static_cast<size_t>(i);
+                out << xs[k] << ","
+                    << temperature[k] << ","
+                    << pressure[k] << ","
+                    << flowRate[k] << ","
+                    << concentration[k] << ","
+                    << velocity[k] << ","
+                    << ys[k] << "\n";
+            }
+        } else {
+            out << "t,y\n";
+            for (int i = 0; i < samples; ++i) {
+                out << xs[static_cast<size_t>(i)] << "," << ys[static_cast<size_t>(i)] << "\n";
+            }
         }
         out.close();
         appendLog(QString("Synthetic data exported to: %1").arg(outPath));
