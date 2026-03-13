@@ -86,7 +86,11 @@ private:
     QPushButton* stopGAButton_;
     QPushButton* refreshPerformanceButton_;
     QPushButton* clearPlotButton_;
+    QPushButton* showInputsOutputsButton_;
     std::map<QString, HydroRunResult> lastModeResults_;
+    std::vector<double> lastSyntheticX_;
+    std::vector<double> lastSyntheticTarget_;
+    std::map<QString, std::vector<double>> lastSyntheticInputs_;
 
     void updateStatus();
     void runSelectedMode();
@@ -95,6 +99,7 @@ private:
     void showSelectedPrediction();
     void showAllPredictions();
     void showPredictionForMode(const QString& mode);
+    void showSyntheticInputsOutputs();
     void setRunningUiState(bool running);
     void updateDataSourceUiState();
     void browseCsv();

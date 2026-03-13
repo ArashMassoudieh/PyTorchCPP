@@ -29,6 +29,7 @@
 #include <QWidget>
 
 #include <QtCharts/QChart>
+#include <QtCharts/QAbstractSeries>
 #include <QtCharts/QChartView>
 #include <QtCharts/QLegend>
 #include <QtCharts/QLineSeries>
@@ -67,7 +68,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       runTrainingLSTMButton_(new QPushButton("Train LSTM", this)), runTrainingLSTMPINNButton_(new QPushButton("Train LSTM_PINN", this)),
       configureGAButton_(new QPushButton("Configure GA", this)), startGAButton_(new QPushButton("Start GA", this)),
       stopGAButton_(new QPushButton("Stop GA", this)), refreshPerformanceButton_(new QPushButton("Refresh Assessment", this)),
-      clearPlotButton_(new QPushButton("Clear Plot", this)) {
+      clearPlotButton_(new QPushButton("Clear Plot", this)), showInputsOutputsButton_(new QPushButton("Show Inputs + Output", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
     resize(1200, 760);
 
@@ -259,7 +260,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
 
     auto* plotTab = new QWidget(tabs);
     auto* plotLayout = new QVBoxLayout(plotTab);
-    plotLayout->addWidget(clearPlotButton_, 0);
+    auto* plotButtons = new QWidget(plotTab);
+    auto* plotButtonsLayout = new QHBoxLayout(plotButtons);
+    plotButtonsLayout->setContentsMargins(0, 0, 0, 0);
+    plotButtonsLayout->addWidget(showInputsOutputsButton_);
+    plotButtonsLayout->addWidget(clearPlotButton_);
+    plotLayout->addWidget(plotButtons, 0);
     plotLayout->addWidget(chartView_, 1);
     tabs->addTab(plotTab, "Plot");
 
@@ -347,6 +353,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(stopGAButton_, &QPushButton::clicked, this, &HydroPINNWindow::stopGAPlaceholder);
     connect(refreshPerformanceButton_, &QPushButton::clicked, this, &HydroPINNWindow::refreshPerformanceAssessment);
     connect(clearPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::clearPlot);
+    connect(showInputsOutputsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showSyntheticInputsOutputs);
 
     updateDataSourceUiState();
     updateStatus();
@@ -585,6 +592,19 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
         }
     }
 
+    lastSyntheticX_ = xs;
+    lastSyntheticTarget_ = ys;
+    lastSyntheticInputs_.clear();
+    if (profile == "neuroforge_inputs_target") {
+        lastSyntheticInputs_["temperature"] = temperature;
+        lastSyntheticInputs_["pressure"] = pressure;
+        lastSyntheticInputs_["flow_rate"] = flowRate;
+        lastSyntheticInputs_["concentration"] = concentration;
+        lastSyntheticInputs_["velocity"] = velocity;
+    } else {
+        lastSyntheticInputs_["synthetic_input"] = ys;
+    }
+
     HydroRunResult preview;
     preview.success = true;
     preview.message = "Synthetic preview generated.";
@@ -697,6 +717,53 @@ void HydroPINNWindow::clearPlot() {
 
     chart->setTitle("Prediction vs Target (Test Set)");
     appendLog("Plot cleared.");
+}
+
+void HydroPINNWindow::showSyntheticInputsOutputs() {
+    if (lastSyntheticX_.empty() || lastSyntheticTarget_.empty()) {
+        QMessageBox::information(this,
+                                 "HydroPINN Plot",
+                                 "No synthetic input/output data available yet. Generate synthetic data first.");
+        return;
+    }
+
+    auto* chart = chartView_->chart();
+    chart->removeAllSeries();
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) {
+        chart->removeAxis(axis);
+        delete axis;
+    }
+
+    const size_t n = lastSyntheticX_.size();
+    for (const auto& kv : lastSyntheticInputs_) {
+        auto* s = new QLineSeries(chart);
+        s->setName(kv.first + " (input)");
+        const auto& vals = kv.second;
+        const size_t m = std::min(n, vals.size());
+        for (size_t i = 0; i < m; ++i) s->append(lastSyntheticX_[i], vals[i]);
+        chart->addSeries(s);
+    }
+
+    auto* targetSeries = new QLineSeries(chart);
+    targetSeries->setName("target (output)");
+    for (size_t i = 0; i < n; ++i) targetSeries->append(lastSyntheticX_[i], lastSyntheticTarget_[i]);
+    chart->addSeries(targetSeries);
+
+    auto* axisX = new QValueAxis(chart);
+    axisX->setTitleText("t");
+    auto* axisY = new QValueAxis(chart);
+    axisY->setTitleText("value");
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    for (QAbstractSeries* series : chart->series()) {
+        series->attachAxis(axisX);
+        series->attachAxis(axisY);
+    }
+
+    chart->setTitle("Synthetic Inputs + Output (NeuroForge-style)");
+    chart->legend()->setVisible(true);
+    appendLog("Displayed synthetic inputs and output target on plot.");
 }
 
 void HydroPINNWindow::runSelectedMode() {
