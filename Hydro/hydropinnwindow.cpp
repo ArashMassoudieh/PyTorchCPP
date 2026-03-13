@@ -42,6 +42,14 @@
 #include <exception>
 #include <fstream>
 
+namespace {
+QString parseLayerActivationText(const QString& layerText) {
+    const int comma = layerText.lastIndexOf(',');
+    if (comma < 0) return QString();
+    return layerText.mid(comma + 1).trimmed();
+}
+}
+
 HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     : QMainWindow(parent), statusLabel_(new QLabel(this)), modeCombo_(new QComboBox(this)),
       logText_(new QTextEdit(this)), chartView_(new QChartView(this)), perfSummaryText_(new QTextBrowser(this)),
@@ -387,7 +395,12 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
     cfg.t_start = tStartSpin_->value();
     cfg.t_end = tEndSpin_->value();
     cfg.hidden_layers_csv = hiddenLayersEdit_->text().toStdString();
-    cfg.activation = activationCombo_->currentText().toStdString();
+    const std::vector<QString> layerActs = configuredLayerActivations();
+    if (!layerActs.empty()) {
+        cfg.activation = layerActs.front().toStdString();
+    } else {
+        cfg.activation = activationCombo_->currentText().toStdString();
+    }
     cfg.synthetic_profile = profileCombo_->currentText().toStdString();
     cfg.evaluate_metrics = evalCheck_->isChecked();
     return cfg;
@@ -416,6 +429,16 @@ void HydroPINNWindow::setRunningUiState(bool running) {
 
 QString HydroPINNWindow::selectedModeKey() const {
     return modeCombo_->currentData().toString();
+}
+
+std::vector<QString> HydroPINNWindow::configuredLayerActivations() const {
+    std::vector<QString> acts;
+    acts.reserve(static_cast<size_t>(layersList_->count()));
+    for (int i = 0; i < layersList_->count(); ++i) {
+        const QString act = parseLayerActivationText(layersList_->item(i)->text());
+        if (!act.isEmpty()) acts.push_back(act);
+    }
+    return acts;
 }
 
 void HydroPINNWindow::syncNetworkCsvFromLayerList() {
@@ -880,6 +903,23 @@ void HydroPINNWindow::runMode(const QString& mode) {
     appendLog("Dispatch started.");
 
     HydroRunConfig cfg = currentConfig();
+    const std::vector<QString> layerActs = configuredLayerActivations();
+    if (!layerActs.empty()) {
+        bool mixedActivations = false;
+        for (size_t i = 1; i < layerActs.size(); ++i) {
+            if (layerActs[i].compare(layerActs[0], Qt::CaseInsensitive) != 0) {
+                mixedActivations = true;
+                break;
+            }
+        }
+        if (mixedActivations) {
+            appendLog(QString("Mixed layer activations configured (%1). Current backend supports a single activation; using first layer activation: %2")
+                          .arg(QString::number(layerActs.size()))
+                          .arg(QString::fromStdString(cfg.activation)));
+        } else {
+            appendLog(QString("Using activation from Network Builder: %1").arg(QString::fromStdString(cfg.activation)));
+        }
+    }
     if (cfg.use_csv_data) {
         appendLog(QString("Using CSV data: %1 (x_col=%2, y_col=%3, header=%4)")
                       .arg(QString::fromStdString(cfg.csv_path))

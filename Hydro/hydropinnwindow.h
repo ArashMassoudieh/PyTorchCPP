@@ -112,6 +112,7 @@ private:
     HydroRunConfig currentConfig() const;
     QString selectedModeKey() const;
     void syncNetworkCsvFromLayerList();
+    std::vector<QString> configuredLayerActivations() const;
     void updatePlot(const QString& mode, const HydroRunResult& result);
     void configureGAPlaceholder();
     void startGAPlaceholder();
