@@ -169,6 +169,8 @@ void fillPlotVectors(HydroRunResult& result, const torch::Tensor& x, const torch
 HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     HydroRunResult result;
 
+    torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
+
     NeuralNetworkWrapper model;
     model.setHiddenLayers(parseHiddenLayers(config.hidden_layers_csv));
     model.setLags({{1}});
@@ -182,7 +184,8 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
         y = buildBaselineTarget(t, config.synthetic_profile);
     }
 
-    const int64_t nTrain = static_cast<int64_t>(t.size(0) * 0.8);
+    const double split = std::min(0.95, std::max(0.1, config.train_split_ratio));
+    const int64_t nTrain = static_cast<int64_t>(t.size(0) * split);
     torch::Tensor tTrain = t.slice(0, 0, nTrain);
     torch::Tensor yTrain = y.slice(0, 0, nTrain);
     torch::Tensor tTest = t.slice(0, nTrain, t.size(0));
