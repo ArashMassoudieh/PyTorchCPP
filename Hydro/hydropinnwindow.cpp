@@ -61,7 +61,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       logText_(new QTextEdit(this)), chartView_(new QChartView(this)), perfSummaryText_(new QTextBrowser(this)),
       epochsSpin_(new QSpinBox(this)), batchSpin_(new QSpinBox(this)), lrSpin_(new QDoubleSpinBox(this)),
       lambdaSpin_(new QDoubleSpinBox(this)), dataWeightSpin_(new QDoubleSpinBox(this)),
-      physicsWeightSpin_(new QDoubleSpinBox(this)), hiddenLayersEdit_(new QLineEdit(this)),
+      physicsWeightSpin_(new QDoubleSpinBox(this)), pinnPhysicsProfileCombo_(new QComboBox(this)),
+      forcingGainSpin_(new QDoubleSpinBox(this)), hiddenLayersEdit_(new QLineEdit(this)),
       activationCombo_(new QComboBox(this)), layerSizeSpin_(new QSpinBox(this)), layerActivationCombo_(new QComboBox(this)),
       addLayerButton_(new QPushButton("Add Layer", this)), removeLayerButton_(new QPushButton("Remove Selected", this)),
       layersList_(new QListWidget(this)), outputActivationCombo_(new QComboBox(this)),
@@ -223,6 +224,10 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     physicsWeightSpin_->setDecimals(4);
     physicsWeightSpin_->setRange(0.0, 100.0);
     physicsWeightSpin_->setValue(0.2);
+    pinnPhysicsProfileCombo_->addItems({"exp_decay", "linear_reservoir", "cstr_first_order"});
+    forcingGainSpin_->setDecimals(4);
+    forcingGainSpin_->setRange(0.0, 100.0);
+    forcingGainSpin_->setValue(1.0);
     evalCheck_->setChecked(true);
     trainForm->addRow("Epochs", epochsSpin_);
     trainForm->addRow("Batch size", batchSpin_);
@@ -230,6 +235,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     trainForm->addRow("Lambda (PINN)", lambdaSpin_);
     trainForm->addRow("Data loss weight", dataWeightSpin_);
     trainForm->addRow("Physics loss weight", physicsWeightSpin_);
+    trainForm->addRow("PINN physics profile", pinnPhysicsProfileCombo_);
+    trainForm->addRow("PINN forcing gain", forcingGainSpin_);
 
     splitRatioSpin_->setDecimals(3);
     splitRatioSpin_->setRange(0.1, 0.95);
@@ -459,6 +466,8 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
     cfg.lambda_decay = lambdaSpin_->value();
     cfg.data_weight = dataWeightSpin_->value();
     cfg.physics_weight = physicsWeightSpin_->value();
+    cfg.pinn_physics_profile = pinnPhysicsProfileCombo_->currentText().toStdString();
+    cfg.forcing_gain = forcingGainSpin_->value();
     cfg.use_csv_data = (dataSourceCombo_->currentText() == "CSV File");
     cfg.csv_path = csvPathEdit_->text().toStdString();
     cfg.csv_x_column = csvXColSpin_->value();
@@ -830,12 +839,12 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           "Data source: %3<br/>"
                           "Evaluate metrics: %4<br/>"
                           "Training: epochs=%5, batch=%6, lr=%7<br/>"
-                          "PINN: lambda=%8, data_w=%9, physics_w=%10<br/>"
-                          "Network: layers=%11, activation=%12<br/>"
-                          "Split/shuffle: split=%13, shuffle=%14, seed=%15<br/>"
-                          "Optimizer: %16, weight_decay=%17, momentum=%18<br/>"
-                          "Normalization: %19<br/>"
-                          "Incremental: enabled=%20, window_size=%21, window_step=%22, epochs/window=%23, reset_opt=%24")
+                          "PINN: lambda=%8, data_w=%9, physics_w=%10, profile=%11, forcing_gain=%12<br/>"
+                          "Network: layers=%13, activation=%14<br/>"
+                          "Split/shuffle: split=%15, shuffle=%16, seed=%17<br/>"
+                          "Optimizer: %18, weight_decay=%19, momentum=%20<br/>"
+                          "Normalization: %21<br/>"
+                          "Incremental: enabled=%22, window_size=%23, window_step=%24, epochs/window=%25, reset_opt=%26")
                           .arg(modeCombo_->currentText())
                           .arg(backendInfo)
                           .arg(cfg.use_csv_data ? "CSV" : "Synthetic")
@@ -846,6 +855,8 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           .arg(cfg.lambda_decay, 0, 'g', 6)
                           .arg(cfg.data_weight, 0, 'g', 6)
                           .arg(cfg.physics_weight, 0, 'g', 6)
+                          .arg(QString::fromStdString(cfg.pinn_physics_profile))
+                          .arg(cfg.forcing_gain, 0, 'g', 6)
                           .arg(QString::fromStdString(cfg.hidden_layers_csv))
                           .arg(QString::fromStdString(cfg.activation))
                           .arg(cfg.train_split_ratio, 0, 'g', 4)
@@ -1571,8 +1582,14 @@ void HydroPINNWindow::runMode(const QString& mode) {
                       .arg(cfg.sample_count)
                       .arg(cfg.t_start, 0, 'g', 6)
                       .arg(cfg.t_end, 0, 'g', 6));
-        if ((mode == "ffn_pinn" || mode == "lstm_pinn") && cfg.synthetic_profile != "exp_decay") {
-            appendLog("Note: PINN modes use exponential-decay residual physics; non-exp synthetic profiles may reduce physics consistency.");
+        if (mode == "ffn_pinn" || mode == "lstm_pinn") {
+            if (cfg.pinn_physics_profile == "exp_decay" && cfg.synthetic_profile != "exp_decay") {
+                appendLog("Note: selected PINN profile is exp_decay; non-exp synthetic targets may reduce physics consistency.");
+            }
+            if ((cfg.pinn_physics_profile == "linear_reservoir" || cfg.pinn_physics_profile == "cstr_first_order") &&
+                cfg.synthetic_profile != "neuroforge_inputs_target") {
+                appendLog("Note: forcing-based PINN profile works best with multi-feature inputs (CSV or neuroforge_inputs_target synthetic profile).");
+            }
         }
     }
     appendLog(QString("Extra options => split=%1, optimizer=%2, normalization=%3, incremental=%4")
@@ -1580,6 +1597,11 @@ void HydroPINNWindow::runMode(const QString& mode) {
                   .arg(QString::fromStdString(cfg.optimizer))
                   .arg(QString::fromStdString(cfg.normalization))
                   .arg(cfg.use_incremental_training ? "yes" : "no"));
+    if (mode == "ffn_pinn" || mode == "lstm_pinn") {
+        appendLog(QString("PINN physics => profile=%1, forcing_gain=%2")
+                      .arg(QString::fromStdString(cfg.pinn_physics_profile))
+                      .arg(cfg.forcing_gain, 0, 'g', 6));
+    }
 
     QCoreApplication::processEvents();
 

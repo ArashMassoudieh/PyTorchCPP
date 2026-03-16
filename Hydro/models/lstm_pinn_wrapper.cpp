@@ -245,12 +245,24 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     model.setTensorData(DataType::Train, xTrain, yTrain);
     model.setTensorData(DataType::Test, xTest, yTest);
 
-    std::vector<double> losses = model.trainPINNExponentialDecay(config.epochs,
-                                                                 config.batch_size,
-                                                                 config.learning_rate,
-                                                                 lambda,
-                                                                 config.data_weight,
-                                                                 config.physics_weight);
+    std::vector<double> losses;
+    if (config.pinn_physics_profile == "linear_reservoir" || config.pinn_physics_profile == "cstr_first_order") {
+        losses = model.trainPINNWithForcing(config.epochs,
+                                            config.batch_size,
+                                            config.learning_rate,
+                                            lambda,
+                                            config.forcing_gain,
+                                            1,
+                                            config.data_weight,
+                                            config.physics_weight);
+    } else {
+        losses = model.trainPINNExponentialDecay(config.epochs,
+                                                 config.batch_size,
+                                                 config.learning_rate,
+                                                 lambda,
+                                                 config.data_weight,
+                                                 config.physics_weight);
+    }
     if (losses.empty() || !std::isfinite(losses.back())) {
         throw std::runtime_error("LSTM-PINN-like training produced empty/non-finite loss history.");
     }

@@ -15,6 +15,8 @@ struct HydroRunConfig {
     double lambda_decay = 0.8;
     double data_weight = 1.0;
     double physics_weight = 0.2;
+    std::string pinn_physics_profile = "exp_decay"; // exp_decay | linear_reservoir | cstr_first_order
+    double forcing_gain = 1.0;
 
     // Data input options
     bool use_csv_data = false;

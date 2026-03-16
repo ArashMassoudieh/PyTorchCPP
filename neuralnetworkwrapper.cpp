@@ -775,6 +775,109 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
     return training_history_;
 }
 
+std::vector<double> NeuralNetworkWrapper::trainPINNWithForcing(int num_epochs,
+                                                               int batch_size,
+                                                               double learning_rate,
+                                                               double lambda_decay,
+                                                               double forcing_gain,
+                                                               int forcing_feature_index,
+                                                               double data_weight,
+                                                               double physics_weight) {
+    if (!is_initialized_) {
+        throw std::runtime_error("Network not initialized. Call initializeNetwork() first.");
+    }
+    if (num_epochs <= 0) {
+        throw std::runtime_error("Number of epochs must be positive for PINN training.");
+    }
+    if (batch_size <= 0) {
+        throw std::runtime_error("Batch size must be positive for PINN training.");
+    }
+    if (learning_rate <= 0.0) {
+        throw std::runtime_error("Learning rate must be positive for PINN training.");
+    }
+    if (data_weight < 0.0 || physics_weight < 0.0) {
+        throw std::runtime_error("Data and physics loss weights must be non-negative.");
+    }
+
+    if (!hasInputData(DataType::Train) || !hasTargetData(DataType::Train)) {
+        throw std::runtime_error("Training data not available. Use setInputData() and setOutputData() with DataType::Train first.");
+    }
+
+    torch::Tensor train_inputs = getInputData(DataType::Train);
+    torch::Tensor train_targets = getTargetData(DataType::Train);
+
+    if (train_inputs.dim() != 2 || train_inputs.size(1) < 2) {
+        throw std::runtime_error("PINN forcing profile requires train inputs with shape [N, F] where F >= 2 (time + forcing).");
+    }
+    if (forcing_feature_index < 1 || forcing_feature_index >= train_inputs.size(1)) {
+        throw std::runtime_error("PINN forcing feature index is out of range.");
+    }
+    if (train_targets.dim() != 2 || train_targets.size(1) != 1) {
+        throw std::runtime_error("PINN forcing profile requires train targets with shape [N, 1].");
+    }
+    if (train_inputs.size(0) != train_targets.size(0)) {
+        throw std::runtime_error("Training input and output data must have the same number of samples.");
+    }
+
+    const int num_train_samples = static_cast<int>(train_inputs.size(0));
+
+    std::vector<torch::Tensor> params_vector;
+    for (auto& layer : layers_) {
+        params_vector.push_back(layer->weight);
+        params_vector.push_back(layer->bias);
+    }
+    torch::optim::Adam optimizer(params_vector, torch::optim::AdamOptions(learning_rate));
+
+    training_history_.clear();
+    training_history_.reserve(num_epochs);
+
+    for (int epoch = 0; epoch < num_epochs; ++epoch) {
+        double total_epoch_loss = 0.0;
+        int num_batches = 0;
+
+        torch::Tensor permutation = torch::randperm(num_train_samples, torch::kLong);
+
+        for (int i = 0; i < num_train_samples; i += batch_size) {
+            const int current_batch_size = std::min(batch_size, num_train_samples - i);
+            torch::Tensor batch_indices = permutation.slice(0, i, i + current_batch_size);
+
+            torch::Tensor batch_inputs = train_inputs.index_select(0, batch_indices);
+            torch::Tensor batch_targets = train_targets.index_select(0, batch_indices);
+
+            torch::Tensor pinn_inputs = batch_inputs.clone().detach().set_requires_grad(true);
+            optimizer.zero_grad();
+
+            torch::Tensor predictions = this->forward_internal(pinn_inputs);
+            torch::Tensor data_loss = torch::mse_loss(predictions, batch_targets);
+
+            torch::Tensor grad_outputs = torch::ones_like(predictions);
+            auto grads = torch::autograd::grad({predictions}, {pinn_inputs}, {grad_outputs}, true, true);
+            if (grads.empty() || !grads[0].defined()) {
+                throw std::runtime_error("Failed to compute PINN gradient dy/dt.");
+            }
+
+            torch::Tensor dy_dt = grads[0].slice(1, 0, 1);
+            torch::Tensor forcing = pinn_inputs.slice(1, forcing_feature_index, forcing_feature_index + 1);
+            torch::Tensor residual = dy_dt + lambda_decay * predictions - forcing_gain * forcing;
+            torch::Tensor physics_loss = torch::mse_loss(residual, torch::zeros_like(residual));
+
+            torch::Tensor total_loss = data_weight * data_loss + physics_weight * physics_loss;
+            total_loss.backward();
+            optimizer.step();
+
+            total_epoch_loss += total_loss.item<double>();
+            num_batches++;
+        }
+
+        const double avg_loss = total_epoch_loss / static_cast<double>(std::max(1, num_batches));
+        current_loss_ = avg_loss;
+        training_history_.push_back(avg_loss);
+    }
+
+    return training_history_;
+}
+
+
 void NeuralNetworkWrapper::saveModel(const std::string& filepath) {
     if (!is_initialized_) {
         throw std::runtime_error("Cannot save uninitialized network. Call initializeNetwork() first.");
