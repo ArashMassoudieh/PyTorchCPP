@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 
@@ -33,14 +35,14 @@ std::vector<std::string> splitCsvRow(const std::string& line) {
     return cols;
 }
 
-bool loadSeriesFromCsv(const HydroRunConfig& config, torch::Tensor& t, torch::Tensor& y) {
+bool loadSeriesFromCsv(const HydroRunConfig& config, torch::Tensor& x, torch::Tensor& y, torch::Tensor& plotX) {
     if (!config.use_csv_data) return false;
     if (config.csv_path.empty()) throw std::runtime_error("CSV data source selected but csv_path is empty.");
 
     std::ifstream in(config.csv_path);
     if (!in.is_open()) throw std::runtime_error("Unable to open CSV file: " + config.csv_path);
 
-    std::vector<float> xs;
+    std::vector<float> flatInputs;
     std::vector<float> ys;
     std::string line;
     bool firstLine = true;
@@ -52,22 +54,149 @@ bool loadSeriesFromCsv(const HydroRunConfig& config, torch::Tensor& t, torch::Te
             continue;
         }
         firstLine = false;
-
         const std::vector<std::string> cols = splitCsvRow(line);
         if (static_cast<int>(cols.size()) <= requiredCol) continue;
         try {
-            xs.push_back(static_cast<float>(std::stod(cols[config.csv_x_column])));
+            if (config.synthetic_profile == "neuroforge_inputs_target") {
+                int features = 0;
+                for (int c = 0; c < static_cast<int>(cols.size()); ++c) {
+                    if (c == config.csv_y_column) continue;
+                    flatInputs.push_back(static_cast<float>(std::stod(cols[c])));
+                    ++features;
+                }
+                if (features == 0) continue;
+                plotX = torch::Tensor();
+            } else {
+                flatInputs.push_back(static_cast<float>(std::stod(cols[config.csv_x_column])));
+            }
             ys.push_back(static_cast<float>(std::stod(cols[config.csv_y_column])));
         } catch (...) {
             continue;
         }
     }
 
-    if (xs.size() < 10) throw std::runtime_error("CSV parsing yielded too few numeric samples (<10).");
+    if (ys.size() < 10) throw std::runtime_error("CSV parsing yielded too few numeric samples (<10).");
 
-    t = torch::from_blob(xs.data(), {(long)xs.size(), 1}, torch::kFloat32).clone();
+    const int64_t samples = static_cast<int64_t>(ys.size());
+    const int64_t inputDim = static_cast<int64_t>(flatInputs.size() / ys.size());
+    if (inputDim <= 0 || static_cast<size_t>(samples * inputDim) != flatInputs.size()) throw std::runtime_error("CSV parsing yielded inconsistent input feature widths.");
+
+    x = torch::from_blob(flatInputs.data(), {samples, inputDim}, torch::kFloat32).clone();
     y = torch::from_blob(ys.data(), {(long)ys.size(), 1}, torch::kFloat32).clone();
+    if (!plotX.defined()) {
+        plotX = x.slice(1, 0, 1).clone();
+    } else {
+        plotX = x.slice(1, 0, 1).clone();
+    }
     return true;
+}
+
+void buildSyntheticSeries(const HydroRunConfig& config, torch::Tensor& x, torch::Tensor& y, torch::Tensor& plotX) {
+    const int samples = std::max(32, config.sample_count);
+    torch::Tensor t = torch::linspace(config.t_start, config.t_end, samples, torch::kFloat32).unsqueeze(1);
+    plotX = t.clone();
+    if (config.synthetic_profile == "neuroforge_inputs_target") {
+        std::srand(42);
+        auto tc = t.squeeze(1).contiguous();
+        const int64_t n = tc.size(0);
+        std::vector<float> ys(static_cast<size_t>(n), 0.0f);
+        std::vector<float> inTemp(static_cast<size_t>(n), 0.0f);
+        std::vector<float> inPress(static_cast<size_t>(n), 0.0f);
+        std::vector<float> inFlow(static_cast<size_t>(n), 0.0f);
+        std::vector<float> inConc(static_cast<size_t>(n), 0.0f);
+        std::vector<float> inVel(static_cast<size_t>(n), 0.0f);
+
+        const double tStart = tc[0].item<double>();
+        const double tEnd = tc[n - 1].item<double>();
+        const double dt = (n > 1) ? (tEnd - tStart) / static_cast<double>(n - 1) : 1.0;
+        const double bufferStart = tStart - 1.0;
+        const int totalSteps = static_cast<int>(std::floor((tEnd - bufferStart) / dt)) + 1;
+
+        std::vector<double> allT;
+        std::vector<double> allTemp;
+        std::vector<double> allPress;
+        std::vector<double> allFlow;
+        std::vector<double> allConc;
+        std::vector<double> allVel;
+        allT.reserve(static_cast<size_t>(totalSteps));
+        allTemp.reserve(static_cast<size_t>(totalSteps));
+        allPress.reserve(static_cast<size_t>(totalSteps));
+        allConc.reserve(static_cast<size_t>(totalSteps));
+        allVel.reserve(static_cast<size_t>(totalSteps));
+
+        double x0 = 0.0, x1 = 0.0, x2 = 1.0, x3 = 0.0, x4 = 0.0;
+        auto noise = []() { return (static_cast<double>(std::rand()) / RAND_MAX - 0.5) * 2.0; };
+
+        for (int i = 0; i < totalSteps; ++i) {
+            const double tt = bufferStart + dt * static_cast<double>(i);
+            x0 = x0 + 0.5 * (0.0 - x0) * dt + 1.5 * std::sqrt(dt) * noise();
+            x1 = x1 + 1.0 * (0.0 - x1) * dt + 1.2 * std::sqrt(dt) * noise();
+            x2 = x2 + 2.0 * (1.0 - x2) * dt + 0.8 * std::sqrt(dt) * noise();
+            x3 = x3 + 0.3 * (0.0 - x3) * dt + 1.0 * std::sqrt(dt) * noise();
+            x4 = x4 + 0.8 * (0.0 - x4) * dt + 1.8 * std::sqrt(dt) * noise();
+            allT.push_back(tt);
+            allTemp.push_back(x0);
+            allPress.push_back(x1);
+            allFlow.push_back(x2);
+            allConc.push_back(x3);
+            allVel.push_back(x4);
+        }
+
+        auto interpol = [&](const std::vector<double>& vals, double tq) {
+            if (tq <= allT.front()) return vals.front();
+            if (tq >= allT.back()) return vals.back();
+            const auto it = std::lower_bound(allT.begin(), allT.end(), tq);
+            const size_t hi = static_cast<size_t>(it - allT.begin());
+            const size_t lo = hi - 1;
+            const double t0 = allT[lo];
+            const double t1 = allT[hi];
+            const double r = (tq - t0) / (t1 - t0);
+            return vals[lo] * (1.0 - r) + vals[hi] * r;
+        };
+
+        for (int64_t i = 0; i < n; ++i) {
+            const double tt = tc[i].item<double>();
+            const double flow = interpol(allFlow, tt);
+            const double target = 0.4 * interpol(allTemp, tt - 0.1) +
+                                  0.3 * interpol(allPress, tt - 0.3) +
+                                  0.2 * interpol(allConc, tt - 0.2) +
+                                  0.1 * interpol(allVel, tt - 0.5) +
+                                  0.05 * (static_cast<double>(std::rand()) / RAND_MAX - 0.5);
+            inTemp[static_cast<size_t>(i)] = static_cast<float>(interpol(allTemp, tt));
+            inPress[static_cast<size_t>(i)] = static_cast<float>(interpol(allPress, tt));
+            inFlow[static_cast<size_t>(i)] = static_cast<float>(flow);
+            inConc[static_cast<size_t>(i)] = static_cast<float>(interpol(allConc, tt));
+            inVel[static_cast<size_t>(i)] = static_cast<float>(interpol(allVel, tt));
+            ys[static_cast<size_t>(i)] = static_cast<float>(target);
+        }
+        std::vector<float> flatInputs;
+        flatInputs.reserve(static_cast<size_t>(n) * 6);
+        for (int64_t i = 0; i < n; ++i) {
+            const size_t k = static_cast<size_t>(i);
+            flatInputs.push_back(tc[i].item<float>());
+            flatInputs.push_back(inTemp[k]);
+            flatInputs.push_back(inPress[k]);
+            flatInputs.push_back(inFlow[k]);
+            flatInputs.push_back(inConc[k]);
+            flatInputs.push_back(inVel[k]);
+        }
+        x = torch::from_blob(flatInputs.data(), {n, 6}, torch::kFloat32).clone();
+        y = torch::from_blob(ys.data(), {n, 1}, torch::kFloat32).clone();
+        return;
+    }
+
+    if (config.synthetic_profile == "mixed_wave") {
+        x = t;
+        y = 0.7 * torch::sin(1.5 * t) + 0.3 * torch::cos(0.5 * t);
+        return;
+    }
+    if (config.synthetic_profile == "damped_sine") {
+        x = t;
+        y = torch::sin(t) * torch::exp(-0.15 * t);
+        return;
+    }
+    x = t;
+    y = torch::exp(-config.lambda_decay * t);
 }
 
 void fillPlotVectors(HydroRunResult& result, const torch::Tensor& x, const torch::Tensor& yTrue, const torch::Tensor& yPred) {
@@ -89,50 +218,80 @@ void fillPlotVectors(HydroRunResult& result, const torch::Tensor& x, const torch
 HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     HydroRunResult result;
 
-    // Temporary backend: uses NeuralNetworkWrapper FFN core while LSTM-PINN is scaffolded.
-    NeuralNetworkWrapper model;
-    model.setHiddenLayers(parseHiddenLayers(config.hidden_layers_csv));
-    model.setLags({{1}});
-    model.initializeNetwork(1, config.activation);
+    torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
+    NeuralNetworkWrapper model;
     const double lambda = config.lambda_decay;
-    torch::Tensor t;
+    torch::Tensor x;
     torch::Tensor y;
-    if (!loadSeriesFromCsv(config, t, y)) {
-        const int samples = std::max(32, config.sample_count);
-        t = torch::linspace(config.t_start, config.t_end, samples, torch::kFloat32).unsqueeze(1);
-        y = torch::exp(-lambda * t);
+    torch::Tensor plotX;
+    if (!loadSeriesFromCsv(config, x, y, plotX)) {
+        buildSyntheticSeries(config, x, y, plotX);
     }
 
-    const int64_t nTrain = static_cast<int64_t>(t.size(0) * 0.8);
-    torch::Tensor tTrain = t.slice(0, 0, nTrain);
+    const int inputDim = static_cast<int>(x.size(1));
+    model.setHiddenLayers(parseHiddenLayers(config.hidden_layers_csv));
+    model.setLags(std::vector<std::vector<int>>(static_cast<size_t>(inputDim), std::vector<int>{1}));
+    model.initializeNetwork(1, config.activation);
+
+    const double split = std::min(0.95, std::max(0.1, config.train_split_ratio));
+    const int64_t nTrain = static_cast<int64_t>(x.size(0) * split);
+    torch::Tensor xTrain = x.slice(0, 0, nTrain);
     torch::Tensor yTrain = y.slice(0, 0, nTrain);
-    torch::Tensor tTest = t.slice(0, nTrain, t.size(0));
+    torch::Tensor xTest = x.slice(0, nTrain, x.size(0));
     torch::Tensor yTest = y.slice(0, nTrain, y.size(0));
 
-    model.setTensorData(DataType::Train, tTrain, yTrain);
-    model.setTensorData(DataType::Test, tTest, yTest);
+    model.setTensorData(DataType::Train, xTrain, yTrain);
+    model.setTensorData(DataType::Test, xTest, yTest);
 
-    std::vector<double> losses = model.trainPINNExponentialDecay(config.epochs,
-                                                                 config.batch_size,
-                                                                 config.learning_rate,
-                                                                 lambda,
-                                                                 config.data_weight,
-                                                                 config.physics_weight);
+    std::vector<double> losses;
+    if (config.pinn_physics_profile == "linear_reservoir" || config.pinn_physics_profile == "cstr_first_order") {
+        losses = model.trainPINNWithForcing(config.epochs,
+                                            config.batch_size,
+                                            config.learning_rate,
+                                            lambda,
+                                            config.forcing_gain,
+                                            1,
+                                            config.data_weight,
+                                            config.physics_weight);
+    } else {
+        losses = model.trainPINNExponentialDecay(config.epochs,
+                                                 config.batch_size,
+                                                 config.learning_rate,
+                                                 lambda,
+                                                 config.data_weight,
+                                                 config.physics_weight,
+                                                 config.pinn_collocation_points);
+    }
     if (losses.empty() || !std::isfinite(losses.back())) {
-        throw std::runtime_error("LSTM-PINN training produced empty/non-finite loss history.");
+        throw std::runtime_error("LSTM-PINN-like training produced empty/non-finite loss history.");
     }
     result.final_loss = losses.back();
 
-    torch::Tensor pred = model.forward(DataType::Test);
-    if (!pred.defined() || pred.size(0) != yTest.size(0) || !pred.isfinite().all().item<bool>()) {
-        throw std::runtime_error("LSTM-PINN prediction failed or produced non-finite values.");
+    torch::Tensor predTest = model.forward(DataType::Test);
+    if (!predTest.defined() || predTest.size(0) != yTest.size(0) || !predTest.isfinite().all().item<bool>()) {
+        throw std::runtime_error("LSTM-PINN-like prediction failed or produced non-finite values.");
     }
 
-    fillPlotVectors(result, tTest, yTest, pred);
+    if (config.evaluate_metrics) {
+        std::map<std::string, double> metrics = model.evaluate();
+        auto it = metrics.find("mse");
+        if (it != metrics.end()) {
+            if (!std::isfinite(it->second)) {
+                throw std::runtime_error("LSTM-PINN-like evaluation produced non-finite MSE.");
+            }
+            result.mse = it->second;
+        }
+    }
+
+    // Keep metrics on held-out test set, but plot full-series predictions for better visual coverage.
+    model.setTensorData(DataType::Test, x, y);
+    torch::Tensor predFull = model.forward(DataType::Test);
+    if (!predFull.defined() || predFull.size(0) != y.size(0) || !predFull.isfinite().all().item<bool>()) {
+        throw std::runtime_error("Full-series prediction for plotting failed or produced non-finite values.");
+    }
+    fillPlotVectors(result, plotX, y, predFull);
     result.success = true;
-    result.message = config.use_csv_data
-                         ? "LSTM-PINN-like run completed with CSV input (temporary FFN backend)."
-                         : "LSTM-PINN-like run completed with synthetic input (temporary FFN backend).";
+    result.message = config.use_csv_data ? "LSTM-PINN-like run completed with CSV input (temporary FFN backend)." : "LSTM-PINN-like run completed with synthetic input (temporary FFN backend).";
     return result;
 }
