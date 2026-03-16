@@ -37,6 +37,7 @@
 #include <QtCharts/QScatterSeries>
 #include <QtCharts/QAbstractAxis>
 #include <QtCharts/QValueAxis>
+#include <QtCharts/QXYSeries>
 
 #include <algorithm>
 #include <cmath>
@@ -338,8 +339,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     plotButtonsLayout->addWidget(zoomOutPlotButton_);
     plotButtonsLayout->addWidget(fitPlotButton_);
     plotButtonsLayout->addWidget(clearPlotButton_);
-    plotLayout->addWidget(plotButtons, 0);
     plotLayout->addWidget(chartView_, 1);
+    plotLayout->addWidget(plotButtons, 0);
     tabs->addTab(plotTab, "Plot");
 
     auto* logTab = new QWidget(tabs);
@@ -897,8 +898,48 @@ void HydroPINNWindow::zoomOutPlot() {
 }
 
 void HydroPINNWindow::fitPlotAxes() {
-    chartView_->chart()->zoomReset();
-    appendLog("Plot axes fit/reset.");
+    auto* chart = chartView_->chart();
+    chart->zoomReset();
+
+    double minX = std::numeric_limits<double>::infinity();
+    double maxX = -std::numeric_limits<double>::infinity();
+    double minY = std::numeric_limits<double>::infinity();
+    double maxY = -std::numeric_limits<double>::infinity();
+
+    bool hasPoints = false;
+    for (QAbstractSeries* baseSeries : chart->series()) {
+        auto* xy = qobject_cast<QXYSeries*>(baseSeries);
+        if (!xy) continue;
+        const auto points = xy->pointsVector();
+        for (const QPointF& p : points) {
+            minX = std::min(minX, p.x());
+            maxX = std::max(maxX, p.x());
+            minY = std::min(minY, p.y());
+            maxY = std::max(maxY, p.y());
+            hasPoints = true;
+        }
+    }
+
+    if (!hasPoints) {
+        appendLog("Fit Axes: no plottable points found.");
+        return;
+    }
+
+    const double dx = std::max(1e-9, maxX - minX);
+    const double dy = std::max(1e-9, maxY - minY);
+    const double padX = 0.05 * dx;
+    const double padY = 0.05 * dy;
+
+    for (QAbstractAxis* axisBase : chart->axes(Qt::Horizontal)) {
+        auto* axis = qobject_cast<QValueAxis*>(axisBase);
+        if (axis) axis->setRange(minX - padX, maxX + padX);
+    }
+    for (QAbstractAxis* axisBase : chart->axes(Qt::Vertical)) {
+        auto* axis = qobject_cast<QValueAxis*>(axisBase);
+        if (axis) axis->setRange(minY - padY, maxY + padY);
+    }
+
+    appendLog("Plot axes fit to current data extents.");
 }
 
 void HydroPINNWindow::showSyntheticInputsOutputs() {
