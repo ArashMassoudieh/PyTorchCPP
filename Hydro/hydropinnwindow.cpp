@@ -842,11 +842,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.success ? "success" : "failed")
                        .arg(r.final_loss, 0, 'g', 8);
 
-        if (r.mse.has_value()) {
-            summary += QString(", mse=%1").arg(r.mse.value(), 0, 'g', 8);
-        } else {
-            summary += ", mse=n/a";
-        }
+        summary += QString(", mse=%1").arg(r.mse, 0, 'g', 8);
 
         if (!r.message.empty()) {
             summary += QString(", msg=%1").arg(QString::fromStdString(r.message).toHtmlEscaped());
