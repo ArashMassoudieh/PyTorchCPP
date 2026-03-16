@@ -118,6 +118,15 @@ public:
                                                   double data_weight = 1.0,
                                                   double physics_weight = 1.0);
 
+    std::vector<double> trainPINNWithForcing(int num_epochs,
+                                             int batch_size,
+                                             double learning_rate,
+                                             double lambda_decay,
+                                             double forcing_gain,
+                                             int forcing_feature_index = 1,
+                                             double data_weight = 1.0,
+                                             double physics_weight = 1.0);
+
     // Evaluation
     /**
      * @brief Evaluate the network on test data.
