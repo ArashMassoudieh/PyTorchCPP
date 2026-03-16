@@ -59,7 +59,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       activationCombo_(new QComboBox(this)), layerSizeSpin_(new QSpinBox(this)), layerActivationCombo_(new QComboBox(this)),
       addLayerButton_(new QPushButton("Add Layer", this)), removeLayerButton_(new QPushButton("Remove Selected", this)),
       layersList_(new QListWidget(this)), outputActivationCombo_(new QComboBox(this)),
-      evalCheck_(new QCheckBox("Evaluate test metrics", this)),
+      evalCheck_(new QCheckBox("Evaluate test metrics", this)), splitRatioSpin_(new QDoubleSpinBox(this)),
+      shuffleCheck_(new QCheckBox("Shuffle training", this)), seedSpin_(new QSpinBox(this)), optimizerCombo_(new QComboBox(this)),
+      weightDecaySpin_(new QDoubleSpinBox(this)), momentumSpin_(new QDoubleSpinBox(this)), normalizationCombo_(new QComboBox(this)),
+      incrementalCheck_(new QCheckBox("Use incremental / rolling-window training", this)), windowSizeSpin_(new QDoubleSpinBox(this)),
+      windowStepSpin_(new QDoubleSpinBox(this)), epochsPerWindowSpin_(new QSpinBox(this)),
+      resetOptimizerWindowCheck_(new QCheckBox("Reset optimizer on new window", this)),
       dataSourceCombo_(new QComboBox(this)), csvPathEdit_(new QLineEdit(this)),
       browseCsvButton_(new QPushButton("Browse...", this)), csvXColSpin_(new QSpinBox(this)),
       csvYColSpin_(new QSpinBox(this)), csvHeaderCheck_(new QCheckBox("CSV has header row", this)),
@@ -215,6 +220,47 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     trainForm->addRow("Lambda (PINN)", lambdaSpin_);
     trainForm->addRow("Data loss weight", dataWeightSpin_);
     trainForm->addRow("Physics loss weight", physicsWeightSpin_);
+
+    splitRatioSpin_->setDecimals(3);
+    splitRatioSpin_->setRange(0.1, 0.95);
+    splitRatioSpin_->setSingleStep(0.05);
+    splitRatioSpin_->setValue(0.8);
+    shuffleCheck_->setChecked(true);
+    seedSpin_->setRange(0, 1000000000);
+    seedSpin_->setValue(42);
+    optimizerCombo_->addItems({"adam", "sgd", "rmsprop"});
+    weightDecaySpin_->setDecimals(6);
+    weightDecaySpin_->setRange(0.0, 1.0);
+    weightDecaySpin_->setValue(0.0);
+    momentumSpin_->setDecimals(4);
+    momentumSpin_->setRange(0.0, 0.9999);
+    momentumSpin_->setValue(0.9);
+    normalizationCombo_->addItems({"none", "standardize", "minmax"});
+
+    incrementalCheck_->setChecked(false);
+    windowSizeSpin_->setDecimals(3);
+    windowSizeSpin_->setRange(0.01, 10000.0);
+    windowSizeSpin_->setValue(1.0);
+    windowStepSpin_->setDecimals(3);
+    windowStepSpin_->setRange(0.001, 10000.0);
+    windowStepSpin_->setValue(0.5);
+    epochsPerWindowSpin_->setRange(1, 10000);
+    epochsPerWindowSpin_->setValue(25);
+    resetOptimizerWindowCheck_->setChecked(false);
+
+    trainForm->addRow("Train/Test split", splitRatioSpin_);
+    trainForm->addRow(shuffleCheck_);
+    trainForm->addRow("Random seed", seedSpin_);
+    trainForm->addRow("Optimizer", optimizerCombo_);
+    trainForm->addRow("Weight decay", weightDecaySpin_);
+    trainForm->addRow("Momentum", momentumSpin_);
+    trainForm->addRow("Normalization", normalizationCombo_);
+    trainForm->addRow(incrementalCheck_);
+    trainForm->addRow("Window size", windowSizeSpin_);
+    trainForm->addRow("Window step", windowStepSpin_);
+    trainForm->addRow("Epochs/window", epochsPerWindowSpin_);
+    trainForm->addRow(resetOptimizerWindowCheck_);
+    trainForm->addRow(new QLabel("Note: optimizer/normalization/incremental options are exposed for NeuroForge parity; current Hydro backend applies core training settings first.", trainTab));
 
     auto* trainingButtons = new QWidget(trainTab);
     auto* trainingGrid = new QGridLayout(trainingButtons);
@@ -409,6 +455,18 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
     }
     cfg.synthetic_profile = profileCombo_->currentText().toStdString();
     cfg.evaluate_metrics = evalCheck_->isChecked();
+    cfg.train_split_ratio = splitRatioSpin_->value();
+    cfg.shuffle_training = shuffleCheck_->isChecked();
+    cfg.random_seed = seedSpin_->value();
+    cfg.optimizer = optimizerCombo_->currentText().toStdString();
+    cfg.weight_decay = weightDecaySpin_->value();
+    cfg.momentum = momentumSpin_->value();
+    cfg.normalization = normalizationCombo_->currentText().toStdString();
+    cfg.use_incremental_training = incrementalCheck_->isChecked();
+    cfg.window_size = windowSizeSpin_->value();
+    cfg.window_step = windowStepSpin_->value();
+    cfg.epochs_per_window = epochsPerWindowSpin_->value();
+    cfg.reset_optimizer_on_new_window = resetOptimizerWindowCheck_->isChecked();
     return cfg;
 }
 
@@ -737,7 +795,11 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                                 "Evaluate metrics: %3<br/>"
                                 "Training: epochs=%4, batch=%5, lr=%6<br/>"
                                 "PINN: lambda=%7, data_w=%8, physics_w=%9<br/>"
-                                "Network: layers=%10, activation=%11")
+                                "Network: layers=%10, activation=%11<br/>"
+                                "Split/shuffle: split=%12, shuffle=%13, seed=%14<br/>"
+                                "Optimizer: %15, weight_decay=%16, momentum=%17<br/>"
+                                "Normalization: %18<br/>"
+                                "Incremental: enabled=%19, window_size=%20, window_step=%21, epochs/window=%22, reset_opt=%23")
                                 .arg(modeCombo_->currentText())
                                 .arg(cfg.use_csv_data ? "CSV" : "Synthetic")
                                 .arg(cfg.evaluate_metrics ? "yes" : "no")
@@ -748,7 +810,19 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                                 .arg(cfg.data_weight, 0, 'g', 6)
                                 .arg(cfg.physics_weight, 0, 'g', 6)
                                 .arg(QString::fromStdString(cfg.hidden_layers_csv))
-                                .arg(QString::fromStdString(cfg.activation));
+                                .arg(QString::fromStdString(cfg.activation))
+                                .arg(cfg.train_split_ratio, 0, 'g', 4)
+                                .arg(cfg.shuffle_training ? "yes" : "no")
+                                .arg(cfg.random_seed)
+                                .arg(QString::fromStdString(cfg.optimizer))
+                                .arg(cfg.weight_decay, 0, 'g', 6)
+                                .arg(cfg.momentum, 0, 'g', 6)
+                                .arg(QString::fromStdString(cfg.normalization))
+                                .arg(cfg.use_incremental_training ? "yes" : "no")
+                                .arg(cfg.window_size, 0, 'g', 6)
+                                .arg(cfg.window_step, 0, 'g', 6)
+                                .arg(cfg.epochs_per_window)
+                                .arg(cfg.reset_optimizer_on_new_window ? "yes" : "no");
     perfSummaryText_->setHtml(summary);
     appendLog("Performance assessment snapshot refreshed.");
 }
@@ -964,6 +1038,11 @@ void HydroPINNWindow::runMode(const QString& mode) {
             appendLog("Note: PINN modes use exponential-decay residual physics; non-exp synthetic profiles may reduce physics consistency.");
         }
     }
+    appendLog(QString("Extra options => split=%1, optimizer=%2, normalization=%3, incremental=%4")
+                  .arg(cfg.train_split_ratio, 0, 'g', 4)
+                  .arg(QString::fromStdString(cfg.optimizer))
+                  .arg(QString::fromStdString(cfg.normalization))
+                  .arg(cfg.use_incremental_training ? "yes" : "no"));
 
     QCoreApplication::processEvents();
 

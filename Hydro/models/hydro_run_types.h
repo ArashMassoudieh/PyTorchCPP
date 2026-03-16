@@ -33,6 +33,22 @@ struct HydroRunConfig {
     std::string activation = "tanh"; // relu | tanh | sigmoid
 
     bool evaluate_metrics = true;
+
+    // NeuroForge-style extra options (currently informational/plumbing for Hydro UI compatibility)
+    double train_split_ratio = 0.8;
+    bool shuffle_training = true;
+    int random_seed = 42;
+    std::string optimizer = "adam";      // adam | sgd | rmsprop
+    double weight_decay = 0.0;
+    double momentum = 0.9;
+    std::string normalization = "none";  // none | standardize | minmax
+
+    // Incremental/rolling-window options (future backend compatibility)
+    bool use_incremental_training = false;
+    double window_size = 1.0;
+    double window_step = 0.5;
+    int epochs_per_window = 25;
+    bool reset_optimizer_on_new_window = false;
 };
 
 /**

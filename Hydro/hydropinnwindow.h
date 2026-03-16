@@ -52,6 +52,18 @@ private:
     QListWidget* layersList_;
     QComboBox* outputActivationCombo_;
     QCheckBox* evalCheck_;
+    QDoubleSpinBox* splitRatioSpin_;
+    QCheckBox* shuffleCheck_;
+    QSpinBox* seedSpin_;
+    QComboBox* optimizerCombo_;
+    QDoubleSpinBox* weightDecaySpin_;
+    QDoubleSpinBox* momentumSpin_;
+    QComboBox* normalizationCombo_;
+    QCheckBox* incrementalCheck_;
+    QDoubleSpinBox* windowSizeSpin_;
+    QDoubleSpinBox* windowStepSpin_;
+    QSpinBox* epochsPerWindowSpin_;
+    QCheckBox* resetOptimizerWindowCheck_;
 
     // Data controls
     QComboBox* dataSourceCombo_;
