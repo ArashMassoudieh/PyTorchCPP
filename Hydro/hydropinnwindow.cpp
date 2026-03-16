@@ -21,6 +21,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QStringList>
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QTextBrowser>
@@ -788,41 +789,75 @@ void HydroPINNWindow::stopGAPlaceholder() {
 
 void HydroPINNWindow::refreshPerformanceAssessment() {
     const HydroRunConfig cfg = currentConfig();
-    const QString summary = QString(
-                                "<b>Performance Assessment Snapshot</b><br/>"
-                                "Mode: %1<br/>"
-                                "Data source: %2<br/>"
-                                "Evaluate metrics: %3<br/>"
-                                "Training: epochs=%4, batch=%5, lr=%6<br/>"
-                                "PINN: lambda=%7, data_w=%8, physics_w=%9<br/>"
-                                "Network: layers=%10, activation=%11<br/>"
-                                "Split/shuffle: split=%12, shuffle=%13, seed=%14<br/>"
-                                "Optimizer: %15, weight_decay=%16, momentum=%17<br/>"
-                                "Normalization: %18<br/>"
-                                "Incremental: enabled=%19, window_size=%20, window_step=%21, epochs/window=%22, reset_opt=%23")
-                                .arg(modeCombo_->currentText())
-                                .arg(cfg.use_csv_data ? "CSV" : "Synthetic")
-                                .arg(cfg.evaluate_metrics ? "yes" : "no")
-                                .arg(cfg.epochs)
-                                .arg(cfg.batch_size)
-                                .arg(cfg.learning_rate, 0, 'g', 6)
-                                .arg(cfg.lambda_decay, 0, 'g', 6)
-                                .arg(cfg.data_weight, 0, 'g', 6)
-                                .arg(cfg.physics_weight, 0, 'g', 6)
-                                .arg(QString::fromStdString(cfg.hidden_layers_csv))
-                                .arg(QString::fromStdString(cfg.activation))
-                                .arg(cfg.train_split_ratio, 0, 'g', 4)
-                                .arg(cfg.shuffle_training ? "yes" : "no")
-                                .arg(cfg.random_seed)
-                                .arg(QString::fromStdString(cfg.optimizer))
-                                .arg(cfg.weight_decay, 0, 'g', 6)
-                                .arg(cfg.momentum, 0, 'g', 6)
-                                .arg(QString::fromStdString(cfg.normalization))
-                                .arg(cfg.use_incremental_training ? "yes" : "no")
-                                .arg(cfg.window_size, 0, 'g', 6)
-                                .arg(cfg.window_step, 0, 'g', 6)
-                                .arg(cfg.epochs_per_window)
-                                .arg(cfg.reset_optimizer_on_new_window ? "yes" : "no");
+    QString summary = QString(
+                          "<b>Performance Assessment Snapshot</b><br/>"
+                          "Mode: %1<br/>"
+                          "Data source: %2<br/>"
+                          "Evaluate metrics: %3<br/>"
+                          "Training: epochs=%4, batch=%5, lr=%6<br/>"
+                          "PINN: lambda=%7, data_w=%8, physics_w=%9<br/>"
+                          "Network: layers=%10, activation=%11<br/>"
+                          "Split/shuffle: split=%12, shuffle=%13, seed=%14<br/>"
+                          "Optimizer: %15, weight_decay=%16, momentum=%17<br/>"
+                          "Normalization: %18<br/>"
+                          "Incremental: enabled=%19, window_size=%20, window_step=%21, epochs/window=%22, reset_opt=%23")
+                          .arg(modeCombo_->currentText())
+                          .arg(cfg.use_csv_data ? "CSV" : "Synthetic")
+                          .arg(cfg.evaluate_metrics ? "yes" : "no")
+                          .arg(cfg.epochs)
+                          .arg(cfg.batch_size)
+                          .arg(cfg.learning_rate, 0, 'g', 6)
+                          .arg(cfg.lambda_decay, 0, 'g', 6)
+                          .arg(cfg.data_weight, 0, 'g', 6)
+                          .arg(cfg.physics_weight, 0, 'g', 6)
+                          .arg(QString::fromStdString(cfg.hidden_layers_csv))
+                          .arg(QString::fromStdString(cfg.activation))
+                          .arg(cfg.train_split_ratio, 0, 'g', 4)
+                          .arg(cfg.shuffle_training ? "yes" : "no")
+                          .arg(cfg.random_seed)
+                          .arg(QString::fromStdString(cfg.optimizer))
+                          .arg(cfg.weight_decay, 0, 'g', 6)
+                          .arg(cfg.momentum, 0, 'g', 6)
+                          .arg(QString::fromStdString(cfg.normalization))
+                          .arg(cfg.use_incremental_training ? "yes" : "no")
+                          .arg(cfg.window_size, 0, 'g', 6)
+                          .arg(cfg.window_step, 0, 'g', 6)
+                          .arg(cfg.epochs_per_window)
+                          .arg(cfg.reset_optimizer_on_new_window ? "yes" : "no");
+
+    summary += "<br/><br/><b>Latest Mode Results</b><br/>";
+    const QStringList orderedModes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    bool hasAnyModeResult = false;
+    for (const QString& mode : orderedModes) {
+        auto it = lastModeResults_.find(mode);
+        if (it == lastModeResults_.end()) {
+            summary += QString("%1: no run yet.<br/>").arg(mode.toUpper());
+            continue;
+        }
+
+        hasAnyModeResult = true;
+        const HydroRunResult& r = it->second;
+        summary += QString("%1: %2, final_loss=%3")
+                       .arg(mode.toUpper())
+                       .arg(r.success ? "success" : "failed")
+                       .arg(r.final_loss, 0, 'g', 8);
+
+        if (r.mse.has_value()) {
+            summary += QString(", mse=%1").arg(r.mse.value(), 0, 'g', 8);
+        } else {
+            summary += ", mse=n/a";
+        }
+
+        if (!r.message.empty()) {
+            summary += QString(", msg=%1").arg(QString::fromStdString(r.message).toHtmlEscaped());
+        }
+        summary += "<br/>";
+    }
+
+    if (!hasAnyModeResult) {
+        summary += "No mode runs have been recorded yet.<br/>";
+    }
+
     perfSummaryText_->setHtml(summary);
     appendLog("Performance assessment snapshot refreshed.");
 }
@@ -1087,6 +1122,7 @@ void HydroPINNWindow::runMode(const QString& mode) {
                       .arg(QString::fromStdString(result.message)));
         lastModeResults_[mode] = result;
         updatePlot(mode, result);
+        refreshPerformanceAssessment();
     } else {
         statusLabel_->setText(QString("Mode failed: %1").arg(mode));
         appendLog(QString("Mode '%1' failed.").arg(mode));
