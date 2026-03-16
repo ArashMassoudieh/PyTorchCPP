@@ -9,6 +9,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDialog>
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QFileDialog>
@@ -93,7 +94,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       fitPlotButton_(new QPushButton("Fit Axes", this)),
       plotAllTargetPredButton_(new QPushButton("Target vs Predicted (All)", this)),
       plotOneToOneButton_(new QPushButton("1:1 Target vs Predicted (All)", this)),
-      plotTaylorButton_(new QPushButton("Taylor Diagram (All)", this)) {
+      plotTaylorButton_(new QPushButton("Taylor Diagram (All)", this)),
+      plotSubplotsButton_(new QPushButton("Show 4 Mode Subplots", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
     resize(1200, 760);
 
@@ -336,6 +338,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     plotButtonsLayout->addWidget(plotAllTargetPredButton_);
     plotButtonsLayout->addWidget(plotOneToOneButton_);
     plotButtonsLayout->addWidget(plotTaylorButton_);
+    plotButtonsLayout->addWidget(plotSubplotsButton_);
     plotButtonsLayout->addWidget(zoomInPlotButton_);
     plotButtonsLayout->addWidget(zoomOutPlotButton_);
     plotButtonsLayout->addWidget(fitPlotButton_);
@@ -437,6 +440,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(plotAllTargetPredButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotAllTargetVsPredicted);
     connect(plotOneToOneButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotOneToOneAllModes);
     connect(plotTaylorButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotTaylorDiagramAllModes);
+    connect(plotSubplotsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showModeSubplots);
     connect(zoomInPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::zoomInPlot);
     connect(zoomOutPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::zoomOutPlot);
     connect(fitPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::fitPlotAxes);
@@ -510,6 +514,7 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     plotAllTargetPredButton_->setEnabled(!running);
     plotOneToOneButton_->setEnabled(!running);
     plotTaylorButton_->setEnabled(!running);
+    plotSubplotsButton_->setEnabled(!running);
     useNeuroforgeCsvPresetButton_->setEnabled(!running && dataSourceCombo_->currentText() == "CSV File");
 }
 
@@ -1415,6 +1420,78 @@ void HydroPINNWindow::plotTaylorDiagramAllModes() {
     fitPlotAxesInternal(false);
     appendLog("Displayed Taylor diagram for all stored modes (with std-dev circles and overlap handling).");
 }
+void HydroPINNWindow::showModeSubplots() {
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    const QStringList titles = {"FFN", "FFN+PINN", "LSTM", "LSTM+PINN"};
+
+    auto* dlg = new QDialog(this);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->setWindowTitle("Mode Subplots (2x2)");
+    dlg->resize(1200, 800);
+
+    auto* grid = new QGridLayout(dlg);
+    grid->setSpacing(8);
+
+    int plotted = 0;
+    for (int i = 0; i < modes.size(); ++i) {
+        QWidget* cell = new QWidget(dlg);
+        auto* cellLayout = new QVBoxLayout(cell);
+        cellLayout->setContentsMargins(2, 2, 2, 2);
+
+        auto it = lastModeResults_.find(modes[i]);
+        if (it == lastModeResults_.end() || it->second.x.empty() || it->second.y_true.empty() || it->second.y_pred.empty()) {
+            auto* missing = new QLabel(QString("%1: no stored result").arg(titles[i]), cell);
+            missing->setAlignment(Qt::AlignCenter);
+            cellLayout->addWidget(missing);
+        } else {
+            const HydroRunResult& r = it->second;
+            auto* chart = new QChart();
+            chart->setTitle(titles[i]);
+
+            auto* target = new QLineSeries(chart);
+            target->setName("Target");
+            auto* pred = new QLineSeries(chart);
+            pred->setName("Prediction");
+
+            const size_t n = std::min(r.x.size(), std::min(r.y_true.size(), r.y_pred.size()));
+            for (size_t k = 0; k < n; ++k) {
+                target->append(r.x[k], r.y_true[k]);
+                pred->append(r.x[k], r.y_pred[k]);
+            }
+            chart->addSeries(target);
+            chart->addSeries(pred);
+
+            auto* axisX = new QValueAxis(chart);
+            axisX->setTitleText("t");
+            auto* axisY = new QValueAxis(chart);
+            axisY->setTitleText("y");
+            chart->addAxis(axisX, Qt::AlignBottom);
+            chart->addAxis(axisY, Qt::AlignLeft);
+            target->attachAxis(axisX);
+            target->attachAxis(axisY);
+            pred->attachAxis(axisX);
+            pred->attachAxis(axisY);
+            chart->legend()->setVisible(true);
+
+            auto* cv = new QChartView(chart, cell);
+            cv->setRenderHint(QPainter::Antialiasing);
+            cellLayout->addWidget(cv);
+            ++plotted;
+        }
+
+        grid->addWidget(cell, i / 2, i % 2);
+    }
+
+    dlg->show();
+    if (plotted == 0) {
+        appendLog("Subplots window opened, but no stored mode results were available.");
+    } else {
+        appendLog(QString("Displayed 2x2 mode subplots (%1/%2 modes with data).")
+                      .arg(plotted)
+                      .arg(modes.size()));
+    }
+}
+
 void HydroPINNWindow::runMode(const QString& mode) {
     appendLog(QString("Starting mode: %1").arg(mode));
     static bool modeImplementationNoteLogged = false;
