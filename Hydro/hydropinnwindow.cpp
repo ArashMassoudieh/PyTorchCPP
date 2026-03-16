@@ -1075,6 +1075,8 @@ void HydroPINNWindow::showPredictionForMode(const QString& mode) {
     if (predictionUseCurrentDataCheck_->isChecked()) {
         appendLog(QString("Prediction is set to current data settings; re-running mode '%1'.").arg(mode));
         runMode(mode);
+        predictionUseCurrentDataCheck_->setChecked(false);
+        appendLog("Prediction re-run mode auto-disabled after one execution to prevent repeated retraining loops.");
         return;
     }
 
@@ -1098,6 +1100,8 @@ void HydroPINNWindow::showAllPredictions() {
     if (predictionUseCurrentDataCheck_->isChecked()) {
         appendLog("Prediction is set to current data settings; re-running all modes.");
         runAllModes();
+        predictionUseCurrentDataCheck_->setChecked(false);
+        appendLog("Prediction re-run mode auto-disabled after one execution to prevent repeated retraining loops.");
         return;
     }
 
