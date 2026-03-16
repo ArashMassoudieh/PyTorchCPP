@@ -676,8 +676,8 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
     torch::Tensor train_inputs = getInputData(DataType::Train);
     torch::Tensor train_targets = getTargetData(DataType::Train);
 
-    if (train_inputs.dim() != 2 || train_inputs.size(1) != 1) {
-        throw std::runtime_error("PINN exponential decay requires train inputs with shape [N, 1].");
+    if (train_inputs.dim() != 2 || train_inputs.size(1) < 1) {
+        throw std::runtime_error("PINN exponential decay requires train inputs with shape [N, F] where F >= 1 (first feature treated as time).");
     }
     if (train_targets.dim() != 2 || train_targets.size(1) != 1) {
         throw std::runtime_error("PINN exponential decay requires train targets with shape [N, 1].");
@@ -741,7 +741,7 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
                 throw std::runtime_error("Failed to compute PINN gradient dy/dt.");
             }
 
-            torch::Tensor dy_dt = grads[0];
+            torch::Tensor dy_dt = grads[0].slice(1, 0, 1);
             torch::Tensor residual = dy_dt + lambda_decay * predictions;
             torch::Tensor physics_loss = torch::mse_loss(residual, torch::zeros_like(residual));
 
