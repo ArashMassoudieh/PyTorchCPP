@@ -12,12 +12,16 @@ struct HydroRunConfig {
     double learning_rate = 0.003;
 
     // PINN-specific options
+    // Physics profiles:
+    // - exp_decay:           dy/dt + lambda*y = 0
+    // - linear_reservoir:    dy/dt + lambda*y - forcing_gain*u = 0
+    // - cstr_first_order:    dy/dt + lambda*y - forcing_gain*u = 0 (same residual form, different interpretation)
     double lambda_decay = 0.8;
     double data_weight = 1.0;
     double physics_weight = 0.2;
     std::string pinn_physics_profile = "exp_decay"; // exp_decay | linear_reservoir | cstr_first_order
     double forcing_gain = 1.0;
-    int pinn_collocation_points = 0; // 0 => use batch inputs only; >0 => Raissi-style extra collocation points
+    int pinn_collocation_points = 0; // 0 => use batch inputs only; >0 => sample extra Raissi-style collocation points per batch
 
     // Data input options
     bool use_csv_data = false;
@@ -33,7 +37,7 @@ struct HydroRunConfig {
 
     // Network options
     std::string hidden_layers_csv = "24,24";
-    std::string activation = "tanh"; // relu | tanh | sigmoid
+    std::string activation = "tanh"; // single backend activation used across hidden/output layers
 
     bool evaluate_metrics = true;
 

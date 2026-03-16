@@ -241,7 +241,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     trainForm->addRow("PINN forcing gain", forcingGainSpin_);
     trainForm->addRow("PINN collocation points", pinnCollocationSpin_);
 
-    trainForm->addRow(new QLabel("PINN water-domain hints: linear_reservoir/cstr_first_order profiles are forcing-driven and suitable for rainfall-runoff, reservoir and treatment-process style dynamics.", trainTab));
+    trainForm->addRow(new QLabel("PINN water-domain hints: use exp_decay for pure decay; use linear_reservoir/cstr_first_order for forcing-driven rainfall-runoff, reservoir, or treatment-process dynamics. Collocation adds Raissi-style physics points.", trainTab));
 
     splitRatioSpin_->setDecimals(3);
     splitRatioSpin_->setRange(0.1, 0.95);

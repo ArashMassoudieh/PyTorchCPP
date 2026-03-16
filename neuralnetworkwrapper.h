@@ -100,7 +100,7 @@ public:
      * with a physics residual loss derived from automatic differentiation.
      *
      * Expected tensor shapes:
-     * - train input:  [N, 1] where column is time t
+     * - train input:  [N, F], F >= 1, first column is time t
      * - train target: [N, 1] where column is y(t)
      *
      * @param num_epochs Number of epochs.
@@ -120,6 +120,12 @@ public:
                                                   double physics_weight = 1.0,
                                                   int collocation_points = 0);
 
+    /**
+     * @brief Physics-informed training with forcing residual dy/dt + lambda*y - g*u = 0.
+     *
+     * Designed for forcing-driven hydro process models (e.g., reservoir/runoff/treatment analogs).
+     * Uses input feature 0 as time t and `forcing_feature_index` as forcing u.
+     */
     std::vector<double> trainPINNWithForcing(int num_epochs,
                                              int batch_size,
                                              double learning_rate,
