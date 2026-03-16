@@ -1004,9 +1004,37 @@ void HydroPINNWindow::showSyntheticInputsOutputs() {
         series->attachAxis(axisY);
     }
 
+    // Explicitly fit to min/max across all synthetic inputs + output.
+    double minX = std::numeric_limits<double>::infinity();
+    double maxX = -std::numeric_limits<double>::infinity();
+    double minY = std::numeric_limits<double>::infinity();
+    double maxY = -std::numeric_limits<double>::infinity();
+
+    for (double x : lastSyntheticX_) {
+        minX = std::min(minX, x);
+        maxX = std::max(maxX, x);
+    }
+    for (const auto& kv : lastSyntheticInputs_) {
+        for (double v : kv.second) {
+            minY = std::min(minY, v);
+            maxY = std::max(maxY, v);
+        }
+    }
+    for (double y : lastSyntheticTarget_) {
+        minY = std::min(minY, y);
+        maxY = std::max(maxY, y);
+    }
+
+    if (std::isfinite(minX) && std::isfinite(maxX) && std::isfinite(minY) && std::isfinite(maxY)) {
+        const double dx = std::max(1e-9, maxX - minX);
+        const double dy = std::max(1e-9, maxY - minY);
+        axisX->setRange(minX - 0.03 * dx, maxX + 0.03 * dx);
+        axisY->setRange(minY - 0.05 * dy, maxY + 0.05 * dy);
+    }
+
     chart->setTitle("Synthetic Inputs + Output (NeuroForge-style)");
     chart->legend()->setVisible(true);
-    appendLog("Displayed synthetic inputs and output target on plot.");
+    appendLog("Displayed synthetic inputs and output target on plot (fit by combined min/max of all series).");
 }
 
 void HydroPINNWindow::runSelectedMode() {
@@ -1192,14 +1220,25 @@ void HydroPINNWindow::plotOneToOneAllModes() {
         const size_t n = std::min(r.y_true.size(), r.y_pred.size());
         if (n == 0) continue;
 
+        double meanY = 0.0;
+        for (size_t i = 0; i < n; ++i) meanY += r.y_true[i];
+        meanY /= static_cast<double>(n);
+        double ssRes = 0.0;
+        double ssTot = 0.0;
+
         auto* pts = new QScatterSeries(chart);
-        pts->setName(mode.toUpper());
         pts->setMarkerSize(7.0);
         for (size_t i = 0; i < n; ++i) {
             pts->append(r.y_true[i], r.y_pred[i]);
             minV = std::min(minV, std::min(r.y_true[i], r.y_pred[i]));
             maxV = std::max(maxV, std::max(r.y_true[i], r.y_pred[i]));
+            const double e = r.y_true[i] - r.y_pred[i];
+            ssRes += e * e;
+            const double d = r.y_true[i] - meanY;
+            ssTot += d * d;
         }
+        const double r2 = (ssTot > 1e-12) ? (1.0 - ssRes / ssTot) : 0.0;
+        pts->setName(QString("%1 (R²=%2)").arg(mode.toUpper()).arg(r2, 0, 'f', 3));
         chart->addSeries(pts);
         addedAny = true;
     }
@@ -1233,7 +1272,7 @@ void HydroPINNWindow::plotOneToOneAllModes() {
     chart->setTitle("1:1 Target vs Predicted (All Modes)");
     chart->legend()->setVisible(true);
     fitPlotAxesInternal(false);
-    appendLog("Displayed 1:1 target vs predicted scatter plot for all stored modes.");
+    appendLog("Displayed 1:1 target vs predicted scatter plot for all stored modes (R² shown in legend).");
 }
 
 void HydroPINNWindow::plotTaylorDiagramAllModes() {
