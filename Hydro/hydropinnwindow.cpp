@@ -1378,7 +1378,11 @@ void HydroPINNWindow::plotTaylorDiagramAllModes() {
 }
 void HydroPINNWindow::runMode(const QString& mode) {
     appendLog(QString("Starting mode: %1").arg(mode));
-    appendLog("Mode implementation note: Hydro wrappers are local implementations; NeuroForge labels are workflow-compatible naming.");
+    static bool modeImplementationNoteLogged = false;
+    if (!modeImplementationNoteLogged) {
+        appendLog("Mode implementation note: Hydro wrappers are local implementations; NeuroForge labels are workflow-compatible naming.");
+        modeImplementationNoteLogged = true;
+    }
     setRunningUiState(true);
     statusLabel_->setText(QString("Running mode: %1 ...").arg(mode));
     appendLog("Dispatch started.");

@@ -260,8 +260,8 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     }
     result.final_loss = losses.back();
 
-    torch::Tensor pred = model.forward(DataType::Test);
-    if (!pred.defined() || pred.size(0) != yTest.size(0) || !pred.isfinite().all().item<bool>()) {
+    torch::Tensor predTest = model.forward(DataType::Test);
+    if (!predTest.defined() || predTest.size(0) != yTest.size(0) || !predTest.isfinite().all().item<bool>()) {
         throw std::runtime_error("FFN prediction on test set failed or produced non-finite values.");
     }
 
@@ -276,7 +276,13 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
         }
     }
 
-    fillPlotVectors(result, plotXTest, yTest, pred);
+    // Keep metrics on held-out test set, but plot full-series predictions for better visual coverage.
+    model.setTensorData(DataType::Test, x, y);
+    torch::Tensor predFull = model.forward(DataType::Test);
+    if (!predFull.defined() || predFull.size(0) != y.size(0) || !predFull.isfinite().all().item<bool>()) {
+        throw std::runtime_error("Full-series prediction for plotting failed or produced non-finite values.");
+    }
+    fillPlotVectors(result, plotX, y, predFull);
     result.success = true;
     result.message = config.use_csv_data ? "FFN run completed with CSV input." : "FFN run completed with synthetic input.";
     return result;
