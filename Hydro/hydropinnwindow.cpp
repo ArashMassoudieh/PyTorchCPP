@@ -103,9 +103,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     auto* title = new QLabel("HydroPINN Modes", central);
     title->setStyleSheet("font-size: 18px; font-weight: bold;");
 
-    modeCombo_->addItem("FFN", "ffn");
-    modeCombo_->addItem("FFN + PINN", "ffn_pinn");
-    modeCombo_->addItem("LSTM", "lstm");
+    modeCombo_->addItem("FFN (Hydro baseline)", "ffn");
+    modeCombo_->addItem("FFN + PINN (Hydro baseline + physics)", "ffn_pinn");
+    modeCombo_->addItem("LSTM (temporary FFN backend)", "lstm");
     modeCombo_->addItem("LSTM + PINN (temporary FFN backend)", "lstm_pinn");
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
     dataSourceCombo_->addItems({"Synthetic", "CSV File"});
@@ -365,7 +365,10 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     root->addLayout(topRow);
     root->addWidget(tabs);
     root->addWidget(statusLabel_);
-    auto* modeInfo = new QLabel("4 modes are available: FFN, FFN+PINN, LSTM, and LSTM+PINN (currently uses a temporary FFN backend).", central);
+    auto* modeInfo = new QLabel(QStringLiteral("Hydro provides 4 local modes: FFN, FFN+PINN, LSTM, and LSTM+PINN.\n"
+                                              "NeuroForge naming/workflow is used for UI parity only (not inherited model code).\n"
+                                              "LSTM modes currently run on a temporary FFN backend."),
+                                central);
     modeInfo->setWordWrap(true);
     root->addWidget(modeInfo);
 
@@ -805,19 +808,31 @@ void HydroPINNWindow::stopGAPlaceholder() {
 
 void HydroPINNWindow::refreshPerformanceAssessment() {
     const HydroRunConfig cfg = currentConfig();
+    const QString backendInfo = (selectedModeKey() == "ffn")
+                                    ? "Hydro FFN baseline"
+                                    : (selectedModeKey() == "ffn_pinn")
+                                          ? "Hydro FFN + PINN residual"
+                                          : (selectedModeKey() == "lstm")
+                                                ? "Temporary FFN backend (LSTM scaffold)"
+                                                : (selectedModeKey() == "lstm_pinn")
+                                                      ? "Temporary FFN backend + PINN residual"
+                                                      : "Unknown";
+
     QString summary = QString(
                           "<b>Performance Assessment Snapshot</b><br/>"
                           "Mode: %1<br/>"
-                          "Data source: %2<br/>"
-                          "Evaluate metrics: %3<br/>"
-                          "Training: epochs=%4, batch=%5, lr=%6<br/>"
-                          "PINN: lambda=%7, data_w=%8, physics_w=%9<br/>"
-                          "Network: layers=%10, activation=%11<br/>"
-                          "Split/shuffle: split=%12, shuffle=%13, seed=%14<br/>"
-                          "Optimizer: %15, weight_decay=%16, momentum=%17<br/>"
-                          "Normalization: %18<br/>"
-                          "Incremental: enabled=%19, window_size=%20, window_step=%21, epochs/window=%22, reset_opt=%23")
+                          "Backend implementation: %2<br/>"
+                          "Data source: %3<br/>"
+                          "Evaluate metrics: %4<br/>"
+                          "Training: epochs=%5, batch=%6, lr=%7<br/>"
+                          "PINN: lambda=%8, data_w=%9, physics_w=%10<br/>"
+                          "Network: layers=%11, activation=%12<br/>"
+                          "Split/shuffle: split=%13, shuffle=%14, seed=%15<br/>"
+                          "Optimizer: %16, weight_decay=%17, momentum=%18<br/>"
+                          "Normalization: %19<br/>"
+                          "Incremental: enabled=%20, window_size=%21, window_step=%22, epochs/window=%23, reset_opt=%24")
                           .arg(modeCombo_->currentText())
+                          .arg(backendInfo)
                           .arg(cfg.use_csv_data ? "CSV" : "Synthetic")
                           .arg(cfg.evaluate_metrics ? "yes" : "no")
                           .arg(cfg.epochs)
@@ -1363,6 +1378,7 @@ void HydroPINNWindow::plotTaylorDiagramAllModes() {
 }
 void HydroPINNWindow::runMode(const QString& mode) {
     appendLog(QString("Starting mode: %1").arg(mode));
+    appendLog("Mode implementation note: Hydro wrappers are local implementations; NeuroForge labels are workflow-compatible naming.");
     setRunningUiState(true);
     statusLabel_->setText(QString("Running mode: %1 ...").arg(mode));
     appendLog("Dispatch started.");
