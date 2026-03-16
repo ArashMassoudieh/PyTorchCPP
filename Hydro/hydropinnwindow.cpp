@@ -34,6 +34,7 @@
 #include <QtCharts/QChartView>
 #include <QtCharts/QLegend>
 #include <QtCharts/QLineSeries>
+#include <QtCharts/QScatterSeries>
 #include <QtCharts/QAbstractAxis>
 #include <QtCharts/QValueAxis>
 
@@ -42,6 +43,7 @@
 #include <cstdlib>
 #include <exception>
 #include <fstream>
+#include <limits>
 
 namespace {
 QString parseLayerActivationText(const QString& layerText) {
@@ -86,7 +88,10 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       stopGAButton_(new QPushButton("Stop GA", this)), refreshPerformanceButton_(new QPushButton("Refresh Assessment", this)),
       clearPlotButton_(new QPushButton("Clear Plot", this)), showInputsOutputsButton_(new QPushButton("Show Inputs + Output", this)),
       zoomInPlotButton_(new QPushButton("Zoom In", this)), zoomOutPlotButton_(new QPushButton("Zoom Out", this)),
-      fitPlotButton_(new QPushButton("Fit Axes", this)) {
+      fitPlotButton_(new QPushButton("Fit Axes", this)),
+      plotAllTargetPredButton_(new QPushButton("Target vs Predicted (All)", this)),
+      plotOneToOneButton_(new QPushButton("1:1 Target vs Predicted (All)", this)),
+      plotTaylorButton_(new QPushButton("Taylor Diagram (All)", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
     resize(1200, 760);
 
@@ -326,6 +331,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     auto* plotButtonsLayout = new QHBoxLayout(plotButtons);
     plotButtonsLayout->setContentsMargins(0, 0, 0, 0);
     plotButtonsLayout->addWidget(showInputsOutputsButton_);
+    plotButtonsLayout->addWidget(plotAllTargetPredButton_);
+    plotButtonsLayout->addWidget(plotOneToOneButton_);
+    plotButtonsLayout->addWidget(plotTaylorButton_);
     plotButtonsLayout->addWidget(zoomInPlotButton_);
     plotButtonsLayout->addWidget(zoomOutPlotButton_);
     plotButtonsLayout->addWidget(fitPlotButton_);
@@ -421,6 +429,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(refreshPerformanceButton_, &QPushButton::clicked, this, &HydroPINNWindow::refreshPerformanceAssessment);
     connect(clearPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::clearPlot);
     connect(showInputsOutputsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showSyntheticInputsOutputs);
+    connect(plotAllTargetPredButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotAllTargetVsPredicted);
+    connect(plotOneToOneButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotOneToOneAllModes);
+    connect(plotTaylorButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotTaylorDiagramAllModes);
     connect(zoomInPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::zoomInPlot);
     connect(zoomOutPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::zoomOutPlot);
     connect(fitPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::fitPlotAxes);
@@ -491,6 +502,9 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     runTrainingFFNPINNButton_->setEnabled(!running);
     runTrainingLSTMButton_->setEnabled(!running);
     runTrainingLSTMPINNButton_->setEnabled(!running);
+    plotAllTargetPredButton_->setEnabled(!running);
+    plotOneToOneButton_->setEnabled(!running);
+    plotTaylorButton_->setEnabled(!running);
     useNeuroforgeCsvPresetButton_->setEnabled(!running && dataSourceCombo_->currentText() == "CSV File");
 }
 
@@ -1029,6 +1043,208 @@ void HydroPINNWindow::updatePlot(const QString& mode, const HydroRunResult& resu
     chart->legend()->setVisible(true);
 }
 
+
+
+void HydroPINNWindow::plotAllTargetVsPredicted() {
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    auto* chart = chartView_->chart();
+    chart->removeAllSeries();
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) { chart->removeAxis(axis); delete axis; }
+
+    bool addedAny = false;
+    bool targetAdded = false;
+    for (const QString& mode : modes) {
+        auto it = lastModeResults_.find(mode);
+        if (it == lastModeResults_.end()) continue;
+        const HydroRunResult& r = it->second;
+        const size_t n = std::min(r.x.size(), std::min(r.y_true.size(), r.y_pred.size()));
+        if (n == 0) continue;
+
+        if (!targetAdded) {
+            auto* target = new QLineSeries(chart);
+            target->setName("Target");
+            for (size_t i = 0; i < n; ++i) target->append(r.x[i], r.y_true[i]);
+            chart->addSeries(target);
+            targetAdded = true;
+            addedAny = true;
+        }
+
+        auto* pred = new QLineSeries(chart);
+        pred->setName(QString("Prediction (%1)").arg(mode.toUpper()));
+        for (size_t i = 0; i < n; ++i) pred->append(r.x[i], r.y_pred[i]);
+        chart->addSeries(pred);
+        addedAny = true;
+    }
+
+    if (!addedAny) {
+        appendLog("No stored mode results available for all-mode target/predicted plot.");
+        return;
+    }
+
+    auto* axisX = new QValueAxis(chart);
+    axisX->setTitleText("t");
+    auto* axisY = new QValueAxis(chart);
+    axisY->setTitleText("y");
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    for (auto* series : chart->series()) {
+        series->attachAxis(axisX);
+        series->attachAxis(axisY);
+    }
+    chart->setTitle("Target vs Predicted (All Modes)");
+    chart->legend()->setVisible(true);
+    appendLog("Displayed target vs predicted curves for all stored modes.");
+}
+
+void HydroPINNWindow::plotOneToOneAllModes() {
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    auto* chart = chartView_->chart();
+    chart->removeAllSeries();
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) { chart->removeAxis(axis); delete axis; }
+
+    bool addedAny = false;
+    double minV = std::numeric_limits<double>::infinity();
+    double maxV = -std::numeric_limits<double>::infinity();
+
+    for (const QString& mode : modes) {
+        auto it = lastModeResults_.find(mode);
+        if (it == lastModeResults_.end()) continue;
+        const HydroRunResult& r = it->second;
+        const size_t n = std::min(r.y_true.size(), r.y_pred.size());
+        if (n == 0) continue;
+
+        auto* pts = new QScatterSeries(chart);
+        pts->setName(mode.toUpper());
+        pts->setMarkerSize(7.0);
+        for (size_t i = 0; i < n; ++i) {
+            pts->append(r.y_true[i], r.y_pred[i]);
+            minV = std::min(minV, std::min(r.y_true[i], r.y_pred[i]));
+            maxV = std::max(maxV, std::max(r.y_true[i], r.y_pred[i]));
+        }
+        chart->addSeries(pts);
+        addedAny = true;
+    }
+
+    if (!addedAny) {
+        appendLog("No stored mode results available for 1:1 target/predicted plot.");
+        return;
+    }
+
+    if (!std::isfinite(minV) || !std::isfinite(maxV) || minV == maxV) {
+        minV = -1.0;
+        maxV = 1.0;
+    }
+
+    auto* identity = new QLineSeries(chart);
+    identity->setName("y = x");
+    identity->append(minV, minV);
+    identity->append(maxV, maxV);
+    chart->addSeries(identity);
+
+    auto* axisX = new QValueAxis(chart);
+    axisX->setTitleText("Target");
+    auto* axisY = new QValueAxis(chart);
+    axisY->setTitleText("Predicted");
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    for (auto* series : chart->series()) {
+        series->attachAxis(axisX);
+        series->attachAxis(axisY);
+    }
+    chart->setTitle("1:1 Target vs Predicted (All Modes)");
+    chart->legend()->setVisible(true);
+    appendLog("Displayed 1:1 target vs predicted scatter plot for all stored modes.");
+}
+
+void HydroPINNWindow::plotTaylorDiagramAllModes() {
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    auto* chart = chartView_->chart();
+    chart->removeAllSeries();
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) { chart->removeAxis(axis); delete axis; }
+
+    bool haveReference = false;
+    double refStd = 0.0;
+    double maxRadius = 1.0;
+
+    auto meanStd = [](const std::vector<double>& v) {
+        double m = 0.0;
+        for (double x : v) m += x;
+        m /= static_cast<double>(v.size());
+        double var = 0.0;
+        for (double x : v) { const double d = x - m; var += d * d; }
+        var /= static_cast<double>(v.size());
+        return std::pair<double,double>(m, std::sqrt(std::max(0.0, var)));
+    };
+
+    for (const QString& mode : modes) {
+        auto it = lastModeResults_.find(mode);
+        if (it == lastModeResults_.end()) continue;
+        const HydroRunResult& r = it->second;
+        const size_t n = std::min(r.y_true.size(), r.y_pred.size());
+        if (n < 2) continue;
+
+        std::vector<double> yt(r.y_true.begin(), r.y_true.begin() + static_cast<long>(n));
+        std::vector<double> yp(r.y_pred.begin(), r.y_pred.begin() + static_cast<long>(n));
+
+        auto [mt, st] = meanStd(yt);
+        auto [mp, sp] = meanStd(yp);
+        if (!haveReference) {
+            refStd = st;
+            haveReference = true;
+        }
+
+        double cov = 0.0;
+        for (size_t i = 0; i < n; ++i) cov += (yt[i] - mt) * (yp[i] - mp);
+        cov /= static_cast<double>(n);
+        double corr = (st > 0.0 && sp > 0.0) ? (cov / (st * sp)) : 0.0;
+        corr = std::max(-1.0, std::min(1.0, corr));
+
+        const double theta = std::acos(corr);
+        const double x = sp * std::cos(theta);
+        const double y = sp * std::sin(theta);
+
+        auto* point = new QScatterSeries(chart);
+        point->setName(QString("%1 (r=%2, σ=%3)")
+                       .arg(mode.toUpper())
+                       .arg(corr, 0, 'f', 2)
+                       .arg(sp, 0, 'g', 4));
+        point->setMarkerSize(10.0);
+        point->append(x, y);
+        chart->addSeries(point);
+        maxRadius = std::max(maxRadius, std::hypot(x, y));
+    }
+
+    if (!haveReference || chart->series().isEmpty()) {
+        appendLog("No stored mode results available for Taylor diagram.");
+        return;
+    }
+
+    auto* ref = new QScatterSeries(chart);
+    ref->setName("Reference target");
+    ref->setMarkerSize(11.0);
+    ref->append(refStd, 0.0);
+    chart->addSeries(ref);
+    maxRadius = std::max(maxRadius, std::abs(refStd));
+
+    auto* axisX = new QValueAxis(chart);
+    axisX->setTitleText("σ cos(θ)");
+    axisX->setRange(0.0, maxRadius * 1.1);
+    auto* axisY = new QValueAxis(chart);
+    axisY->setTitleText("σ sin(θ)");
+    axisY->setRange(0.0, maxRadius * 1.1);
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    for (auto* series : chart->series()) {
+        series->attachAxis(axisX);
+        series->attachAxis(axisY);
+    }
+    chart->setTitle("Taylor Diagram (All Modes)");
+    chart->legend()->setVisible(true);
+    appendLog("Displayed Taylor diagram for all stored modes.");
+}
 void HydroPINNWindow::runMode(const QString& mode) {
     appendLog(QString("Starting mode: %1").arg(mode));
     setRunningUiState(true);

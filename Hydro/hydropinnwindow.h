@@ -104,6 +104,9 @@ private:
     QPushButton* zoomInPlotButton_;
     QPushButton* zoomOutPlotButton_;
     QPushButton* fitPlotButton_;
+    QPushButton* plotAllTargetPredButton_;
+    QPushButton* plotOneToOneButton_;
+    QPushButton* plotTaylorButton_;
     std::map<QString, HydroRunResult> lastModeResults_;
     std::vector<double> lastSyntheticX_;
     std::vector<double> lastSyntheticTarget_;
@@ -137,4 +140,7 @@ private:
     void zoomInPlot();
     void zoomOutPlot();
     void fitPlotAxes();
+    void plotAllTargetVsPredicted();
+    void plotOneToOneAllModes();
+    void plotTaylorDiagramAllModes();
 };
