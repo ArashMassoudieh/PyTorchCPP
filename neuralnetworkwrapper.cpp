@@ -741,7 +741,7 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
                 throw std::runtime_error("Failed to compute PINN gradient dy/dt.");
             }
 
-            torch::Tensor dy_dt = grads[0];
+            torch::Tensor dy_dt = grads[0].slice(1, 0, 1);
             torch::Tensor residual = dy_dt + lambda_decay * predictions;
             torch::Tensor physics_loss = torch::mse_loss(residual, torch::zeros_like(residual));
 
