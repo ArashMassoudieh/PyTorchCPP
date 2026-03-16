@@ -140,6 +140,7 @@ private:
     void zoomInPlot();
     void zoomOutPlot();
     void fitPlotAxes();
+    void fitPlotAxesInternal(bool logMessage);
     void plotAllTargetVsPredicted();
     void plotOneToOneAllModes();
     void plotTaylorDiagramAllModes();

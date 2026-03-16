@@ -897,7 +897,7 @@ void HydroPINNWindow::zoomOutPlot() {
     appendLog("Plot zoomed out.");
 }
 
-void HydroPINNWindow::fitPlotAxes() {
+void HydroPINNWindow::fitPlotAxesInternal(bool logMessage) {
     auto* chart = chartView_->chart();
     chart->zoomReset();
 
@@ -921,7 +921,7 @@ void HydroPINNWindow::fitPlotAxes() {
     }
 
     if (!hasPoints) {
-        appendLog("Fit Axes: no plottable points found.");
+        if (logMessage) appendLog("Fit Axes: no plottable points found.");
         return;
     }
 
@@ -939,7 +939,11 @@ void HydroPINNWindow::fitPlotAxes() {
         if (axis) axis->setRange(minY - padY, maxY + padY);
     }
 
-    appendLog("Plot axes fit to current data extents.");
+    if (logMessage) appendLog("Plot axes fit to current data extents.");
+}
+
+void HydroPINNWindow::fitPlotAxes() {
+    fitPlotAxesInternal(true);
 }
 
 void HydroPINNWindow::showSyntheticInputsOutputs() {
@@ -1082,6 +1086,7 @@ void HydroPINNWindow::updatePlot(const QString& mode, const HydroRunResult& resu
 
     chart->setTitle(QString("Prediction vs Target - %1").arg(mode));
     chart->legend()->setVisible(true);
+    fitPlotAxesInternal(false);
 }
 
 
@@ -1135,6 +1140,7 @@ void HydroPINNWindow::plotAllTargetVsPredicted() {
     }
     chart->setTitle("Target vs Predicted (All Modes)");
     chart->legend()->setVisible(true);
+    fitPlotAxesInternal(false);
     appendLog("Displayed target vs predicted curves for all stored modes.");
 }
 
@@ -1196,6 +1202,7 @@ void HydroPINNWindow::plotOneToOneAllModes() {
     }
     chart->setTitle("1:1 Target vs Predicted (All Modes)");
     chart->legend()->setVisible(true);
+    fitPlotAxesInternal(false);
     appendLog("Displayed 1:1 target vs predicted scatter plot for all stored modes.");
 }
 
@@ -1284,6 +1291,7 @@ void HydroPINNWindow::plotTaylorDiagramAllModes() {
     }
     chart->setTitle("Taylor Diagram (All Modes)");
     chart->legend()->setVisible(true);
+    fitPlotAxesInternal(false);
     appendLog("Displayed Taylor diagram for all stored modes.");
 }
 void HydroPINNWindow::runMode(const QString& mode) {
