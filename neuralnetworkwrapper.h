@@ -109,7 +109,7 @@ public:
      * @param lambda_decay Coefficient lambda in dy/dt + lambda*y = 0.
      * @param data_weight Weight for supervised data loss term.
      * @param physics_weight Weight for physics residual loss term.
- * @param collocation_points Optional extra collocation points per batch (Raissi-style PINN).
+     * @param collocation_points Optional extra collocation points per batch (Raissi-style PINN).
      * @return Vector of total loss values for each epoch.
      */
     std::vector<double> trainPINNExponentialDecay(int num_epochs,
@@ -119,15 +119,6 @@ public:
                                                   double data_weight = 1.0,
                                                   double physics_weight = 1.0,
                                                   int collocation_points = 0);
-
-    std::vector<double> trainPINNWithForcing(int num_epochs,
-                                             int batch_size,
-                                             double learning_rate,
-                                             double lambda_decay,
-                                             double forcing_gain,
-                                             int forcing_feature_index = 1,
-                                             double data_weight = 1.0,
-                                             double physics_weight = 1.0);
 
     std::vector<double> trainPINNWithForcing(int num_epochs,
                                              int batch_size,
