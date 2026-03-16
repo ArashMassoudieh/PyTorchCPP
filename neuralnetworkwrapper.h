@@ -100,7 +100,7 @@ public:
      * with a physics residual loss derived from automatic differentiation.
      *
      * Expected tensor shapes:
-     * - train input:  [N, 1] where column is time t
+     * - train input:  [N, F], F >= 1, first column is time t
      * - train target: [N, 1] where column is y(t)
      *
      * @param num_epochs Number of epochs.
@@ -109,6 +109,7 @@ public:
      * @param lambda_decay Coefficient lambda in dy/dt + lambda*y = 0.
      * @param data_weight Weight for supervised data loss term.
      * @param physics_weight Weight for physics residual loss term.
+     * @param collocation_points Optional extra collocation points per batch (Raissi-style PINN).
      * @return Vector of total loss values for each epoch.
      */
     std::vector<double> trainPINNExponentialDecay(int num_epochs,
@@ -116,7 +117,23 @@ public:
                                                   double learning_rate,
                                                   double lambda_decay,
                                                   double data_weight = 1.0,
-                                                  double physics_weight = 1.0);
+                                                  double physics_weight = 1.0,
+                                                  int collocation_points = 0);
+
+    /**
+     * @brief Physics-informed training with forcing residual dy/dt + lambda*y - g*u = 0.
+     *
+     * Designed for forcing-driven hydro process models (e.g., reservoir/runoff/treatment analogs).
+     * Uses input feature 0 as time t and `forcing_feature_index` as forcing u.
+     */
+    std::vector<double> trainPINNWithForcing(int num_epochs,
+                                             int batch_size,
+                                             double learning_rate,
+                                             double lambda_decay,
+                                             double forcing_gain,
+                                             int forcing_feature_index = 1,
+                                             double data_weight = 1.0,
+                                             double physics_weight = 1.0);
 
     // Evaluation
     /**
