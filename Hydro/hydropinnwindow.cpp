@@ -20,6 +20,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QPen>
 #include <QPushButton>
 #include <QStringList>
 #include <QSpinBox>
@@ -1100,6 +1101,11 @@ void HydroPINNWindow::plotAllTargetVsPredicted() {
 
     bool addedAny = false;
     bool targetAdded = false;
+
+    const QList<QColor> modeColors = {QColor(30, 144, 255), QColor(220, 20, 60), QColor(46, 139, 87), QColor(255, 140, 0)};
+    const QList<Qt::PenStyle> modeStyles = {Qt::SolidLine, Qt::DashLine, Qt::DotLine, Qt::DashDotLine};
+
+    int modeIdx = 0;
     for (const QString& mode : modes) {
         auto it = lastModeResults_.find(mode);
         if (it == lastModeResults_.end()) continue;
@@ -1110,6 +1116,9 @@ void HydroPINNWindow::plotAllTargetVsPredicted() {
         if (!targetAdded) {
             auto* target = new QLineSeries(chart);
             target->setName("Target");
+            QPen targetPen(QColor(60, 60, 60));
+            targetPen.setWidth(2);
+            target->setPen(targetPen);
             for (size_t i = 0; i < n; ++i) target->append(r.x[i], r.y_true[i]);
             chart->addSeries(target);
             targetAdded = true;
@@ -1118,9 +1127,15 @@ void HydroPINNWindow::plotAllTargetVsPredicted() {
 
         auto* pred = new QLineSeries(chart);
         pred->setName(QString("Prediction (%1)").arg(mode.toUpper()));
+        QPen predPen(modeColors[modeIdx % modeColors.size()]);
+        predPen.setWidth(2 + (modeIdx % 2));
+        predPen.setStyle(modeStyles[modeIdx % modeStyles.size()]);
+        pred->setPen(predPen);
+
         for (size_t i = 0; i < n; ++i) pred->append(r.x[i], r.y_pred[i]);
         chart->addSeries(pred);
         addedAny = true;
+        ++modeIdx;
     }
 
     if (!addedAny) {
@@ -1141,7 +1156,7 @@ void HydroPINNWindow::plotAllTargetVsPredicted() {
     chart->setTitle("Target vs Predicted (All Modes)");
     chart->legend()->setVisible(true);
     fitPlotAxesInternal(false);
-    appendLog("Displayed target vs predicted curves for all stored modes.");
+    appendLog("Displayed target vs predicted curves for all stored modes (styled per mode for overlap visibility).");
 }
 
 void HydroPINNWindow::plotOneToOneAllModes() {
