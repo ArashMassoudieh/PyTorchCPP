@@ -1217,6 +1217,15 @@ void HydroPINNWindow::plotTaylorDiagramAllModes() {
     double refStd = 0.0;
     double maxRadius = 1.0;
 
+    struct TaylorPoint {
+        QString mode;
+        double corr;
+        double stddev;
+        double x;
+        double y;
+    };
+    std::vector<TaylorPoint> points;
+
     auto meanStd = [](const std::vector<double>& v) {
         double m = 0.0;
         for (double x : v) m += x;
@@ -1224,7 +1233,7 @@ void HydroPINNWindow::plotTaylorDiagramAllModes() {
         double var = 0.0;
         for (double x : v) { const double d = x - m; var += d * d; }
         var /= static_cast<double>(v.size());
-        return std::pair<double,double>(m, std::sqrt(std::max(0.0, var)));
+        return std::pair<double, double>(m, std::sqrt(std::max(0.0, var)));
     };
 
     for (const QString& mode : modes) {
@@ -1254,45 +1263,88 @@ void HydroPINNWindow::plotTaylorDiagramAllModes() {
         const double x = sp * std::cos(theta);
         const double y = sp * std::sin(theta);
 
-        auto* point = new QScatterSeries(chart);
-        point->setName(QString("%1 (r=%2, σ=%3)")
-                       .arg(mode.toUpper())
-                       .arg(corr, 0, 'f', 2)
-                       .arg(sp, 0, 'g', 4));
-        point->setMarkerSize(10.0);
-        point->append(x, y);
-        chart->addSeries(point);
+        points.push_back({mode, corr, sp, x, y});
         maxRadius = std::max(maxRadius, std::hypot(x, y));
     }
 
-    if (!haveReference || chart->series().isEmpty()) {
+    if (!haveReference || points.empty()) {
         appendLog("No stored mode results available for Taylor diagram.");
         return;
     }
 
+    maxRadius = std::max(maxRadius, std::abs(refStd));
+    const double axisMax = std::max(1e-6, maxRadius * 1.1);
+
+    // Draw standard-deviation circles (quarter arcs) for visual Taylor guide.
+    const int arcSegments = 120;
+    for (int ring = 1; ring <= 5; ++ring) {
+        const double radius = axisMax * static_cast<double>(ring) / 5.0;
+        auto* arc = new QLineSeries(chart);
+        arc->setName(QString("σ=%1").arg(radius, 0, 'g', 3));
+        for (int i = 0; i <= arcSegments; ++i) {
+            const double halfPi = 1.5707963267948966;
+            const double angle = (halfPi * static_cast<double>(i)) / static_cast<double>(arcSegments);
+            arc->append(radius * std::cos(angle), radius * std::sin(angle));
+        }
+        chart->addSeries(arc);
+    }
+
+    // Draw correlation rays.
+    const std::vector<double> corrGuides = {0.2, 0.4, 0.6, 0.8, 0.9, 0.95, 1.0};
+    for (double c : corrGuides) {
+        const double theta = std::acos(std::max(-1.0, std::min(1.0, c)));
+        auto* ray = new QLineSeries(chart);
+        ray->setName(QString("r=%1").arg(c, 0, 'g', 3));
+        ray->append(0.0, 0.0);
+        ray->append(axisMax * std::cos(theta), axisMax * std::sin(theta));
+        chart->addSeries(ray);
+    }
+
+    // Make overlapping points visible by deterministic radial offset.
+    std::map<QString, int> overlapCounter;
+    for (const TaylorPoint& pnt : points) {
+        const QString key = QString("%1|%2")
+                                .arg(std::round(pnt.x * 1000.0) / 1000.0, 0, 'f', 3)
+                                .arg(std::round(pnt.y * 1000.0) / 1000.0, 0, 'f', 3);
+        const int overlapIdx = overlapCounter[key]++;
+        const double norm = std::max(1e-12, std::hypot(pnt.x, pnt.y));
+        const double offset = axisMax * 0.02 * static_cast<double>(overlapIdx);
+        const double x = pnt.x + offset * (pnt.x / norm);
+        const double y = pnt.y + offset * (pnt.y / norm);
+
+        auto* point = new QScatterSeries(chart);
+        point->setName(QString("%1 (r=%2, σ=%3)")
+                           .arg(pnt.mode.toUpper())
+                           .arg(pnt.corr, 0, 'f', 2)
+                           .arg(pnt.stddev, 0, 'g', 4));
+        point->setMarkerSize(11.0 + 2.0 * overlapIdx);
+        point->append(x, y);
+        chart->addSeries(point);
+    }
+
     auto* ref = new QScatterSeries(chart);
     ref->setName("Reference target");
-    ref->setMarkerSize(11.0);
+    ref->setMarkerSize(13.0);
     ref->append(refStd, 0.0);
     chart->addSeries(ref);
-    maxRadius = std::max(maxRadius, std::abs(refStd));
 
     auto* axisX = new QValueAxis(chart);
     axisX->setTitleText("σ cos(θ)");
-    axisX->setRange(0.0, maxRadius * 1.1);
+    axisX->setRange(0.0, axisMax);
     auto* axisY = new QValueAxis(chart);
     axisY->setTitleText("σ sin(θ)");
-    axisY->setRange(0.0, maxRadius * 1.1);
+    axisY->setRange(0.0, axisMax);
     chart->addAxis(axisX, Qt::AlignBottom);
     chart->addAxis(axisY, Qt::AlignLeft);
     for (auto* series : chart->series()) {
         series->attachAxis(axisX);
         series->attachAxis(axisY);
     }
+
     chart->setTitle("Taylor Diagram (All Modes)");
     chart->legend()->setVisible(true);
     fitPlotAxesInternal(false);
-    appendLog("Displayed Taylor diagram for all stored modes.");
+    appendLog("Displayed Taylor diagram for all stored modes (with std-dev circles and overlap handling).");
 }
 void HydroPINNWindow::runMode(const QString& mode) {
     appendLog(QString("Starting mode: %1").arg(mode));
