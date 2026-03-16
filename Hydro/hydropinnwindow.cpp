@@ -62,7 +62,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       epochsSpin_(new QSpinBox(this)), batchSpin_(new QSpinBox(this)), lrSpin_(new QDoubleSpinBox(this)),
       lambdaSpin_(new QDoubleSpinBox(this)), dataWeightSpin_(new QDoubleSpinBox(this)),
       physicsWeightSpin_(new QDoubleSpinBox(this)), pinnPhysicsProfileCombo_(new QComboBox(this)),
-      forcingGainSpin_(new QDoubleSpinBox(this)), hiddenLayersEdit_(new QLineEdit(this)),
+      forcingGainSpin_(new QDoubleSpinBox(this)), pinnCollocationSpin_(new QSpinBox(this)), hiddenLayersEdit_(new QLineEdit(this)),
       activationCombo_(new QComboBox(this)), layerSizeSpin_(new QSpinBox(this)), layerActivationCombo_(new QComboBox(this)),
       addLayerButton_(new QPushButton("Add Layer", this)), removeLayerButton_(new QPushButton("Remove Selected", this)),
       layersList_(new QListWidget(this)), outputActivationCombo_(new QComboBox(this)),
@@ -228,6 +228,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     forcingGainSpin_->setDecimals(4);
     forcingGainSpin_->setRange(0.0, 100.0);
     forcingGainSpin_->setValue(1.0);
+    pinnCollocationSpin_->setRange(0, 50000);
+    pinnCollocationSpin_->setValue(0);
     evalCheck_->setChecked(true);
     trainForm->addRow("Epochs", epochsSpin_);
     trainForm->addRow("Batch size", batchSpin_);
@@ -237,6 +239,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     trainForm->addRow("Physics loss weight", physicsWeightSpin_);
     trainForm->addRow("PINN physics profile", pinnPhysicsProfileCombo_);
     trainForm->addRow("PINN forcing gain", forcingGainSpin_);
+    trainForm->addRow("PINN collocation points", pinnCollocationSpin_);
+
+    trainForm->addRow(new QLabel("PINN water-domain hints: linear_reservoir/cstr_first_order profiles are forcing-driven and suitable for rainfall-runoff, reservoir and treatment-process style dynamics.", trainTab));
 
     splitRatioSpin_->setDecimals(3);
     splitRatioSpin_->setRange(0.1, 0.95);
@@ -468,6 +473,7 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
     cfg.physics_weight = physicsWeightSpin_->value();
     cfg.pinn_physics_profile = pinnPhysicsProfileCombo_->currentText().toStdString();
     cfg.forcing_gain = forcingGainSpin_->value();
+    cfg.pinn_collocation_points = pinnCollocationSpin_->value();
     cfg.use_csv_data = (dataSourceCombo_->currentText() == "CSV File");
     cfg.csv_path = csvPathEdit_->text().toStdString();
     cfg.csv_x_column = csvXColSpin_->value();
@@ -839,12 +845,12 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           "Data source: %3<br/>"
                           "Evaluate metrics: %4<br/>"
                           "Training: epochs=%5, batch=%6, lr=%7<br/>"
-                          "PINN: lambda=%8, data_w=%9, physics_w=%10, profile=%11, forcing_gain=%12<br/>"
-                          "Network: layers=%13, activation=%14<br/>"
-                          "Split/shuffle: split=%15, shuffle=%16, seed=%17<br/>"
-                          "Optimizer: %18, weight_decay=%19, momentum=%20<br/>"
-                          "Normalization: %21<br/>"
-                          "Incremental: enabled=%22, window_size=%23, window_step=%24, epochs/window=%25, reset_opt=%26")
+                          "PINN: lambda=%8, data_w=%9, physics_w=%10, profile=%11, forcing_gain=%12, collocation=%13<br/>"
+                          "Network: layers=%14, activation=%15<br/>"
+                          "Split/shuffle: split=%16, shuffle=%17, seed=%18<br/>"
+                          "Optimizer: %19, weight_decay=%20, momentum=%21<br/>"
+                          "Normalization: %22<br/>"
+                          "Incremental: enabled=%23, window_size=%24, window_step=%25, epochs/window=%26, reset_opt=%27")
                           .arg(modeCombo_->currentText())
                           .arg(backendInfo)
                           .arg(cfg.use_csv_data ? "CSV" : "Synthetic")
@@ -857,6 +863,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           .arg(cfg.physics_weight, 0, 'g', 6)
                           .arg(QString::fromStdString(cfg.pinn_physics_profile))
                           .arg(cfg.forcing_gain, 0, 'g', 6)
+                          .arg(cfg.pinn_collocation_points)
                           .arg(QString::fromStdString(cfg.hidden_layers_csv))
                           .arg(QString::fromStdString(cfg.activation))
                           .arg(cfg.train_split_ratio, 0, 'g', 4)
@@ -1598,9 +1605,10 @@ void HydroPINNWindow::runMode(const QString& mode) {
                   .arg(QString::fromStdString(cfg.normalization))
                   .arg(cfg.use_incremental_training ? "yes" : "no"));
     if (mode == "ffn_pinn" || mode == "lstm_pinn") {
-        appendLog(QString("PINN physics => profile=%1, forcing_gain=%2")
+        appendLog(QString("PINN physics => profile=%1, forcing_gain=%2, collocation=%3")
                       .arg(QString::fromStdString(cfg.pinn_physics_profile))
-                      .arg(cfg.forcing_gain, 0, 'g', 6));
+                      .arg(cfg.forcing_gain, 0, 'g', 6)
+                      .arg(cfg.pinn_collocation_points));
     }
 
     QCoreApplication::processEvents();

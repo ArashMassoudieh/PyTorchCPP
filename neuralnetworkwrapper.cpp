@@ -651,7 +651,8 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
                                                                     double learning_rate,
                                                                     double lambda_decay,
                                                                     double data_weight,
-                                                                    double physics_weight) {
+                                                                    double physics_weight,
+                                                                    int collocation_points) {
     if (!is_initialized_) {
         throw std::runtime_error("Network must be initialized before training. Call initializeNetwork() first.");
     }
@@ -728,11 +729,23 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
             torch::Tensor predictions = this->forward_internal(pinn_inputs);
             torch::Tensor data_loss = torch::mse_loss(predictions, batch_targets);
 
-            torch::Tensor grad_outputs = torch::ones_like(predictions);
+            torch::Tensor residual_inputs = pinn_inputs;
+            if (collocation_points > 0) {
+                const double tMin = train_inputs.slice(1, 0, 1).min().item<double>();
+                const double tMax = train_inputs.slice(1, 0, 1).max().item<double>();
+                torch::Tensor collocation = batch_inputs.index_select(
+                    0, torch::randint(0, batch_inputs.size(0), {collocation_points}, torch::kLong)).clone();
+                torch::Tensor tColloc = torch::rand({collocation_points, 1}, torch::kFloat32) * (tMax - tMin) + tMin;
+                collocation.slice(1, 0, 1).copy_(tColloc);
+                residual_inputs = collocation.detach().set_requires_grad(true);
+            }
+
+            torch::Tensor residual_predictions = this->forward_internal(residual_inputs);
+            torch::Tensor grad_outputs = torch::ones_like(residual_predictions);
             // retain_graph=true is required because total_loss.backward() below
             // still needs graph tensors that participate in dy/dt physics loss.
-            auto grads = torch::autograd::grad({predictions},
-                                               {pinn_inputs},
+            auto grads = torch::autograd::grad({residual_predictions},
+                                               {residual_inputs},
                                                {grad_outputs},
                                                true,
                                                true);
@@ -742,7 +755,7 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
             }
 
             torch::Tensor dy_dt = grads[0].slice(1, 0, 1);
-            torch::Tensor residual = dy_dt + lambda_decay * predictions;
+            torch::Tensor residual = dy_dt + lambda_decay * residual_predictions;
             torch::Tensor physics_loss = torch::mse_loss(residual, torch::zeros_like(residual));
 
             torch::Tensor total_loss = data_weight * data_loss + physics_weight * physics_loss;

@@ -261,7 +261,8 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
                                                  config.learning_rate,
                                                  lambda,
                                                  config.data_weight,
-                                                 config.physics_weight);
+                                                 config.physics_weight,
+                                                 config.pinn_collocation_points);
     }
     if (losses.empty() || !std::isfinite(losses.back())) {
         throw std::runtime_error("FFN-PINN training produced empty/non-finite loss history.");

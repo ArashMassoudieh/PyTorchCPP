@@ -45,6 +45,7 @@ private:
     QDoubleSpinBox* physicsWeightSpin_;
     QComboBox* pinnPhysicsProfileCombo_;
     QDoubleSpinBox* forcingGainSpin_;
+    QSpinBox* pinnCollocationSpin_;
     QLineEdit* hiddenLayersEdit_;
     QComboBox* activationCombo_;
     QSpinBox* layerSizeSpin_;

@@ -17,6 +17,7 @@ struct HydroRunConfig {
     double physics_weight = 0.2;
     std::string pinn_physics_profile = "exp_decay"; // exp_decay | linear_reservoir | cstr_first_order
     double forcing_gain = 1.0;
+    int pinn_collocation_points = 0; // 0 => use batch inputs only; >0 => Raissi-style extra collocation points
 
     // Data input options
     bool use_csv_data = false;
