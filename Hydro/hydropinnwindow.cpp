@@ -1426,7 +1426,7 @@ void HydroPINNWindow::showModeSubplots() {
 
     auto* dlg = new QDialog(this);
     dlg->setAttribute(Qt::WA_DeleteOnClose);
-    dlg->setWindowTitle("Mode Subplots (2x2)");
+    dlg->setWindowTitle("Mode Subplots (2x2, 1:1 Target vs Predicted)");
     dlg->resize(1200, 800);
 
     auto* grid = new QGridLayout(dlg);
@@ -1439,44 +1439,82 @@ void HydroPINNWindow::showModeSubplots() {
         cellLayout->setContentsMargins(2, 2, 2, 2);
 
         auto it = lastModeResults_.find(modes[i]);
-        if (it == lastModeResults_.end() || it->second.x.empty() || it->second.y_true.empty() || it->second.y_pred.empty()) {
+        if (it == lastModeResults_.end() || it->second.y_true.empty() || it->second.y_pred.empty()) {
             auto* missing = new QLabel(QString("%1: no stored result").arg(titles[i]), cell);
             missing->setAlignment(Qt::AlignCenter);
             cellLayout->addWidget(missing);
         } else {
             const HydroRunResult& r = it->second;
-            auto* chart = new QChart();
-            chart->setTitle(titles[i]);
+            const size_t n = std::min(r.y_true.size(), r.y_pred.size());
+            if (n == 0) {
+                auto* missing = new QLabel(QString("%1: empty prediction vectors").arg(titles[i]), cell);
+                missing->setAlignment(Qt::AlignCenter);
+                cellLayout->addWidget(missing);
+            } else {
+                double minV = std::numeric_limits<double>::infinity();
+                double maxV = -std::numeric_limits<double>::infinity();
+                double meanY = 0.0;
+                for (size_t k = 0; k < n; ++k) {
+                    meanY += r.y_true[k];
+                    minV = std::min(minV, std::min(r.y_true[k], r.y_pred[k]));
+                    maxV = std::max(maxV, std::max(r.y_true[k], r.y_pred[k]));
+                }
+                meanY /= static_cast<double>(n);
 
-            auto* target = new QLineSeries(chart);
-            target->setName("Target");
-            auto* pred = new QLineSeries(chart);
-            pred->setName("Prediction");
+                double ssRes = 0.0;
+                double ssTot = 0.0;
+                for (size_t k = 0; k < n; ++k) {
+                    const double e = r.y_true[k] - r.y_pred[k];
+                    ssRes += e * e;
+                    const double d = r.y_true[k] - meanY;
+                    ssTot += d * d;
+                }
+                const double r2 = (ssTot > 1e-12) ? (1.0 - ssRes / ssTot) : 0.0;
 
-            const size_t n = std::min(r.x.size(), std::min(r.y_true.size(), r.y_pred.size()));
-            for (size_t k = 0; k < n; ++k) {
-                target->append(r.x[k], r.y_true[k]);
-                pred->append(r.x[k], r.y_pred[k]);
+                if (!std::isfinite(minV) || !std::isfinite(maxV) || minV == maxV) {
+                    minV = -1.0;
+                    maxV = 1.0;
+                }
+
+                auto* chart = new QChart();
+                chart->setTitle(QString("%1 (R²=%2)").arg(titles[i]).arg(r2, 0, 'f', 3));
+
+                auto* pts = new QScatterSeries(chart);
+                pts->setName("Target vs Predicted");
+                pts->setMarkerSize(7.0);
+                for (size_t k = 0; k < n; ++k) {
+                    pts->append(r.y_true[k], r.y_pred[k]);
+                }
+
+                auto* identity = new QLineSeries(chart);
+                identity->setName("y = x");
+                identity->append(minV, minV);
+                identity->append(maxV, maxV);
+
+                chart->addSeries(pts);
+                chart->addSeries(identity);
+
+                auto* axisX = new QValueAxis(chart);
+                axisX->setTitleText("Target");
+                auto* axisY = new QValueAxis(chart);
+                axisY->setTitleText("Predicted");
+                chart->addAxis(axisX, Qt::AlignBottom);
+                chart->addAxis(axisY, Qt::AlignLeft);
+                pts->attachAxis(axisX);
+                pts->attachAxis(axisY);
+                identity->attachAxis(axisX);
+                identity->attachAxis(axisY);
+
+                const double d = std::max(1e-9, maxV - minV);
+                axisX->setRange(minV - 0.05 * d, maxV + 0.05 * d);
+                axisY->setRange(minV - 0.05 * d, maxV + 0.05 * d);
+                chart->legend()->setVisible(true);
+
+                auto* cv = new QChartView(chart, cell);
+                cv->setRenderHint(QPainter::Antialiasing);
+                cellLayout->addWidget(cv);
+                ++plotted;
             }
-            chart->addSeries(target);
-            chart->addSeries(pred);
-
-            auto* axisX = new QValueAxis(chart);
-            axisX->setTitleText("t");
-            auto* axisY = new QValueAxis(chart);
-            axisY->setTitleText("y");
-            chart->addAxis(axisX, Qt::AlignBottom);
-            chart->addAxis(axisY, Qt::AlignLeft);
-            target->attachAxis(axisX);
-            target->attachAxis(axisY);
-            pred->attachAxis(axisX);
-            pred->attachAxis(axisY);
-            chart->legend()->setVisible(true);
-
-            auto* cv = new QChartView(chart, cell);
-            cv->setRenderHint(QPainter::Antialiasing);
-            cellLayout->addWidget(cv);
-            ++plotted;
         }
 
         grid->addWidget(cell, i / 2, i % 2);
@@ -1486,7 +1524,7 @@ void HydroPINNWindow::showModeSubplots() {
     if (plotted == 0) {
         appendLog("Subplots window opened, but no stored mode results were available.");
     } else {
-        appendLog(QString("Displayed 2x2 mode subplots (%1/%2 modes with data).")
+        appendLog(QString("Displayed 2x2 mode subplots as 1:1 target-vs-predicted charts (%1/%2 modes with data).")
                       .arg(plotted)
                       .arg(modes.size()));
     }
