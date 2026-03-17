@@ -25,6 +25,46 @@ std::vector<int> parseHiddenLayers(const std::string& csv) {
     return layers;
 }
 
+std::vector<std::vector<int>> parseLagConfig(const std::string& lagSpec, int inputDim) {
+    std::vector<std::vector<int>> parsed;
+    std::stringstream groups(lagSpec);
+    std::string group;
+    while (std::getline(groups, group, ';')) {
+        std::stringstream groupStream(group);
+        std::string token;
+        std::vector<int> featureLags;
+        while (std::getline(groupStream, token, ',')) {
+            try {
+                const int lag = std::stoi(token);
+                if (lag > 0) {
+                    featureLags.push_back(lag);
+                }
+            } catch (...) {}
+        }
+        if (!featureLags.empty()) {
+            parsed.push_back(std::move(featureLags));
+        }
+    }
+
+    if (parsed.empty()) {
+        parsed.push_back({1});
+    }
+
+    if (inputDim <= 0) {
+        return parsed;
+    }
+
+    if (static_cast<int>(parsed.size()) < inputDim) {
+        const std::vector<int> fallback = parsed.front();
+        while (static_cast<int>(parsed.size()) < inputDim) {
+            parsed.push_back(fallback);
+        }
+    } else if (static_cast<int>(parsed.size()) > inputDim) {
+        parsed.resize(static_cast<size_t>(inputDim));
+    }
+    return parsed;
+}
+
 std::vector<std::string> splitCsvRow(const std::string& line) {
     std::vector<std::string> cols;
     std::stringstream ss(line);
@@ -231,7 +271,7 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
 
     const int inputDim = static_cast<int>(x.size(1));
     model.setHiddenLayers(parseHiddenLayers(config.hidden_layers_csv));
-    model.setLags(std::vector<std::vector<int>>(static_cast<size_t>(inputDim), std::vector<int>{1}));
+    model.setLags(parseLagConfig(config.input_lags_csv, inputDim));
     model.initializeNetwork(1, config.activation);
 
     const double split = std::min(0.95, std::max(0.1, config.train_split_ratio));
