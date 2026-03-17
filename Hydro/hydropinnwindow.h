@@ -112,6 +112,8 @@ private:
     QPushButton* plotOneToOneButton_;
     QPushButton* plotTaylorButton_;
     QPushButton* plotSubplotsButton_;
+    QPushButton* plotResidualsButton_;
+    QPushButton* plotErrorCdfButton_;
     std::map<QString, HydroRunResult> lastModeResults_;
     std::vector<double> lastSyntheticX_;
     std::vector<double> lastSyntheticTarget_;
@@ -150,4 +152,6 @@ private:
     void plotOneToOneAllModes();
     void plotTaylorDiagramAllModes();
     void showModeSubplots();
+    void plotResidualsAllModes();
+    void plotErrorCdfAllModes();
 };
