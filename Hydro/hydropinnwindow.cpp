@@ -63,6 +63,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       lambdaSpin_(new QDoubleSpinBox(this)), dataWeightSpin_(new QDoubleSpinBox(this)),
       physicsWeightSpin_(new QDoubleSpinBox(this)), pinnPhysicsProfileCombo_(new QComboBox(this)),
       forcingGainSpin_(new QDoubleSpinBox(this)), pinnCollocationSpin_(new QSpinBox(this)), hiddenLayersEdit_(new QLineEdit(this)),
+      inputLagsEdit_(new QLineEdit(this)),
       activationCombo_(new QComboBox(this)), layerSizeSpin_(new QSpinBox(this)), layerActivationCombo_(new QComboBox(this)),
       addLayerButton_(new QPushButton("Add Layer", this)), removeLayerButton_(new QPushButton("Remove Selected", this)),
       layersList_(new QListWidget(this)), outputActivationCombo_(new QComboBox(this)),
@@ -167,8 +168,11 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     auto* networkLayout = new QVBoxLayout(networkTab);
     auto* networkTopForm = new QFormLayout();
     hiddenLayersEdit_->setText("24,24");
+    inputLagsEdit_->setText("1");
+    inputLagsEdit_->setPlaceholderText("Example: 1,2;1;1,3");
     activationCombo_->setCurrentText("tanh");
     networkTopForm->addRow("Hidden layers (csv)", hiddenLayersEdit_);
+    networkTopForm->addRow("Input lags (groups by ';')", inputLagsEdit_);
     networkTopForm->addRow("Default activation", activationCombo_);
 
     auto* layerBuilderGroup = new QGroupBox("Layer Builder (NeuroForge-style)", networkTab);
@@ -197,7 +201,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
 
     auto* lagsGroup = new QGroupBox("Lag Configuration", networkTab);
     auto* lagsLayout = new QVBoxLayout(lagsGroup);
-    lagsLayout->addWidget(new QLabel("Hydro wrappers currently use a fixed lag setup internally ({1}) for compatibility.\nThis section is provided to match NeuroForge workflow and future lag backend support.", lagsGroup));
+    lagsLayout->addWidget(new QLabel("Lag syntax: separate features with ';', and lags within each feature with ','.\nIf fewer groups than features are supplied, the first group is reused.", lagsGroup));
 
     networkLayout->addLayout(networkTopForm);
     networkLayout->addWidget(layerBuilderGroup);
@@ -483,6 +487,7 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
     cfg.t_start = tStartSpin_->value();
     cfg.t_end = tEndSpin_->value();
     cfg.hidden_layers_csv = hiddenLayersEdit_->text().toStdString();
+    cfg.input_lags_csv = inputLagsEdit_->text().toStdString();
     const std::vector<QString> layerActs = configuredLayerActivations();
     if (!layerActs.empty()) {
         cfg.activation = layerActs.front().toStdString();
@@ -846,11 +851,11 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           "Evaluate metrics: %4<br/>"
                           "Training: epochs=%5, batch=%6, lr=%7<br/>"
                           "PINN: lambda=%8, data_w=%9, physics_w=%10, profile=%11, forcing_gain=%12, collocation=%13<br/>"
-                          "Network: layers=%14, activation=%15<br/>"
-                          "Split/shuffle: split=%16, shuffle=%17, seed=%18<br/>"
-                          "Optimizer: %19, weight_decay=%20, momentum=%21<br/>"
-                          "Normalization: %22<br/>"
-                          "Incremental: enabled=%23, window_size=%24, window_step=%25, epochs/window=%26, reset_opt=%27")
+                          "Network: layers=%14, lags=%15, activation=%16<br/>"
+                          "Split/shuffle: split=%17, shuffle=%18, seed=%19<br/>"
+                          "Optimizer: %20, weight_decay=%21, momentum=%22<br/>"
+                          "Normalization: %23<br/>"
+                          "Incremental: enabled=%24, window_size=%25, window_step=%26, epochs/window=%27, reset_opt=%28")
                           .arg(modeCombo_->currentText())
                           .arg(backendInfo)
                           .arg(cfg.use_csv_data ? "CSV" : "Synthetic")
@@ -865,6 +870,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           .arg(cfg.forcing_gain, 0, 'g', 6)
                           .arg(cfg.pinn_collocation_points)
                           .arg(QString::fromStdString(cfg.hidden_layers_csv))
+                          .arg(QString::fromStdString(cfg.input_lags_csv))
                           .arg(QString::fromStdString(cfg.activation))
                           .arg(cfg.train_split_ratio, 0, 'g', 4)
                           .arg(cfg.shuffle_training ? "yes" : "no")
@@ -1608,6 +1614,10 @@ void HydroPINNWindow::runMode(const QString& mode) {
                   .arg(QString::fromStdString(cfg.optimizer))
                   .arg(QString::fromStdString(cfg.normalization))
                   .arg(cfg.use_incremental_training ? "yes" : "no"));
+    appendLog(QString("Network options => hidden_layers=%1, input_lags=%2, activation=%3")
+                  .arg(QString::fromStdString(cfg.hidden_layers_csv))
+                  .arg(QString::fromStdString(cfg.input_lags_csv))
+                  .arg(QString::fromStdString(cfg.activation)));
     if (mode == "ffn_pinn" || mode == "lstm_pinn") {
         appendLog(QString("PINN physics => profile=%1, forcing_gain=%2, collocation=%3")
                       .arg(QString::fromStdString(cfg.pinn_physics_profile))

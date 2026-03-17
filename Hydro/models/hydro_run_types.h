@@ -37,6 +37,9 @@ struct HydroRunConfig {
 
     // Network options
     std::string hidden_layers_csv = "24,24";
+    // Lag groups are separated by ';' and each group contains comma-separated positive integer lags.
+    // Examples: "1" (all features use lag 1), "1,2;1;1,3" (feature-specific lag groups).
+    std::string input_lags_csv = "1";
     std::string activation = "tanh"; // single backend activation used across hidden/output layers
 
     bool evaluate_metrics = true;

@@ -47,6 +47,7 @@ private:
     QDoubleSpinBox* forcingGainSpin_;
     QSpinBox* pinnCollocationSpin_;
     QLineEdit* hiddenLayersEdit_;
+    QLineEdit* inputLagsEdit_;
     QComboBox* activationCombo_;
     QSpinBox* layerSizeSpin_;
     QComboBox* layerActivationCombo_;
