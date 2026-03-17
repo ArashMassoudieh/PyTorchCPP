@@ -97,7 +97,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       plotAllTargetPredButton_(new QPushButton("Target vs Predicted (All)", this)),
       plotOneToOneButton_(new QPushButton("1:1 Target vs Predicted (All)", this)),
       plotTaylorButton_(new QPushButton("Taylor Diagram (All)", this)),
-      plotSubplotsButton_(new QPushButton("Show 4 Modes (Same Plot)", this)),
+      plotSubplotsButton_(new QPushButton("Show 4 Mode Subplots (Same Plot)", this)),
       plotResidualsButton_(new QPushButton("Residuals vs t (All)", this)),
       plotErrorCdfButton_(new QPushButton("|Error| CDF (All)", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
@@ -1483,8 +1483,143 @@ void HydroPINNWindow::plotTaylorDiagramAllModes() {
     appendLog(QString("Displayed Taylor diagram for all stored modes (adaptive σ-circles=%1, high-contrast colors).").arg(ringCount));
 }
 void HydroPINNWindow::showModeSubplots() {
-    plotOneToOneAllModes();
-    appendLog("Displayed all 4 modes on the main Plot tab (reused 1:1 chart; no popup window).");
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    const QStringList titles = {"FFN", "FFN+PINN", "LSTM", "LSTM+PINN"};
+    const QList<QColor> modeColors = {
+        QColor(0, 114, 178),
+        QColor(213, 94, 0),
+        QColor(0, 158, 115),
+        QColor(204, 121, 167)
+    };
+
+    auto* chart = chartView_->chart();
+    chart->removeAllSeries();
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) { chart->removeAxis(axis); delete axis; }
+
+    int plotted = 0;
+    for (int i = 0; i < modes.size(); ++i) {
+        auto it = lastModeResults_.find(modes[i]);
+        if (it == lastModeResults_.end()) continue;
+        const HydroRunResult& r = it->second;
+        const size_t n = std::min(r.y_true.size(), r.y_pred.size());
+        if (n == 0) continue;
+
+        double minV = std::numeric_limits<double>::infinity();
+        double maxV = -std::numeric_limits<double>::infinity();
+        double meanY = 0.0;
+        for (size_t k = 0; k < n; ++k) {
+            meanY += r.y_true[k];
+            minV = std::min(minV, std::min(r.y_true[k], r.y_pred[k]));
+            maxV = std::max(maxV, std::max(r.y_true[k], r.y_pred[k]));
+        }
+        meanY /= static_cast<double>(n);
+
+        double ssRes = 0.0;
+        double ssTot = 0.0;
+        for (size_t k = 0; k < n; ++k) {
+            const double e = r.y_true[k] - r.y_pred[k];
+            ssRes += e * e;
+            const double d = r.y_true[k] - meanY;
+            ssTot += d * d;
+        }
+        const double r2 = (ssTot > 1e-12) ? (1.0 - ssRes / ssTot) : 0.0;
+
+        if (!std::isfinite(minV) || !std::isfinite(maxV) || minV == maxV) {
+            minV = -1.0;
+            maxV = 1.0;
+        }
+        const double span = std::max(1e-9, maxV - minV);
+
+        const int row = i / 2;
+        const int col = i % 2;
+        const double panelX0 = static_cast<double>(col);
+        const double panelY0 = static_cast<double>(1 - row); // top row -> y in [1,2]
+
+        auto mapCoord = [&](double v) {
+            const double nv = (v - minV) / span;
+            return std::max(0.0, std::min(1.0, nv));
+        };
+
+        auto* pts = new QScatterSeries(chart);
+        pts->setName(QString("%1 (R²=%2)").arg(titles[i]).arg(r2, 0, 'f', 3));
+        pts->setMarkerSize(5.5);
+        pts->setColor(modeColors[i % modeColors.size()]);
+        for (size_t k = 0; k < n; ++k) {
+            pts->append(panelX0 + mapCoord(r.y_true[k]), panelY0 + mapCoord(r.y_pred[k]));
+        }
+        chart->addSeries(pts);
+
+        auto* identity = new QLineSeries(chart);
+        identity->setName(QString("%1: y=x").arg(titles[i]));
+        QPen idPen(QColor(90, 90, 90));
+        idPen.setStyle(Qt::DashLine);
+        identity->setPen(idPen);
+        identity->append(panelX0, panelY0);
+        identity->append(panelX0 + 1.0, panelY0 + 1.0);
+        chart->addSeries(identity);
+
+        // Panel frame (hidden from legend)
+        auto* frame = new QLineSeries(chart);
+        frame->setName(QString("__frame_%1").arg(i));
+        frame->append(panelX0, panelY0);
+        frame->append(panelX0 + 1.0, panelY0);
+        frame->append(panelX0 + 1.0, panelY0 + 1.0);
+        frame->append(panelX0, panelY0 + 1.0);
+        frame->append(panelX0, panelY0);
+        QPen framePen(QColor(170, 170, 170));
+        frame->setPen(framePen);
+        chart->addSeries(frame);
+        frame->setVisible(true);
+
+        ++plotted;
+    }
+
+    if (plotted == 0) {
+        appendLog("No stored mode results available for 4-mode subplots.");
+        return;
+    }
+
+    auto* splitV = new QLineSeries(chart);
+    splitV->setName("__split_v");
+    splitV->append(1.0, 0.0);
+    splitV->append(1.0, 2.0);
+    QPen splitPen(QColor(140, 140, 140));
+    splitPen.setWidth(2);
+    splitV->setPen(splitPen);
+    chart->addSeries(splitV);
+
+    auto* splitH = new QLineSeries(chart);
+    splitH->setName("__split_h");
+    splitH->append(0.0, 1.0);
+    splitH->append(2.0, 1.0);
+    splitH->setPen(splitPen);
+    chart->addSeries(splitH);
+
+    auto* axisX = new QValueAxis(chart);
+    axisX->setTitleText("Subplot canvas (Target → within each panel)");
+    axisX->setRange(0.0, 2.0);
+    axisX->setTickCount(3);
+    auto* axisY = new QValueAxis(chart);
+    axisY->setTitleText("Subplot canvas (Predicted → within each panel)");
+    axisY->setRange(0.0, 2.0);
+    axisY->setTickCount(3);
+
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    for (auto* series : chart->series()) {
+        series->attachAxis(axisX);
+        series->attachAxis(axisY);
+        if (series->name().startsWith("__")) {
+            series->setName(QString());
+        }
+    }
+
+    chart->setTitle("4-Mode Subplots (1:1 Target vs Predicted, same Plot tab)");
+    chart->legend()->setVisible(true);
+    appendLog(QString("Displayed 2x2 subplots on main Plot tab (%1/%2 modes with data).")
+                  .arg(plotted)
+                  .arg(modes.size()));
 }
 
 void HydroPINNWindow::plotResidualsAllModes() {
