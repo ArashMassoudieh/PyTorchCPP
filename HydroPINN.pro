@@ -1,7 +1,7 @@
 # ============================================================
 # HydroPINN.pro
-# Separate window app project for hydrology / PINN work
-# Keeps existing GUI app (e.g. NeuroForge.pro) untouched
+# Separate Qt GUI project for hydrology / physics-informed ML.
+# This keeps the existing GUI app/project files untouched.
 # ============================================================
 
 QT += core gui widgets charts
@@ -12,25 +12,34 @@ TEMPLATE = app
 TARGET = HydroPINN
 
 # =========================
-# Preferred host config style
+# Host profile
 # =========================
-CONFIG += Jason
-DEFINES += Jason
+# Pick ONE profile, or pass one from qmake:
+#   qmake HydroPINN.pro CONFIG+=PowerEdge
+# =========================
+isEmpty(HOST_PROFILE) {
+    CONFIG += Jason
+    DEFINES += Jason
+}
 
-# CONFIG += Behzad
-# DEFINES += Behzad
-
-# CONFIG += PowerEdge
-# DEFINES += PowerEdge
-
-# CONFIG += Arash
-# DEFINES += Arash
-
-# CONFIG += SligoCreek
-# DEFINES += SligoCreek
+contains(CONFIG, Jason) {
+    DEFINES += Jason
+}
+contains(CONFIG, Behzad) {
+    DEFINES += Behzad
+}
+contains(CONFIG, PowerEdge) {
+    DEFINES += PowerEdge
+}
+contains(CONFIG, Arash) {
+    DEFINES += Arash
+}
+contains(CONFIG, SligoCreek) {
+    DEFINES += SligoCreek
+}
 
 # =========================
-# Build Configuration
+# Build configuration
 # =========================
 DEFINES += DEBUG_
 DEFINES += TORCH_SUPPORT
@@ -38,39 +47,31 @@ DEFINES += _arma
 DEFINES += ARMA_USE_OPENMP
 DEFINES += QT_NO_KEYWORDS
 
-# NOTE:
-# Do not enable QT_GUI_SUPPORT here. It activates ProgressWindow-dependent
-# code paths in neuralnetworkwrapper.cpp, but HydroPINN does not link
-# ProgressWindow.cpp, which causes unresolved symbol linker errors.
+# Do not enable QT_GUI_SUPPORT here unless ProgressWindow.cpp is also linked.
+# Some shared neural-network sources may otherwise reference ProgressWindow symbols.
 
 # =========================
-# LibTorch Configuration
+# LibTorch configuration
 # =========================
-LIBTORCH_PATH =
-
-# Host-preferred defaults
-contains(DEFINES, Jason) {
-    LIBTORCH_PATH = /usr/local/libtorch
+# You can override this from terminal:
+#   qmake HydroPINN.pro LIBTORCH_PATH=/path/to/libtorch
+# =========================
+isEmpty(LIBTORCH_PATH) {
+    contains(DEFINES, Jason) {
+        LIBTORCH_PATH = /usr/local/libtorch
+    }
+    contains(DEFINES, Arash) {
+        LIBTORCH_PATH = /usr/local/libtorch
+    }
+    contains(DEFINES, PowerEdge) {
+        LIBTORCH_PATH = /mnt/3rd900/Projects/libtorch
+    }
+    contains(DEFINES, Behzad) {
+        LIBTORCH_PATH = /mnt/3rd900/Projects/libtorch
+    }
 }
 
-contains(DEFINES, Arash) {
-    LIBTORCH_PATH = /usr/local/libtorch
-}
-
-contains(DEFINES, PowerEdge) {
-    LIBTORCH_PATH = /mnt/3rd900/Projects/libtorch
-}
-
-# Add others here later if needed
-# contains(DEFINES, Behzad) {
-#     LIBTORCH_PATH = /path/to/libtorch
-# }
-#
-# contains(DEFINES, SligoCreek) {
-#     LIBTORCH_PATH = /path/to/libtorch
-# }
-
-# Automatic fallback detection when host default is missing/unset.
+# Automatic fallback detection.
 !exists($$LIBTORCH_PATH/include/torch/csrc/api/include/torch/torch.h) {
     exists(/mnt/3rd900/Projects/libtorch/include/torch/csrc/api/include/torch/torch.h) {
         LIBTORCH_PATH = /mnt/3rd900/Projects/libtorch
@@ -82,30 +83,40 @@ contains(DEFINES, PowerEdge) {
 }
 
 !exists($$LIBTORCH_PATH/include/torch/csrc/api/include/torch/torch.h) {
-    error("LibTorch not found. Set LIBTORCH_PATH or install to /mnt/3rd900/Projects/libtorch, /usr/local/libtorch, or /opt/libtorch.")
+    error("LibTorch not found. Run qmake with LIBTORCH_PATH=/path/to/libtorch or install it in /mnt/3rd900/Projects/libtorch, /usr/local/libtorch, or /opt/libtorch.")
 }
 
 message("Using LIBTORCH_PATH=$$LIBTORCH_PATH")
 
-INCLUDEPATH += $$LIBTORCH_PATH/include/torch/csrc/api/include
-INCLUDEPATH += $$LIBTORCH_PATH/include
-
-INCLUDEPATH += .
-INCLUDEPATH += Utilities
-INCLUDEPATH += Hydro
-INCLUDEPATH += Hydro/dataset
-INCLUDEPATH += Hydro/models
-INCLUDEPATH += Hydro/physics
+INCLUDEPATH += \
+    $$LIBTORCH_PATH/include/torch/csrc/api/include \
+    $$LIBTORCH_PATH/include \
+    . \
+    Utilities \
+    Hydro \
+    Hydro/dataset \
+    Hydro/models \
+    Hydro/physics
 
 LIBS += -L$$LIBTORCH_PATH/lib -ltorch -ltorch_cpu -lc10
 LIBS += -lgomp -lpthread -larmadillo
 
 QMAKE_CXXFLAGS += -fopenmp
 QMAKE_LFLAGS   += -fopenmp
-QMAKE_CXXFLAGS += -D_GLIBCXX_USE_CXX11_ABI=1
-QMAKE_LFLAGS   += -Wl,-rpath,$$LIBTORCH_PATH/lib
 
-# Optional build tuning
+# IMPORTANT:
+# This ABI value must match the downloaded LibTorch package.
+# Most prebuilt Linux LibTorch packages use 1, but older/special builds may use 0.
+isEmpty(TORCH_CXX11_ABI) {
+    TORCH_CXX11_ABI = 1
+}
+QMAKE_CXXFLAGS += -D_GLIBCXX_USE_CXX11_ABI=$$TORCH_CXX11_ABI
+message("Using TORCH_CXX11_ABI=$$TORCH_CXX11_ABI")
+
+unix:!macx {
+    QMAKE_LFLAGS += -Wl,-rpath,$$LIBTORCH_PATH/lib
+}
+
 CONFIG(release, debug|release) {
     QMAKE_CXXFLAGS += -O3
 } else {
@@ -128,10 +139,7 @@ SOURCES += \
     Utilities/QuickSort.cpp \
     Utilities/Utilities.cpp \
     Utilities/Vector.cpp \
-    Utilities/Vector_arma.cpp
-
-# Add these as you create them
-SOURCES += \
+    Utilities/Vector_arma.cpp \
     Hydro/dataset/ddrr_loader.cpp \
     Hydro/dataset/lag_builder.cpp \
     Hydro/dataset/sequence_builder.cpp \
@@ -166,9 +174,7 @@ HEADERS += \
     Utilities/QuickSort.h \
     Utilities/Utilities.h \
     Utilities/Vector.h \
-    Utilities/Vector_arma.h
-
-HEADERS += \
+    Utilities/Vector_arma.h \
     Hydro/hydropinnwindow.h \
     Hydro/dataset/ddrr_loader.h \
     Hydro/dataset/lag_builder.h \
