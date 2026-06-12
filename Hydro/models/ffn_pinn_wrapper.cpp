@@ -286,12 +286,19 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     model.setTensorData(DataType::Test, xTest, yTest);
 
     std::vector<double> losses;
-    if (config.pinn_physics_profile == "linear_reservoir" || config.pinn_physics_profile == "cstr_first_order") {
+    if (config.pinn_physics_profile == "linear_reservoir" ||
+        config.pinn_physics_profile == "cstr_first_order" ||
+        config.pinn_physics_profile == "water_balance") {
+        // water_balance is routed through the existing forcing-driven PINN backend
+        // so older code paths remain untouched. For this profile, forcing_gain acts
+        // as an effective runoff coefficient until explicit P/ET/S column plumbing is added.
+        const double effectiveForcingGain =
+            (config.pinn_physics_profile == "water_balance") ? config.runoff_coeff : config.forcing_gain;
         losses = model.trainPINNWithForcing(config.epochs,
                                             config.batch_size,
                                             config.learning_rate,
                                             lambda,
-                                            config.forcing_gain,
+                                            effectiveForcingGain,
                                             1,
                                             config.data_weight,
                                             config.physics_weight);

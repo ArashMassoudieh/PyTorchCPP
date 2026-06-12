@@ -16,11 +16,16 @@ struct HydroRunConfig {
     // - exp_decay:           dy/dt + lambda*y = 0
     // - linear_reservoir:    dy/dt + lambda*y - forcing_gain*u = 0
     // - cstr_first_order:    dy/dt + lambda*y - forcing_gain*u = 0 (same residual form, different interpretation)
+    // - water_balance:       rainfall-runoff mass-balance style residual; current backend uses forcing-driven training
+    //                        with forcing_gain as a runoff coefficient unless a full storage column is later wired in.
     double lambda_decay = 0.8;
     double data_weight = 1.0;
     double physics_weight = 0.2;
-    std::string pinn_physics_profile = "exp_decay"; // exp_decay | linear_reservoir | cstr_first_order
+    std::string pinn_physics_profile = "exp_decay"; // exp_decay | linear_reservoir | cstr_first_order | water_balance
     double forcing_gain = 1.0;
+    double runoff_coeff = 0.7;
+    double storage_coeff = 1.0;
+    double physics_dt = 1.0;
     int pinn_collocation_points = 0; // 0 => use batch inputs only; >0 => sample extra Raissi-style collocation points per batch
 
     // Data input options

@@ -230,7 +230,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     physicsWeightSpin_->setDecimals(4);
     physicsWeightSpin_->setRange(0.0, 100.0);
     physicsWeightSpin_->setValue(0.2);
-    pinnPhysicsProfileCombo_->addItems({"exp_decay", "linear_reservoir", "cstr_first_order"});
+    pinnPhysicsProfileCombo_->addItems({"exp_decay", "linear_reservoir", "cstr_first_order", "water_balance"});
     forcingGainSpin_->setDecimals(4);
     forcingGainSpin_->setRange(0.0, 100.0);
     forcingGainSpin_->setValue(1.0);
@@ -247,7 +247,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     trainForm->addRow("PINN forcing gain", forcingGainSpin_);
     trainForm->addRow("PINN collocation points", pinnCollocationSpin_);
 
-    trainForm->addRow(new QLabel("PINN water-domain hints: use exp_decay for pure decay; use linear_reservoir/cstr_first_order for forcing-driven rainfall-runoff, reservoir, or treatment-process dynamics. Collocation adds Raissi-style physics points.", trainTab));
+    trainForm->addRow(new QLabel("PINN water-domain hints: use exp_decay for pure decay; use linear_reservoir/cstr_first_order for forcing-driven dynamics; use water_balance for rainfall-runoff mass-balance style training. Collocation adds Raissi-style physics points.", trainTab));
 
     splitRatioSpin_->setDecimals(3);
     splitRatioSpin_->setRange(0.1, 0.95);
@@ -1799,9 +1799,9 @@ void HydroPINNWindow::runMode(const QString& mode) {
             if (cfg.pinn_physics_profile == "exp_decay" && cfg.synthetic_profile != "exp_decay") {
                 appendLog("Note: selected PINN profile is exp_decay; non-exp synthetic targets may reduce physics consistency.");
             }
-            if ((cfg.pinn_physics_profile == "linear_reservoir" || cfg.pinn_physics_profile == "cstr_first_order") &&
+            if ((cfg.pinn_physics_profile == "linear_reservoir" || cfg.pinn_physics_profile == "cstr_first_order" || cfg.pinn_physics_profile == "water_balance") &&
                 cfg.synthetic_profile != "neuroforge_inputs_target") {
-                appendLog("Note: forcing-based PINN profile works best with multi-feature inputs (CSV or neuroforge_inputs_target synthetic profile).");
+                appendLog("Note: forcing/water-balance PINN profiles work best with multi-feature inputs (CSV or neuroforge_inputs_target synthetic profile).");
             }
         }
     }
