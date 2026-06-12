@@ -239,6 +239,34 @@ void buildSyntheticSeries(const HydroRunConfig& config, torch::Tensor& x, torch:
     y = torch::exp(-config.lambda_decay * t);
 }
 
+
+void ensureForcingColumnsForPINN(const HydroRunConfig& config, torch::Tensor& x, const torch::Tensor& y) {
+    const bool needsForcing =
+        config.pinn_physics_profile == "linear_reservoir" ||
+        config.pinn_physics_profile == "cstr_first_order" ||
+        config.pinn_physics_profile == "water_balance";
+
+    if (!needsForcing || !x.defined() || x.dim() != 2 || x.size(1) >= 2) {
+        return;
+    }
+
+    // Preserve the old single-input synthetic examples.  For forcing-driven
+    // PINN profiles the backend expects [time, forcing].  When the user runs
+    // water_balance/linear_reservoir/cstr on the default exp_decay synthetic
+    // generator, synthesize a conservative forcing column instead of failing.
+    // For water_balance this acts as an effective rainfall/excess-rainfall proxy;
+    // for the other forcing profiles it is the forcing term u(t).
+    torch::Tensor forcing;
+    if (config.pinn_physics_profile == "water_balance") {
+        const double c = std::max(1.0e-8, config.runoff_coeff);
+        forcing = torch::clamp(y / c, 0.0);
+    } else {
+        const double g = std::max(1.0e-8, config.forcing_gain);
+        forcing = torch::clamp((config.lambda_decay * y) / g, -1.0e6, 1.0e6);
+    }
+    x = torch::cat({x.slice(1, 0, 1), forcing}, 1).contiguous();
+}
+
 void fillPlotVectors(HydroRunResult& result, const torch::Tensor& x, const torch::Tensor& yTrue, const torch::Tensor& yPred) {
     auto xc = x.squeeze(1).contiguous();
     auto tc = yTrue.squeeze(1).contiguous();
@@ -268,6 +296,8 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     if (!loadSeriesFromCsv(config, x, y, plotX)) {
         buildSyntheticSeries(config, x, y, plotX);
     }
+
+    ensureForcingColumnsForPINN(config, x, y);
 
     const int inputDim = static_cast<int>(x.size(1));
     model.setHiddenLayers(parseHiddenLayers(config.hidden_layers_csv));
