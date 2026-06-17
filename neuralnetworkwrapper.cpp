@@ -890,6 +890,103 @@ std::vector<double> NeuralNetworkWrapper::trainPINNWithForcing(int num_epochs,
     return training_history_;
 }
 
+std::vector<double> NeuralNetworkWrapper::trainPINNWaterBalance(int num_epochs,
+                                                                int batch_size,
+                                                                double learning_rate,
+                                                                int rainfall_feature_index,
+                                                                int evapotranspiration_feature_index,
+                                                                int storage_feature_index,
+                                                                double dt,
+                                                                double data_weight,
+                                                                double physics_weight) {
+    if (!is_initialized_) {
+        throw std::runtime_error("Network not initialized. Call initializeNetwork() first.");
+    }
+    if (num_epochs <= 0) {
+        throw std::runtime_error("Number of epochs must be positive for water-balance PINN training.");
+    }
+    if (batch_size <= 1) {
+        throw std::runtime_error("Water-balance PINN training requires batch_size > 1 for dS/dt.");
+    }
+    if (learning_rate <= 0.0) {
+        throw std::runtime_error("Learning rate must be positive for water-balance PINN training.");
+    }
+    if (data_weight < 0.0 || physics_weight < 0.0) {
+        throw std::runtime_error("Data and physics loss weights must be non-negative.");
+    }
+    if (!hasInputData(DataType::Train) || !hasTargetData(DataType::Train)) {
+        throw std::runtime_error("Training data not available. Use setInputData() and setOutputData() with DataType::Train first.");
+    }
+
+    torch::Tensor train_inputs = getInputData(DataType::Train);
+    torch::Tensor train_targets = getTargetData(DataType::Train);
+    if (train_inputs.dim() != 2 || train_targets.dim() != 2 || train_targets.size(1) != 1) {
+        throw std::runtime_error("Water-balance PINN expects train inputs [N,F] and targets [N,1].");
+    }
+    const int64_t feature_count = train_inputs.size(1);
+    for (int idx : {rainfall_feature_index, evapotranspiration_feature_index, storage_feature_index}) {
+        if (idx < 0 || idx >= feature_count) {
+            throw std::runtime_error("Water-balance PINN feature index is out of range.");
+        }
+    }
+    if (train_inputs.size(0) != train_targets.size(0)) {
+        throw std::runtime_error("Training input and output data must have the same sample count.");
+    }
+
+    const int num_train_samples = static_cast<int>(train_inputs.size(0));
+    const double safe_dt = std::max(1.0e-8, dt);
+
+    std::vector<torch::Tensor> params_vector;
+    for (auto& layer : layers_) {
+        params_vector.push_back(layer->weight);
+        params_vector.push_back(layer->bias);
+    }
+    torch::optim::Adam optimizer(params_vector, torch::optim::AdamOptions(learning_rate));
+
+    training_history_.clear();
+    training_history_.reserve(num_epochs);
+
+    for (int epoch = 0; epoch < num_epochs; ++epoch) {
+        double total_epoch_loss = 0.0;
+        int num_batches = 0;
+
+        // Keep batches sequential so finite-difference dS/dt has physical meaning.
+        for (int i = 0; i < num_train_samples; i += batch_size) {
+            const int current_batch_size = std::min(batch_size, num_train_samples - i);
+            if (current_batch_size < 2) continue;
+
+            torch::Tensor batch_inputs = train_inputs.slice(0, i, i + current_batch_size);
+            torch::Tensor batch_targets = train_targets.slice(0, i, i + current_batch_size);
+
+            optimizer.zero_grad();
+            torch::Tensor predictions = this->forward_internal(batch_inputs);
+            torch::Tensor data_loss = torch::mse_loss(predictions, batch_targets);
+
+            torch::Tensor rainfall = batch_inputs.slice(1, rainfall_feature_index, rainfall_feature_index + 1).slice(0, 1, current_batch_size);
+            torch::Tensor evapotranspiration = batch_inputs.slice(1, evapotranspiration_feature_index, evapotranspiration_feature_index + 1).slice(0, 1, current_batch_size);
+            torch::Tensor storage_now = batch_inputs.slice(1, storage_feature_index, storage_feature_index + 1).slice(0, 1, current_batch_size);
+            torch::Tensor storage_prev = batch_inputs.slice(1, storage_feature_index, storage_feature_index + 1).slice(0, 0, current_batch_size - 1);
+            torch::Tensor runoff = predictions.slice(0, 1, current_batch_size);
+            torch::Tensor dSdt = (storage_now - storage_prev) / safe_dt;
+            torch::Tensor residual = rainfall - evapotranspiration - runoff - dSdt;
+            torch::Tensor physics_loss = torch::mse_loss(residual, torch::zeros_like(residual));
+
+            torch::Tensor total_loss = data_weight * data_loss + physics_weight * physics_loss;
+            total_loss.backward();
+            optimizer.step();
+
+            total_epoch_loss += total_loss.item<double>();
+            num_batches++;
+        }
+
+        const double avg_loss = total_epoch_loss / static_cast<double>(std::max(1, num_batches));
+        current_loss_ = avg_loss;
+        training_history_.push_back(avg_loss);
+    }
+
+    return training_history_;
+}
+
 
 void NeuralNetworkWrapper::saveModel(const std::string& filepath) {
     if (!is_initialized_) {

@@ -209,6 +209,48 @@ void buildSyntheticSeries(const HydroRunConfig& config,
         return;
     }
 
+
+    if (profile == "rainfall_runoff") {
+        auto tc = t.squeeze(1).contiguous();
+        const int64_t n = tc.size(0);
+        const double tStart = tc[0].item<double>();
+        const double tEnd = tc[n - 1].item<double>();
+        // Use normalized simulation time for storage dynamics and model input so the displayed
+        // t-range remains a plotting/export choice instead of changing the synthetic process scale.
+        const double dt = (n > 1) ? 1.0 / static_cast<double>(n - 1) : 1.0;
+        constexpr double kPi = 3.14159265358979323846;
+
+        std::vector<float> flatInputs;
+        std::vector<float> ys(static_cast<size_t>(n), 0.0f);
+        flatInputs.reserve(static_cast<size_t>(n) * 5);
+        double storage = 8.0;
+        for (int64_t i = 0; i < n; ++i) {
+            const double tt = tc[i].item<double>();
+            const double r = (n > 1) ? static_cast<double>(i) / static_cast<double>(n - 1) : 0.0;
+            const double storm1 = 18.0 * std::exp(-0.5 * std::pow((tt - (tStart + 0.22 * (tEnd - tStart))) / std::max(0.05, 0.04 * (tEnd - tStart)), 2.0));
+            const double storm2 = 12.0 * std::exp(-0.5 * std::pow((tt - (tStart + 0.58 * (tEnd - tStart))) / std::max(0.05, 0.07 * (tEnd - tStart)), 2.0));
+            const double seasonalRain = 2.0 * std::max(0.0, std::sin(2.0 * kPi * r * 3.0));
+            const double rain = storm1 + storm2 + seasonalRain;
+            const double temp = 12.0 + 10.0 * std::sin(2.0 * kPi * r - 0.4);
+            const double et = std::max(0.0, 0.08 * (temp + 5.0));
+            const double quickflow = 0.35 * rain;
+            const double baseflow = 0.08 * storage;
+            const double runoff = quickflow + baseflow;
+            storage = std::max(0.0, storage + (rain - et - runoff) * dt);
+
+            flatInputs.push_back(static_cast<float>(r));
+            flatInputs.push_back(static_cast<float>(rain));
+            flatInputs.push_back(static_cast<float>(et));
+            flatInputs.push_back(static_cast<float>(temp));
+            flatInputs.push_back(static_cast<float>(storage));
+            ys[static_cast<size_t>(i)] = static_cast<float>(runoff);
+        }
+
+        x = torch::from_blob(flatInputs.data(), {n, 5}, torch::kFloat32).clone();
+        y = torch::from_blob(ys.data(), {n, 1}, torch::kFloat32).clone();
+        return;
+    }
+
     x = t;
     if (profile == "damped_sine") y = torch::sin(t) * torch::exp(-0.15 * t);
     else if (profile == "mixed_wave") y = 0.7 * torch::sin(1.5 * t) + 0.3 * torch::cos(0.5 * t);
@@ -340,7 +382,9 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     const int64_t trainN = xTrain.size(0);
     const int batchSize = std::max(1, config.batch_size);
     const double lambda = config.lambda_decay;
-    const double dt = std::max(1.0e-8, config.physics_dt);
+    const double dt = (config.synthetic_profile == "rainfall_runoff")
+                          ? 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1)
+                          : std::max(1.0e-8, config.physics_dt);
 
     auto physicsResidualLoss = [&]() {
         torch::Tensor p = model->forward(xTrain);
@@ -348,7 +392,17 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         torch::Tensor dy = (p.slice(0, 1, p.size(0)) - p.slice(0, 0, p.size(0) - 1)) / dt;
         torch::Tensor yMid = p.slice(0, 1, p.size(0));
         torch::Tensor residual;
-        if (needsForcing) {
+        if (needsForcing && config.pinn_physics_profile == "water_balance" &&
+            config.synthetic_profile == "rainfall_runoff" && xTrain.size(2) >= 5) {
+            // rainfall_runoff columns are [normalized_time, rainfall, evapotranspiration, temperature, soil_storage].
+            torch::Tensor lastStep = xTrain.select(1, xTrain.size(1) - 1);
+            torch::Tensor rain = lastStep.slice(1, 1, 2).slice(0, 1, lastStep.size(0));
+            torch::Tensor et = lastStep.slice(1, 2, 3).slice(0, 1, lastStep.size(0));
+            torch::Tensor storageNow = lastStep.slice(1, 4, 5).slice(0, 1, lastStep.size(0));
+            torch::Tensor storagePrev = lastStep.slice(1, 4, 5).slice(0, 0, lastStep.size(0) - 1);
+            torch::Tensor dSdt = (storageNow - storagePrev) / dt;
+            residual = rain - et - yMid - dSdt;
+        } else if (needsForcing) {
             const double effectiveGain =
                 (config.pinn_physics_profile == "water_balance") ? config.runoff_coeff : config.forcing_gain;
             torch::Tensor forcing = xTrain.slice(0, 1, xTrain.size(0)).select(1, xTrain.size(1) - 1).slice(1, 1, 2);

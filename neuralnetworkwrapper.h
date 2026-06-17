@@ -135,6 +135,23 @@ public:
                                              double data_weight = 1.0,
                                              double physics_weight = 1.0);
 
+    /**
+     * @brief Physics-informed training with rainfall-runoff mass balance residual P - ET - Q - dS/dt = 0.
+     *
+     * Uses model predictions as runoff Q and configured input feature columns as rainfall P,
+     * evapotranspiration ET, and storage S. Mini-batches are kept sequential so dS/dt is computed
+     * from neighboring samples in each batch.
+     */
+    std::vector<double> trainPINNWaterBalance(int num_epochs,
+                                              int batch_size,
+                                              double learning_rate,
+                                              int rainfall_feature_index,
+                                              int evapotranspiration_feature_index,
+                                              int storage_feature_index,
+                                              double dt,
+                                              double data_weight = 1.0,
+                                              double physics_weight = 1.0);
+
     // Evaluation
     /**
      * @brief Evaluate the network on test data.

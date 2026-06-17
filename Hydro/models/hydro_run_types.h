@@ -16,8 +16,8 @@ struct HydroRunConfig {
     // - exp_decay:           dy/dt + lambda*y = 0
     // - linear_reservoir:    dy/dt + lambda*y - forcing_gain*u = 0
     // - cstr_first_order:    dy/dt + lambda*y - forcing_gain*u = 0 (same residual form, different interpretation)
-    // - water_balance:       rainfall-runoff mass-balance style residual; current backend uses forcing-driven training
-    //                        with forcing_gain as a runoff coefficient unless a full storage column is later wired in.
+    // - water_balance:       rainfall-runoff mass-balance residual P - ET - Q - dS/dt for rainfall_runoff;
+    //                        falls back to forcing-driven training for other profiles without explicit P/ET/S columns.
     double lambda_decay = 0.8;
     double data_weight = 1.0;
     double physics_weight = 0.2;
@@ -38,13 +38,14 @@ struct HydroRunConfig {
     int sample_count = 220;
     double t_start = 0.0;
     double t_end = 5.0;
-    std::string synthetic_profile = "exp_decay"; // exp_decay | damped_sine | mixed_wave | neuroforge_inputs_target
+    std::string synthetic_profile = "exp_decay"; // exp_decay | damped_sine | mixed_wave | neuroforge_inputs_target | rainfall_runoff
 
     // Network options
     std::string hidden_layers_csv = "24,24";
     // Lag groups are separated by ';' and each group contains comma-separated positive integer lags.
     // Examples: "1" (all features use lag 1), "1,2;1;1,3" (feature-specific lag groups).
     std::string input_lags_csv = "1";
+    bool use_time_lagged_ffn = false; // Applies only to FFN and FFN+PINN; LSTM keeps sequence memory internally.
     std::string activation = "tanh"; // single backend activation used across hidden/output layers
 
     bool evaluate_metrics = true;
