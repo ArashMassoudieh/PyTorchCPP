@@ -63,7 +63,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       lambdaSpin_(new QDoubleSpinBox(this)), dataWeightSpin_(new QDoubleSpinBox(this)),
       physicsWeightSpin_(new QDoubleSpinBox(this)), pinnPhysicsProfileCombo_(new QComboBox(this)),
       forcingGainSpin_(new QDoubleSpinBox(this)), pinnCollocationSpin_(new QSpinBox(this)), hiddenLayersEdit_(new QLineEdit(this)),
-      inputLagsEdit_(new QLineEdit(this)),
+      inputLagsEdit_(new QLineEdit(this)), useTimeLaggedFFNCheck_(new QCheckBox("Use time-lagged FFN inputs", this)),
       activationCombo_(new QComboBox(this)), layerSizeSpin_(new QSpinBox(this)), layerActivationCombo_(new QComboBox(this)),
       addLayerButton_(new QPushButton("Add Layer", this)), removeLayerButton_(new QPushButton("Remove Selected", this)),
       layersList_(new QListWidget(this)), outputActivationCombo_(new QComboBox(this)),
@@ -175,6 +175,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     activationCombo_->setCurrentText("tanh");
     networkTopForm->addRow("Hidden layers (csv)", hiddenLayersEdit_);
     networkTopForm->addRow("Input lags (groups by ';')", inputLagsEdit_);
+    networkTopForm->addRow(useTimeLaggedFFNCheck_);
     networkTopForm->addRow("Default activation", activationCombo_);
 
     auto* layerBuilderGroup = new QGroupBox("Layer Builder (NeuroForge-style)", networkTab);
@@ -410,7 +411,11 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(runPredictionLSTMButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm"); });
     connect(runPredictionLSTMPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm_pinn"); });
     connect(useNeuroforgeCsvPresetButton_, &QPushButton::clicked, this, &HydroPINNWindow::applyNeuroforgeCsvPreset);
-    connect(modeCombo_, &QComboBox::currentTextChanged, this, [this](const QString&) { updateStatus(); });
+    connect(modeCombo_, &QComboBox::currentTextChanged, this, [this](const QString&) {
+        updateFfnLagUiState();
+        updateStatus();
+    });
+    connect(useTimeLaggedFFNCheck_, &QCheckBox::toggled, this, [this](bool) { updateFfnLagUiState(); });
     connect(addLayerButton_, &QPushButton::clicked, this, [this]() {
         const int layerSize = layerSizeSpin_->value();
         const QString layerAct = layerActivationCombo_->currentText();
@@ -468,6 +473,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(fitPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::fitPlotAxes);
 
     updateDataSourceUiState();
+    updateFfnLagUiState();
     updateStatus();
     appendLog("HydroPINN ready.");
     appendLog("Use Data tab: choose Synthetic generator options or provide a CSV file path.");
@@ -494,6 +500,7 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
     cfg.t_end = tEndSpin_->value();
     cfg.hidden_layers_csv = hiddenLayersEdit_->text().toStdString();
     cfg.input_lags_csv = inputLagsEdit_->text().toStdString();
+    cfg.use_time_lagged_ffn = useTimeLaggedFFNCheck_->isChecked();
     const std::vector<QString> layerActs = configuredLayerActivations();
     if (!layerActs.empty()) {
         cfg.activation = layerActs.front().toStdString();
@@ -531,6 +538,8 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     runPredictionLSTMButton_->setEnabled(!running);
     runPredictionLSTMPINNButton_->setEnabled(!running);
     predictionUseCurrentDataCheck_->setEnabled(!running);
+    useTimeLaggedFFNCheck_->setEnabled(!running && (selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn"));
+    inputLagsEdit_->setEnabled(!running && (selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn") && useTimeLaggedFFNCheck_->isChecked());
     runTrainingButton_->setEnabled(!running);
     runAllTrainingButton_->setEnabled(!running);
     runTrainingFFNButton_->setEnabled(!running);
@@ -576,6 +585,12 @@ void HydroPINNWindow::syncNetworkCsvFromLayerList() {
     if (!layerSizes.isEmpty()) {
         hiddenLayersEdit_->setText(layerSizes.join(','));
     }
+}
+
+void HydroPINNWindow::updateFfnLagUiState() {
+    const bool ffnMode = (selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn");
+    useTimeLaggedFFNCheck_->setEnabled(ffnMode);
+    inputLagsEdit_->setEnabled(ffnMode && useTimeLaggedFFNCheck_->isChecked());
 }
 
 void HydroPINNWindow::updateDataSourceUiState() {
@@ -859,11 +874,11 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           "Evaluate metrics: %4<br/>"
                           "Training: epochs=%5, batch=%6, lr=%7<br/>"
                           "PINN: lambda=%8, data_w=%9, physics_w=%10, profile=%11, forcing_gain=%12, collocation=%13<br/>"
-                          "Network: layers=%14, lags=%15, activation=%16<br/>"
-                          "Split/shuffle: split=%17, shuffle=%18, seed=%19<br/>"
-                          "Optimizer: %20, weight_decay=%21, momentum=%22<br/>"
-                          "Normalization: %23<br/>"
-                          "Incremental: enabled=%24, window_size=%25, window_step=%26, epochs/window=%27, reset_opt=%28")
+                          "Network: layers=%14, lags=%15, FFN input style=%16, activation=%17<br/>"
+                          "Split/shuffle: split=%18, shuffle=%19, seed=%20<br/>"
+                          "Optimizer: %21, weight_decay=%22, momentum=%23<br/>"
+                          "Normalization: %24<br/>"
+                          "Incremental: enabled=%25, window_size=%26, window_step=%27, epochs/window=%28, reset_opt=%29")
                           .arg(modeCombo_->currentText())
                           .arg(backendInfo)
                           .arg(cfg.use_csv_data ? "CSV" : "Synthetic")
@@ -879,6 +894,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           .arg(cfg.pinn_collocation_points)
                           .arg(QString::fromStdString(cfg.hidden_layers_csv))
                           .arg(QString::fromStdString(cfg.input_lags_csv))
+                          .arg(cfg.use_time_lagged_ffn ? "time-lagged" : "basic")
                           .arg(QString::fromStdString(cfg.activation))
                           .arg(cfg.train_split_ratio, 0, 'g', 4)
                           .arg(cfg.shuffle_training ? "yes" : "no")
