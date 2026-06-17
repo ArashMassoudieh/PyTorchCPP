@@ -65,6 +65,56 @@ std::vector<std::vector<int>> parseLagConfig(const std::string& lagSpec, int inp
     return parsed;
 }
 
+std::vector<std::vector<int>> currentInputLags(int inputDim) {
+    return std::vector<std::vector<int>>(static_cast<size_t>(std::max(0, inputDim)), std::vector<int>{1});
+}
+
+void applyTimeLaggedInputs(torch::Tensor& x,
+                           torch::Tensor& y,
+                           torch::Tensor& plotX,
+                           const std::vector<std::vector<int>>& lagConfig) {
+    if (!x.defined() || x.dim() != 2 || x.size(0) <= 1) {
+        throw std::runtime_error("Time-lagged FFN input requires a 2D input tensor with more than one sample.");
+    }
+
+    int maxLag = 0;
+    int outputDim = 0;
+    for (const auto& featureLags : lagConfig) {
+        ++outputDim; // Current X(t)
+        for (const int lag : featureLags) {
+            if (lag > 0) {
+                maxLag = std::max(maxLag, lag);
+                ++outputDim;
+            }
+        }
+    }
+
+    if (maxLag <= 0 || outputDim <= x.size(1)) {
+        return;
+    }
+    if (x.size(0) <= maxLag) {
+        throw std::runtime_error("Time-lagged FFN input has fewer samples than the requested maximum lag.");
+    }
+
+    const int64_t rows = x.size(0) - maxLag;
+    torch::Tensor lagged = torch::empty({rows, outputDim}, torch::kFloat32);
+    int col = 0;
+    for (int64_t feature = 0; feature < x.size(1); ++feature) {
+        const auto& featureLags = lagConfig[static_cast<size_t>(feature)];
+        lagged.slice(1, col, col + 1).copy_(x.slice(0, maxLag, x.size(0)).slice(1, feature, feature + 1));
+        ++col;
+        for (const int lag : featureLags) {
+            if (lag <= 0) continue;
+            lagged.slice(1, col, col + 1).copy_(x.slice(0, maxLag - lag, x.size(0) - lag).slice(1, feature, feature + 1));
+            ++col;
+        }
+    }
+
+    x = lagged.contiguous();
+    y = y.slice(0, maxLag, y.size(0)).contiguous();
+    plotX = plotX.slice(0, maxLag, plotX.size(0)).contiguous();
+}
+
 std::vector<std::string> splitCsvRow(const std::string& line) {
     std::vector<std::string> cols;
     std::stringstream ss(line);
@@ -279,8 +329,11 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     }
 
     const int inputDim = static_cast<int>(x.size(1));
+    if (config.use_time_lagged_ffn) {
+        applyTimeLaggedInputs(x, y, plotX, parseLagConfig(config.input_lags_csv, inputDim));
+    }
     model.setHiddenLayers(parseHiddenLayers(config.hidden_layers_csv));
-    model.setLags(parseLagConfig(config.input_lags_csv, inputDim));
+    model.setLags(currentInputLags(static_cast<int>(x.size(1))));
     model.initializeNetwork(1, config.activation);
 
     const double split = std::min(0.95, std::max(0.1, config.train_split_ratio));
