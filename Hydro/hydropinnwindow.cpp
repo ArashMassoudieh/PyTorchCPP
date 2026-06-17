@@ -48,6 +48,7 @@
 #include <fstream>
 #include <limits>
 #include <random>
+#include <set>
 
 namespace {
 QString parseLayerActivationText(const QString& layerText) {
@@ -172,10 +173,10 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     auto* networkTopForm = new QFormLayout();
     hiddenLayersEdit_->setText("24,24");
     inputLagsEdit_->setText("1");
-    inputLagsEdit_->setPlaceholderText("Example: 1,2;1;1,3");
+    inputLagsEdit_->setPlaceholderText("Lag steps, e.g. 1,2;1;1,3");
     activationCombo_->setCurrentText("tanh");
     networkTopForm->addRow("Hidden layers (csv)", hiddenLayersEdit_);
-    networkTopForm->addRow("Input lags (groups by ';')", inputLagsEdit_);
+    networkTopForm->addRow("Input lag steps (groups by ';')", inputLagsEdit_);
     networkTopForm->addRow(useTimeLaggedFFNCheck_);
     networkTopForm->addRow("Default activation", activationCombo_);
 
@@ -337,7 +338,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     gaMaxLagSpin_->setRange(1, 100);
     gaMaxLagSpin_->setValue(5);
     gaForm->addRow("Candidate lag sets", gaLagCandidatesSpin_);
-    gaForm->addRow("Maximum lag", gaMaxLagSpin_);
+    gaForm->addRow("Maximum lag step", gaMaxLagSpin_);
     auto* gaButtonRow = new QWidget(gaBox);
     auto* gaButtonLayout = new QHBoxLayout(gaButtonRow);
     gaButtonLayout->setContentsMargins(0, 0, 0, 0);
@@ -347,7 +348,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     gaForm->addRow(gaButtonRow);
     stopGAButton_->setEnabled(false);
     gaLayout->addWidget(gaBox);
-    gaLayout->addWidget(new QLabel("This runs a lightweight GA-style random lag-structure search for the selected FFN mode, then writes the best lag groups back to Network Structure.", gaTab));
+    gaLayout->addWidget(new QLabel("This runs a lightweight unique random lag-structure search for the selected FFN mode, then writes the best lag-step groups back to Network Structure.", gaTab));
     gaLayout->addStretch(1);
     tabs->addTab(gaTab, "GA");
 
@@ -848,8 +849,8 @@ void HydroPINNWindow::configureGAPlaceholder() {
     appendLog("GA lag optimization configuration opened.");
     QMessageBox::information(this,
                              "HydroPINN GA",
-                             "GA lag optimization samples candidate per-input lag groups for FFN/FFN+PINN, "
-                             "trains each candidate briefly, and writes the best lag structure back to the Network Structure tab.");
+                             "GA lag optimization samples unique candidate per-input lag-step groups for FFN/FFN+PINN, "
+                             "trains each candidate briefly, and writes the best lag-step structure back to the Network Structure tab.");
 }
 
 void HydroPINNWindow::startGAPlaceholder() {
@@ -892,6 +893,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
     const int candidateCount = gaLagCandidatesSpin_->value();
     const int maxLag = gaMaxLagSpin_->value();
     const int inputGroups = estimatedFfnInputCountForLagSearch(baseCfg, mode);
+    std::set<QString> testedSpecs;
     std::mt19937 rng(static_cast<uint32_t>(std::max(0, baseCfg.random_seed)));
     std::uniform_int_distribution<int> lagDist(1, maxLag);
     std::uniform_int_distribution<int> countDist(1, std::min(3, maxLag));
@@ -920,9 +922,18 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         return groups.join(';');
     };
 
-    for (int i = 0; i < candidateCount; ++i) {
+    int evaluated = 0;
+    int attempts = 0;
+    const int maxAttempts = std::max(candidateCount * 20, candidateCount + 10);
+    while (evaluated < candidateCount && attempts < maxAttempts) {
+        ++attempts;
         HydroRunConfig trialCfg = baseCfg;
-        trialCfg.input_lags_csv = makeCandidate().toStdString();
+        const QString candidateSpec = makeCandidate();
+        if (testedSpecs.find(candidateSpec) != testedSpecs.end()) {
+            continue;
+        }
+        testedSpecs.insert(candidateSpec);
+        trialCfg.input_lags_csv = candidateSpec.toStdString();
         try {
             HydroRunResult trial;
             if (mode == "ffn") {
@@ -934,8 +945,8 @@ void HydroPINNWindow::runLagOptimizationSearch() {
             }
 
             const double score = trial.mse > 0.0 ? trial.mse : trial.final_loss;
-            appendLog(QString("GA lag candidate %1/%2: lags=%3, mse=%4, loss=%5")
-                          .arg(i + 1)
+            appendLog(QString("GA lag candidate %1/%2: lag_steps=%3, mse=%4, loss=%5")
+                          .arg(evaluated + 1)
                           .arg(candidateCount)
                           .arg(QString::fromStdString(trialCfg.input_lags_csv))
                           .arg(trial.mse, 0, 'g', 8)
@@ -948,11 +959,18 @@ void HydroPINNWindow::runLagOptimizationSearch() {
             }
         } catch (const std::exception& e) {
             appendLog(QString("GA lag candidate %1/%2 failed: %3")
-                          .arg(i + 1)
+                          .arg(evaluated + 1)
                           .arg(candidateCount)
                           .arg(e.what()));
         }
+        ++evaluated;
         QCoreApplication::processEvents();
+    }
+
+    if (evaluated < candidateCount) {
+        appendLog(QString("GA lag optimization evaluated %1/%2 unique candidates; search space was exhausted or duplicate-heavy.")
+                      .arg(evaluated)
+                      .arg(candidateCount));
     }
 
     if (bestSpec.isEmpty()) {
@@ -963,7 +981,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         inputLagsEdit_->setText(bestSpec);
         lastModeResults_[mode] = bestResult;
         updatePlot(mode, bestResult);
-        appendLog(QString("GA lag optimization selected lags=%1 (score=%2, loss=%3).")
+        appendLog(QString("GA lag optimization selected lag_steps=%1 (selection_metric=test_mse_or_loss, score=%2, loss=%3).")
                       .arg(bestSpec)
                       .arg(bestMse, 0, 'g', 8)
                       .arg(bestLoss, 0, 'g', 8));
@@ -1003,7 +1021,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           "Evaluate metrics: %4<br/>"
                           "Training: epochs=%5, batch=%6, lr=%7<br/>"
                           "PINN: lambda=%8, data_w=%9, physics_w=%10, profile=%11, forcing_gain=%12, collocation=%13<br/>"
-                          "Network: layers=%14, lags=%15, FFN input style=%16, activation=%17<br/>"
+                          "Network: layers=%14, lag_steps=%15, FFN input style=%16, activation=%17<br/>"
                           "Split/shuffle: split=%18, shuffle=%19, seed=%20<br/>"
                           "Optimizer: %21, weight_decay=%22, momentum=%23<br/>"
                           "Normalization: %24<br/>"
@@ -1023,7 +1041,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           .arg(cfg.pinn_collocation_points)
                           .arg(QString::fromStdString(cfg.hidden_layers_csv))
                           .arg(QString::fromStdString(cfg.input_lags_csv))
-                          .arg(cfg.use_time_lagged_ffn ? "time-lagged" : "basic")
+                          .arg((selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn") ? (cfg.use_time_lagged_ffn ? "time-lagged" : "basic") : "ignored for LSTM")
                           .arg(QString::fromStdString(cfg.activation))
                           .arg(cfg.train_split_ratio, 0, 'g', 4)
                           .arg(cfg.shuffle_training ? "yes" : "no")
@@ -1955,10 +1973,11 @@ void HydroPINNWindow::runMode(const QString& mode) {
                   .arg(QString::fromStdString(cfg.optimizer))
                   .arg(QString::fromStdString(cfg.normalization))
                   .arg(cfg.use_incremental_training ? "yes" : "no"));
-    appendLog(QString("Network options => hidden_layers=%1, input_lags=%2, ffn_input_style=%3, activation=%4")
+    const bool ffnStyleApplies = (mode == "ffn" || mode == "ffn_pinn");
+    appendLog(QString("Network options => hidden_layers=%1, input_lag_steps=%2, ffn_input_style=%3, activation=%4")
                   .arg(QString::fromStdString(cfg.hidden_layers_csv))
                   .arg(QString::fromStdString(cfg.input_lags_csv))
-                  .arg(cfg.use_time_lagged_ffn ? "time-lagged" : "basic")
+                  .arg(ffnStyleApplies ? (cfg.use_time_lagged_ffn ? "time-lagged" : "basic") : "ignored for LSTM")
                   .arg(QString::fromStdString(cfg.activation)));
     if (mode == "ffn_pinn" || mode == "lstm_pinn") {
         appendLog(QString("PINN physics => profile=%1, forcing_gain=%2, collocation=%3")
