@@ -65,6 +65,56 @@ std::vector<std::vector<int>> parseLagConfig(const std::string& lagSpec, int inp
     return parsed;
 }
 
+std::vector<std::vector<int>> currentInputLags(int inputDim) {
+    return std::vector<std::vector<int>>(static_cast<size_t>(std::max(0, inputDim)), std::vector<int>{1});
+}
+
+void applyTimeLaggedInputs(torch::Tensor& x,
+                           torch::Tensor& y,
+                           torch::Tensor& plotX,
+                           const std::vector<std::vector<int>>& lagConfig) {
+    if (!x.defined() || x.dim() != 2 || x.size(0) <= 1) {
+        throw std::runtime_error("Time-lagged FFN input requires a 2D input tensor with more than one sample.");
+    }
+
+    int maxLag = 0;
+    int outputDim = 0;
+    for (const auto& featureLags : lagConfig) {
+        ++outputDim; // Current X(t)
+        for (const int lag : featureLags) {
+            if (lag > 0) {
+                maxLag = std::max(maxLag, lag);
+                ++outputDim;
+            }
+        }
+    }
+
+    if (maxLag <= 0 || outputDim <= x.size(1)) {
+        return;
+    }
+    if (x.size(0) <= maxLag) {
+        throw std::runtime_error("Time-lagged FFN input has fewer samples than the requested maximum lag.");
+    }
+
+    const int64_t rows = x.size(0) - maxLag;
+    torch::Tensor lagged = torch::empty({rows, outputDim}, torch::kFloat32);
+    int col = 0;
+    for (int64_t feature = 0; feature < x.size(1); ++feature) {
+        const auto& featureLags = lagConfig[static_cast<size_t>(feature)];
+        lagged.slice(1, col, col + 1).copy_(x.slice(0, maxLag, x.size(0)).slice(1, feature, feature + 1));
+        ++col;
+        for (const int lag : featureLags) {
+            if (lag <= 0) continue;
+            lagged.slice(1, col, col + 1).copy_(x.slice(0, maxLag - lag, x.size(0) - lag).slice(1, feature, feature + 1));
+            ++col;
+        }
+    }
+
+    x = lagged.contiguous();
+    y = y.slice(0, maxLag, y.size(0)).contiguous();
+    plotX = plotX.slice(0, maxLag, plotX.size(0)).contiguous();
+}
+
 std::vector<std::string> splitCsvRow(const std::string& line) {
     std::vector<std::string> cols;
     std::stringstream ss(line);
@@ -243,6 +293,48 @@ void buildSyntheticSeries(const HydroRunConfig& config, torch::Tensor& x, torch:
         return;
     }
 
+
+    if (profile == "rainfall_runoff") {
+        auto tc = t.squeeze(1).contiguous();
+        const int64_t n = tc.size(0);
+        const double tStart = tc[0].item<double>();
+        const double tEnd = tc[n - 1].item<double>();
+        // Use normalized simulation time for storage dynamics and model input so the displayed
+        // t-range remains a plotting/export choice instead of changing the synthetic process scale.
+        const double dt = (n > 1) ? 1.0 / static_cast<double>(n - 1) : 1.0;
+        constexpr double kPi = 3.14159265358979323846;
+
+        std::vector<float> flatInputs;
+        std::vector<float> ys(static_cast<size_t>(n), 0.0f);
+        flatInputs.reserve(static_cast<size_t>(n) * 5);
+        double storage = 8.0;
+        for (int64_t i = 0; i < n; ++i) {
+            const double tt = tc[i].item<double>();
+            const double r = (n > 1) ? static_cast<double>(i) / static_cast<double>(n - 1) : 0.0;
+            const double storm1 = 18.0 * std::exp(-0.5 * std::pow((tt - (tStart + 0.22 * (tEnd - tStart))) / std::max(0.05, 0.04 * (tEnd - tStart)), 2.0));
+            const double storm2 = 12.0 * std::exp(-0.5 * std::pow((tt - (tStart + 0.58 * (tEnd - tStart))) / std::max(0.05, 0.07 * (tEnd - tStart)), 2.0));
+            const double seasonalRain = 2.0 * std::max(0.0, std::sin(2.0 * kPi * r * 3.0));
+            const double rain = storm1 + storm2 + seasonalRain;
+            const double temp = 12.0 + 10.0 * std::sin(2.0 * kPi * r - 0.4);
+            const double et = std::max(0.0, 0.08 * (temp + 5.0));
+            const double quickflow = 0.35 * rain;
+            const double baseflow = 0.08 * storage;
+            const double runoff = quickflow + baseflow;
+            storage = std::max(0.0, storage + (rain - et - runoff) * dt);
+
+            flatInputs.push_back(static_cast<float>(r));
+            flatInputs.push_back(static_cast<float>(rain));
+            flatInputs.push_back(static_cast<float>(et));
+            flatInputs.push_back(static_cast<float>(temp));
+            flatInputs.push_back(static_cast<float>(storage));
+            ys[static_cast<size_t>(i)] = static_cast<float>(runoff);
+        }
+
+        x = torch::from_blob(flatInputs.data(), {n, 5}, torch::kFloat32).clone();
+        y = torch::from_blob(ys.data(), {n, 1}, torch::kFloat32).clone();
+        return;
+    }
+
     x = t;
     if (profile == "damped_sine") y = torch::sin(t) * torch::exp(-0.15 * t);
     else if (profile == "mixed_wave") y = 0.7 * torch::sin(1.5 * t) + 0.3 * torch::cos(0.5 * t);
@@ -279,8 +371,11 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     }
 
     const int inputDim = static_cast<int>(x.size(1));
+    if (config.use_time_lagged_ffn) {
+        applyTimeLaggedInputs(x, y, plotX, parseLagConfig(config.input_lags_csv, inputDim));
+    }
     model.setHiddenLayers(parseHiddenLayers(config.hidden_layers_csv));
-    model.setLags(parseLagConfig(config.input_lags_csv, inputDim));
+    model.setLags(currentInputLags(static_cast<int>(x.size(1))));
     model.initializeNetwork(1, config.activation);
 
     const double split = std::min(0.95, std::max(0.1, config.train_split_ratio));
