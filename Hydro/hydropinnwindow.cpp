@@ -768,7 +768,9 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
             ys.push_back(target);
         }
     } else if (profile == "rainfall_runoff") {
-        const double dt = (tEnd - tStart) / static_cast<double>(samples - 1);
+        // Use normalized simulation time for storage dynamics so changing the displayed t-range
+        // does not change runoff magnitude or destabilize training.
+        const double dt = 1.0 / static_cast<double>(samples - 1);
         constexpr double kPi = 3.14159265358979323846;
         double storage = 8.0;
         for (int i = 0; i < samples; ++i) {

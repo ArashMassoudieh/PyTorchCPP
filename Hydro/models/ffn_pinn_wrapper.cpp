@@ -281,7 +281,9 @@ void buildSyntheticSeries(const HydroRunConfig& config, torch::Tensor& x, torch:
         const int64_t n = tc.size(0);
         const double tStart = tc[0].item<double>();
         const double tEnd = tc[n - 1].item<double>();
-        const double dt = (n > 1) ? (tEnd - tStart) / static_cast<double>(n - 1) : 1.0;
+        // Use normalized simulation time for storage dynamics and model input so the displayed
+        // t-range remains a plotting/export choice instead of changing the synthetic process scale.
+        const double dt = (n > 1) ? 1.0 / static_cast<double>(n - 1) : 1.0;
         constexpr double kPi = 3.14159265358979323846;
 
         std::vector<float> flatInputs;
@@ -302,7 +304,7 @@ void buildSyntheticSeries(const HydroRunConfig& config, torch::Tensor& x, torch:
             const double runoff = quickflow + baseflow;
             storage = std::max(0.0, storage + (rain - et - runoff) * dt);
 
-            flatInputs.push_back(static_cast<float>(tt));
+            flatInputs.push_back(static_cast<float>(r));
             flatInputs.push_back(static_cast<float>(rain));
             flatInputs.push_back(static_cast<float>(et));
             flatInputs.push_back(static_cast<float>(temp));
