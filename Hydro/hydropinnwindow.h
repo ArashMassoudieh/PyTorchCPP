@@ -48,6 +48,7 @@ private:
     QSpinBox* pinnCollocationSpin_;
     QLineEdit* hiddenLayersEdit_;
     QLineEdit* inputLagsEdit_;
+    QCheckBox* useTimeLaggedFFNCheck_;
     QComboBox* activationCombo_;
     QSpinBox* layerSizeSpin_;
     QComboBox* layerActivationCombo_;
@@ -130,6 +131,7 @@ private:
     void applyNeuroforgeCsvPreset();
     void setRunningUiState(bool running);
     void updateDataSourceUiState();
+    void updateFfnLagUiState();
     void browseCsv();
     void browseSyntheticExportPath();
     void generateSyntheticDataPreview();
