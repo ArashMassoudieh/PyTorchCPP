@@ -948,6 +948,13 @@ void HydroPINNWindow::runLagOptimizationSearch() {
     std::uniform_int_distribution<int> lagDist(1, maxLag);
     std::uniform_int_distribution<int> countDist(1, std::min(3, maxLag));
 
+    struct LagCandidateSummary {
+        QString spec;
+        double score = std::numeric_limits<double>::infinity();
+        double loss = std::numeric_limits<double>::infinity();
+    };
+    std::vector<LagCandidateSummary> successfulCandidates;
+
     double bestMse = std::numeric_limits<double>::infinity();
     double bestLoss = std::numeric_limits<double>::infinity();
     QString bestSpec;
@@ -1001,11 +1008,14 @@ void HydroPINNWindow::runLagOptimizationSearch() {
                           .arg(QString::fromStdString(trialCfg.input_lags_csv))
                           .arg(trial.mse, 0, 'g', 8)
                           .arg(trial.final_loss, 0, 'g', 8));
-            if (trial.success && std::isfinite(score) && score < bestMse) {
-                bestMse = score;
-                bestLoss = trial.final_loss;
-                bestSpec = QString::fromStdString(trialCfg.input_lags_csv);
-                bestResult = trial;
+            if (trial.success && std::isfinite(score)) {
+                successfulCandidates.push_back({QString::fromStdString(trialCfg.input_lags_csv), score, trial.final_loss});
+                if (score < bestMse) {
+                    bestMse = score;
+                    bestLoss = trial.final_loss;
+                    bestSpec = QString::fromStdString(trialCfg.input_lags_csv);
+                    bestResult = trial;
+                }
             }
         } catch (const std::exception& e) {
             appendLog(QString("GA lag candidate %1/%2 failed: %3")
@@ -1027,11 +1037,67 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         appendLog("GA lag optimization finished without a valid candidate.");
         statusLabel_->setText("GA lag optimization failed.");
     } else {
+        std::sort(successfulCandidates.begin(), successfulCandidates.end(), [](const LagCandidateSummary& a, const LagCandidateSummary& b) {
+            return a.score < b.score;
+        });
+
+        const int confirmCount = std::min<int>(5, static_cast<int>(successfulCandidates.size()));
+        HydroRunConfig confirmBaseCfg = currentConfig();
+        confirmBaseCfg.use_time_lagged_ffn = true;
+        double confirmedScore = std::numeric_limits<double>::infinity();
+        double confirmedLoss = std::numeric_limits<double>::infinity();
+        QString confirmedSpec = bestSpec;
+        HydroRunResult confirmedResult = bestResult;
+
+        appendLog(QString("GA lag optimization confirming top %1 candidate(s) with full epoch count=%2.")
+                      .arg(confirmCount)
+                      .arg(confirmBaseCfg.epochs));
+        for (int i = 0; i < confirmCount; ++i) {
+            HydroRunConfig confirmCfg = confirmBaseCfg;
+            confirmCfg.input_lags_csv = successfulCandidates[static_cast<size_t>(i)].spec.toStdString();
+            try {
+                HydroRunResult confirmTrial;
+                if (mode == "ffn") {
+                    FFNWrapper runner;
+                    confirmTrial = runner.train(confirmCfg);
+                } else {
+                    FFNPINNWrapper runner;
+                    confirmTrial = runner.train(confirmCfg);
+                }
+                const double score = confirmTrial.mse > 0.0 ? confirmTrial.mse : confirmTrial.final_loss;
+                appendLog(QString("GA confirmation %1/%2: lag_steps=%3, mse=%4, loss=%5")
+                              .arg(i + 1)
+                              .arg(confirmCount)
+                              .arg(successfulCandidates[static_cast<size_t>(i)].spec)
+                              .arg(confirmTrial.mse, 0, 'g', 8)
+                              .arg(confirmTrial.final_loss, 0, 'g', 8));
+                if (confirmTrial.success && std::isfinite(score) && score < confirmedScore) {
+                    confirmedScore = score;
+                    confirmedLoss = confirmTrial.final_loss;
+                    confirmedSpec = successfulCandidates[static_cast<size_t>(i)].spec;
+                    confirmedResult = confirmTrial;
+                }
+            } catch (const std::exception& e) {
+                appendLog(QString("GA confirmation %1/%2 failed: %3")
+                              .arg(i + 1)
+                              .arg(confirmCount)
+                              .arg(e.what()));
+            }
+            QCoreApplication::processEvents();
+        }
+
+        if (std::isfinite(confirmedScore)) {
+            bestSpec = confirmedSpec;
+            bestMse = confirmedScore;
+            bestLoss = confirmedLoss;
+            bestResult = confirmedResult;
+        }
+
         useTimeLaggedFFNCheck_->setChecked(true);
         inputLagsEdit_->setText(bestSpec);
         lastModeResults_[mode] = bestResult;
         updatePlot(mode, bestResult);
-        appendLog(QString("GA lag optimization selected lag_steps=%1 (selection_metric=test_mse_or_loss, score=%2, loss=%3).")
+        appendLog(QString("GA lag optimization selected lag_steps=%1 (selection_metric=confirmed_test_mse_or_loss, score=%2, loss=%3).")
                       .arg(bestSpec)
                       .arg(bestMse, 0, 'g', 8)
                       .arg(bestLoss, 0, 'g', 8));
