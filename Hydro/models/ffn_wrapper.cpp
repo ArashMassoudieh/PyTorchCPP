@@ -293,6 +293,46 @@ void buildSyntheticSeries(const HydroRunConfig& config, torch::Tensor& x, torch:
         return;
     }
 
+
+    if (profile == "rainfall_runoff") {
+        auto tc = t.squeeze(1).contiguous();
+        const int64_t n = tc.size(0);
+        const double tStart = tc[0].item<double>();
+        const double tEnd = tc[n - 1].item<double>();
+        const double dt = (n > 1) ? (tEnd - tStart) / static_cast<double>(n - 1) : 1.0;
+        constexpr double kPi = 3.14159265358979323846;
+
+        std::vector<float> flatInputs;
+        std::vector<float> ys(static_cast<size_t>(n), 0.0f);
+        flatInputs.reserve(static_cast<size_t>(n) * 5);
+        double storage = 8.0;
+        for (int64_t i = 0; i < n; ++i) {
+            const double tt = tc[i].item<double>();
+            const double r = (n > 1) ? static_cast<double>(i) / static_cast<double>(n - 1) : 0.0;
+            const double storm1 = 18.0 * std::exp(-0.5 * std::pow((tt - (tStart + 0.22 * (tEnd - tStart))) / std::max(0.05, 0.04 * (tEnd - tStart)), 2.0));
+            const double storm2 = 12.0 * std::exp(-0.5 * std::pow((tt - (tStart + 0.58 * (tEnd - tStart))) / std::max(0.05, 0.07 * (tEnd - tStart)), 2.0));
+            const double seasonalRain = 2.0 * std::max(0.0, std::sin(2.0 * kPi * r * 3.0));
+            const double rain = storm1 + storm2 + seasonalRain;
+            const double temp = 12.0 + 10.0 * std::sin(2.0 * kPi * r - 0.4);
+            const double et = std::max(0.0, 0.08 * (temp + 5.0));
+            const double quickflow = 0.35 * rain;
+            const double baseflow = 0.08 * storage;
+            const double runoff = quickflow + baseflow;
+            storage = std::max(0.0, storage + (rain - et - runoff) * dt);
+
+            flatInputs.push_back(static_cast<float>(tt));
+            flatInputs.push_back(static_cast<float>(rain));
+            flatInputs.push_back(static_cast<float>(et));
+            flatInputs.push_back(static_cast<float>(temp));
+            flatInputs.push_back(static_cast<float>(storage));
+            ys[static_cast<size_t>(i)] = static_cast<float>(runoff);
+        }
+
+        x = torch::from_blob(flatInputs.data(), {n, 5}, torch::kFloat32).clone();
+        y = torch::from_blob(ys.data(), {n, 1}, torch::kFloat32).clone();
+        return;
+    }
+
     x = t;
     if (profile == "damped_sine") y = torch::sin(t) * torch::exp(-0.15 * t);
     else if (profile == "mixed_wave") y = 0.7 * torch::sin(1.5 * t) + 0.3 * torch::cos(0.5 * t);

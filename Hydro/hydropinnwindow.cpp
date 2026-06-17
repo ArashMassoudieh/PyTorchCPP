@@ -86,11 +86,11 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       browseSyntheticExportButton_(new QPushButton("Browse...", this)),
       runPredictionButton_(new QPushButton("Run Selected", this)), runAllPredictionButton_(new QPushButton("Run All", this)),
       runPredictionFFNButton_(new QPushButton("Run FFN", this)), runPredictionFFNPINNButton_(new QPushButton("Run FFN_PINN", this)),
-      runPredictionLSTMButton_(new QPushButton("Run LSTM", this)), runPredictionLSTMPINNButton_(new QPushButton("Run LSTM_PINN", this)),
+      runPredictionLSTMButton_(new QPushButton("Run LSTM", this)), runPredictionLSTMPINNButton_(new QPushButton("Run LSTMPINN", this)),
       predictionUseCurrentDataCheck_(new QCheckBox("Prediction uses current Data tab settings (re-run mode)", this)),
       runTrainingButton_(new QPushButton("Train Selected", this)), runAllTrainingButton_(new QPushButton("Train All", this)),
       runTrainingFFNButton_(new QPushButton("Train FFN", this)), runTrainingFFNPINNButton_(new QPushButton("Train FFN_PINN", this)),
-      runTrainingLSTMButton_(new QPushButton("Train LSTM", this)), runTrainingLSTMPINNButton_(new QPushButton("Train LSTM_PINN", this)),
+      runTrainingLSTMButton_(new QPushButton("Train LSTM", this)), runTrainingLSTMPINNButton_(new QPushButton("Train LSTMPINN", this)),
       gaLagCandidatesSpin_(new QSpinBox(this)), gaMaxLagSpin_(new QSpinBox(this)), configureGAButton_(new QPushButton("Configure GA", this)), startGAButton_(new QPushButton("Start GA", this)),
       stopGAButton_(new QPushButton("Stop GA", this)), refreshPerformanceButton_(new QPushButton("Refresh Assessment", this)),
       clearPlotButton_(new QPushButton("Clear Plot", this)), showInputsOutputsButton_(new QPushButton("Show Inputs + Output", this)),
@@ -117,7 +117,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     modeCombo_->addItem("LSTM + PINN", "lstm_pinn");
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
     dataSourceCombo_->addItems({"Synthetic", "CSV File"});
-    profileCombo_->addItems({"exp_decay", "damped_sine", "mixed_wave", "neuroforge_inputs_target"});
+    profileCombo_->addItems({"exp_decay", "damped_sine", "mixed_wave", "neuroforge_inputs_target", "rainfall_runoff"});
 
     auto* tabs = new QTabWidget(central);
 
@@ -322,7 +322,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     runPredictionFFNButton_->setText("Show FFN");
     runPredictionFFNPINNButton_->setText("Show FFN_PINN");
     runPredictionLSTMButton_->setText("Show LSTM");
-    runPredictionLSTMPINNButton_->setText("Show LSTM_PINN");
+    runPredictionLSTMPINNButton_->setText("Show LSTMPINN");
     predictionUseCurrentDataCheck_->setChecked(false);
     predictionLayout->addWidget(predictionUseCurrentDataCheck_);
     predictionLayout->addWidget(predictionButtons);
@@ -674,6 +674,9 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
     std::vector<double> flowRate;
     std::vector<double> concentration;
     std::vector<double> velocity;
+    std::vector<double> rainfall;
+    std::vector<double> evapotranspiration;
+    std::vector<double> soilStorage;
     xs.reserve(static_cast<size_t>(samples));
     ys.reserve(static_cast<size_t>(samples));
     temperature.reserve(static_cast<size_t>(samples));
@@ -681,6 +684,9 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
     flowRate.reserve(static_cast<size_t>(samples));
     concentration.reserve(static_cast<size_t>(samples));
     velocity.reserve(static_cast<size_t>(samples));
+    rainfall.reserve(static_cast<size_t>(samples));
+    evapotranspiration.reserve(static_cast<size_t>(samples));
+    soilStorage.reserve(static_cast<size_t>(samples));
 
     if (profile == "neuroforge_inputs_target") {
         std::srand(42);
@@ -761,6 +767,31 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
             velocity.push_back(vel);
             ys.push_back(target);
         }
+    } else if (profile == "rainfall_runoff") {
+        const double dt = (tEnd - tStart) / static_cast<double>(samples - 1);
+        constexpr double kPi = 3.14159265358979323846;
+        double storage = 8.0;
+        for (int i = 0; i < samples; ++i) {
+            const double r = static_cast<double>(i) / static_cast<double>(samples - 1);
+            const double t = tStart + (tEnd - tStart) * r;
+            const double storm1 = 18.0 * std::exp(-0.5 * std::pow((t - (tStart + 0.22 * (tEnd - tStart))) / std::max(0.05, 0.04 * (tEnd - tStart)), 2.0));
+            const double storm2 = 12.0 * std::exp(-0.5 * std::pow((t - (tStart + 0.58 * (tEnd - tStart))) / std::max(0.05, 0.07 * (tEnd - tStart)), 2.0));
+            const double seasonalRain = 2.0 * std::max(0.0, std::sin(2.0 * kPi * r * 3.0));
+            const double rain = storm1 + storm2 + seasonalRain;
+            const double temp = 12.0 + 10.0 * std::sin(2.0 * kPi * r - 0.4);
+            const double et = std::max(0.0, 0.08 * (temp + 5.0));
+            const double quickflow = 0.35 * rain;
+            const double baseflow = 0.08 * storage;
+            const double runoff = quickflow + baseflow;
+            storage = std::max(0.0, storage + (rain - et - runoff) * dt);
+
+            xs.push_back(t);
+            rainfall.push_back(rain);
+            evapotranspiration.push_back(et);
+            temperature.push_back(temp);
+            soilStorage.push_back(storage);
+            ys.push_back(runoff);
+        }
     } else {
         for (int i = 0; i < samples; ++i) {
             const double r = static_cast<double>(i) / static_cast<double>(samples - 1);
@@ -787,6 +818,11 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
         lastSyntheticInputs_["flow_rate"] = flowRate;
         lastSyntheticInputs_["concentration"] = concentration;
         lastSyntheticInputs_["velocity"] = velocity;
+    } else if (profile == "rainfall_runoff") {
+        lastSyntheticInputs_["rainfall"] = rainfall;
+        lastSyntheticInputs_["evapotranspiration"] = evapotranspiration;
+        lastSyntheticInputs_["temperature"] = temperature;
+        lastSyntheticInputs_["soil_storage"] = soilStorage;
     } else {
         lastSyntheticInputs_["synthetic_input"] = ys;
     }
@@ -822,6 +858,17 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
                     << flowRate[k] << ","
                     << concentration[k] << ","
                     << velocity[k] << ","
+                    << ys[k] << "\n";
+            }
+        } else if (profile == "rainfall_runoff") {
+            out << "t,rainfall,evapotranspiration,temperature,soil_storage,runoff\n";
+            for (int i = 0; i < samples; ++i) {
+                const size_t k = static_cast<size_t>(i);
+                out << xs[k] << ","
+                    << rainfall[k] << ","
+                    << evapotranspiration[k] << ","
+                    << temperature[k] << ","
+                    << soilStorage[k] << ","
                     << ys[k] << "\n";
             }
         } else {
@@ -860,6 +907,9 @@ void HydroPINNWindow::startGAPlaceholder() {
 int HydroPINNWindow::estimatedFfnInputCountForLagSearch(const HydroRunConfig& cfg, const QString& mode) const {
     if (cfg.synthetic_profile == "neuroforge_inputs_target") {
         return (mode == "ffn_pinn") ? 6 : 5;
+    }
+    if (cfg.synthetic_profile == "rainfall_runoff") {
+        return 5;
     }
     if (mode == "ffn_pinn" &&
         (cfg.pinn_physics_profile == "linear_reservoir" ||
@@ -1963,8 +2013,8 @@ void HydroPINNWindow::runMode(const QString& mode) {
                 appendLog("Note: selected PINN profile is exp_decay; non-exp synthetic targets may reduce physics consistency.");
             }
             if ((cfg.pinn_physics_profile == "linear_reservoir" || cfg.pinn_physics_profile == "cstr_first_order" || cfg.pinn_physics_profile == "water_balance") &&
-                cfg.synthetic_profile != "neuroforge_inputs_target") {
-                appendLog("Note: forcing/water-balance PINN profiles work best with multi-feature inputs (CSV or neuroforge_inputs_target synthetic profile).");
+                (cfg.synthetic_profile != "neuroforge_inputs_target" && cfg.synthetic_profile != "rainfall_runoff")) {
+                appendLog("Note: forcing/water-balance PINN profiles work best with multi-feature inputs (CSV, neuroforge_inputs_target, or rainfall_runoff synthetic profile).");
             }
         }
     }
