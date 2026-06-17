@@ -100,6 +100,8 @@ private:
     QPushButton* runTrainingFFNPINNButton_;
     QPushButton* runTrainingLSTMButton_;
     QPushButton* runTrainingLSTMPINNButton_;
+    QSpinBox* gaLagCandidatesSpin_;
+    QSpinBox* gaMaxLagSpin_;
     QPushButton* configureGAButton_;
     QPushButton* startGAButton_;
     QPushButton* stopGAButton_;
@@ -143,6 +145,8 @@ private:
     void updatePlot(const QString& mode, const HydroRunResult& result);
     void configureGAPlaceholder();
     void startGAPlaceholder();
+    void runLagOptimizationSearch();
+    int estimatedFfnInputCountForLagSearch(const HydroRunConfig& cfg, const QString& mode) const;
     void stopGAPlaceholder();
     void refreshPerformanceAssessment();
     void clearPlot();

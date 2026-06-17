@@ -47,6 +47,7 @@
 #include <exception>
 #include <fstream>
 #include <limits>
+#include <random>
 
 namespace {
 QString parseLayerActivationText(const QString& layerText) {
@@ -89,7 +90,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       runTrainingButton_(new QPushButton("Train Selected", this)), runAllTrainingButton_(new QPushButton("Train All", this)),
       runTrainingFFNButton_(new QPushButton("Train FFN", this)), runTrainingFFNPINNButton_(new QPushButton("Train FFN_PINN", this)),
       runTrainingLSTMButton_(new QPushButton("Train LSTM", this)), runTrainingLSTMPINNButton_(new QPushButton("Train LSTM_PINN", this)),
-      configureGAButton_(new QPushButton("Configure GA", this)), startGAButton_(new QPushButton("Start GA", this)),
+      gaLagCandidatesSpin_(new QSpinBox(this)), gaMaxLagSpin_(new QSpinBox(this)), configureGAButton_(new QPushButton("Configure GA", this)), startGAButton_(new QPushButton("Start GA", this)),
       stopGAButton_(new QPushButton("Stop GA", this)), refreshPerformanceButton_(new QPushButton("Refresh Assessment", this)),
       clearPlotButton_(new QPushButton("Clear Plot", this)), showInputsOutputsButton_(new QPushButton("Show Inputs + Output", this)),
       zoomInPlotButton_(new QPushButton("Zoom In", this)), zoomOutPlotButton_(new QPushButton("Zoom Out", this)),
@@ -329,14 +330,24 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
 
     auto* gaTab = new QWidget(tabs);
     auto* gaLayout = new QVBoxLayout(gaTab);
-    auto* gaBox = new QGroupBox("Genetic Algorithm (workflow-compatible)", gaTab);
-    auto* gaButtonLayout = new QHBoxLayout(gaBox);
+    auto* gaBox = new QGroupBox("GA Lag Optimization (FFN / FFN+PINN)", gaTab);
+    auto* gaForm = new QFormLayout(gaBox);
+    gaLagCandidatesSpin_->setRange(2, 200);
+    gaLagCandidatesSpin_->setValue(12);
+    gaMaxLagSpin_->setRange(1, 100);
+    gaMaxLagSpin_->setValue(5);
+    gaForm->addRow("Candidate lag sets", gaLagCandidatesSpin_);
+    gaForm->addRow("Maximum lag", gaMaxLagSpin_);
+    auto* gaButtonRow = new QWidget(gaBox);
+    auto* gaButtonLayout = new QHBoxLayout(gaButtonRow);
+    gaButtonLayout->setContentsMargins(0, 0, 0, 0);
     gaButtonLayout->addWidget(configureGAButton_);
     gaButtonLayout->addWidget(startGAButton_);
     gaButtonLayout->addWidget(stopGAButton_);
+    gaForm->addRow(gaButtonRow);
     stopGAButton_->setEnabled(false);
     gaLayout->addWidget(gaBox);
-    gaLayout->addWidget(new QLabel("Hydro modes keep current 4-mode training flow; GA controls are prepared for future Hydro-specific optimization hooks.", gaTab));
+    gaLayout->addWidget(new QLabel("This runs a lightweight GA-style random lag-structure search for the selected FFN mode, then writes the best lag groups back to Network Structure.", gaTab));
     gaLayout->addStretch(1);
     tabs->addTab(gaTab, "GA");
 
@@ -834,17 +845,135 @@ void HydroPINNWindow::updateStatus() {
 }
 
 void HydroPINNWindow::configureGAPlaceholder() {
-    appendLog("GA configuration requested (Hydro GA backend is not implemented yet).");
+    appendLog("GA lag optimization configuration opened.");
     QMessageBox::information(this,
                              "HydroPINN GA",
-                             "GA controls are available in the workflow, but Hydro-specific GA optimization is not wired yet.");
+                             "GA lag optimization samples candidate per-input lag groups for FFN/FFN+PINN, "
+                             "trains each candidate briefly, and writes the best lag structure back to the Network Structure tab.");
 }
 
 void HydroPINNWindow::startGAPlaceholder() {
-    appendLog("GA start requested (placeholder).");
+    runLagOptimizationSearch();
+}
+
+int HydroPINNWindow::estimatedFfnInputCountForLagSearch(const HydroRunConfig& cfg, const QString& mode) const {
+    if (cfg.synthetic_profile == "neuroforge_inputs_target") {
+        return (mode == "ffn_pinn") ? 6 : 5;
+    }
+    if (mode == "ffn_pinn" &&
+        (cfg.pinn_physics_profile == "linear_reservoir" ||
+         cfg.pinn_physics_profile == "cstr_first_order" ||
+         cfg.pinn_physics_profile == "water_balance")) {
+        return 2;
+    }
+    return 1;
+}
+
+void HydroPINNWindow::runLagOptimizationSearch() {
+    const QString mode = selectedModeKey();
+    if (mode != "ffn" && mode != "ffn_pinn") {
+        QMessageBox::information(this,
+                                 "HydroPINN GA",
+                                 "Lag optimization is only available for FFN and FFN+PINN modes.");
+        appendLog("GA lag optimization skipped: selected mode is not FFN/FFN+PINN.");
+        return;
+    }
+
+    appendLog(QString("Starting GA-style lag optimization for %1.").arg(mode));
     startGAButton_->setEnabled(false);
     stopGAButton_->setEnabled(true);
-    statusLabel_->setText("GA placeholder run started (no backend yet).");
+    statusLabel_->setText("Running GA-style lag optimization...");
+    QCoreApplication::processEvents();
+
+    HydroRunConfig baseCfg = currentConfig();
+    baseCfg.use_time_lagged_ffn = true;
+    baseCfg.epochs = std::max(1, std::min(baseCfg.epochs, epochsPerWindowSpin_->value()));
+
+    const int candidateCount = gaLagCandidatesSpin_->value();
+    const int maxLag = gaMaxLagSpin_->value();
+    const int inputGroups = estimatedFfnInputCountForLagSearch(baseCfg, mode);
+    std::mt19937 rng(static_cast<uint32_t>(std::max(0, baseCfg.random_seed)));
+    std::uniform_int_distribution<int> lagDist(1, maxLag);
+    std::uniform_int_distribution<int> countDist(1, std::min(3, maxLag));
+
+    double bestMse = std::numeric_limits<double>::infinity();
+    double bestLoss = std::numeric_limits<double>::infinity();
+    QString bestSpec;
+    HydroRunResult bestResult;
+
+    auto makeCandidate = [&]() {
+        QStringList groups;
+        for (int g = 0; g < inputGroups; ++g) {
+            std::vector<int> lags;
+            const int n = countDist(rng);
+            for (int i = 0; i < n; ++i) {
+                const int lag = lagDist(rng);
+                if (std::find(lags.begin(), lags.end(), lag) == lags.end()) {
+                    lags.push_back(lag);
+                }
+            }
+            std::sort(lags.begin(), lags.end());
+            QStringList lagTokens;
+            for (const int lag : lags) lagTokens << QString::number(lag);
+            groups << lagTokens.join(',');
+        }
+        return groups.join(';');
+    };
+
+    for (int i = 0; i < candidateCount; ++i) {
+        HydroRunConfig trialCfg = baseCfg;
+        trialCfg.input_lags_csv = makeCandidate().toStdString();
+        try {
+            HydroRunResult trial;
+            if (mode == "ffn") {
+                FFNWrapper runner;
+                trial = runner.train(trialCfg);
+            } else {
+                FFNPINNWrapper runner;
+                trial = runner.train(trialCfg);
+            }
+
+            const double score = trial.mse > 0.0 ? trial.mse : trial.final_loss;
+            appendLog(QString("GA lag candidate %1/%2: lags=%3, mse=%4, loss=%5")
+                          .arg(i + 1)
+                          .arg(candidateCount)
+                          .arg(QString::fromStdString(trialCfg.input_lags_csv))
+                          .arg(trial.mse, 0, 'g', 8)
+                          .arg(trial.final_loss, 0, 'g', 8));
+            if (trial.success && std::isfinite(score) && score < bestMse) {
+                bestMse = score;
+                bestLoss = trial.final_loss;
+                bestSpec = QString::fromStdString(trialCfg.input_lags_csv);
+                bestResult = trial;
+            }
+        } catch (const std::exception& e) {
+            appendLog(QString("GA lag candidate %1/%2 failed: %3")
+                          .arg(i + 1)
+                          .arg(candidateCount)
+                          .arg(e.what()));
+        }
+        QCoreApplication::processEvents();
+    }
+
+    if (bestSpec.isEmpty()) {
+        appendLog("GA lag optimization finished without a valid candidate.");
+        statusLabel_->setText("GA lag optimization failed.");
+    } else {
+        useTimeLaggedFFNCheck_->setChecked(true);
+        inputLagsEdit_->setText(bestSpec);
+        lastModeResults_[mode] = bestResult;
+        updatePlot(mode, bestResult);
+        appendLog(QString("GA lag optimization selected lags=%1 (score=%2, loss=%3).")
+                      .arg(bestSpec)
+                      .arg(bestMse, 0, 'g', 8)
+                      .arg(bestLoss, 0, 'g', 8));
+        statusLabel_->setText(QString("GA lag optimization complete: %1").arg(bestSpec));
+        refreshPerformanceAssessment();
+    }
+
+    stopGAButton_->setEnabled(false);
+    startGAButton_->setEnabled(true);
+    updateFfnLagUiState();
 }
 
 void HydroPINNWindow::stopGAPlaceholder() {
@@ -1826,9 +1955,10 @@ void HydroPINNWindow::runMode(const QString& mode) {
                   .arg(QString::fromStdString(cfg.optimizer))
                   .arg(QString::fromStdString(cfg.normalization))
                   .arg(cfg.use_incremental_training ? "yes" : "no"));
-    appendLog(QString("Network options => hidden_layers=%1, input_lags=%2, activation=%3")
+    appendLog(QString("Network options => hidden_layers=%1, input_lags=%2, ffn_input_style=%3, activation=%4")
                   .arg(QString::fromStdString(cfg.hidden_layers_csv))
                   .arg(QString::fromStdString(cfg.input_lags_csv))
+                  .arg(cfg.use_time_lagged_ffn ? "time-lagged" : "basic")
                   .arg(QString::fromStdString(cfg.activation)));
     if (mode == "ffn_pinn" || mode == "lstm_pinn") {
         appendLog(QString("PINN physics => profile=%1, forcing_gain=%2, collocation=%3")
