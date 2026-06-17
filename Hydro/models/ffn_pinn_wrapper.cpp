@@ -69,6 +69,14 @@ std::vector<std::vector<int>> currentInputLags(int inputDim) {
     return std::vector<std::vector<int>>(static_cast<size_t>(std::max(0, inputDim)), std::vector<int>{1});
 }
 
+int currentFeatureColumn(const std::vector<std::vector<int>>& lagConfig, int featureIndex) {
+    int col = 0;
+    for (int i = 0; i < featureIndex; ++i) {
+        col += 1 + static_cast<int>(lagConfig[static_cast<size_t>(i)].size());
+    }
+    return col;
+}
+
 void applyTimeLaggedInputs(torch::Tensor& x,
                            torch::Tensor& y,
                            torch::Tensor& plotX,
@@ -392,8 +400,9 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     ensureForcingColumnsForPINN(config, x, y);
 
     const int inputDim = static_cast<int>(x.size(1));
+    const std::vector<std::vector<int>> configuredLags = parseLagConfig(config.input_lags_csv, inputDim);
     if (config.use_time_lagged_ffn) {
-        applyTimeLaggedInputs(x, y, plotX, parseLagConfig(config.input_lags_csv, inputDim));
+        applyTimeLaggedInputs(x, y, plotX, configuredLags);
     }
     model.setHiddenLayers(parseHiddenLayers(config.hidden_layers_csv));
     model.setLags(currentInputLags(static_cast<int>(x.size(1))));
@@ -411,7 +420,24 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     model.setTensorData(DataType::Test, xTest, yTest);
 
     std::vector<double> losses;
-    if (config.pinn_physics_profile == "linear_reservoir" ||
+    if (config.pinn_physics_profile == "water_balance" &&
+        config.synthetic_profile == "rainfall_runoff" &&
+        x.size(1) >= 5) {
+        // rainfall_runoff columns are [normalized_time, rainfall, evapotranspiration, temperature, soil_storage].
+        const int rainfallCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 1) : 1;
+        const int etCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 2) : 2;
+        const int storageCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 4) : 4;
+        const double dt = 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1);
+        losses = model.trainPINNWaterBalance(config.epochs,
+                                             config.batch_size,
+                                             config.learning_rate,
+                                             rainfallCol,
+                                             etCol,
+                                             storageCol,
+                                             dt,
+                                             config.data_weight,
+                                             config.physics_weight);
+    } else if (config.pinn_physics_profile == "linear_reservoir" ||
         config.pinn_physics_profile == "cstr_first_order" ||
         config.pinn_physics_profile == "water_balance") {
         // water_balance is routed through the existing forcing-driven PINN backend

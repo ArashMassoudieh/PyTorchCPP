@@ -16,8 +16,8 @@ struct HydroRunConfig {
     // - exp_decay:           dy/dt + lambda*y = 0
     // - linear_reservoir:    dy/dt + lambda*y - forcing_gain*u = 0
     // - cstr_first_order:    dy/dt + lambda*y - forcing_gain*u = 0 (same residual form, different interpretation)
-    // - water_balance:       rainfall-runoff mass-balance style residual; current backend uses forcing-driven training
-    //                        with forcing_gain as a runoff coefficient unless a full storage column is later wired in.
+    // - water_balance:       rainfall-runoff mass-balance residual P - ET - Q - dS/dt for rainfall_runoff;
+    //                        falls back to forcing-driven training for other profiles without explicit P/ET/S columns.
     double lambda_decay = 0.8;
     double data_weight = 1.0;
     double physics_weight = 0.2;

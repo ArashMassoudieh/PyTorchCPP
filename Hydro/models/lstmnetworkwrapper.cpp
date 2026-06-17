@@ -382,7 +382,9 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     const int64_t trainN = xTrain.size(0);
     const int batchSize = std::max(1, config.batch_size);
     const double lambda = config.lambda_decay;
-    const double dt = std::max(1.0e-8, config.physics_dt);
+    const double dt = (config.synthetic_profile == "rainfall_runoff")
+                          ? 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1)
+                          : std::max(1.0e-8, config.physics_dt);
 
     auto physicsResidualLoss = [&]() {
         torch::Tensor p = model->forward(xTrain);
@@ -390,7 +392,17 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         torch::Tensor dy = (p.slice(0, 1, p.size(0)) - p.slice(0, 0, p.size(0) - 1)) / dt;
         torch::Tensor yMid = p.slice(0, 1, p.size(0));
         torch::Tensor residual;
-        if (needsForcing) {
+        if (needsForcing && config.pinn_physics_profile == "water_balance" &&
+            config.synthetic_profile == "rainfall_runoff" && xTrain.size(2) >= 5) {
+            // rainfall_runoff columns are [normalized_time, rainfall, evapotranspiration, temperature, soil_storage].
+            torch::Tensor lastStep = xTrain.select(1, xTrain.size(1) - 1);
+            torch::Tensor rain = lastStep.slice(1, 1, 2).slice(0, 1, lastStep.size(0));
+            torch::Tensor et = lastStep.slice(1, 2, 3).slice(0, 1, lastStep.size(0));
+            torch::Tensor storageNow = lastStep.slice(1, 4, 5).slice(0, 1, lastStep.size(0));
+            torch::Tensor storagePrev = lastStep.slice(1, 4, 5).slice(0, 0, lastStep.size(0) - 1);
+            torch::Tensor dSdt = (storageNow - storagePrev) / dt;
+            residual = rain - et - yMid - dSdt;
+        } else if (needsForcing) {
             const double effectiveGain =
                 (config.pinn_physics_profile == "water_balance") ? config.runoff_coeff : config.forcing_gain;
             torch::Tensor forcing = xTrain.slice(0, 1, xTrain.size(0)).select(1, xTrain.size(1) - 1).slice(1, 1, 2);
