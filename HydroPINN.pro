@@ -148,7 +148,8 @@ SOURCES += \
     Hydro/models/ffn_wrapper.cpp \
     Hydro/models/ffn_pinn_wrapper.cpp \
     Hydro/models/lstm_wrapper.cpp \
-    Hydro/models/lstm_pinn_wrapper.cpp
+    Hydro/models/lstm_pinn_wrapper.cpp \
+    Hydro/models/lstmnetworkwrapper.cpp
 
 # =========================
 # Headers
@@ -185,7 +186,8 @@ HEADERS += \
     Hydro/models/ffn_wrapper.h \
     Hydro/models/ffn_pinn_wrapper.h \
     Hydro/models/lstm_wrapper.h \
-    Hydro/models/lstm_pinn_wrapper.h
+    Hydro/models/lstm_pinn_wrapper.h \
+    Hydro/models/lstmnetworkwrapper.h
 
 # =========================
 # Install target

@@ -111,8 +111,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
 
     modeCombo_->addItem("FFN (Hydro baseline)", "ffn");
     modeCombo_->addItem("FFN + PINN (Hydro baseline + physics)", "ffn_pinn");
-    modeCombo_->addItem("LSTM (temporary FFN backend)", "lstm");
-    modeCombo_->addItem("LSTM + PINN (temporary FFN backend)", "lstm_pinn");
+    modeCombo_->addItem("LSTM", "lstm");
+    modeCombo_->addItem("LSTM + PINN", "lstm_pinn");
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
     dataSourceCombo_->addItems({"Synthetic", "CSV File"});
     profileCombo_->addItems({"exp_decay", "damped_sine", "mixed_wave", "neuroforge_inputs_target"});
@@ -390,7 +390,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     root->addWidget(statusLabel_);
     auto* modeInfo = new QLabel(QStringLiteral("Hydro provides 4 local modes: FFN, FFN+PINN, LSTM, and LSTM+PINN.\n"
                                               "NeuroForge naming/workflow is used for UI parity only (not inherited model code).\n"
-                                              "LSTM modes currently run on a temporary FFN backend."),
+                                              "LSTM modes use the LibTorch LSTM backend."),
                                 central);
     modeInfo->setWordWrap(true);
     root->addWidget(modeInfo);
@@ -846,9 +846,9 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                                     : (selectedModeKey() == "ffn_pinn")
                                           ? "Hydro FFN + PINN residual"
                                           : (selectedModeKey() == "lstm")
-                                                ? "Temporary FFN backend (LSTM scaffold)"
+                                                ? "Hydro LibTorch LSTM"
                                                 : (selectedModeKey() == "lstm_pinn")
-                                                      ? "Temporary FFN backend + PINN residual"
+                                                      ? "Hydro LibTorch LSTM + PINN residual"
                                                       : "Unknown";
 
     QString summary = QString(

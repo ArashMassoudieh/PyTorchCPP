@@ -4,16 +4,20 @@
 
 /**
  * @file lstm_wrapper.h
- * @brief Baseline LSTM wrapper interface.
+ * @brief Baseline LibTorch LSTM wrapper interface.
  */
 
 /**
- * @brief Lightweight LSTM baseline wrapper for HydroPINN experiments.
+ * @brief Lightweight true LSTM baseline wrapper for HydroPINN experiments.
+ *
+ * This wrapper uses a torch::nn::LSTM backend, builds rolling input windows
+ * from the provided series, and reports held-out test metrics plus full-series
+ * aligned predictions for plotting.
  */
 class LSTMWrapper {
 public:
     /**
-     * @brief Run baseline LSTM-like training backend.
+     * @brief Run baseline LSTM training backend.
      * @param config Runtime configuration.
      * @return Run result with status and summary metrics.
      */
