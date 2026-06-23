@@ -333,11 +333,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     auto* gaLayout = new QVBoxLayout(gaTab);
     auto* gaBox = new QGroupBox("GA Lag Optimization (FFN / FFN+PINN)", gaTab);
     auto* gaForm = new QFormLayout(gaBox);
-    gaLagCandidatesSpin_->setRange(2, 200);
-    gaLagCandidatesSpin_->setValue(12);
-    gaMaxLagSpin_->setRange(1, 100);
+    gaLagCandidatesSpin_->setRange(2, 10000);
+    gaLagCandidatesSpin_->setValue(250);
+    gaLagCandidatesSpin_->setToolTip("Evaluation budget for lag-set candidates; higher values improve search coverage but take longer.");
+    gaMaxLagSpin_->setRange(1, 1000);
     gaMaxLagSpin_->setValue(5);
-    gaForm->addRow("Candidate lag sets", gaLagCandidatesSpin_);
+    gaForm->addRow("Candidate lag-set budget", gaLagCandidatesSpin_);
     gaForm->addRow("Maximum lag step", gaMaxLagSpin_);
     auto* gaButtonRow = new QWidget(gaBox);
     auto* gaButtonLayout = new QHBoxLayout(gaButtonRow);
@@ -962,23 +963,79 @@ void HydroPINNWindow::runLagOptimizationSearch() {
     QString bestSpec;
     HydroRunResult bestResult;
 
-    auto makeCandidate = [&]() {
+    auto normalizeGroup = [](std::vector<int>& lags) {
+        std::sort(lags.begin(), lags.end());
+        lags.erase(std::unique(lags.begin(), lags.end()), lags.end());
+        if (lags.empty()) {
+            lags.push_back(1);
+        }
+    };
+
+    auto candidateToSpec = [&normalizeGroup](std::vector<std::vector<int>> candidate) {
         QStringList groups;
-        for (int g = 0; g < inputGroups; ++g) {
-            std::vector<int> lags;
-            const int n = countDist(rng);
-            for (int i = 0; i < n; ++i) {
-                const int lag = lagDist(rng);
-                if (std::find(lags.begin(), lags.end(), lag) == lags.end()) {
-                    lags.push_back(lag);
-                }
-            }
-            std::sort(lags.begin(), lags.end());
+        for (auto& lags : candidate) {
+            normalizeGroup(lags);
             QStringList lagTokens;
             for (const int lag : lags) lagTokens << QString::number(lag);
             groups << lagTokens.join(',');
         }
         return groups.join(';');
+    };
+
+    auto randomCandidate = [&]() {
+        std::vector<std::vector<int>> candidate(static_cast<size_t>(inputGroups));
+        for (auto& lags : candidate) {
+            const int n = countDist(rng);
+            for (int i = 0; i < n; ++i) {
+                lags.push_back(lagDist(rng));
+            }
+            normalizeGroup(lags);
+        }
+        return candidate;
+    };
+
+    auto parseCandidate = [&](const QString& spec) {
+        std::vector<std::vector<int>> candidate;
+        const QStringList groups = spec.split(';', Qt::SkipEmptyParts);
+        for (const QString& group : groups) {
+            std::vector<int> lags;
+            const QStringList tokens = group.split(',', Qt::SkipEmptyParts);
+            for (const QString& token : tokens) {
+                bool ok = false;
+                const int lag = token.trimmed().toInt(&ok);
+                if (ok && lag >= 1 && lag <= maxLag) {
+                    lags.push_back(lag);
+                }
+            }
+            normalizeGroup(lags);
+            candidate.push_back(lags);
+        }
+        while (static_cast<int>(candidate.size()) < inputGroups) {
+            candidate.push_back(candidate.empty() ? std::vector<int>{1} : candidate.front());
+        }
+        candidate.resize(static_cast<size_t>(inputGroups));
+        return candidate;
+    };
+
+    auto mutateCandidate = [&](std::vector<std::vector<int>> candidate) {
+        if (candidate.empty()) {
+            return randomCandidate();
+        }
+        std::uniform_int_distribution<int> groupDist(0, static_cast<int>(candidate.size()) - 1);
+        auto& lags = candidate[static_cast<size_t>(groupDist(rng))];
+        std::uniform_int_distribution<int> opDist(0, 2);
+        const int op = opDist(rng);
+        if (op == 0 || lags.empty()) {
+            lags.push_back(lagDist(rng));
+        } else if (op == 1 && lags.size() > 1) {
+            std::uniform_int_distribution<int> removeDist(0, static_cast<int>(lags.size()) - 1);
+            lags.erase(lags.begin() + removeDist(rng));
+        } else {
+            std::uniform_int_distribution<int> replaceDist(0, static_cast<int>(lags.size()) - 1);
+            lags[static_cast<size_t>(replaceDist(rng))] = lagDist(rng);
+        }
+        normalizeGroup(lags);
+        return candidate;
     };
 
     int evaluated = 0;
@@ -987,7 +1044,22 @@ void HydroPINNWindow::runLagOptimizationSearch() {
     while (evaluated < candidateCount && attempts < maxAttempts) {
         ++attempts;
         HydroRunConfig trialCfg = baseCfg;
-        const QString candidateSpec = makeCandidate();
+        QString candidateSpec;
+        if (attempts == 1 && !inputLagsEdit_->text().trimmed().isEmpty()) {
+            candidateSpec = candidateToSpec(parseCandidate(inputLagsEdit_->text().trimmed()));
+        } else if (attempts <= inputGroups + 1) {
+            const int lag = std::min(maxLag, attempts - 1);
+            candidateSpec = candidateToSpec(std::vector<std::vector<int>>(static_cast<size_t>(inputGroups), std::vector<int>{std::max(1, lag)}));
+        } else if (!successfulCandidates.empty() && evaluated >= std::max(4, candidateCount / 4)) {
+            const int eliteCount = std::max(1, std::min<int>(static_cast<int>(successfulCandidates.size()), std::max(2, candidateCount / 10)));
+            std::sort(successfulCandidates.begin(), successfulCandidates.end(), [](const LagCandidateSummary& a, const LagCandidateSummary& b) {
+                return a.score < b.score;
+            });
+            std::uniform_int_distribution<int> eliteDist(0, eliteCount - 1);
+            candidateSpec = candidateToSpec(mutateCandidate(parseCandidate(successfulCandidates[static_cast<size_t>(eliteDist(rng))].spec)));
+        } else {
+            candidateSpec = candidateToSpec(randomCandidate());
+        }
         if (testedSpecs.find(candidateSpec) != testedSpecs.end()) {
             continue;
         }

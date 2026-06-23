@@ -5,6 +5,7 @@
 #include <cmath>
 #include <algorithm>
 #include <iomanip>
+#include <limits>
 #include "hyperparameters.h"
 
 #ifdef QT_GUI_SUPPORT
@@ -1107,14 +1108,26 @@ void NeuralNetworkWrapper::setHiddenLayers(const std::vector<int>& hidden_layers
 }
 
 void NeuralNetworkWrapper::initializeWeights(const std::string& strategy) {
-    // TODO: Implement weight initialization
-    // This will initialize weights using Xavier, He, or other strategies
-    if (strategy == "xavier") {
-        // Xavier/Glorot initialization
-    } else if (strategy == "he") {
-        // He initialization
-    } else if (strategy == "normal") {
-        // Normal distribution initialization
+    if (layers_.empty()) {
+        return;
+    }
+
+    for (auto& layer : layers_) {
+        if (strategy == "xavier") {
+            torch::nn::init::xavier_uniform_(layer->weight);
+        } else if (strategy == "he" || strategy == "kaiming") {
+            torch::nn::init::kaiming_uniform_(layer->weight, std::sqrt(5.0));
+        } else if (strategy == "normal") {
+            torch::nn::init::normal_(layer->weight, 0.0, 0.01);
+        } else if (strategy == "zeros") {
+            torch::nn::init::constant_(layer->weight, 0.0);
+        } else {
+            throw std::invalid_argument("Unknown weight initialization strategy: " + strategy);
+        }
+
+        if (layer->bias.defined()) {
+            torch::nn::init::constant_(layer->bias, 0.0);
+        }
     }
 }
 
@@ -1134,27 +1147,32 @@ torch::nn::AnyModule NeuralNetworkWrapper::createActivation(const std::string& a
 
 std::map<std::string, double> NeuralNetworkWrapper::computeMetrics(const torch::Tensor& predictions,
                                                                    const torch::Tensor& targets) {
-    // TODO: Implement metrics computation
-    // This will compute MSE, MAE, R-squared, etc.
+    if (!predictions.defined() || !targets.defined()) {
+        throw std::runtime_error("Predictions and targets must be defined to compute metrics.");
+    }
+    if (predictions.sizes() != targets.sizes()) {
+        throw std::runtime_error("Predictions and targets must have identical shapes to compute metrics.");
+    }
+    if (predictions.numel() == 0) {
+        throw std::runtime_error("Cannot compute metrics for empty tensors.");
+    }
+
     std::map<std::string, double> metrics;
+    const torch::Tensor preds = predictions.to(torch::kFloat64);
+    const torch::Tensor truth = targets.to(torch::kFloat64);
+    const torch::Tensor residual = truth - preds;
 
-    // Mean Squared Error
-    torch::Tensor mse = torch::mse_loss(predictions, targets);
-    metrics["mse"] = mse.item<double>();
+    const double mse = torch::mean(torch::pow(residual, 2)).item<double>();
+    metrics["mse"] = mse;
+    metrics["rmse"] = std::sqrt(mse);
+    metrics["mae"] = torch::mean(torch::abs(residual)).item<double>();
 
-    // Root Mean Squared Error
-    metrics["rmse"] = std::sqrt(metrics["mse"]);
-
-    // Mean Absolute Error
-    torch::Tensor mae = torch::mean(torch::abs(predictions - targets));
-    metrics["mae"] = mae.item<double>();
-
-    // R-squared
-    torch::Tensor target_mean = torch::mean(targets);
-    torch::Tensor ss_res = torch::sum(torch::pow(targets - predictions, 2));
-    torch::Tensor ss_tot = torch::sum(torch::pow(targets - target_mean, 2));
-    double r_squared = 1.0 - (ss_res.item<double>() / ss_tot.item<double>());
-    metrics["r_squared"] = r_squared;
+    const double target_mean = torch::mean(truth).item<double>();
+    const double ss_res = torch::sum(torch::pow(residual, 2)).item<double>();
+    const double ss_tot = torch::sum(torch::pow(truth - target_mean, 2)).item<double>();
+    metrics["r_squared"] = (ss_tot == 0.0)
+        ? (ss_res == 0.0 ? 1.0 : -std::numeric_limits<double>::infinity())
+        : 1.0 - (ss_res / ss_tot);
 
     return metrics;
 }
