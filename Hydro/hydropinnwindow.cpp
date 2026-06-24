@@ -14,6 +14,7 @@
 #include <QElapsedTimer>
 #include <QFileDialog>
 #include <QFormLayout>
+#include <QFrame>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -23,6 +24,7 @@
 #include <QMessageBox>
 #include <QPen>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QStringList>
 #include <QSpinBox>
 #include <QTabWidget>
@@ -117,6 +119,11 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     resize(1200, 760);
 
     auto* central = new QWidget(this);
+    auto* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     auto* root = new QVBoxLayout(central);
 
     auto* title = new QLabel("HydroPINN Approaches", central);
@@ -312,9 +319,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     trainingGrid->addWidget(runAllTrainingButton_, 0, 1);
     trainingGrid->addWidget(runTrainingFFNButton_, 1, 0);
     trainingGrid->addWidget(runTrainingFFNPINNButton_, 1, 1);
-    trainingGrid->addWidget(runTrainingPINNButton_, 2, 0, 1, 2);
-    trainingGrid->addWidget(runTrainingLSTMButton_, 3, 0);
-    trainingGrid->addWidget(runTrainingLSTMPINNButton_, 3, 1);
+    trainingGrid->addWidget(runTrainingLSTMButton_, 1, 2);
+    trainingGrid->addWidget(runTrainingLSTMPINNButton_, 1, 3);
+    trainingGrid->addWidget(runTrainingPINNButton_, 1, 4);
+    for (int col = 0; col < 5; ++col) {
+        trainingGrid->setColumnStretch(col, 1);
+    }
     trainForm->addRow(trainingButtons);
     tabs->addTab(trainTab, "Training");
 
@@ -327,9 +337,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     predictionGrid->addWidget(runAllPredictionButton_, 0, 1);
     predictionGrid->addWidget(runPredictionFFNButton_, 1, 0);
     predictionGrid->addWidget(runPredictionFFNPINNButton_, 1, 1);
-    predictionGrid->addWidget(runPredictionPINNButton_, 2, 0, 1, 2);
-    predictionGrid->addWidget(runPredictionLSTMButton_, 3, 0);
-    predictionGrid->addWidget(runPredictionLSTMPINNButton_, 3, 1);
+    predictionGrid->addWidget(runPredictionLSTMButton_, 1, 2);
+    predictionGrid->addWidget(runPredictionLSTMPINNButton_, 1, 3);
+    predictionGrid->addWidget(runPredictionPINNButton_, 1, 4);
+    for (int col = 0; col < 5; ++col) {
+        predictionGrid->setColumnStretch(col, 1);
+    }
 
     runPredictionButton_->setText("Show Selected");
     runAllPredictionButton_->setText("Show All");
@@ -424,7 +437,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     modeInfo->setWordWrap(true);
     root->addWidget(modeInfo);
 
-    setCentralWidget(central);
+    scrollArea->setWidget(central);
+    setCentralWidget(scrollArea);
 
     connect(runTrainingButton_, &QPushButton::clicked, this, &HydroPINNWindow::runSelectedMode);
     connect(runAllTrainingButton_, &QPushButton::clicked, this, &HydroPINNWindow::runAllModes);
