@@ -60,6 +60,7 @@ QString parseLayerActivationText(const QString& layerText) {
 QString modeDisplayName(const QString& mode) {
     if (mode == "ffn") return "FFN";
     if (mode == "ffn_pinn") return "FFN + PINN";
+    if (mode == "pinn") return "PINN";
     if (mode == "lstm") return "LSTM";
     if (mode == "lstm_pinn") return "LSTM + PINN";
     return mode;
@@ -94,10 +95,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       browseSyntheticExportButton_(new QPushButton("Browse...", this)),
       runPredictionButton_(new QPushButton("Run Selected", this)), runAllPredictionButton_(new QPushButton("Run All", this)),
       runPredictionFFNButton_(new QPushButton("Run FFN", this)), runPredictionFFNPINNButton_(new QPushButton("Run FFN + PINN", this)),
+      runPredictionPINNButton_(new QPushButton("Run PINN", this)),
       runPredictionLSTMButton_(new QPushButton("Run LSTM", this)), runPredictionLSTMPINNButton_(new QPushButton("Run LSTM + PINN", this)),
       predictionUseCurrentDataCheck_(new QCheckBox("Prediction uses current Data tab settings (re-run mode)", this)),
       runTrainingButton_(new QPushButton("Train Selected", this)), runAllTrainingButton_(new QPushButton("Train All", this)),
       runTrainingFFNButton_(new QPushButton("Train FFN", this)), runTrainingFFNPINNButton_(new QPushButton("Train FFN + PINN", this)),
+      runTrainingPINNButton_(new QPushButton("Train PINN", this)),
       runTrainingLSTMButton_(new QPushButton("Train LSTM", this)), runTrainingLSTMPINNButton_(new QPushButton("Train LSTM + PINN", this)),
       gaLagCandidatesSpin_(new QSpinBox(this)), gaMaxLagSpin_(new QSpinBox(this)), configureGAButton_(new QPushButton("Configure GA", this)), startGAButton_(new QPushButton("Start GA", this)),
       stopGAButton_(new QPushButton("Stop GA", this)), refreshPerformanceButton_(new QPushButton("Refresh Assessment", this)),
@@ -107,7 +110,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       plotAllTargetPredButton_(new QPushButton("Target vs Predicted (All)", this)),
       plotOneToOneButton_(new QPushButton("1:1 Target vs Predicted (All)", this)),
       plotTaylorButton_(new QPushButton("Taylor Diagram (All)", this)),
-      plotSubplotsButton_(new QPushButton("Show 4 Mode Subplots (Same Plot)", this)),
+      plotSubplotsButton_(new QPushButton("Show Approach Subplots (Same Plot)", this)),
       plotResidualsButton_(new QPushButton("Residuals vs t (All)", this)),
       plotErrorCdfButton_(new QPushButton("|Error| CDF (All)", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
@@ -116,11 +119,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     auto* central = new QWidget(this);
     auto* root = new QVBoxLayout(central);
 
-    auto* title = new QLabel("HydroPINN Modes", central);
+    auto* title = new QLabel("HydroPINN Approaches", central);
     title->setStyleSheet("font-size: 18px; font-weight: bold;");
 
     modeCombo_->addItem("FFN (Hydro baseline)", "ffn");
     modeCombo_->addItem("FFN + PINN (Hydro baseline + physics)", "ffn_pinn");
+    modeCombo_->addItem("PINN (physics-first)", "pinn");
     modeCombo_->addItem("LSTM", "lstm");
     modeCombo_->addItem("LSTM + PINN", "lstm_pinn");
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
@@ -308,27 +312,30 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     trainingGrid->addWidget(runAllTrainingButton_, 0, 1);
     trainingGrid->addWidget(runTrainingFFNButton_, 1, 0);
     trainingGrid->addWidget(runTrainingFFNPINNButton_, 1, 1);
-    trainingGrid->addWidget(runTrainingLSTMButton_, 2, 0);
-    trainingGrid->addWidget(runTrainingLSTMPINNButton_, 2, 1);
+    trainingGrid->addWidget(runTrainingPINNButton_, 2, 0, 1, 2);
+    trainingGrid->addWidget(runTrainingLSTMButton_, 3, 0);
+    trainingGrid->addWidget(runTrainingLSTMPINNButton_, 3, 1);
     trainForm->addRow(trainingButtons);
     tabs->addTab(trainTab, "Training");
 
     auto* predictionTab = new QWidget(tabs);
     auto* predictionLayout = new QVBoxLayout(predictionTab);
-    predictionLayout->addWidget(new QLabel("NeuroForge-like flow: first train mode(s) in Training tab, then review stored prediction curves here.", predictionTab));
+    predictionLayout->addWidget(new QLabel("NeuroForge-like flow: first train approach(es) in Training tab, then review stored prediction curves here.", predictionTab));
     auto* predictionButtons = new QGroupBox("Prediction Plot Actions (from last successful runs)", predictionTab);
     auto* predictionGrid = new QGridLayout(predictionButtons);
     predictionGrid->addWidget(runPredictionButton_, 0, 0);
     predictionGrid->addWidget(runAllPredictionButton_, 0, 1);
     predictionGrid->addWidget(runPredictionFFNButton_, 1, 0);
     predictionGrid->addWidget(runPredictionFFNPINNButton_, 1, 1);
-    predictionGrid->addWidget(runPredictionLSTMButton_, 2, 0);
-    predictionGrid->addWidget(runPredictionLSTMPINNButton_, 2, 1);
+    predictionGrid->addWidget(runPredictionPINNButton_, 2, 0, 1, 2);
+    predictionGrid->addWidget(runPredictionLSTMButton_, 3, 0);
+    predictionGrid->addWidget(runPredictionLSTMPINNButton_, 3, 1);
 
     runPredictionButton_->setText("Show Selected");
     runAllPredictionButton_->setText("Show All");
     runPredictionFFNButton_->setText("Show FFN");
     runPredictionFFNPINNButton_->setText("Show FFN + PINN");
+    runPredictionPINNButton_->setText("Show PINN");
     runPredictionLSTMButton_->setText("Show LSTM");
     runPredictionLSTMPINNButton_->setText("Show LSTM + PINN");
     predictionUseCurrentDataCheck_->setChecked(false);
@@ -410,9 +417,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     root->addLayout(topRow);
     root->addWidget(tabs);
     root->addWidget(statusLabel_);
-    auto* modeInfo = new QLabel(QStringLiteral("Hydro provides 4 local modes: FFN, FFN + PINN, LSTM, and LSTM + PINN.\n"
+    auto* modeInfo = new QLabel(QStringLiteral("Hydro provides 5 local approaches: FFN, FFN + PINN, PINN, LSTM, and LSTM + PINN.\n"
                                               "NeuroForge naming/workflow is used for UI parity only (not inherited model code).\n"
-                                              "LSTM modes use the LibTorch LSTM backend."),
+                                              "LSTM approaches use the LibTorch LSTM backend."),
                                 central);
     modeInfo->setWordWrap(true);
     root->addWidget(modeInfo);
@@ -423,12 +430,14 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(runAllTrainingButton_, &QPushButton::clicked, this, &HydroPINNWindow::runAllModes);
     connect(runTrainingFFNButton_, &QPushButton::clicked, this, [this]() { runMode("ffn"); });
     connect(runTrainingFFNPINNButton_, &QPushButton::clicked, this, [this]() { runMode("ffn_pinn"); });
+    connect(runTrainingPINNButton_, &QPushButton::clicked, this, [this]() { runMode("pinn"); });
     connect(runTrainingLSTMButton_, &QPushButton::clicked, this, [this]() { runMode("lstm"); });
     connect(runTrainingLSTMPINNButton_, &QPushButton::clicked, this, [this]() { runMode("lstm_pinn"); });
     connect(runPredictionButton_, &QPushButton::clicked, this, &HydroPINNWindow::showSelectedPrediction);
     connect(runAllPredictionButton_, &QPushButton::clicked, this, &HydroPINNWindow::showAllPredictions);
     connect(runPredictionFFNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("ffn"); });
     connect(runPredictionFFNPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("ffn_pinn"); });
+    connect(runPredictionPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("pinn"); });
     connect(runPredictionLSTMButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm"); });
     connect(runPredictionLSTMPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm_pinn"); });
     connect(useNeuroforgeCsvPresetButton_, &QPushButton::clicked, this, &HydroPINNWindow::applyNeuroforgeCsvPreset);
@@ -556,6 +565,7 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     runAllPredictionButton_->setEnabled(!running);
     runPredictionFFNButton_->setEnabled(!running);
     runPredictionFFNPINNButton_->setEnabled(!running);
+    runPredictionPINNButton_->setEnabled(!running);
     runPredictionLSTMButton_->setEnabled(!running);
     runPredictionLSTMPINNButton_->setEnabled(!running);
     predictionUseCurrentDataCheck_->setEnabled(!running);
@@ -565,6 +575,7 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     runAllTrainingButton_->setEnabled(!running);
     runTrainingFFNButton_->setEnabled(!running);
     runTrainingFFNPINNButton_->setEnabled(!running);
+    runTrainingPINNButton_->setEnabled(!running);
     runTrainingLSTMButton_->setEnabled(!running);
     runTrainingLSTMPINNButton_->setEnabled(!running);
     plotAllTargetPredButton_->setEnabled(!running);
@@ -936,8 +947,8 @@ void HydroPINNWindow::runLagOptimizationSearch() {
     if (mode != "ffn" && mode != "ffn_pinn") {
         QMessageBox::information(this,
                                  "HydroPINN GA",
-                                 "Lag optimization is only available for FFN and FFN + PINN modes.");
-        appendLog("GA lag optimization skipped: selected mode is not FFN / FFN + PINN.");
+                                 "Lag optimization is only available for FFN and FFN + PINN approaches.");
+        appendLog("GA lag optimization skipped: selected approach is not FFN / FFN + PINN.");
         return;
     }
 
@@ -1205,15 +1216,17 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                                     ? "Hydro FFN baseline"
                                     : (selectedModeKey() == "ffn_pinn")
                                           ? "Hydro FFN + PINN residual"
-                                          : (selectedModeKey() == "lstm")
-                                                ? "Hydro LibTorch LSTM"
-                                                : (selectedModeKey() == "lstm_pinn")
-                                                      ? "Hydro LibTorch LSTM + PINN residual"
-                                                      : "Unknown";
+                                          : (selectedModeKey() == "pinn")
+                                                ? "Hydro standalone PINN residual"
+                                                : (selectedModeKey() == "lstm")
+                                                      ? "Hydro LibTorch LSTM"
+                                                      : (selectedModeKey() == "lstm_pinn")
+                                                            ? "Hydro LibTorch LSTM + PINN residual"
+                                                            : "Unknown";
 
     QString summary = QString(
                           "<b>Performance Assessment Snapshot</b><br/>"
-                          "Mode: %1<br/>"
+                          "Approach: %1<br/>"
                           "Backend implementation: %2<br/>"
                           "Data source: %3<br/>"
                           "Evaluate metrics: %4<br/>"
@@ -1239,7 +1252,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           .arg(cfg.pinn_collocation_points)
                           .arg(QString::fromStdString(cfg.hidden_layers_csv))
                           .arg(QString::fromStdString(cfg.input_lags_csv))
-                          .arg((selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn") ? (cfg.use_time_lagged_ffn ? "time-lagged" : "basic") : "ignored for LSTM")
+                          .arg((selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn") ? (cfg.use_time_lagged_ffn ? "time-lagged" : "basic") : (selectedModeKey() == "pinn" ? "physics-coordinate input" : "ignored for LSTM"))
                           .arg(QString::fromStdString(cfg.activation))
                           .arg(cfg.train_split_ratio, 0, 'g', 4)
                           .arg(cfg.shuffle_training ? "yes" : "no")
@@ -1254,8 +1267,8 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           .arg(cfg.epochs_per_window)
                           .arg(cfg.reset_optimizer_on_new_window ? "yes" : "no");
 
-    summary += "<br/><br/><b>Latest Mode Results</b><br/>";
-    const QStringList orderedModes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    summary += "<br/><br/><b>Latest Approach Results</b><br/>";
+    const QStringList orderedModes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
     bool hasAnyModeResult = false;
     for (const QString& mode : orderedModes) {
         auto it = lastModeResults_.find(mode);
@@ -1280,7 +1293,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
     }
 
     if (!hasAnyModeResult) {
-        summary += "No mode runs have been recorded yet.<br/>";
+        summary += "No approach runs have been recorded yet.<br/>";
     }
 
     perfSummaryText_->setHtml(summary);
@@ -1440,7 +1453,7 @@ void HydroPINNWindow::runSelectedMode() {
 }
 
 void HydroPINNWindow::runAllModes() {
-    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
     for (const QString& m : modes) {
         runMode(m);
     }
@@ -1448,7 +1461,7 @@ void HydroPINNWindow::runAllModes() {
 
 void HydroPINNWindow::showPredictionForMode(const QString& mode) {
     if (predictionUseCurrentDataCheck_->isChecked()) {
-        appendLog(QString("Prediction is set to current data settings; re-running mode '%1'.").arg(modeDisplayName(mode)));
+        appendLog(QString("Prediction is set to current data settings; re-running approach '%1'.").arg(modeDisplayName(mode)));
         runMode(mode);
         predictionUseCurrentDataCheck_->setChecked(false);
         appendLog("Prediction re-run mode auto-disabled after one execution to prevent repeated retraining loops.");
@@ -1457,14 +1470,14 @@ void HydroPINNWindow::showPredictionForMode(const QString& mode) {
 
     const auto it = lastModeResults_.find(mode);
     if (it == lastModeResults_.end()) {
-        appendLog(QString("No stored prediction available for mode '%1'. Run training first.").arg(modeDisplayName(mode)));
+        appendLog(QString("No stored prediction available for approach '%1'. Run training first.").arg(modeDisplayName(mode)));
         QMessageBox::information(this,
                                  "HydroPINN Prediction",
-                                 QString("No stored result for mode '%1'.\nRun it from Training tab first.").arg(modeDisplayName(mode)));
+                                 QString("No stored result for approach '%1'.\nTrain it from the Training tab first.").arg(modeDisplayName(mode)));
         return;
     }
     updatePlot(mode, it->second);
-    appendLog(QString("Displayed stored target vs prediction for mode '%1'.").arg(modeDisplayName(mode)));
+    appendLog(QString("Displayed stored target vs prediction for approach '%1'.").arg(modeDisplayName(mode)));
 }
 
 void HydroPINNWindow::showSelectedPrediction() {
@@ -1473,17 +1486,17 @@ void HydroPINNWindow::showSelectedPrediction() {
 
 void HydroPINNWindow::showAllPredictions() {
     if (predictionUseCurrentDataCheck_->isChecked()) {
-        appendLog("Prediction is set to current data settings; re-running all modes.");
+        appendLog("Prediction is set to current data settings; re-running all approaches.");
         runAllModes();
         predictionUseCurrentDataCheck_->setChecked(false);
         appendLog("Prediction re-run mode auto-disabled after one execution to prevent repeated retraining loops.");
         return;
     }
 
-    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
     for (const QString& mode : modes) {
         if (lastModeResults_.find(mode) == lastModeResults_.end()) {
-            appendLog(QString("Skipping mode '%1' (no stored prediction yet).").arg(modeDisplayName(mode)));
+            appendLog(QString("Skipping approach '%1' (no stored prediction yet).").arg(modeDisplayName(mode)));
             continue;
         }
         updatePlot(mode, lastModeResults_[mode]);
@@ -1538,7 +1551,7 @@ void HydroPINNWindow::updatePlot(const QString& mode, const HydroRunResult& resu
 
 
 void HydroPINNWindow::plotAllTargetVsPredicted() {
-    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
     auto* chart = chartView_->chart();
     chart->removeAllSeries();
     const auto existingAxes = chart->axes();
@@ -1547,8 +1560,8 @@ void HydroPINNWindow::plotAllTargetVsPredicted() {
     bool addedAny = false;
     bool targetAdded = false;
 
-    const QList<QColor> modeColors = {QColor(30, 144, 255), QColor(220, 20, 60), QColor(46, 139, 87), QColor(255, 140, 0)};
-    const QList<Qt::PenStyle> modeStyles = {Qt::SolidLine, Qt::DashLine, Qt::DotLine, Qt::DashDotLine};
+    const QList<QColor> modeColors = {QColor(30, 144, 255), QColor(220, 20, 60), QColor(86, 180, 233), QColor(46, 139, 87), QColor(255, 140, 0)};
+    const QList<Qt::PenStyle> modeStyles = {Qt::SolidLine, Qt::DashLine, Qt::DotLine, Qt::DashDotLine, Qt::DashDotDotLine};
 
     int modeIdx = 0;
     for (const QString& mode : modes) {
@@ -1584,7 +1597,7 @@ void HydroPINNWindow::plotAllTargetVsPredicted() {
     }
 
     if (!addedAny) {
-        appendLog("No stored mode results available for all-mode target/predicted plot.");
+        appendLog("No stored approach results available for all-mode target/predicted plot.");
         return;
     }
 
@@ -1598,17 +1611,18 @@ void HydroPINNWindow::plotAllTargetVsPredicted() {
         series->attachAxis(axisX);
         series->attachAxis(axisY);
     }
-    chart->setTitle("Target vs Predicted (All Modes)");
+    chart->setTitle("Target vs Predicted (All Approaches)");
     chart->legend()->setVisible(true);
     fitPlotAxesInternal(false);
-    appendLog("Displayed target vs predicted curves for all stored modes (styled per mode for overlap visibility).");
+    appendLog("Displayed target vs predicted curves for all stored approaches (styled per mode for overlap visibility).");
 }
 
 void HydroPINNWindow::plotOneToOneAllModes() {
-    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
     const QList<QColor> modeColors = {
         QColor(0, 114, 178),  // blue
         QColor(213, 94, 0),   // vermillion
+        QColor(86, 180, 233), // sky blue
         QColor(0, 158, 115),  // bluish green
         QColor(204, 121, 167) // purple
     };
@@ -1655,7 +1669,7 @@ void HydroPINNWindow::plotOneToOneAllModes() {
     }
 
     if (!addedAny) {
-        appendLog("No stored mode results available for 1:1 target/predicted plot.");
+        appendLog("No stored approach results available for 1:1 target/predicted plot.");
         return;
     }
 
@@ -1680,17 +1694,18 @@ void HydroPINNWindow::plotOneToOneAllModes() {
         series->attachAxis(axisX);
         series->attachAxis(axisY);
     }
-    chart->setTitle("1:1 Target vs Predicted (All Modes)");
+    chart->setTitle("1:1 Target vs Predicted (All Approaches)");
     chart->legend()->setVisible(true);
     fitPlotAxesInternal(false);
-    appendLog("Displayed 1:1 target vs predicted scatter plot for all stored modes (R² shown in legend).");
+    appendLog("Displayed 1:1 target vs predicted scatter plot for all stored approaches (R² shown in legend).");
 }
 
 void HydroPINNWindow::plotTaylorDiagramAllModes() {
-    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
     const QList<QColor> modeColors = {
         QColor(0, 114, 178),
         QColor(213, 94, 0),
+        QColor(86, 180, 233),
         QColor(0, 158, 115),
         QColor(204, 121, 167)
     };
@@ -1754,7 +1769,7 @@ void HydroPINNWindow::plotTaylorDiagramAllModes() {
     }
 
     if (!haveReference || points.empty()) {
-        appendLog("No stored mode results available for Taylor diagram.");
+        appendLog("No stored approach results available for Taylor diagram.");
         return;
     }
 
@@ -1838,17 +1853,18 @@ void HydroPINNWindow::plotTaylorDiagramAllModes() {
         series->attachAxis(axisY);
     }
 
-    chart->setTitle("Taylor Diagram (All Modes)");
+    chart->setTitle("Taylor Diagram (All Approaches)");
     chart->legend()->setVisible(true);
     fitPlotAxesInternal(false);
-    appendLog(QString("Displayed Taylor diagram for all stored modes (adaptive σ-circles=%1, high-contrast colors).").arg(ringCount));
+    appendLog(QString("Displayed Taylor diagram for all stored approaches (adaptive σ-circles=%1, high-contrast colors).").arg(ringCount));
 }
 void HydroPINNWindow::showModeSubplots() {
-    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
-    const QStringList titles = {"FFN", "FFN + PINN", "LSTM", "LSTM + PINN"};
+    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
+    const QStringList titles = {"FFN", "FFN + PINN", "PINN", "LSTM", "LSTM + PINN"};
     const QList<QColor> modeColors = {
         QColor(0, 114, 178),
         QColor(213, 94, 0),
+        QColor(86, 180, 233),
         QColor(0, 158, 115),
         QColor(204, 121, 167)
     };
@@ -1857,6 +1873,9 @@ void HydroPINNWindow::showModeSubplots() {
     chart->removeAllSeries();
     const auto existingAxes = chart->axes();
     for (QAbstractAxis* axis : existingAxes) { chart->removeAxis(axis); delete axis; }
+
+    const int subplotColumns = 2;
+    const int subplotRows = (modes.size() + subplotColumns - 1) / subplotColumns;
 
     int plotted = 0;
     for (int i = 0; i < modes.size(); ++i) {
@@ -1892,10 +1911,10 @@ void HydroPINNWindow::showModeSubplots() {
         }
         const double span = std::max(1e-9, maxV - minV);
 
-        const int row = i / 2;
-        const int col = i % 2;
+        const int row = i / subplotColumns;
+        const int col = i % subplotColumns;
         const double panelX0 = static_cast<double>(col);
-        const double panelY0 = static_cast<double>(1 - row); // top row -> y in [1,2]
+        const double panelY0 = static_cast<double>(subplotRows - 1 - row); // top row has highest y band
 
         auto mapCoord = [&](double v) {
             const double nv = (v - minV) / span;
@@ -1937,34 +1956,38 @@ void HydroPINNWindow::showModeSubplots() {
     }
 
     if (plotted == 0) {
-        appendLog("No stored mode results available for 4-mode subplots.");
+        appendLog("No stored approach results available for approach subplots.");
         return;
     }
 
-    auto* splitV = new QLineSeries(chart);
-    splitV->setName("__split_v");
-    splitV->append(1.0, 0.0);
-    splitV->append(1.0, 2.0);
     QPen splitPen(QColor(140, 140, 140));
     splitPen.setWidth(2);
-    splitV->setPen(splitPen);
-    chart->addSeries(splitV);
 
-    auto* splitH = new QLineSeries(chart);
-    splitH->setName("__split_h");
-    splitH->append(0.0, 1.0);
-    splitH->append(2.0, 1.0);
-    splitH->setPen(splitPen);
-    chart->addSeries(splitH);
+    for (int col = 1; col < subplotColumns; ++col) {
+        auto* splitV = new QLineSeries(chart);
+        splitV->setName(QString("__split_v_%1").arg(col));
+        splitV->append(static_cast<double>(col), 0.0);
+        splitV->append(static_cast<double>(col), static_cast<double>(subplotRows));
+        splitV->setPen(splitPen);
+        chart->addSeries(splitV);
+    }
+    for (int row = 1; row < subplotRows; ++row) {
+        auto* splitH = new QLineSeries(chart);
+        splitH->setName(QString("__split_h_%1").arg(row));
+        splitH->append(0.0, static_cast<double>(row));
+        splitH->append(static_cast<double>(subplotColumns), static_cast<double>(row));
+        splitH->setPen(splitPen);
+        chart->addSeries(splitH);
+    }
 
     auto* axisX = new QValueAxis(chart);
     axisX->setTitleText("Subplot canvas (Target → within each panel)");
-    axisX->setRange(0.0, 2.0);
-    axisX->setTickCount(3);
+    axisX->setRange(0.0, static_cast<double>(subplotColumns));
+    axisX->setTickCount(subplotColumns + 1);
     auto* axisY = new QValueAxis(chart);
     axisY->setTitleText("Subplot canvas (Predicted → within each panel)");
-    axisY->setRange(0.0, 2.0);
-    axisY->setTickCount(3);
+    axisY->setRange(0.0, static_cast<double>(subplotRows));
+    axisY->setTickCount(subplotRows + 1);
 
     chart->addAxis(axisX, Qt::AlignBottom);
     chart->addAxis(axisY, Qt::AlignLeft);
@@ -1976,17 +1999,17 @@ void HydroPINNWindow::showModeSubplots() {
         }
     }
 
-    chart->setTitle("4-Mode Subplots (1:1 Target vs Predicted, same Plot tab)");
+    chart->setTitle("Approach Subplots (1:1 Target vs Predicted, same Plot tab)");
     chart->legend()->setVisible(true);
-    appendLog(QString("Displayed 2x2 subplots on main Plot tab (%1/%2 modes with data).")
+    appendLog(QString("Displayed approach subplots on main Plot tab (%1/%2 approaches with data).")
                   .arg(plotted)
                   .arg(modes.size()));
 }
 
 void HydroPINNWindow::plotResidualsAllModes() {
-    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
-    const QList<QColor> modeColors = {QColor(0, 114, 178), QColor(213, 94, 0), QColor(0, 158, 115), QColor(204, 121, 167)};
-    const QList<Qt::PenStyle> modeStyles = {Qt::SolidLine, Qt::DashLine, Qt::DotLine, Qt::DashDotLine};
+    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
+    const QList<QColor> modeColors = {QColor(0, 114, 178), QColor(213, 94, 0), QColor(86, 180, 233), QColor(0, 158, 115), QColor(204, 121, 167)};
+    const QList<Qt::PenStyle> modeStyles = {Qt::SolidLine, Qt::DashLine, Qt::DotLine, Qt::DashDotLine, Qt::DashDotDotLine};
 
     auto* chart = chartView_->chart();
     chart->removeAllSeries();
@@ -2017,7 +2040,7 @@ void HydroPINNWindow::plotResidualsAllModes() {
     }
 
     if (!addedAny) {
-        appendLog("No stored mode results available for residual plot.");
+        appendLog("No stored approach results available for residual plot.");
         return;
     }
 
@@ -2040,7 +2063,7 @@ void HydroPINNWindow::plotResidualsAllModes() {
         series->attachAxis(axisX);
         series->attachAxis(axisY);
     }
-    chart->setTitle("Residuals vs t (All Modes)");
+    chart->setTitle("Residuals vs t (All Approaches)");
     chart->legend()->setVisible(true);
     fitPlotAxesInternal(false);
 
@@ -2048,13 +2071,13 @@ void HydroPINNWindow::plotResidualsAllModes() {
     zero->append(axisX->min(), 0.0);
     zero->append(axisX->max(), 0.0);
 
-    appendLog("Displayed residual-vs-time plot for all stored modes.");
+    appendLog("Displayed residual-vs-time plot for all stored approaches.");
 }
 
 void HydroPINNWindow::plotErrorCdfAllModes() {
-    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn"};
-    const QList<QColor> modeColors = {QColor(0, 114, 178), QColor(213, 94, 0), QColor(0, 158, 115), QColor(204, 121, 167)};
-    const QList<Qt::PenStyle> modeStyles = {Qt::SolidLine, Qt::DashLine, Qt::DotLine, Qt::DashDotLine};
+    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
+    const QList<QColor> modeColors = {QColor(0, 114, 178), QColor(213, 94, 0), QColor(86, 180, 233), QColor(0, 158, 115), QColor(204, 121, 167)};
+    const QList<Qt::PenStyle> modeStyles = {Qt::SolidLine, Qt::DashLine, Qt::DotLine, Qt::DashDotLine, Qt::DashDotDotLine};
 
     auto* chart = chartView_->chart();
     chart->removeAllSeries();
@@ -2093,7 +2116,7 @@ void HydroPINNWindow::plotErrorCdfAllModes() {
     }
 
     if (!addedAny) {
-        appendLog("No stored mode results available for |error| CDF plot.");
+        appendLog("No stored approach results available for |error| CDF plot.");
         return;
     }
 
@@ -2109,21 +2132,21 @@ void HydroPINNWindow::plotErrorCdfAllModes() {
         series->attachAxis(axisY);
     }
 
-    chart->setTitle("Absolute Error CDF (All Modes)");
+    chart->setTitle("Absolute Error CDF (All Approaches)");
     chart->legend()->setVisible(true);
     fitPlotAxesInternal(false);
-    appendLog("Displayed |error| CDF plot for all stored modes.");
+    appendLog("Displayed |error| CDF plot for all stored approaches.");
 }
 
 void HydroPINNWindow::runMode(const QString& mode) {
-    appendLog(QString("Starting mode: %1").arg(mode));
+    appendLog(QString("Starting approach: %1").arg(modeDisplayName(mode)));
     static bool modeImplementationNoteLogged = false;
     if (!modeImplementationNoteLogged) {
-        appendLog("Mode implementation note: Hydro wrappers are local implementations; NeuroForge labels are workflow-compatible naming.");
+        appendLog("Approach implementation note: Hydro wrappers are local implementations; NeuroForge labels are workflow-compatible naming.");
         modeImplementationNoteLogged = true;
     }
     setRunningUiState(true);
-    statusLabel_->setText(QString("Running mode: %1 ...").arg(mode));
+    statusLabel_->setText(QString("Running approach: %1 ...").arg(modeDisplayName(mode)));
     appendLog("Dispatch started.");
 
     HydroRunConfig cfg = currentConfig();
@@ -2156,7 +2179,7 @@ void HydroPINNWindow::runMode(const QString& mode) {
                       .arg(cfg.sample_count)
                       .arg(cfg.t_start, 0, 'g', 6)
                       .arg(cfg.t_end, 0, 'g', 6));
-        if (mode == "ffn_pinn" || mode == "lstm_pinn") {
+        if (mode == "ffn_pinn" || mode == "pinn" || mode == "lstm_pinn") {
             if (cfg.pinn_physics_profile == "exp_decay" && cfg.synthetic_profile != "exp_decay") {
                 appendLog("Note: selected PINN profile is exp_decay; non-exp synthetic targets may reduce physics consistency.");
             }
@@ -2172,12 +2195,15 @@ void HydroPINNWindow::runMode(const QString& mode) {
                   .arg(QString::fromStdString(cfg.normalization))
                   .arg(cfg.use_incremental_training ? "yes" : "no"));
     const bool ffnStyleApplies = (mode == "ffn" || mode == "ffn_pinn");
-    appendLog(QString("Network options => hidden_layers=%1, input_lag_steps=%2, ffn_input_style=%3, activation=%4")
+    const QString inputStyle = ffnStyleApplies
+        ? (cfg.use_time_lagged_ffn ? "time-lagged" : "basic")
+        : (mode == "pinn" ? "physics-coordinate input" : "ignored for LSTM");
+    appendLog(QString("Network options => hidden_layers=%1, input_lag_steps=%2, input_style=%3, activation=%4")
                   .arg(QString::fromStdString(cfg.hidden_layers_csv))
                   .arg(QString::fromStdString(cfg.input_lags_csv))
-                  .arg(ffnStyleApplies ? (cfg.use_time_lagged_ffn ? "time-lagged" : "basic") : "ignored for LSTM")
+                  .arg(inputStyle)
                   .arg(QString::fromStdString(cfg.activation)));
-    if (mode == "ffn_pinn" || mode == "lstm_pinn") {
+    if (mode == "ffn_pinn" || mode == "pinn" || mode == "lstm_pinn") {
         appendLog(QString("PINN physics => profile=%1, forcing_gain=%2, collocation=%3")
                       .arg(QString::fromStdString(cfg.pinn_physics_profile))
                       .arg(cfg.forcing_gain, 0, 'g', 6)
@@ -2199,6 +2225,13 @@ void HydroPINNWindow::runMode(const QString& mode) {
         } else if (mode == "ffn_pinn") {
             FFNPINNWrapper runner;
             result = runner.train(cfg);
+        } else if (mode == "pinn") {
+            cfg.use_time_lagged_ffn = false;
+            cfg.data_weight = 0.0;
+            cfg.physics_weight = std::max(1.0, cfg.physics_weight);
+            appendLog("Standalone PINN uses physics-only loss (data_weight=0) with the feed-forward PINN backend.");
+            FFNPINNWrapper runner;
+            result = runner.train(cfg);
         } else if (mode == "lstm") {
             LSTMWrapper runner;
             result = runner.train(cfg);
@@ -2207,7 +2240,7 @@ void HydroPINNWindow::runMode(const QString& mode) {
             result = runner.train(cfg);
         } else {
             result.success = false;
-            errorDetails = QString("Unknown mode selected: %1").arg(mode);
+            errorDetails = QString("Unknown approach selected: %1").arg(modeDisplayName(mode));
         }
     } catch (const std::exception& e) {
         result.success = false;
@@ -2219,8 +2252,8 @@ void HydroPINNWindow::runMode(const QString& mode) {
 
     const qint64 elapsedMs = timer.elapsed();
     if (result.success) {
-        statusLabel_->setText(QString("Completed mode: %1 (%2 ms)").arg(mode).arg(elapsedMs));
-        appendLog(QString("Mode '%1' finished successfully in %2 ms.").arg(mode).arg(elapsedMs));
+        statusLabel_->setText(QString("Completed approach: %1 (%2 ms)").arg(modeDisplayName(mode)).arg(elapsedMs));
+        appendLog(QString("Approach '%1' finished successfully in %2 ms.").arg(modeDisplayName(mode)).arg(elapsedMs));
         appendLog(QString("  final_loss=%1, mse=%2, msg=%3")
                       .arg(result.final_loss, 0, 'g', 8)
                       .arg(result.mse, 0, 'g', 8)
@@ -2229,14 +2262,14 @@ void HydroPINNWindow::runMode(const QString& mode) {
         updatePlot(mode, result);
         refreshPerformanceAssessment();
     } else {
-        statusLabel_->setText(QString("Mode failed: %1").arg(mode));
-        appendLog(QString("Mode '%1' failed.").arg(mode));
+        statusLabel_->setText(QString("Approach failed: %1").arg(modeDisplayName(mode)));
+        appendLog(QString("Approach '%1' failed.").arg(modeDisplayName(mode)));
         if (!errorDetails.isEmpty()) {
             appendLog(QString("Failure details: %1").arg(errorDetails));
         }
         QMessageBox::warning(this, "HydroPINN",
-                             QString("Mode '%1' failed.%2")
-                                 .arg(mode)
+                             QString("Approach '%1' failed.%2")
+                                 .arg(modeDisplayName(mode))
                                  .arg(errorDetails.isEmpty() ? "" : QString("\n\n%1").arg(errorDetails)));
     }
 
