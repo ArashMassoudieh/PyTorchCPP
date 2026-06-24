@@ -1,5 +1,10 @@
 # PyTorchCPP
 
+## HydroPINN approaches
+
+See [`Hydro/APPROACHES.md`](Hydro/APPROACHES.md) for a concise description of the five HydroPINN approaches: FFN, FFN + PINN, LSTM, LSTM + PINN, and standalone PINN.
+
+
 ## PINN progress
 
 `NeuralNetworkWrapper` now includes a PINN-oriented training method for the
