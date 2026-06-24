@@ -134,6 +134,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     modeCombo_->addItem("PINN (physics-first)", "pinn");
     modeCombo_->addItem("LSTM", "lstm");
     modeCombo_->addItem("LSTM + PINN", "lstm_pinn");
+    modeCombo_->addItem("PINN (physics-first)", "pinn");
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
     dataSourceCombo_->addItems({"Synthetic", "CSV File"});
     profileCombo_->addItems({"exp_decay", "damped_sine", "mixed_wave", "neuroforge_inputs_target", "rainfall_runoff"});
@@ -1282,7 +1283,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           .arg(cfg.reset_optimizer_on_new_window ? "yes" : "no");
 
     summary += "<br/><br/><b>Latest Approach Results</b><br/>";
-    const QStringList orderedModes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
+    const QStringList orderedModes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn"};
     bool hasAnyModeResult = false;
     for (const QString& mode : orderedModes) {
         auto it = lastModeResults_.find(mode);
@@ -1467,7 +1468,7 @@ void HydroPINNWindow::runSelectedMode() {
 }
 
 void HydroPINNWindow::runAllModes() {
-    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn"};
     for (const QString& m : modes) {
         runMode(m);
     }
@@ -1507,7 +1508,7 @@ void HydroPINNWindow::showAllPredictions() {
         return;
     }
 
-    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn"};
     for (const QString& mode : modes) {
         if (lastModeResults_.find(mode) == lastModeResults_.end()) {
             appendLog(QString("Skipping approach '%1' (no stored prediction yet).").arg(modeDisplayName(mode)));
@@ -1565,7 +1566,7 @@ void HydroPINNWindow::updatePlot(const QString& mode, const HydroRunResult& resu
 
 
 void HydroPINNWindow::plotAllTargetVsPredicted() {
-    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn"};
     auto* chart = chartView_->chart();
     chart->removeAllSeries();
     const auto existingAxes = chart->axes();
@@ -1632,7 +1633,7 @@ void HydroPINNWindow::plotAllTargetVsPredicted() {
 }
 
 void HydroPINNWindow::plotOneToOneAllModes() {
-    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn"};
     const QList<QColor> modeColors = {
         QColor(0, 114, 178),  // blue
         QColor(213, 94, 0),   // vermillion
@@ -1715,7 +1716,7 @@ void HydroPINNWindow::plotOneToOneAllModes() {
 }
 
 void HydroPINNWindow::plotTaylorDiagramAllModes() {
-    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn"};
     const QList<QColor> modeColors = {
         QColor(0, 114, 178),
         QColor(213, 94, 0),
@@ -1873,8 +1874,8 @@ void HydroPINNWindow::plotTaylorDiagramAllModes() {
     appendLog(QString("Displayed Taylor diagram for all stored approaches (adaptive σ-circles=%1, high-contrast colors).").arg(ringCount));
 }
 void HydroPINNWindow::showModeSubplots() {
-    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
-    const QStringList titles = {"FFN", "FFN + PINN", "PINN", "LSTM", "LSTM + PINN"};
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn"};
+    const QStringList titles = {"FFN", "FFN + PINN", "LSTM", "LSTM + PINN", "PINN"};
     const QList<QColor> modeColors = {
         QColor(0, 114, 178),
         QColor(213, 94, 0),
@@ -2021,7 +2022,7 @@ void HydroPINNWindow::showModeSubplots() {
 }
 
 void HydroPINNWindow::plotResidualsAllModes() {
-    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn"};
     const QList<QColor> modeColors = {QColor(0, 114, 178), QColor(213, 94, 0), QColor(86, 180, 233), QColor(0, 158, 115), QColor(204, 121, 167)};
     const QList<Qt::PenStyle> modeStyles = {Qt::SolidLine, Qt::DashLine, Qt::DotLine, Qt::DashDotLine, Qt::DashDotDotLine};
 
@@ -2089,7 +2090,7 @@ void HydroPINNWindow::plotResidualsAllModes() {
 }
 
 void HydroPINNWindow::plotErrorCdfAllModes() {
-    const QStringList modes = {"ffn", "ffn_pinn", "pinn", "lstm", "lstm_pinn"};
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn"};
     const QList<QColor> modeColors = {QColor(0, 114, 178), QColor(213, 94, 0), QColor(86, 180, 233), QColor(0, 158, 115), QColor(204, 121, 167)};
     const QList<Qt::PenStyle> modeStyles = {Qt::SolidLine, Qt::DashLine, Qt::DotLine, Qt::DashDotLine, Qt::DashDotDotLine};
 
