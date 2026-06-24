@@ -91,6 +91,7 @@ private:
     QPushButton* runAllPredictionButton_;
     QPushButton* runPredictionFFNButton_;
     QPushButton* runPredictionFFNPINNButton_;
+    QPushButton* runPredictionPINNButton_;
     QPushButton* runPredictionLSTMButton_;
     QPushButton* runPredictionLSTMPINNButton_;
     QCheckBox* predictionUseCurrentDataCheck_;
@@ -98,6 +99,7 @@ private:
     QPushButton* runAllTrainingButton_;
     QPushButton* runTrainingFFNButton_;
     QPushButton* runTrainingFFNPINNButton_;
+    QPushButton* runTrainingPINNButton_;
     QPushButton* runTrainingLSTMButton_;
     QPushButton* runTrainingLSTMPINNButton_;
     QSpinBox* gaLagCandidatesSpin_;
