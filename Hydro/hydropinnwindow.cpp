@@ -887,8 +887,10 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
             const double et = std::max(0.0, 0.06 * (temp + 3.0) * (0.6 + 0.4 * std::sin(kPi * r)));
             const double impervious = 0.12 + 0.10 * std::sin(2.0 * kPi * r + 0.5);
             const double effectivePrecip = rain + snowmelt;
-            const double infiltration = std::min(effectivePrecip * (0.55 + 0.20 * std::sin(2.0 * kPi * r - 0.3)), std::max(0.0, 30.0 - soil));
-            const double quickRunoff = effectivePrecip * std::max(0.0, impervious) + std::max(0.0, effectivePrecip - infiltration) * 0.45;
+            const double perviousFraction = std::max(0.0, 1.0 - impervious);
+            const double infiltrationCapacity = effectivePrecip * perviousFraction * (0.55 + 0.20 * std::sin(2.0 * kPi * r - 0.3));
+            const double infiltration = std::min(infiltrationCapacity, std::max(0.0, 30.0 - soil));
+            const double quickRunoff = std::max(0.0, effectivePrecip - infiltration);
             const double recharge = 0.10 * soil;
             const double baseflow = 0.045 * groundwater;
             const double lateralFlow = 0.035 * soil;
@@ -896,6 +898,9 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
             soil = std::max(0.0, soil + (infiltration - et - recharge - lateralFlow) * dt);
             groundwater = std::max(0.0, groundwater + (recharge - baseflow) * dt);
 
+            // The water-balance PINN residual uses total watershed storage
+            // (soil + groundwater), so runoff is generated conservatively as
+            // P - ET - dS_total/dt.
             xs.push_back(t);
             rainfall.push_back(effectivePrecip);
             evapotranspiration.push_back(et);
@@ -965,6 +970,12 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
         lastSyntheticInputs_["soil_storage"] = soilStorage;
         if (profile == "watershed_balance") {
             lastSyntheticInputs_["groundwater_storage"] = groundwaterStorage;
+            std::vector<double> totalStorage;
+            totalStorage.reserve(soilStorage.size());
+            for (size_t i = 0; i < soilStorage.size(); ++i) {
+                totalStorage.push_back(soilStorage[i] + groundwaterStorage[i]);
+            }
+            lastSyntheticInputs_["total_storage"] = totalStorage;
             lastSyntheticInputs_["impervious_fraction"] = imperviousFraction;
         }
     } else {
@@ -1006,7 +1017,7 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
             }
         } else if (profile == "watershed_balance" || profile == "rainfall_runoff") {
             if (profile == "watershed_balance") {
-                out << "t,effective_precipitation,evapotranspiration,temperature,soil_storage,groundwater_storage,impervious_fraction,runoff\n";
+                out << "t,effective_precipitation,evapotranspiration,temperature,soil_storage,groundwater_storage,total_storage,impervious_fraction,runoff\n";
             } else {
                 out << "t,rainfall,evapotranspiration,temperature,soil_storage,runoff\n";
             }
@@ -1019,6 +1030,7 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
                     << soilStorage[k] << ",";
                 if (profile == "watershed_balance") {
                     out << groundwaterStorage[k] << ","
+                        << (soilStorage[k] + groundwaterStorage[k]) << ","
                         << imperviousFraction[k] << ",";
                 }
                 out << ys[k] << "\n";
@@ -1061,7 +1073,7 @@ int HydroPINNWindow::estimatedFfnInputCountForLagSearch(const HydroRunConfig& cf
         return (mode == "ffn_pinn") ? 6 : 5;
     }
     if (cfg.synthetic_profile == "watershed_balance") {
-        return 7;
+        return (mode == "ffn_pinn") ? 8 : 7;
     }
     if (cfg.synthetic_profile == "rainfall_runoff") {
         return 5;
@@ -1393,7 +1405,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           .arg(cfg.pinn_collocation_points)
                           .arg(QString::fromStdString(cfg.hidden_layers_csv))
                           .arg(QString::fromStdString(cfg.input_lags_csv))
-                          .arg((selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn") ? (cfg.use_time_lagged_ffn ? "time-lagged" : "basic") : (selectedModeKey() == "pinn" ? "physics-coordinate input" : "ignored for LSTM"))
+                          .arg((selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn") ? (cfg.use_time_lagged_ffn ? "time-lagged" : "basic") : (selectedModeKey() == "pinn" ? (cfg.pinn_physics_profile == "water_balance" ? "water-balance feature input" : "physics-coordinate input") : "ignored for LSTM"))
                           .arg(QString::fromStdString(cfg.activation))
                           .arg(cfg.train_split_ratio, 0, 'g', 4)
                           .arg(cfg.shuffle_training ? "yes" : "no")
@@ -2338,7 +2350,7 @@ void HydroPINNWindow::runMode(const QString& mode) {
     const bool ffnStyleApplies = (mode == "ffn" || mode == "ffn_pinn");
     const QString inputStyle = ffnStyleApplies
         ? (cfg.use_time_lagged_ffn ? "time-lagged" : "basic")
-        : (mode == "pinn" ? "physics-coordinate input" : "ignored for LSTM");
+        : (mode == "pinn" ? (cfg.pinn_physics_profile == "water_balance" ? "water-balance feature input" : "physics-coordinate input") : "ignored for LSTM");
     appendLog(QString("Network options => hidden_layers=%1, input_lag_steps=%2, input_style=%3, activation=%4")
                   .arg(QString::fromStdString(cfg.hidden_layers_csv))
                   .arg(QString::fromStdString(cfg.input_lags_csv))
@@ -2370,7 +2382,9 @@ void HydroPINNWindow::runMode(const QString& mode) {
             cfg.use_time_lagged_ffn = false;
             cfg.data_weight = 0.0;
             cfg.physics_weight = std::max(1.0, cfg.physics_weight);
-            appendLog("Standalone PINN uses physics-only loss (data_weight=0) with the feed-forward PINN backend.");
+            appendLog(cfg.pinn_physics_profile == "water_balance"
+                          ? "Standalone PINN uses physics-only water-balance loss with P/ET/total-storage features."
+                          : "Standalone PINN uses physics-only loss (data_weight=0) with the feed-forward PINN backend.");
             FFNPINNWrapper runner;
             result = runner.train(cfg);
         } else if (mode == "lstm") {

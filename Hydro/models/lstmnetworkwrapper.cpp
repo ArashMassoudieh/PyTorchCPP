@@ -237,8 +237,10 @@ void buildSyntheticSeries(const HydroRunConfig& config,
             const double evapotranspiration = std::max(0.0, 0.06 * (temperature + 3.0) * (0.6 + 0.4 * std::sin(kPi * r)));
             const double imperviousFraction = 0.12 + 0.10 * std::sin(2.0 * kPi * r + 0.5);
             const double effectivePrecip = rainfall + snowmelt;
-            const double infiltration = std::min(effectivePrecip * (0.55 + 0.20 * std::sin(2.0 * kPi * r - 0.3)), std::max(0.0, 30.0 - soilStorage));
-            const double quickRunoff = effectivePrecip * std::max(0.0, imperviousFraction) + std::max(0.0, effectivePrecip - infiltration) * 0.45;
+            const double perviousFraction = std::max(0.0, 1.0 - imperviousFraction);
+            const double infiltrationCapacity = effectivePrecip * perviousFraction * (0.55 + 0.20 * std::sin(2.0 * kPi * r - 0.3));
+            const double infiltration = std::min(infiltrationCapacity, std::max(0.0, 30.0 - soilStorage));
+            const double quickRunoff = std::max(0.0, effectivePrecip - infiltration);
             const double recharge = 0.10 * soilStorage;
             const double baseflow = 0.045 * groundwaterStorage;
             const double lateralFlow = 0.035 * soilStorage;
@@ -449,8 +451,12 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
             torch::Tensor lastStep = xTrain.select(1, xTrain.size(1) - 1);
             torch::Tensor rain = lastStep.slice(1, 1, 2).slice(0, 1, lastStep.size(0));
             torch::Tensor et = lastStep.slice(1, 2, 3).slice(0, 1, lastStep.size(0));
-            torch::Tensor storageNow = lastStep.slice(1, 4, 5).slice(0, 1, lastStep.size(0));
-            torch::Tensor storagePrev = lastStep.slice(1, 4, 5).slice(0, 0, lastStep.size(0) - 1);
+            torch::Tensor storageSeries = lastStep.slice(1, 4, 5);
+            if (config.synthetic_profile == "watershed_balance" && lastStep.size(1) >= 6) {
+                storageSeries = storageSeries + lastStep.slice(1, 5, 6);
+            }
+            torch::Tensor storageNow = storageSeries.slice(0, 1, lastStep.size(0));
+            torch::Tensor storagePrev = storageSeries.slice(0, 0, lastStep.size(0) - 1);
             torch::Tensor dSdt = (storageNow - storagePrev) / dt;
             residual = rain - et - yMid - dSdt;
         } else if (needsForcing) {

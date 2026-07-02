@@ -39,14 +39,14 @@ losses before field data are connected:
 
 - `watershed_balance`: the primary watershed stress test with effective
   precipitation, evapotranspiration, temperature, soil storage, groundwater
-  storage, impervious fraction, and runoff. The generator combines storm pulses,
+  storage, total storage, impervious fraction, and runoff. The generator combines storm pulses,
   snowmelt contribution, infiltration, soil-to-groundwater recharge, baseflow,
   lateral flow, and impervious quickflow.
 - `rainfall_runoff`: the smaller event-scale rainfall, evapotranspiration,
   temperature, soil storage, and runoff baseline.
 
 For `water_balance`, the PINN residual reads the first mass-balance columns as
-\(P\), \(ET\), predicted runoff \(Q_\theta\), and storage \(S\):
+\(P\), \(ET\), predicted runoff \(Q_\theta\), and total watershed storage \(S\):
 
 \[
 r_\theta(t) = P(t) - ET(t) - Q_\theta(t) - \frac{dS}{dt}.

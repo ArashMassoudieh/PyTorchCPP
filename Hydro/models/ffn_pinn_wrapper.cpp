@@ -310,8 +310,10 @@ void buildSyntheticSeries(const HydroRunConfig& config, torch::Tensor& x, torch:
             const double evapotranspiration = std::max(0.0, 0.06 * (temperature + 3.0) * (0.6 + 0.4 * std::sin(kPi * r)));
             const double imperviousFraction = 0.12 + 0.10 * std::sin(2.0 * kPi * r + 0.5);
             const double effectivePrecip = rainfall + snowmelt;
-            const double infiltration = std::min(effectivePrecip * (0.55 + 0.20 * std::sin(2.0 * kPi * r - 0.3)), std::max(0.0, 30.0 - soilStorage));
-            const double quickRunoff = effectivePrecip * std::max(0.0, imperviousFraction) + std::max(0.0, effectivePrecip - infiltration) * 0.45;
+            const double perviousFraction = std::max(0.0, 1.0 - imperviousFraction);
+            const double infiltrationCapacity = effectivePrecip * perviousFraction * (0.55 + 0.20 * std::sin(2.0 * kPi * r - 0.3));
+            const double infiltration = std::min(infiltrationCapacity, std::max(0.0, 30.0 - soilStorage));
+            const double quickRunoff = std::max(0.0, effectivePrecip - infiltration);
             const double recharge = 0.10 * soilStorage;
             const double baseflow = 0.045 * groundwaterStorage;
             const double lateralFlow = 0.035 * soilStorage;
@@ -449,6 +451,17 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
 
     ensureForcingColumnsForPINN(config, x, y);
 
+    int waterBalanceStorageCol = 4;
+    if (config.pinn_physics_profile == "water_balance" &&
+        config.synthetic_profile == "watershed_balance" &&
+        x.defined() && x.dim() == 2 && x.size(1) >= 6) {
+        // watershed_balance keeps soil and groundwater as separate explanatory
+        // states. The conservation residual should use total catchment storage.
+        torch::Tensor totalStorage = x.slice(1, 4, 5) + x.slice(1, 5, 6);
+        x = torch::cat({x, totalStorage}, 1).contiguous();
+        waterBalanceStorageCol = static_cast<int>(x.size(1) - 1);
+    }
+
     const int inputDim = static_cast<int>(x.size(1));
     const std::vector<std::vector<int>> configuredLags = parseLagConfig(config.input_lags_csv, inputDim);
     if (config.use_time_lagged_ffn) {
@@ -476,7 +489,7 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
         // watershed_balance/rainfall_runoff columns start [normalized_time, effective precipitation, evapotranspiration, temperature, soil_storage].
         const int rainfallCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 1) : 1;
         const int etCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 2) : 2;
-        const int storageCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 4) : 4;
+        const int storageCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, waterBalanceStorageCol) : waterBalanceStorageCol;
         const double dt = 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1);
         losses = model.trainPINNWaterBalance(config.epochs,
                                              config.batch_size,

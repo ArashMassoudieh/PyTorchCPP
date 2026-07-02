@@ -28,12 +28,12 @@ water-balance experiments:
 
 | Synthetic profile | Columns / signals | PINN use |
 | --- | --- | --- |
-| `watershed_balance` | time, effective precipitation, evapotranspiration, temperature, soil storage, groundwater storage, impervious fraction, runoff target | Primary watershed scenario with storm pulses, snowmelt contribution, infiltration, soil storage, groundwater recharge/baseflow, quick runoff, and impervious-area runoff. |
+| `watershed_balance` | time, effective precipitation, evapotranspiration, temperature, soil storage, groundwater storage, total storage, impervious fraction, runoff target | Primary watershed scenario with storm pulses, snowmelt contribution, infiltration, soil storage, groundwater recharge/baseflow, quick runoff, and impervious-area runoff. |
 | `rainfall_runoff` | time, rainfall, evapotranspiration, temperature, soil storage, runoff target | Smaller event-scale rainfall-runoff baseline for mass-balance checks. |
 
 For `water_balance` PINN training, HydroPINN uses the leading watershed columns
 `[time, precipitation/effective precipitation, evapotranspiration, temperature,
-soil_storage, ...]` and applies a residual of the form `P - ET - Q - dS/dt`.
+total watershed storage, ...]` and applies a residual of the form `P - ET - Q - dS/dt`.
 Extra watershed columns remain available to the supervised model as explanatory
 features while the residual keeps a direct mass-balance interpretation.
 
