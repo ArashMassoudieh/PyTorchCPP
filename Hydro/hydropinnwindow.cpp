@@ -29,6 +29,7 @@
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QTextBrowser>
+#include <QTextDocument>
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -116,7 +117,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       plotResidualsButton_(new QPushButton("Residuals vs t (All)", this)),
       plotErrorCdfButton_(new QPushButton("|Error| CDF (All)", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
-    resize(1200, 760);
+    resize(1024, 700);
 
     auto* central = new QWidget(this);
     auto* scrollArea = new QScrollArea(this);
@@ -139,6 +140,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     profileCombo_->addItems({"watershed_balance", "rainfall_runoff", "neuroforge_inputs_target", "exp_decay", "damped_sine", "mixed_wave"});
 
     auto* tabs = new QTabWidget(central);
+    tabs->setUsesScrollButtons(true);
+    tabs->setElideMode(Qt::ElideRight);
 
     auto* dataTab = new QWidget(tabs);
     auto* dataForm = new QFormLayout(dataTab);
@@ -262,7 +265,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     networkLayout->addWidget(layerBuilderGroup);
     networkLayout->addWidget(lagsGroup);
     networkLayout->addStretch(1);
-    tabs->addTab(networkTab, "Network Structure");
+    tabs->addTab(networkTab, "Network");
 
     auto* trainTab = new QWidget(tabs);
     auto* trainForm = new QFormLayout(trainTab);
@@ -393,7 +396,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     auto* gaBox = new QGroupBox("GA Lag Optimization (FFN / FFN + PINN)", gaTab);
     auto* gaForm = new QFormLayout(gaBox);
     gaLagCandidatesSpin_->setRange(2, 10000);
-    gaLagCandidatesSpin_->setValue(250);
+    gaLagCandidatesSpin_->setValue(60);
     gaLagCandidatesSpin_->setToolTip("Evaluation budget for lag-set candidates; higher values improve search coverage but take longer.");
     gaMaxLagSpin_->setRange(1, 1000);
     gaMaxLagSpin_->setValue(5);
@@ -418,24 +421,27 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     performanceLayout->addWidget(refreshPerformanceButton_);
     perfSummaryText_->setPlaceholderText("Performance assessment summary appears here after runs.");
     performanceLayout->addWidget(perfSummaryText_, 1);
-    tabs->addTab(performanceTab, "Performance Assessment");
+    tabs->addTab(performanceTab, "Performance");
 
     auto* plotTab = new QWidget(tabs);
     auto* plotLayout = new QVBoxLayout(plotTab);
     auto* plotButtons = new QWidget(plotTab);
-    auto* plotButtonsLayout = new QHBoxLayout(plotButtons);
+    auto* plotButtonsLayout = new QGridLayout(plotButtons);
     plotButtonsLayout->setContentsMargins(0, 0, 0, 0);
-    plotButtonsLayout->addWidget(showInputsOutputsButton_);
-    plotButtonsLayout->addWidget(plotAllTargetPredButton_);
-    plotButtonsLayout->addWidget(plotOneToOneButton_);
-    plotButtonsLayout->addWidget(plotSubplotsButton_);
-    plotButtonsLayout->addWidget(plotResidualsButton_);
-    plotButtonsLayout->addWidget(plotErrorCdfButton_);
-    plotButtonsLayout->addWidget(plotTaylorButton_);
-    plotButtonsLayout->addWidget(zoomInPlotButton_);
-    plotButtonsLayout->addWidget(zoomOutPlotButton_);
-    plotButtonsLayout->addWidget(fitPlotButton_);
-    plotButtonsLayout->addWidget(clearPlotButton_);
+    plotButtonsLayout->addWidget(showInputsOutputsButton_, 0, 0);
+    plotButtonsLayout->addWidget(plotAllTargetPredButton_, 0, 1);
+    plotButtonsLayout->addWidget(plotOneToOneButton_, 0, 2);
+    plotButtonsLayout->addWidget(plotSubplotsButton_, 0, 3);
+    plotButtonsLayout->addWidget(plotResidualsButton_, 1, 0);
+    plotButtonsLayout->addWidget(plotErrorCdfButton_, 1, 1);
+    plotButtonsLayout->addWidget(plotTaylorButton_, 1, 2);
+    plotButtonsLayout->addWidget(zoomInPlotButton_, 2, 0);
+    plotButtonsLayout->addWidget(zoomOutPlotButton_, 2, 1);
+    plotButtonsLayout->addWidget(fitPlotButton_, 2, 2);
+    plotButtonsLayout->addWidget(clearPlotButton_, 2, 3);
+    for (int col = 0; col < 4; ++col) {
+        plotButtonsLayout->setColumnStretch(col, 1);
+    }
     plotLayout->addWidget(chartView_, 1);
     plotLayout->addWidget(plotButtons, 0);
     tabs->addTab(plotTab, "Plot");
@@ -464,11 +470,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
         "loss, NSE/KGE/RMSE/MAE/bias, peak timing error, and run configuration.</li>"
         "</ul>"));
     resultsRoadmapLayout->addWidget(resultsRoadmap, 1);
-    tabs->addTab(resultsRoadmapTab, "Results Roadmap");
+    tabs->addTab(resultsRoadmapTab, "Results Plan");
 
     auto* logTab = new QWidget(tabs);
     auto* logLayout = new QVBoxLayout(logTab);
     logText_->setReadOnly(true);
+    logText_->document()->setMaximumBlockCount(1200);
     logText_->setPlaceholderText("Run logs will appear here...");
     logLayout->addWidget(logText_, 1);
     tabs->addTab(logTab, "Logs");
@@ -1224,19 +1231,24 @@ void HydroPINNWindow::runLagOptimizationSearch() {
             }
 
             const double score = trial.mse > 0.0 ? trial.mse : trial.final_loss;
-            appendLog(QString("GA lag candidate %1/%2: lag_steps=%3, mse=%4, loss=%5")
-                          .arg(evaluated + 1)
-                          .arg(candidateCount)
-                          .arg(QString::fromStdString(trialCfg.input_lags_csv))
-                          .arg(trial.mse, 0, 'g', 8)
-                          .arg(trial.final_loss, 0, 'g', 8));
             if (trial.success && std::isfinite(score)) {
                 successfulCandidates.push_back({QString::fromStdString(trialCfg.input_lags_csv), score, trial.final_loss});
-                if (score < bestMse) {
+                const bool improved = score < bestMse;
+                if (improved) {
                     bestMse = score;
                     bestLoss = trial.final_loss;
                     bestSpec = QString::fromStdString(trialCfg.input_lags_csv);
                     bestResult = trial;
+                }
+                const bool progressCheckpoint = ((evaluated + 1) % 10 == 0) || (evaluated + 1 == candidateCount);
+                if (improved || progressCheckpoint) {
+                    appendLog(QString("GA lag candidate %1/%2%3: lag_steps=%4, mse=%5, loss=%6")
+                                  .arg(evaluated + 1)
+                                  .arg(candidateCount)
+                                  .arg(improved ? " (new best)" : "")
+                                  .arg(QString::fromStdString(trialCfg.input_lags_csv))
+                                  .arg(trial.mse, 0, 'g', 8)
+                                  .arg(trial.final_loss, 0, 'g', 8));
                 }
             }
         } catch (const std::exception& e) {
