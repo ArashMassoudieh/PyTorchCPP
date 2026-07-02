@@ -759,7 +759,10 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
             torch::Tensor residual = dy_dt + lambda_decay * residual_predictions;
             torch::Tensor physics_loss = torch::mse_loss(residual, torch::zeros_like(residual));
 
-            torch::Tensor total_loss = data_weight * data_loss + physics_weight * physics_loss;
+            const bool dataWarmup = data_weight > 0.0 && epoch < std::max(1, num_epochs / 5);
+            const double effective_data_weight = dataWarmup ? std::max(1.0, data_weight) : data_weight;
+            const double effective_physics_weight = dataWarmup ? 0.0 : physics_weight;
+            torch::Tensor total_loss = effective_data_weight * data_loss + effective_physics_weight * physics_loss;
             total_loss.backward();
             optimizer.step();
 
@@ -875,7 +878,10 @@ std::vector<double> NeuralNetworkWrapper::trainPINNWithForcing(int num_epochs,
             torch::Tensor residual = dy_dt + lambda_decay * predictions - forcing_gain * forcing;
             torch::Tensor physics_loss = torch::mse_loss(residual, torch::zeros_like(residual));
 
-            torch::Tensor total_loss = data_weight * data_loss + physics_weight * physics_loss;
+            const bool dataWarmup = data_weight > 0.0 && epoch < std::max(1, num_epochs / 5);
+            const double effective_data_weight = dataWarmup ? std::max(1.0, data_weight) : data_weight;
+            const double effective_physics_weight = dataWarmup ? 0.0 : physics_weight;
+            torch::Tensor total_loss = effective_data_weight * data_loss + effective_physics_weight * physics_loss;
             total_loss.backward();
             optimizer.step();
 
@@ -972,7 +978,10 @@ std::vector<double> NeuralNetworkWrapper::trainPINNWaterBalance(int num_epochs,
             torch::Tensor residual = rainfall - evapotranspiration - runoff - dSdt;
             torch::Tensor physics_loss = torch::mse_loss(residual, torch::zeros_like(residual));
 
-            torch::Tensor total_loss = data_weight * data_loss + physics_weight * physics_loss;
+            const bool dataWarmup = data_weight > 0.0 && epoch < std::max(1, num_epochs / 5);
+            const double effective_data_weight = dataWarmup ? std::max(1.0, data_weight) : data_weight;
+            const double effective_physics_weight = dataWarmup ? 0.0 : physics_weight;
+            torch::Tensor total_loss = effective_data_weight * data_loss + effective_physics_weight * physics_loss;
             total_loss.backward();
             optimizer.step();
 
