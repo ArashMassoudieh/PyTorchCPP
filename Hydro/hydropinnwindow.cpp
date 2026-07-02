@@ -136,7 +136,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     modeCombo_->addItem("PINN (physics-first)", "pinn");
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
     dataSourceCombo_->addItems({"Synthetic", "CSV File"});
-    profileCombo_->addItems({"exp_decay", "damped_sine", "mixed_wave", "neuroforge_inputs_target", "rainfall_runoff", "watershed_balance"});
+    profileCombo_->addItems({"watershed_balance", "rainfall_runoff", "neuroforge_inputs_target", "exp_decay", "damped_sine", "mixed_wave"});
 
     auto* tabs = new QTabWidget(central);
 
@@ -194,7 +194,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     workflowGuide->setHtml(QStringLiteral(
         "<h2>HydroPINN workflow</h2>"
         "<ol>"
-        "<li><b>Choose data.</b> Start with a synthetic profile for a controlled run, "
+        "<li><b>Choose data.</b> Start with <code>watershed_balance</code> or <code>rainfall_runoff</code> for the app's primary hydrology workflow, "
         "or switch to CSV and select x/y columns for an observed hydrograph.</li>"
         "<li><b>Set the model family.</b> Use FFN and LSTM as supervised baselines, "
         "then compare FFN + PINN, LSTM + PINN, and standalone PINN.</li>"
@@ -210,7 +210,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
         "<ul>"
         "<li>Establish FFN and LSTM supervised baselines on the same train/test split.</li>"
         "<li>Add PINN residuals with a modest physics weight, then increase only if "
-        "test error and residual plots remain stable.</li>"
+        "test error, mass-balance residuals, and hydrograph diagnostics remain stable.</li>"
         "<li>Use rainfall-runoff or water-balance profiles for hydrology-specific "
         "experiments instead of the exponential-decay smoke-test profile.</li>"
         "<li>Export synthetic data when a run should be reproducible outside the GUI.</li>"
@@ -283,7 +283,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     physicsWeightSpin_->setDecimals(4);
     physicsWeightSpin_->setRange(0.0, 100.0);
     physicsWeightSpin_->setValue(0.2);
-    pinnPhysicsProfileCombo_->addItems({"exp_decay", "linear_reservoir", "cstr_first_order", "water_balance"});
+    pinnPhysicsProfileCombo_->addItems({"water_balance", "linear_reservoir", "cstr_first_order", "exp_decay"});
     forcingGainSpin_->setDecimals(4);
     forcingGainSpin_->setRange(0.0, 100.0);
     forcingGainSpin_->setValue(1.0);
@@ -300,7 +300,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     trainForm->addRow("PINN forcing gain", forcingGainSpin_);
     trainForm->addRow("PINN collocation points", pinnCollocationSpin_);
 
-    trainForm->addRow(new QLabel("PINN water-domain hints: use exp_decay for pure decay; use linear_reservoir/cstr_first_order for forcing-driven dynamics; use water_balance with rainfall_runoff or watershed_balance for watershed mass-balance training. Collocation adds Raissi-style physics points.", trainTab));
+    trainForm->addRow(new QLabel("PINN water-domain hints: use exp_decay for pure decay; use linear_reservoir/cstr_first_order for forcing-driven dynamics; use water_balance with watershed_balance or rainfall_runoff for watershed mass-balance training. Collocation adds Raissi-style physics points.", trainTab));
 
     splitRatioSpin_->setDecimals(3);
     splitRatioSpin_->setRange(0.1, 0.95);
@@ -439,6 +439,32 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     plotLayout->addWidget(chartView_, 1);
     plotLayout->addWidget(plotButtons, 0);
     tabs->addTab(plotTab, "Plot");
+
+
+    auto* resultsRoadmapTab = new QWidget(tabs);
+    auto* resultsRoadmapLayout = new QVBoxLayout(resultsRoadmapTab);
+    auto* resultsRoadmap = new QTextBrowser(resultsRoadmapTab);
+    resultsRoadmap->setOpenExternalLinks(false);
+    resultsRoadmap->setHtml(QStringLiteral(
+        "<h2>Suggested watershed results tabs</h2>"
+        "<p>HydroPINN should prioritize plots and result summaries that hydrologists use "
+        "to judge both predictive skill and water-balance credibility.</p>"
+        "<ul>"
+        "<li><b>Hydrograph + hyetograph:</b> target/predicted runoff with rainfall or "
+        "effective precipitation bars on a shared event timeline.</li>"
+        "<li><b>Mass-balance residuals:</b> plot <code>P - ET - Q - dS/dt</code> through "
+        "time and summarize mean bias, RMSE, and signed cumulative residual.</li>"
+        "<li><b>Cumulative water balance:</b> cumulative precipitation, ET, runoff, and "
+        "storage change to expose long-term drift.</li>"
+        "<li><b>Flow-duration and peak-flow diagnostics:</b> compare high-flow, low-flow, "
+        "timing-to-peak, and volume errors across FFN/LSTM/PINN variants.</li>"
+        "<li><b>Regime-conditioned errors:</b> split metrics by wet/dry periods, soil "
+        "storage state, groundwater state, and impervious quickflow dominance.</li>"
+        "<li><b>Experiment table export:</b> one row per approach with data loss, physics "
+        "loss, NSE/KGE/RMSE/MAE/bias, peak timing error, and run configuration.</li>"
+        "</ul>"));
+    resultsRoadmapLayout->addWidget(resultsRoadmap, 1);
+    tabs->addTab(resultsRoadmapTab, "Results Roadmap");
 
     auto* logTab = new QWidget(tabs);
     auto* logLayout = new QVBoxLayout(logTab);
@@ -925,7 +951,7 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
         lastSyntheticInputs_["flow_rate"] = flowRate;
         lastSyntheticInputs_["concentration"] = concentration;
         lastSyntheticInputs_["velocity"] = velocity;
-    } else if (profile == "rainfall_runoff" || profile == "watershed_balance") {
+    } else if (profile == "watershed_balance" || profile == "rainfall_runoff") {
         lastSyntheticInputs_["effective_precipitation"] = rainfall;
         lastSyntheticInputs_["evapotranspiration"] = evapotranspiration;
         lastSyntheticInputs_["temperature"] = temperature;
@@ -971,7 +997,7 @@ void HydroPINNWindow::generateSyntheticDataPreview() {
                     << velocity[k] << ","
                     << ys[k] << "\n";
             }
-        } else if (profile == "rainfall_runoff" || profile == "watershed_balance") {
+        } else if (profile == "watershed_balance" || profile == "rainfall_runoff") {
             if (profile == "watershed_balance") {
                 out << "t,effective_precipitation,evapotranspiration,temperature,soil_storage,groundwater_storage,impervious_fraction,runoff\n";
             } else {
@@ -1026,6 +1052,9 @@ void HydroPINNWindow::startGAPlaceholder() {
 int HydroPINNWindow::estimatedFfnInputCountForLagSearch(const HydroRunConfig& cfg, const QString& mode) const {
     if (cfg.synthetic_profile == "neuroforge_inputs_target") {
         return (mode == "ffn_pinn") ? 6 : 5;
+    }
+    if (cfg.synthetic_profile == "watershed_balance") {
+        return 7;
     }
     if (cfg.synthetic_profile == "rainfall_runoff") {
         return 5;
@@ -2284,8 +2313,8 @@ void HydroPINNWindow::runMode(const QString& mode) {
                 appendLog("Note: selected PINN profile is exp_decay; non-exp synthetic targets may reduce physics consistency.");
             }
             if ((cfg.pinn_physics_profile == "linear_reservoir" || cfg.pinn_physics_profile == "cstr_first_order" || cfg.pinn_physics_profile == "water_balance") &&
-                (cfg.synthetic_profile != "neuroforge_inputs_target" && cfg.synthetic_profile != "rainfall_runoff" && cfg.synthetic_profile != "watershed_balance")) {
-                appendLog("Note: forcing/water-balance PINN profiles work best with multi-feature inputs (CSV, neuroforge_inputs_target, rainfall_runoff, or watershed_balance synthetic profile).");
+                (cfg.synthetic_profile != "neuroforge_inputs_target" && cfg.synthetic_profile != "watershed_balance" && cfg.synthetic_profile != "rainfall_runoff")) {
+                appendLog("Note: forcing/water-balance PINN profiles work best with multi-feature inputs (CSV, neuroforge_inputs_target, watershed_balance, or rainfall_runoff synthetic profile).");
             }
         }
     }

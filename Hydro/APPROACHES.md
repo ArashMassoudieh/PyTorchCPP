@@ -37,13 +37,13 @@ where `Data weight` controls \(w_{data}\) and `Physics weight` controls \(w_{phy
 HydroPINN includes hydrology-oriented synthetic profiles for exercising PINN
 losses before field data are connected:
 
-- `rainfall_runoff`: event-scale rainfall, evapotranspiration, temperature, soil
-  storage, and runoff.
-- `watershed_balance`: a broader watershed stress test with effective
+- `watershed_balance`: the primary watershed stress test with effective
   precipitation, evapotranspiration, temperature, soil storage, groundwater
   storage, impervious fraction, and runoff. The generator combines storm pulses,
   snowmelt contribution, infiltration, soil-to-groundwater recharge, baseflow,
   lateral flow, and impervious quickflow.
+- `rainfall_runoff`: the smaller event-scale rainfall, evapotranspiration,
+  temperature, soil storage, and runoff baseline.
 
 For `water_balance`, the PINN residual reads the first mass-balance columns as
 \(P\), \(ET\), predicted runoff \(Q_\theta\), and storage \(S\):

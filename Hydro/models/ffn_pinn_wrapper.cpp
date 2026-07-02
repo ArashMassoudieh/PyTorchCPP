@@ -471,9 +471,9 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
 
     std::vector<double> losses;
     if (config.pinn_physics_profile == "water_balance" &&
-        (config.synthetic_profile == "rainfall_runoff" || config.synthetic_profile == "watershed_balance") &&
+        (config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff") &&
         x.size(1) >= 5) {
-        // rainfall_runoff/watershed_balance columns start [normalized_time, effective precipitation, evapotranspiration, temperature, soil_storage].
+        // watershed_balance/rainfall_runoff columns start [normalized_time, effective precipitation, evapotranspiration, temperature, soil_storage].
         const int rainfallCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 1) : 1;
         const int etCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 2) : 2;
         const int storageCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 4) : 4;

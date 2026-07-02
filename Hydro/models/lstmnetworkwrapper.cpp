@@ -433,7 +433,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     const int64_t trainN = xTrain.size(0);
     const int batchSize = std::max(1, config.batch_size);
     const double lambda = config.lambda_decay;
-    const double dt = ((config.synthetic_profile == "rainfall_runoff" || config.synthetic_profile == "watershed_balance"))
+    const double dt = ((config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff"))
                           ? 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1)
                           : std::max(1.0e-8, config.physics_dt);
 
@@ -444,8 +444,8 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         torch::Tensor yMid = p.slice(0, 1, p.size(0));
         torch::Tensor residual;
         if (needsForcing && config.pinn_physics_profile == "water_balance" &&
-            (config.synthetic_profile == "rainfall_runoff" || config.synthetic_profile == "watershed_balance") && xTrain.size(2) >= 5) {
-            // rainfall_runoff/watershed_balance columns start [normalized_time, effective precipitation, evapotranspiration, temperature, soil_storage].
+            (config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff") && xTrain.size(2) >= 5) {
+            // watershed_balance/rainfall_runoff columns start [normalized_time, effective precipitation, evapotranspiration, temperature, soil_storage].
             torch::Tensor lastStep = xTrain.select(1, xTrain.size(1) - 1);
             torch::Tensor rain = lastStep.slice(1, 1, 2).slice(0, 1, lastStep.size(0));
             torch::Tensor et = lastStep.slice(1, 2, 3).slice(0, 1, lastStep.size(0));

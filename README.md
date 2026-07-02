@@ -45,12 +45,13 @@ machine-learning problems:
 
 HydroPINN extends the shared training infrastructure to rainfall-runoff style
 experiments. It includes dataset loaders, lag/sequence builders, hydrologic
-physics residuals, and model wrappers for five approaches:
+physics residuals, and watershed-first capabilities:
 
+- watershed and rainfall-runoff synthetic inputs,
+- water-balance PINN residuals,
 - feed-forward neural network (FFN),
 - FFN + PINN residual,
-- LSTM,
-- LSTM + PINN residual,
+- LSTM and LSTM + PINN residual,
 - standalone PINN baseline.
 
 See [`Hydro/README.md`](Hydro/README.md) for the HydroPINN workflow and
