@@ -31,6 +31,31 @@ PINN-capable approaches combine supervised and physics losses as:
 
 where `Data weight` controls \(w_{data}\) and `Physics weight` controls \(w_{phys}\). The standalone **PINN** approach currently uses physics-first training by setting \(w_{data}=0\) during dispatch.
 
+
+## Watershed synthetic generators and water-balance PINNs
+
+HydroPINN includes hydrology-oriented synthetic profiles for exercising PINN
+losses before field data are connected:
+
+- `watershed_balance`: the primary watershed stress test with effective
+  precipitation, evapotranspiration, temperature, soil storage, groundwater
+  storage, total storage, impervious fraction, and runoff. The generator combines storm pulses,
+  snowmelt contribution, infiltration, soil-to-groundwater recharge, baseflow,
+  lateral flow, and impervious quickflow.
+- `rainfall_runoff`: the smaller event-scale rainfall, evapotranspiration,
+  temperature, soil storage, and runoff baseline.
+
+For `water_balance`, the PINN residual reads the first mass-balance columns as
+\(P\), \(ET\), predicted runoff \(Q_\theta\), and total watershed storage \(S\):
+
+\[
+r_\theta(t) = P(t) - ET(t) - Q_\theta(t) - \frac{dS}{dt}.
+\]
+
+This keeps the residual general enough for rainfall-runoff and broader watershed
+experiments while allowing additional watershed descriptors to remain available
+as supervised features.
+
 ## Approach order in the UI
 
 1. **FFN**

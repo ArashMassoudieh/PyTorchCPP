@@ -13,15 +13,15 @@ struct HydroRunConfig {
 
     // PINN-specific options
     // Physics profiles:
-    // - exp_decay:           dy/dt + lambda*y = 0
+    // - water_balance:       watershed mass-balance residual P/precip - ET - Q - dS/dt for watershed_balance and rainfall_runoff;
     // - linear_reservoir:    dy/dt + lambda*y - forcing_gain*u = 0
     // - cstr_first_order:    dy/dt + lambda*y - forcing_gain*u = 0 (same residual form, different interpretation)
-    // - water_balance:       rainfall-runoff mass-balance residual P - ET - Q - dS/dt for rainfall_runoff;
+    // - exp_decay:           dy/dt + lambda*y = 0
     //                        falls back to forcing-driven training for other profiles without explicit P/ET/S columns.
     double lambda_decay = 0.8;
     double data_weight = 1.0;
     double physics_weight = 0.2;
-    std::string pinn_physics_profile = "exp_decay"; // exp_decay | linear_reservoir | cstr_first_order | water_balance
+    std::string pinn_physics_profile = "water_balance"; // water_balance | linear_reservoir | cstr_first_order | exp_decay
     double forcing_gain = 1.0;
     double runoff_coeff = 0.7;
     double storage_coeff = 1.0;
@@ -38,7 +38,7 @@ struct HydroRunConfig {
     int sample_count = 220;
     double t_start = 0.0;
     double t_end = 5.0;
-    std::string synthetic_profile = "exp_decay"; // exp_decay | damped_sine | mixed_wave | neuroforge_inputs_target | rainfall_runoff
+    std::string synthetic_profile = "watershed_balance"; // watershed_balance | rainfall_runoff | neuroforge_inputs_target | exp_decay | damped_sine | mixed_wave
 
     // Network options
     std::string hidden_layers_csv = "24,24";
