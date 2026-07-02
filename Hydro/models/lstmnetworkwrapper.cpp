@@ -488,7 +488,10 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
             torch::Tensor loss = dataLoss;
             if (physicsInformed) {
                 torch::Tensor physLoss = physicsResidualLoss();
-                loss = config.data_weight * dataLoss + config.physics_weight * physLoss;
+                const bool dataWarmup = config.data_weight > 0.0 && epoch < std::max(1, config.epochs / 5);
+                const double effectiveDataWeight = dataWarmup ? std::max(1.0, config.data_weight) : config.data_weight;
+                const double effectivePhysicsWeight = dataWarmup ? 0.0 : config.physics_weight;
+                loss = effectiveDataWeight * dataLoss + effectivePhysicsWeight * physLoss;
             }
             loss.backward();
             optimizer.step();

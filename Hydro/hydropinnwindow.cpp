@@ -285,7 +285,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     dataWeightSpin_->setValue(1.0);
     physicsWeightSpin_->setDecimals(4);
     physicsWeightSpin_->setRange(0.0, 100.0);
-    physicsWeightSpin_->setValue(0.2);
+    physicsWeightSpin_->setValue(0.05);
     pinnPhysicsProfileCombo_->addItems({"water_balance", "linear_reservoir", "cstr_first_order", "exp_decay"});
     forcingGainSpin_->setDecimals(4);
     forcingGainSpin_->setRange(0.0, 100.0);
@@ -2361,6 +2361,11 @@ void HydroPINNWindow::runMode(const QString& mode) {
                       .arg(QString::fromStdString(cfg.pinn_physics_profile))
                       .arg(cfg.forcing_gain, 0, 'g', 6)
                       .arg(cfg.pinn_collocation_points));
+    }
+
+    if (mode == "ffn_pinn" && cfg.pinn_physics_profile == "water_balance" && cfg.use_time_lagged_ffn) {
+        cfg.use_time_lagged_ffn = false;
+        appendLog("Water-balance FFN + PINN uses same-time P/ET/storage features; time-lagged FFN inputs are disabled for the PINN run to avoid inconsistent residuals.");
     }
 
     QCoreApplication::processEvents();
