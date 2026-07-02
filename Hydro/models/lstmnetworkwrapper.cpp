@@ -210,6 +210,57 @@ void buildSyntheticSeries(const HydroRunConfig& config,
     }
 
 
+
+    if (profile == "watershed_balance") {
+        auto tc = t.squeeze(1).contiguous();
+        const int64_t n = tc.size(0);
+        const double tStart = tc[0].item<double>();
+        const double tEnd = tc[n - 1].item<double>();
+        const double dt = (n > 1) ? 1.0 / static_cast<double>(n - 1) : 1.0;
+        constexpr double kPi = 3.14159265358979323846;
+
+        std::vector<float> flatInputs;
+        std::vector<float> ys(static_cast<size_t>(n), 0.0f);
+        flatInputs.reserve(static_cast<size_t>(n) * 7);
+        double soilStorage = 12.0;
+        double groundwaterStorage = 18.0;
+        for (int64_t i = 0; i < n; ++i) {
+            const double tt = tc[i].item<double>();
+            const double r = (n > 1) ? static_cast<double>(i) / static_cast<double>(n - 1) : 0.0;
+            const double stormA = 16.0 * std::exp(-0.5 * std::pow((tt - (tStart + 0.18 * (tEnd - tStart))) / std::max(0.05, 0.035 * (tEnd - tStart)), 2.0));
+            const double stormB = 10.0 * std::exp(-0.5 * std::pow((tt - (tStart + 0.46 * (tEnd - tStart))) / std::max(0.05, 0.055 * (tEnd - tStart)), 2.0));
+            const double stormC = 7.0 * std::exp(-0.5 * std::pow((tt - (tStart + 0.78 * (tEnd - tStart))) / std::max(0.05, 0.08 * (tEnd - tStart)), 2.0));
+            const double rainfall = stormA + stormB + stormC + 1.5 * std::max(0.0, std::sin(2.0 * kPi * r * 4.0));
+            const double temperature = 4.0 + 16.0 * std::sin(kPi * r - 0.25);
+            const double snowpackFactor = std::max(0.0, 1.0 - temperature / 4.0);
+            const double snowmelt = std::max(0.0, temperature - 1.0) * (0.12 + 0.18 * snowpackFactor);
+            const double evapotranspiration = std::max(0.0, 0.06 * (temperature + 3.0) * (0.6 + 0.4 * std::sin(kPi * r)));
+            const double imperviousFraction = 0.12 + 0.10 * std::sin(2.0 * kPi * r + 0.5);
+            const double effectivePrecip = rainfall + snowmelt;
+            const double infiltration = std::min(effectivePrecip * (0.55 + 0.20 * std::sin(2.0 * kPi * r - 0.3)), std::max(0.0, 30.0 - soilStorage));
+            const double quickRunoff = effectivePrecip * std::max(0.0, imperviousFraction) + std::max(0.0, effectivePrecip - infiltration) * 0.45;
+            const double recharge = 0.10 * soilStorage;
+            const double baseflow = 0.045 * groundwaterStorage;
+            const double lateralFlow = 0.035 * soilStorage;
+            const double runoff = quickRunoff + lateralFlow + baseflow;
+            soilStorage = std::max(0.0, soilStorage + (infiltration - evapotranspiration - recharge - lateralFlow) * dt);
+            groundwaterStorage = std::max(0.0, groundwaterStorage + (recharge - baseflow) * dt);
+
+            flatInputs.push_back(static_cast<float>(r));
+            flatInputs.push_back(static_cast<float>(effectivePrecip));
+            flatInputs.push_back(static_cast<float>(evapotranspiration));
+            flatInputs.push_back(static_cast<float>(temperature));
+            flatInputs.push_back(static_cast<float>(soilStorage));
+            flatInputs.push_back(static_cast<float>(groundwaterStorage));
+            flatInputs.push_back(static_cast<float>(imperviousFraction));
+            ys[static_cast<size_t>(i)] = static_cast<float>(runoff);
+        }
+
+        x = torch::from_blob(flatInputs.data(), {n, 7}, torch::kFloat32).clone();
+        y = torch::from_blob(ys.data(), {n, 1}, torch::kFloat32).clone();
+        return;
+    }
+
     if (profile == "rainfall_runoff") {
         auto tc = t.squeeze(1).contiguous();
         const int64_t n = tc.size(0);
@@ -382,7 +433,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     const int64_t trainN = xTrain.size(0);
     const int batchSize = std::max(1, config.batch_size);
     const double lambda = config.lambda_decay;
-    const double dt = (config.synthetic_profile == "rainfall_runoff")
+    const double dt = ((config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff"))
                           ? 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1)
                           : std::max(1.0e-8, config.physics_dt);
 
@@ -393,8 +444,8 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         torch::Tensor yMid = p.slice(0, 1, p.size(0));
         torch::Tensor residual;
         if (needsForcing && config.pinn_physics_profile == "water_balance" &&
-            config.synthetic_profile == "rainfall_runoff" && xTrain.size(2) >= 5) {
-            // rainfall_runoff columns are [normalized_time, rainfall, evapotranspiration, temperature, soil_storage].
+            (config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff") && xTrain.size(2) >= 5) {
+            // watershed_balance/rainfall_runoff columns start [normalized_time, effective precipitation, evapotranspiration, temperature, soil_storage].
             torch::Tensor lastStep = xTrain.select(1, xTrain.size(1) - 1);
             torch::Tensor rain = lastStep.slice(1, 1, 2).slice(0, 1, lastStep.size(0));
             torch::Tensor et = lastStep.slice(1, 2, 3).slice(0, 1, lastStep.size(0));
