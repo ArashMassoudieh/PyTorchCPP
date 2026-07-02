@@ -2410,6 +2410,60 @@ void HydroPINNWindow::runMode(const QString& mode) {
         errorDetails = "Unknown non-std exception during mode execution.";
     }
 
+    if (result.success && (mode == "ffn_pinn" || mode == "lstm_pinn")) {
+        const QString baselineMode = (mode == "ffn_pinn") ? QString("ffn") : QString("lstm");
+        const auto baselineIt = lastModeResults_.find(baselineMode);
+        if (baselineIt != lastModeResults_.end() && baselineIt->second.success && baselineIt->second.mse > 0.0 &&
+            result.mse > baselineIt->second.mse * 1.05) {
+            appendLog(QString("PINN guard: %1 mse=%2 is worse than %3 baseline mse=%4; retrying with gentler physics weights.")
+                          .arg(modeDisplayName(mode))
+                          .arg(result.mse, 0, 'g', 8)
+                          .arg(modeDisplayName(baselineMode))
+                          .arg(baselineIt->second.mse, 0, 'g', 8));
+            HydroRunResult bestPinnedResult = result;
+            double bestPinnedWeight = cfg.physics_weight;
+            const std::vector<double> retryWeights = {cfg.physics_weight * 0.25, cfg.physics_weight * 0.05, 0.0};
+            for (const double retryWeight : retryWeights) {
+                HydroRunConfig retryCfg = cfg;
+                retryCfg.physics_weight = retryWeight;
+                try {
+                    HydroRunResult retryResult;
+                    if (mode == "ffn_pinn") {
+                        FFNPINNWrapper runner;
+                        retryResult = runner.train(retryCfg);
+                    } else {
+                        LSTMPINNWrapper runner;
+                        retryResult = runner.train(retryCfg);
+                    }
+                    appendLog(QString("PINN guard retry: physics_weight=%1, mse=%2, loss=%3")
+                                  .arg(retryWeight, 0, 'g', 6)
+                                  .arg(retryResult.mse, 0, 'g', 8)
+                                  .arg(retryResult.final_loss, 0, 'g', 8));
+                    if (retryResult.success && retryResult.mse > 0.0 && retryResult.mse < bestPinnedResult.mse) {
+                        bestPinnedResult = retryResult;
+                        bestPinnedWeight = retryWeight;
+                    }
+                } catch (const std::exception& retryError) {
+                    appendLog(QString("PINN guard retry failed at physics_weight=%1: %2")
+                                  .arg(retryWeight, 0, 'g', 6)
+                                  .arg(retryError.what()));
+                }
+            }
+            if (bestPinnedResult.mse < result.mse) {
+                appendLog(QString("PINN guard selected physics_weight=%1 for %2 (mse=%3).")
+                              .arg(bestPinnedWeight, 0, 'g', 6)
+                              .arg(modeDisplayName(mode))
+                              .arg(bestPinnedResult.mse, 0, 'g', 8));
+                result = bestPinnedResult;
+            }
+            if (result.mse > baselineIt->second.mse * 1.05) {
+                appendLog(QString("PINN guard note: %1 remains worse than the stored %2 baseline; inspect residual plots before treating it as an improvement.")
+                              .arg(modeDisplayName(mode))
+                              .arg(modeDisplayName(baselineMode)));
+            }
+        }
+    }
+
     const qint64 elapsedMs = timer.elapsed();
     if (result.success) {
         statusLabel_->setText(QString("Completed approach: %1 (%2 ms)").arg(modeDisplayName(mode)).arg(elapsedMs));
