@@ -131,7 +131,6 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
 
     modeCombo_->addItem("FFN (Hydro baseline)", "ffn");
     modeCombo_->addItem("FFN + PINN (Hydro baseline + physics)", "ffn_pinn");
-    modeCombo_->addItem("PINN (physics-first)", "pinn");
     modeCombo_->addItem("LSTM", "lstm");
     modeCombo_->addItem("LSTM + PINN", "lstm_pinn");
     modeCombo_->addItem("PINN (physics-first)", "pinn");
@@ -187,6 +186,37 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     dataForm->addRow(generateSyntheticButton_);
     dataForm->addRow(new QLabel("Tip: for neuroforge_inputs_target export, set CSV x column=0 (t) and y column=6 (target).", dataTab));
     tabs->addTab(dataTab, "Data");
+
+    auto* workflowTab = new QWidget(tabs);
+    auto* workflowLayout = new QVBoxLayout(workflowTab);
+    auto* workflowGuide = new QTextBrowser(workflowTab);
+    workflowGuide->setOpenExternalLinks(false);
+    workflowGuide->setHtml(QStringLiteral(
+        "<h2>HydroPINN workflow</h2>"
+        "<ol>"
+        "<li><b>Choose data.</b> Start with a synthetic profile for a controlled run, "
+        "or switch to CSV and select x/y columns for an observed hydrograph.</li>"
+        "<li><b>Set the model family.</b> Use FFN and LSTM as supervised baselines, "
+        "then compare FFN + PINN, LSTM + PINN, and standalone PINN.</li>"
+        "<li><b>Tune physics.</b> Pick a PINN physics profile, set data/physics "
+        "loss weights, and add collocation points when the residual should be "
+        "evaluated away from supervised samples.</li>"
+        "<li><b>Train and compare.</b> Use <i>Train All</i> to populate the "
+        "performance table and all comparison plots from one configuration.</li>"
+        "<li><b>Refine.</b> Use GA lag search for FFN-family approaches, then rerun "
+        "the selected modes with updated lag groups.</li>"
+        "</ol>"
+        "<h3>Recommended forward path</h3>"
+        "<ul>"
+        "<li>Establish FFN and LSTM supervised baselines on the same train/test split.</li>"
+        "<li>Add PINN residuals with a modest physics weight, then increase only if "
+        "test error and residual plots remain stable.</li>"
+        "<li>Use rainfall-runoff or water-balance profiles for hydrology-specific "
+        "experiments instead of the exponential-decay smoke-test profile.</li>"
+        "<li>Export synthetic data when a run should be reproducible outside the GUI.</li>"
+        "</ul>"));
+    workflowLayout->addWidget(workflowGuide, 1);
+    tabs->addTab(workflowTab, "Hydro Workflow");
 
     auto* networkTab = new QWidget(tabs);
     auto* networkLayout = new QVBoxLayout(networkTab);

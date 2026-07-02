@@ -53,8 +53,9 @@ physics residuals, and model wrappers for five approaches:
 - LSTM + PINN residual,
 - standalone PINN baseline.
 
-See [`Hydro/APPROACHES.md`](Hydro/APPROACHES.md) for a concise description of
-those approaches and how they differ.
+See [`Hydro/README.md`](Hydro/README.md) for the HydroPINN workflow and
+[`Hydro/APPROACHES.md`](Hydro/APPROACHES.md) for equations, losses, and
+approach details.
 
 ### LSTM Time Series Predictor
 
