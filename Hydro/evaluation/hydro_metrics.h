@@ -15,7 +15,11 @@ inline void populateHydroMetrics(HydroRunResult& result,
     double mean = 0.0;
     for (size_t i = 0; i < n; ++i) mean += observed[i];
     mean /= static_cast<double>(n);
+    double predictedMean = 0.0;
+    for (size_t i = 0; i < n; ++i) predictedMean += predicted[i];
+    predictedMean /= static_cast<double>(n);
     double squared = 0.0, absolute = 0.0, denominator = 0.0, signedError = 0.0;
+    double predictedVariance = 0.0, covariance = 0.0;
     for (size_t i = 0; i < n; ++i) {
         const double error = predicted[i] - observed[i];
         squared += error * error;
@@ -23,6 +27,9 @@ inline void populateHydroMetrics(HydroRunResult& result,
         signedError += error;
         const double centered = observed[i] - mean;
         denominator += centered * centered;
+        const double predictedCentered = predicted[i] - predictedMean;
+        predictedVariance += predictedCentered * predictedCentered;
+        covariance += centered * predictedCentered;
     }
     result.mse = squared / static_cast<double>(n);
     result.rmse = std::sqrt(result.mse);
@@ -33,6 +40,21 @@ inline void populateHydroMetrics(HydroRunResult& result,
     for (size_t i = 0; i < n; ++i) observedSum += observed[i];
     result.pbias = std::abs(observedSum) > 0.0 ? 100.0 * signedError / observedSum
                                                : std::numeric_limits<double>::quiet_NaN();
+    result.volume_error_percent = result.pbias;
+    result.correlation = denominator > 0.0 && predictedVariance > 0.0
+                             ? covariance / std::sqrt(denominator * predictedVariance)
+                             : std::numeric_limits<double>::quiet_NaN();
+    const double observedStd = n > 1 ? std::sqrt(denominator / static_cast<double>(n - 1)) : 0.0;
+    const double predictedStd = n > 1 ? std::sqrt(predictedVariance / static_cast<double>(n - 1)) : 0.0;
+    if (std::isfinite(result.correlation) && std::abs(mean) > 0.0 && observedStd > 0.0) {
+        const double alpha = predictedStd / observedStd;
+        const double beta = predictedMean / mean;
+        result.kge = 1.0 - std::sqrt((result.correlation - 1.0) * (result.correlation - 1.0) +
+                                     (alpha - 1.0) * (alpha - 1.0) +
+                                     (beta - 1.0) * (beta - 1.0));
+    } else {
+        result.kge = std::numeric_limits<double>::quiet_NaN();
+    }
 }
 
 inline bool hydroMetricsAreFinite(const HydroRunResult& result) {

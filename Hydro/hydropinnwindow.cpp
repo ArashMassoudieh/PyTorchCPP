@@ -1472,13 +1472,16 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.success ? "success" : "failed")
                        .arg(r.final_loss, 0, 'g', 8);
 
-        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, pbias=%6, physics_loss=%7")
+        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, physics_loss=%10")
                        .arg(r.validation_mse, 0, 'g', 8)
                        .arg(r.mse, 0, 'g', 8)
                        .arg(r.rmse, 0, 'g', 8)
                        .arg(r.mae, 0, 'g', 8)
                        .arg(r.nse, 0, 'g', 8)
+                       .arg(r.kge, 0, 'g', 8)
+                       .arg(r.correlation, 0, 'g', 8)
                        .arg(r.pbias, 0, 'g', 8)
+                       .arg(r.volume_error_percent, 0, 'g', 8)
                        .arg(r.physics_loss, 0, 'g', 8);
 
         if (!r.message.empty()) {

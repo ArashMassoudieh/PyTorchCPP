@@ -31,6 +31,14 @@ int main() {
     assert(result.mae == 0.0);
     assert(result.nse == 1.0);
     assert(result.pbias == 0.0);
+    assert(result.correlation == 1.0);
+    assert(result.kge == 1.0);
+    assert(result.volume_error_percent == 0.0);
+
+    HydroRunResult biased;
+    populateHydroMetrics(biased, {1.0, 2.0, 3.0}, {2.0, 3.0, 4.0});
+    assert(std::abs(biased.volume_error_percent - 50.0) < 1.0e-12);
+    assert(biased.kge < 1.0);
 
     HydroRunResult constant;
     populateHydroMetrics(constant, {0.0, 0.0}, {1.0, 1.0});
