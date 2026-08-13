@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <fstream>
+#include <regex>
 #include <set>
 #include <sstream>
 
@@ -24,9 +25,15 @@ bool finiteNumber(const std::string& text, double& value) {
         return false;
     }
 }
+
+bool canonicalUtcTimestamp(const std::string& text) {
+    static const std::regex pattern(
+        R"(^[0-9]{4}-(0[1-9]|1[0-2])-([0-2][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?Z$)");
+    return std::regex_match(text, pattern);
+}
 }
 
-HydroDatasetContract HydroDatasetContract::observationsV1(bool requireStorage) {
+HydroDatasetContract HydroDatasetContract::rainfallRunoffV1() {
     HydroDatasetContract contract;
     contract.variables = {
         {"timestamp", "UTC ISO-8601", "timestamp", true, false},
@@ -34,9 +41,22 @@ HydroDatasetContract HydroDatasetContract::observationsV1(bool requireStorage) {
         {"precipitation", "mm/h", "forcing", true, true},
         {"potential_et", "mm/h", "forcing", true, true},
         {"observed_discharge", "m3/s", "target", true, true},
-        {"storage", "mm", "state", requireStorage, false}
+        {"storage", "mm", "state", false, false}
     };
     return contract;
+}
+
+HydroDatasetContract HydroDatasetContract::waterBalanceV1() {
+    HydroDatasetContract contract = rainfallRunoffV1();
+    contract.profile = "water-balance";
+    for (auto& variable : contract.variables) {
+        if (variable.name == "storage") variable.required = true;
+    }
+    return contract;
+}
+
+HydroDatasetContract HydroDatasetContract::observationsV1(bool requireStorage) {
+    return requireStorage ? waterBalanceV1() : rainfallRunoffV1();
 }
 
 HydroDatasetValidation HydroDatasetValidator::validateCsv(const std::string& path,
@@ -44,7 +64,7 @@ HydroDatasetValidation HydroDatasetValidator::validateCsv(const std::string& pat
                                                            bool hasHeader) const {
     HydroDatasetValidation result;
     if (!hasHeader) {
-        result.errors.push_back("Canonical HydroPINN CSV files require a header row.");
+        result.errors.push_back("Canonical hydro observation CSV files require a header row.");
         return result;
     }
     std::ifstream input(path);
@@ -72,7 +92,9 @@ HydroDatasetValidation HydroDatasetValidator::validateCsv(const std::string& pat
     }
     if (!result.errors.empty()) return result;
 
-    std::string previousTimestamp;
+    std::map<std::string, std::string> previousTimestampByCatchment;
+    std::map<std::string, std::size_t> rowCountByCatchment;
+    std::set<std::pair<std::string, std::string>> observationKeys;
     std::size_t lineNumber = 1;
     while (std::getline(input, line)) {
         ++lineNumber;
@@ -83,12 +105,24 @@ HydroDatasetValidation HydroDatasetValidator::validateCsv(const std::string& pat
             continue;
         }
         const std::string& timestamp = fields[columns.at("timestamp")];
-        if (timestamp.empty() || (!previousTimestamp.empty() && timestamp <= previousTimestamp)) {
-            result.errors.push_back("Row " + std::to_string(lineNumber) + " timestamp is empty, duplicate, or non-increasing.");
-        }
-        previousTimestamp = timestamp;
-        if (fields[columns.at("catchment_id")].empty()) {
+        const std::string& catchment = fields[columns.at("catchment_id")];
+        if (catchment.empty()) {
             result.errors.push_back("Row " + std::to_string(lineNumber) + " has an empty catchment_id.");
+        } else {
+            ++rowCountByCatchment[catchment];
+        }
+        if (!canonicalUtcTimestamp(timestamp)) {
+            result.errors.push_back("Row " + std::to_string(lineNumber) + " timestamp is not canonical UTC ISO-8601.");
+        }
+        if (!catchment.empty() && !timestamp.empty()) {
+            if (!observationKeys.emplace(catchment, timestamp).second) {
+                result.errors.push_back("Row " + std::to_string(lineNumber) + " duplicates catchment_id/timestamp key.");
+            }
+            const auto previous = previousTimestampByCatchment.find(catchment);
+            if (previous != previousTimestampByCatchment.end() && timestamp <= previous->second) {
+                result.errors.push_back("Row " + std::to_string(lineNumber) + " timestamp is non-increasing within catchment " + catchment + ".");
+            }
+            previousTimestampByCatchment[catchment] = timestamp;
         }
         for (const auto& variable : contract.variables) {
             if (variable.role == "timestamp" || variable.role == "identifier") continue;
@@ -104,6 +138,11 @@ HydroDatasetValidation HydroDatasetValidator::validateCsv(const std::string& pat
         ++result.row_count;
     }
     if (result.row_count < 3) result.errors.push_back("Dataset requires at least three data rows.");
+    for (const auto& entry : rowCountByCatchment) {
+        if (entry.second < 3) {
+            result.errors.push_back("Catchment " + entry.first + " requires at least three data rows.");
+        }
+    }
     result.valid = result.errors.empty();
     return result;
 }
