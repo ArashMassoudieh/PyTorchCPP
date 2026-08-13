@@ -182,6 +182,7 @@ HEADERS += \
     Hydro/dataset/lag_builder.h \
     Hydro/dataset/sequence_builder.h \
     Hydro/dataset/chronological_split.h \
+    Hydro/dataset/tensor_scaler.h \
     Hydro/evaluation/hydro_metrics.h \
     Hydro/physics/physics_config.h \
     Hydro/physics/rr_physics.h \

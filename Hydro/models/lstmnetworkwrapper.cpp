@@ -1,5 +1,6 @@
 #include "lstmnetworkwrapper.h"
 #include "../dataset/chronological_split.h"
+#include "../dataset/tensor_scaler.h"
 #include "../evaluation/hydro_metrics.h"
 
 #include <torch/torch.h>
@@ -383,6 +384,9 @@ std::vector<double> tensorValues(const torch::Tensor& tensor) {
 
 HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool physicsInformed) {
     HydroRunResult result;
+    if (physicsInformed && config.normalization != "none") {
+        throw std::invalid_argument("LSTM-PINN normalization requires physical-unit inverse transforms inside the residual; use normalization=none until enabled.");
+    }
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
     torch::Tensor x, y, plotX;
@@ -423,6 +427,19 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     torch::Tensor yValidation = seq.ySeq.slice(0, nTrain, split.validation_end).contiguous();
     torch::Tensor xTest = seq.xSeq.slice(0, split.validation_end, totalSeq).contiguous();
     torch::Tensor yTest = seq.ySeq.slice(0, split.validation_end, totalSeq).contiguous();
+    torch::Tensor yValidationPhysical = yValidation.clone();
+    torch::Tensor yTestPhysical = yTest.clone();
+
+    TensorScaler inputScaler;
+    TensorScaler targetScaler;
+    inputScaler.fit(xTrain, config.normalization);
+    targetScaler.fit(yTrain, config.normalization);
+    xTrain = inputScaler.transform(xTrain);
+    yTrain = targetScaler.transform(yTrain);
+    xValidation = inputScaler.transform(xValidation);
+    yValidation = targetScaler.transform(yValidation);
+    xTest = inputScaler.transform(xTest);
+    yTest = targetScaler.transform(yTest);
 
     HydroLSTM model(seq.xSeq.size(2), hiddenDim, y.size(1), numLayers);
     torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
@@ -511,18 +528,18 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
 
     model->eval();
     torch::NoGradGuard noGrad;
-    torch::Tensor predValidation = model->forward(xValidation);
-    result.validation_mse = tensorMSEValue(predValidation, yValidation);
-    torch::Tensor predTest = model->forward(xTest);
-    if (!predTest.defined() || predTest.size(0) != yTest.size(0) || !predTest.isfinite().all().item<bool>()) {
+    torch::Tensor predValidation = targetScaler.inverseTransform(model->forward(xValidation));
+    result.validation_mse = tensorMSEValue(predValidation, yValidationPhysical);
+    torch::Tensor predTest = targetScaler.inverseTransform(model->forward(xTest));
+    if (!predTest.defined() || predTest.size(0) != yTestPhysical.size(0) || !predTest.isfinite().all().item<bool>()) {
         throw std::runtime_error(physicsInformed ? "LSTM-PINN prediction failed or produced non-finite values." : "LSTM prediction failed or produced non-finite values.");
     }
     if (config.evaluate_metrics) {
-        populateHydroMetrics(result, tensorValues(yTest), tensorValues(predTest));
+        populateHydroMetrics(result, tensorValues(yTestPhysical), tensorValues(predTest));
         if (!hydroMetricsAreFinite(result)) throw std::runtime_error(physicsInformed ? "LSTM-PINN evaluation produced non-finite hydrology metrics." : "LSTM evaluation produced non-finite hydrology metrics.");
     }
 
-    torch::Tensor predFull = model->forward(seq.xSeq);
+    torch::Tensor predFull = targetScaler.inverseTransform(model->forward(inputScaler.transform(seq.xSeq)));
     if (!predFull.defined() || predFull.size(0) != seq.ySeq.size(0) || !predFull.isfinite().all().item<bool>()) {
         throw std::runtime_error(physicsInformed ? "Full-series LSTM-PINN prediction for plotting failed or produced non-finite values." : "Full-series LSTM prediction for plotting failed or produced non-finite values.");
     }

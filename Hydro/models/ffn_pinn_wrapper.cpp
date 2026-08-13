@@ -448,6 +448,10 @@ std::vector<double> tensorValues(const torch::Tensor& tensor) {
 HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     HydroRunResult result;
 
+    if (config.normalization != "none") {
+        throw std::invalid_argument("PINN normalization requires inverse-scaled residual plumbing; use normalization=none until that path is enabled.");
+    }
+
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
     NeuralNetworkWrapper model;
