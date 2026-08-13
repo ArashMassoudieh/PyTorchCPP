@@ -7,6 +7,10 @@
 #include <vector>
 
 int main() {
+    HydroRunConfig defaults;
+    defaults.input_lags_csv = "24";
+    assert(defaults.lstm_sequence_length == 6);
+
     const ChronologicalSplit split = makeChronologicalSplit(100, 0.7, 0.15);
     assert(split.train_end == 70);
     assert(split.validation_end == 85);

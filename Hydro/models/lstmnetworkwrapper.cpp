@@ -28,23 +28,6 @@ std::vector<int> parseHiddenLayers(const std::string& csv) {
     return layers;
 }
 
-int maxConfiguredLag(const std::string& lagSpec) {
-    int maxLag = 1;
-    std::stringstream groups(lagSpec);
-    std::string group;
-    while (std::getline(groups, group, ';')) {
-        std::stringstream groupStream(group);
-        std::string token;
-        while (std::getline(groupStream, token, ',')) {
-            try {
-                const int lag = std::stoi(token);
-                if (lag > maxLag) maxLag = lag;
-            } catch (...) {}
-        }
-    }
-    return std::max(1, maxLag);
-}
-
 std::vector<std::string> splitCsvRow(const std::string& line) {
     std::vector<std::string> cols;
     std::stringstream ss(line);
@@ -425,7 +408,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     const std::vector<int> hiddenLayers = parseHiddenLayers(config.hidden_layers_csv);
     const int64_t hiddenDim = static_cast<int64_t>(hiddenLayers.front());
     const int64_t numLayers = static_cast<int64_t>(std::max<size_t>(1, hiddenLayers.size()));
-    const int sequenceLength = std::max(2, maxConfiguredLag(config.input_lags_csv) + 1);
+    const int sequenceLength = std::max(2, config.lstm_sequence_length);
 
     SequenceData seq = makeSequences(x, y, plotX, sequenceLength);
     const int64_t totalSeq = seq.xSeq.size(0);

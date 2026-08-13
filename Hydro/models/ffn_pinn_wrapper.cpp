@@ -1,6 +1,7 @@
 #include "ffn_pinn_wrapper.h"
 #include "../dataset/chronological_split.h"
 #include "../evaluation/hydro_metrics.h"
+#include "../physics/rr_physics.h"
 
 #include "neuralnetworkwrapper.h"
 
@@ -559,6 +560,22 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     torch::Tensor predFull = model.forward(DataType::Test);
     if (!predFull.defined() || predFull.size(0) != y.size(0) || !predFull.isfinite().all().item<bool>()) {
         throw std::runtime_error("Full-series prediction for plotting failed or produced non-finite values.");
+    }
+    if (config.pinn_physics_profile == "water_balance" && x.size(1) >= 5) {
+        const int rainfallCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 1) : 1;
+        const int etCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 2) : 2;
+        const int storageCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, waterBalanceStorageCol) : waterBalanceStorageCol;
+        PhysicsConfig physics;
+        physics.dt = (config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff")
+                         ? 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1)
+                         : std::max(1.0e-8, config.physics_dt);
+        RRPhysics residuals;
+        torch::Tensor residual = residuals.waterBalanceResidual(x.slice(1, rainfallCol, rainfallCol + 1),
+                                                                 x.slice(1, etCol, etCol + 1),
+                                                                 predFull,
+                                                                 x.slice(1, storageCol, storageCol + 1),
+                                                                 physics);
+        result.physics_loss = torch::mean(residual * residual).item<double>();
     }
     fillPlotVectors(result, plotX, y, predFull);
     result.success = true;

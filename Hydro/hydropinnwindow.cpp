@@ -1344,7 +1344,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         inputLagsEdit_->setText(bestSpec);
         lastModeResults_[mode] = bestResult;
         updatePlot(mode, bestResult);
-        appendLog(QString("GA lag optimization selected lag_steps=%1 (selection_metric=confirmed_test_mse_or_loss, score=%2, loss=%3).")
+        appendLog(QString("GA lag optimization selected lag_steps=%1 (selection_metric=confirmed_validation_mse, score=%2, loss=%3).")
                       .arg(bestSpec)
                       .arg(bestMse, 0, 'g', 8)
                       .arg(bestLoss, 0, 'g', 8));
@@ -2364,6 +2364,10 @@ void HydroPINNWindow::runMode(const QString& mode) {
                   .arg(QString::fromStdString(cfg.input_lags_csv))
                   .arg(inputStyle)
                   .arg(QString::fromStdString(cfg.activation)));
+    if (mode == "lstm" || mode == "lstm_pinn") {
+        appendLog(QString("LSTM sequence length=%1 (independent of FFN lag-search settings).")
+                      .arg(cfg.lstm_sequence_length));
+    }
     if (mode == "ffn_pinn" || mode == "pinn" || mode == "lstm_pinn") {
         appendLog(QString("PINN physics => profile=%1, forcing_gain=%2, collocation=%3")
                       .arg(QString::fromStdString(cfg.pinn_physics_profile))

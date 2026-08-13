@@ -47,6 +47,7 @@ struct HydroRunConfig {
     // Examples: "1" (all features use lag 1), "1,2;1;1,3" (feature-specific lag groups).
     std::string input_lags_csv = "1";
     bool use_time_lagged_ffn = false; // Applies only to FFN and FFN + PINN; LSTM keeps sequence memory internally.
+    int lstm_sequence_length = 6; // Independent of FFN lag-search settings.
     std::string activation = "tanh"; // single backend activation used across hidden/output layers
 
     bool evaluate_metrics = true;
