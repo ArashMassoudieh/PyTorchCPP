@@ -78,6 +78,10 @@ private:
     QSpinBox* csvYColSpin_;
     QCheckBox* csvHeaderCheck_;
     QPushButton* useNeuroforgeCsvPresetButton_;
+    QLineEdit* hydroPackagePathEdit_;
+    QPushButton* browseHydroPackageButton_;
+    QLineEdit* hydroCatchmentIdEdit_;
+    QComboBox* hydroPackageProfileCombo_;
     QSpinBox* sampleCountSpin_;
     QDoubleSpinBox* tStartSpin_;
     QDoubleSpinBox* tEndSpin_;
@@ -137,6 +141,7 @@ private:
     void updateDataSourceUiState();
     void updateFfnLagUiState();
     void browseCsv();
+    void browseHydroPackage();
     void browseSyntheticExportPath();
     void generateSyntheticDataPreview();
     void appendLog(const QString& line);
