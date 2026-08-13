@@ -74,7 +74,7 @@ The standalone **PINN** is intentionally listed as the fifth approach so it is v
 | **FFN + PINN** | `FFNPINNWrapper` | FFN with physics regularization | \(w_{data}\mathcal{L}_{data}+w_{phys}\mathcal{L}_{phys}\) | Optional time-lagged FFN inputs |
 | **LSTM** | `LSTMWrapper` | Recurrent supervised sequence model | \(\mathcal{L}_{data}\) | Ignored; LSTM carries sequence memory |
 | **LSTM + PINN** | `LSTMPINNWrapper` | LSTM with physics regularization | \(w_{data}\mathcal{L}_{data}+w_{phys}\mathcal{L}_{phys}\) | Ignored; LSTM carries sequence memory |
-| **PINN** | `FFNPINNWrapper` | Physics-first standalone PINN | \(\mathcal{L}_{phys}\) | Ignored; uses physics-coordinate inputs |
+| **PINN** | `PINNWrapper` | Explicit physics-only residual solver | \(\mathcal{L}_{phys}\) | Ignored; uses physics-coordinate inputs |
 
 ## 1. FFN
 
@@ -250,9 +250,16 @@ Use **LSTM + PINN** when you want sequence memory and physics-informed regulariz
 
 **PINN** is a standalone physics-first comparison point. It asks: how much behavior can the chosen physics residual explain without supervised data-loss fitting?
 
+For the water-balance profile with known precipitation, evapotranspiration, and
+storage, the residual directly constrains runoff. Similar scores for PINN and
+FFN + PINN are therefore expected and must be interpreted as a conservation
+diagnostic, not as evidence that a physics-only network independently learned
+the observed rainfall-runoff relationship.
+
 ### Backend and dispatch behavior
 
-The current runner reuses the feed-forward PINN backend (`FFNPINNWrapper`) and dispatches standalone **PINN** with:
+The explicit `PINNWrapper` enforces the physics-only configuration and delegates
+the shared feed-forward optimization mechanics to `FFNPINNWrapper` with:
 
 \[
 w_{data} = 0,
