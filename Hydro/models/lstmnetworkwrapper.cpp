@@ -1,5 +1,6 @@
 #include "lstmnetworkwrapper.h"
 #include "../dataset/chronological_split.h"
+#include "../evaluation/hydro_metrics.h"
 
 #include <torch/torch.h>
 
@@ -7,7 +8,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
-#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -387,6 +387,14 @@ void fillPlotVectors(HydroRunResult& result,
     }
 }
 
+std::vector<double> tensorValues(const torch::Tensor& tensor) {
+    auto values = tensor.detach().to(torch::kCPU).reshape({-1}).contiguous();
+    std::vector<double> out;
+    out.reserve(static_cast<size_t>(values.size(0)));
+    for (int64_t i = 0; i < values.size(0); ++i) out.push_back(values[i].item<double>());
+    return out;
+}
+
 } // namespace
 
 
@@ -521,12 +529,15 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     model->eval();
     torch::NoGradGuard noGrad;
     torch::Tensor predValidation = model->forward(xValidation);
-    if (config.evaluate_metrics) result.validation_mse = tensorMSEValue(predValidation, yValidation);
+    result.validation_mse = tensorMSEValue(predValidation, yValidation);
     torch::Tensor predTest = model->forward(xTest);
     if (!predTest.defined() || predTest.size(0) != yTest.size(0) || !predTest.isfinite().all().item<bool>()) {
         throw std::runtime_error(physicsInformed ? "LSTM-PINN prediction failed or produced non-finite values." : "LSTM prediction failed or produced non-finite values.");
     }
-    if (config.evaluate_metrics) result.mse = tensorMSEValue(predTest, yTest);
+    if (config.evaluate_metrics) {
+        populateHydroMetrics(result, tensorValues(yTest), tensorValues(predTest));
+        if (!hydroMetricsAreFinite(result)) throw std::runtime_error(physicsInformed ? "LSTM-PINN evaluation produced non-finite hydrology metrics." : "LSTM evaluation produced non-finite hydrology metrics.");
+    }
 
     torch::Tensor predFull = model->forward(seq.xSeq);
     if (!predFull.defined() || predFull.size(0) != seq.ySeq.size(0) || !predFull.isfinite().all().item<bool>()) {

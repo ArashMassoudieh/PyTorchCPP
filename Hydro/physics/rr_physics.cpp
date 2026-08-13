@@ -41,17 +41,23 @@ torch::Tensor RRPhysics::waterBalanceResidualAtTimes(const torch::Tensor& rainfa
                                                      const torch::Tensor& runoff,
                                                      const torch::Tensor& storage,
                                                      const torch::Tensor& timestamps) const {
-    if (!timestamps.defined()) return torch::zeros({1}, runoff.options());
-    const auto n = std::min({rainfall.size(0), evapotranspiration.size(0), runoff.size(0),
-                             storage.size(0), timestamps.size(0)});
+    if (!rainfall.defined() || !evapotranspiration.defined() || !runoff.defined() ||
+        !storage.defined() || !timestamps.defined()) {
+        return torch::zeros({1}, torch::kFloat32);
+    }
+    auto rain = rainfall.reshape({-1});
+    auto et = evapotranspiration.reshape({-1});
+    auto q = runoff.reshape({-1});
+    auto s = storage.reshape({-1});
+    auto time = timestamps.reshape({-1});
+    const auto n = std::min({rain.size(0), et.size(0), q.size(0), s.size(0), time.size(0)});
     if (n < 2) return torch::zeros({1}, runoff.options());
-    auto dt = timestamps.slice(0, 1, n) - timestamps.slice(0, 0, n - 1);
+    auto dt = time.slice(0, 1, n) - time.slice(0, 0, n - 1);
     if ((dt <= 0).any().item<bool>()) {
         throw std::invalid_argument("Water-balance timestamps must be strictly increasing.");
     }
-    auto dSdt = (storage.slice(0, 1, n) - storage.slice(0, 0, n - 1)) / dt;
-    return rainfall.slice(0, 1, n) - evapotranspiration.slice(0, 1, n)
-           - runoff.slice(0, 1, n) - dSdt;
+    auto dSdt = (s.slice(0, 1, n) - s.slice(0, 0, n - 1)) / dt;
+    return rain.slice(0, 1, n) - et.slice(0, 1, n) - q.slice(0, 1, n) - dSdt;
 }
 
 torch::Tensor RRPhysics::nonNegativeRunoffResidual(const torch::Tensor& runoff) const {

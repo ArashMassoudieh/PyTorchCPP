@@ -1243,7 +1243,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
                 trial = runner.train(trialCfg);
             }
 
-            const double score = trial.validation_mse > 0.0 ? trial.validation_mse : trial.final_loss;
+            const double score = std::isfinite(trial.validation_mse) ? trial.validation_mse : trial.final_loss;
             if (trial.success && std::isfinite(score)) {
                 successfulCandidates.push_back({QString::fromStdString(trialCfg.input_lags_csv), score, trial.final_loss});
                 const bool improved = score < bestMse;
@@ -1311,7 +1311,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
                     FFNPINNWrapper runner;
                     confirmTrial = runner.train(confirmCfg);
                 }
-                const double score = confirmTrial.validation_mse > 0.0 ? confirmTrial.validation_mse : confirmTrial.final_loss;
+                const double score = std::isfinite(confirmTrial.validation_mse) ? confirmTrial.validation_mse : confirmTrial.final_loss;
                 appendLog(QString("GA confirmation %1/%2: lag_steps=%3, validation_mse=%4, loss=%5")
                               .arg(i + 1)
                               .arg(confirmCount)
@@ -1438,9 +1438,14 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.success ? "success" : "failed")
                        .arg(r.final_loss, 0, 'g', 8);
 
-        summary += QString(", validation_mse=%1, test_mse=%2")
+        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, pbias=%6, physics_loss=%7")
                        .arg(r.validation_mse, 0, 'g', 8)
-                       .arg(r.mse, 0, 'g', 8);
+                       .arg(r.mse, 0, 'g', 8)
+                       .arg(r.rmse, 0, 'g', 8)
+                       .arg(r.mae, 0, 'g', 8)
+                       .arg(r.nse, 0, 'g', 8)
+                       .arg(r.pbias, 0, 'g', 8)
+                       .arg(r.physics_loss, 0, 'g', 8);
 
         if (!r.message.empty()) {
             summary += QString(", msg=%1").arg(QString::fromStdString(r.message).toHtmlEscaped());
@@ -2414,9 +2419,15 @@ void HydroPINNWindow::runMode(const QString& mode) {
     if (result.success) {
         statusLabel_->setText(QString("Completed approach: %1 (%2 ms)").arg(modeDisplayName(mode)).arg(elapsedMs));
         appendLog(QString("Approach '%1' finished successfully in %2 ms.").arg(modeDisplayName(mode)).arg(elapsedMs));
-        appendLog(QString("  final_loss=%1, mse=%2, msg=%3")
+        appendLog(QString("  final_loss=%1, validation_mse=%2, test_mse=%3, rmse=%4, mae=%5, nse=%6, pbias=%7, physics_loss=%8, msg=%9")
                       .arg(result.final_loss, 0, 'g', 8)
+                      .arg(result.validation_mse, 0, 'g', 8)
                       .arg(result.mse, 0, 'g', 8)
+                      .arg(result.rmse, 0, 'g', 8)
+                      .arg(result.mae, 0, 'g', 8)
+                      .arg(result.nse, 0, 'g', 8)
+                      .arg(result.pbias, 0, 'g', 8)
+                      .arg(result.physics_loss, 0, 'g', 8)
                       .arg(QString::fromStdString(result.message)));
         lastModeResults_[mode] = result;
         updatePlot(mode, result);

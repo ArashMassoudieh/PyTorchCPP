@@ -34,3 +34,8 @@ inline void populateHydroMetrics(HydroRunResult& result,
     result.pbias = std::abs(observedSum) > 0.0 ? 100.0 * signedError / observedSum
                                                : std::numeric_limits<double>::quiet_NaN();
 }
+
+inline bool hydroMetricsAreFinite(const HydroRunResult& result) {
+    return std::isfinite(result.mse) && std::isfinite(result.rmse) &&
+           std::isfinite(result.mae);
+}

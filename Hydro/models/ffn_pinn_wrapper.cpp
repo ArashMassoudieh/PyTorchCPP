@@ -1,5 +1,6 @@
 #include "ffn_pinn_wrapper.h"
 #include "../dataset/chronological_split.h"
+#include "../evaluation/hydro_metrics.h"
 
 #include "neuralnetworkwrapper.h"
 
@@ -7,7 +8,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
-#include <map>
 #include <sstream>
 #include <stdexcept>
 
@@ -434,6 +434,14 @@ void fillPlotVectors(HydroRunResult& result, const torch::Tensor& x, const torch
         result.y_pred.push_back(pc[i].item<double>());
     }
 }
+
+std::vector<double> tensorValues(const torch::Tensor& tensor) {
+    auto values = tensor.detach().to(torch::kCPU).reshape({-1}).contiguous();
+    std::vector<double> out;
+    out.reserve(static_cast<size_t>(values.size(0)));
+    for (int64_t i = 0; i < values.size(0); ++i) out.push_back(values[i].item<double>());
+    return out;
+}
 }
 
 HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
@@ -542,14 +550,8 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     }
 
     if (config.evaluate_metrics) {
-        std::map<std::string, double> metrics = model.evaluate();
-        auto it = metrics.find("mse");
-        if (it != metrics.end()) {
-            if (!std::isfinite(it->second)) {
-                throw std::runtime_error("FFN-PINN evaluation produced non-finite MSE.");
-            }
-            result.mse = it->second;
-        }
+        populateHydroMetrics(result, tensorValues(yTest), tensorValues(predTest));
+        if (!hydroMetricsAreFinite(result)) throw std::runtime_error("FFN-PINN evaluation produced non-finite hydrology metrics.");
     }
 
     // Keep metrics on held-out test set, but plot full-series predictions for better visual coverage.

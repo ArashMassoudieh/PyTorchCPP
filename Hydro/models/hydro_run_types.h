@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <limits>
 #include <vector>
 
 /**
@@ -73,14 +74,14 @@ struct HydroRunConfig {
  */
 struct HydroRunResult {
     bool success = false;
-    double final_loss = 0.0;
-    double mse = 0.0;
-    double validation_mse = 0.0;
-    double rmse = 0.0;
-    double mae = 0.0;
-    double nse = 0.0;
-    double pbias = 0.0;
-    double physics_loss = 0.0;
+    double final_loss = std::numeric_limits<double>::quiet_NaN();
+    double mse = std::numeric_limits<double>::quiet_NaN();
+    double validation_mse = std::numeric_limits<double>::quiet_NaN();
+    double rmse = std::numeric_limits<double>::quiet_NaN();
+    double mae = std::numeric_limits<double>::quiet_NaN();
+    double nse = std::numeric_limits<double>::quiet_NaN();
+    double pbias = std::numeric_limits<double>::quiet_NaN();
+    double physics_loss = std::numeric_limits<double>::quiet_NaN();
     std::string message;
 
     // Optional series for plotting

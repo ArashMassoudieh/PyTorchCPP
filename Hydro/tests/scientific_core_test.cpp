@@ -27,5 +27,12 @@ int main() {
     assert(result.mae == 0.0);
     assert(result.nse == 1.0);
     assert(result.pbias == 0.0);
+
+    HydroRunResult constant;
+    populateHydroMetrics(constant, {0.0, 0.0}, {1.0, 1.0});
+    assert(std::isfinite(constant.mse));
+    assert(std::isnan(constant.nse));
+    assert(std::isnan(constant.pbias));
+    assert(hydroMetricsAreFinite(constant));
     return 0;
 }
