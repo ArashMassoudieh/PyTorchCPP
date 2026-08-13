@@ -1,4 +1,5 @@
 #include "lstmnetworkwrapper.h"
+#include "../dataset/chronological_split.h"
 
 #include <torch/torch.h>
 
@@ -420,13 +421,17 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
 
     SequenceData seq = makeSequences(x, y, plotX, sequenceLength);
     const int64_t totalSeq = seq.xSeq.size(0);
-    const double split = std::min(0.95, std::max(0.1, config.train_split_ratio));
-    const int64_t nTrain = std::max<int64_t>(2, std::min<int64_t>(totalSeq - 1, static_cast<int64_t>(totalSeq * split)));
+    const ChronologicalSplit split = makeChronologicalSplit(totalSeq,
+                                                            config.train_split_ratio,
+                                                            config.validation_split_ratio);
+    const int64_t nTrain = split.train_end;
 
     torch::Tensor xTrain = seq.xSeq.slice(0, 0, nTrain).contiguous();
     torch::Tensor yTrain = seq.ySeq.slice(0, 0, nTrain).contiguous();
-    torch::Tensor xTest = seq.xSeq.slice(0, nTrain, totalSeq).contiguous();
-    torch::Tensor yTest = seq.ySeq.slice(0, nTrain, totalSeq).contiguous();
+    torch::Tensor xValidation = seq.xSeq.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor yValidation = seq.ySeq.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor xTest = seq.xSeq.slice(0, split.validation_end, totalSeq).contiguous();
+    torch::Tensor yTest = seq.ySeq.slice(0, split.validation_end, totalSeq).contiguous();
 
     HydroLSTM model(seq.xSeq.size(2), hiddenDim, y.size(1), numLayers);
     torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
@@ -485,20 +490,25 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
             optimizer.zero_grad();
             torch::Tensor pred = model->forward(xb);
             torch::Tensor dataLoss = torch::mse_loss(pred, yb);
-            torch::Tensor loss = dataLoss;
-            if (physicsInformed) {
-                torch::Tensor physLoss = physicsResidualLoss();
-                const bool dataWarmup = config.data_weight > 0.0 && epoch < std::max(1, config.epochs / 5);
-                const double effectiveDataWeight = dataWarmup ? std::max(1.0, config.data_weight) : config.data_weight;
-                const double effectivePhysicsWeight = dataWarmup ? 0.0 : config.physics_weight;
-                loss = effectiveDataWeight * dataLoss + effectivePhysicsWeight * physLoss;
-            }
+            const bool dataWarmup = physicsInformed && config.data_weight > 0.0 && epoch < std::max(1, config.epochs / 5);
+            const double effectiveDataWeight = dataWarmup ? std::max(1.0, config.data_weight) : config.data_weight;
+            torch::Tensor loss = physicsInformed ? effectiveDataWeight * dataLoss : dataLoss;
             loss.backward();
             optimizer.step();
 
             const int64_t count = end - start;
             epochDataLoss += loss.item<double>() * static_cast<double>(count);
             seen += count;
+        }
+        // Conservation requires ordered samples. Evaluate its full chronological
+        // gradient once per epoch instead of repeating the same full-sequence
+        // gradient inside every shuffled supervised mini-batch.
+        if (physicsInformed && epoch >= std::max(1, config.epochs / 5) && config.physics_weight > 0.0) {
+            optimizer.zero_grad();
+            torch::Tensor physLoss = physicsResidualLoss();
+            (config.physics_weight * physLoss).backward();
+            optimizer.step();
+            result.physics_loss = physLoss.item<double>();
         }
         losses.push_back(epochDataLoss / static_cast<double>(std::max<int64_t>(1, seen)));
     }
@@ -510,6 +520,8 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
 
     model->eval();
     torch::NoGradGuard noGrad;
+    torch::Tensor predValidation = model->forward(xValidation);
+    if (config.evaluate_metrics) result.validation_mse = tensorMSEValue(predValidation, yValidation);
     torch::Tensor predTest = model->forward(xTest);
     if (!predTest.defined() || predTest.size(0) != yTest.size(0) || !predTest.isfinite().all().item<bool>()) {
         throw std::runtime_error(physicsInformed ? "LSTM-PINN prediction failed or produced non-finite values." : "LSTM prediction failed or produced non-finite values.");
