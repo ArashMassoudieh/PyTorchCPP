@@ -19,7 +19,8 @@ configuration:
 | PINN | Physics-first standalone baseline. | Inspect what the configured residual explains without supervised data loss. |
 
 See [`APPROACHES.md`](APPROACHES.md) for equations, loss definitions, and model
-semantics.
+semantics. See [`DATASET_CONTRACT.md`](DATASET_CONTRACT.md) for the versioned
+input package that GIStoOHQ and other acquisition tools should produce.
 
 ## Watershed-oriented PINN inputs
 

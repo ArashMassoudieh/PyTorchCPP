@@ -141,6 +141,7 @@ SOURCES += \
     Utilities/Vector.cpp \
     Utilities/Vector_arma.cpp \
     Hydro/dataset/ddrr_loader.cpp \
+    Hydro/dataset/hydro_dataset_contract.cpp \
     Hydro/dataset/lag_builder.cpp \
     Hydro/dataset/sequence_builder.cpp \
     Hydro/models/pinn_wrapper.cpp \
@@ -179,6 +180,7 @@ HEADERS += \
     Utilities/Vector_arma.h \
     Hydro/hydropinnwindow.h \
     Hydro/dataset/ddrr_loader.h \
+    Hydro/dataset/hydro_dataset_contract.h \
     Hydro/dataset/lag_builder.h \
     Hydro/dataset/sequence_builder.h \
     Hydro/dataset/chronological_split.h \
