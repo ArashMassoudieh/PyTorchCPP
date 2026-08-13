@@ -126,6 +126,12 @@ hours independently for each catchment, and converts observed discharge to
 `mm/h` using declared catchment areas. Full package manifest/catalog/QC parsing
 and direct wrapper integration remain follow-up work.
 
+The loader can also open a generic package directory containing
+`observations.csv` and `catchment_attributes.csv`; it reads `area_m2` by stable
+catchment ID rather than requiring areas to be entered manually. Parsing and
+checksum validation of `manifest.json`, the asset catalog, variables, and QC
+documents remain the next package-loader increment.
+
 ## Scientific-safety rules
 
 - Runs use chronological train, validation, and test partitions. The validation

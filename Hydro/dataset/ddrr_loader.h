@@ -31,4 +31,7 @@ public:
         const std::string& path,
         const std::map<std::string, double>& catchmentAreasM2,
         const HydroDatasetContract& contract = HydroDatasetContract::rainfallRunoffV1()) const;
+    HydroObservationDataset loadPackageDirectory(
+        const std::string& packageDirectory,
+        const HydroDatasetContract& contract = HydroDatasetContract::rainfallRunoffV1()) const;
 };

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <filesystem>
 #include <stdexcept>
 
 int main() {
@@ -38,6 +39,47 @@ int main() {
         rejected = true;
     }
     assert(rejected);
+
+    const std::string fractionalPath = "/tmp/hydro_loader_fractional.csv";
+    {
+        std::ofstream out(fractionalPath);
+        out << "timestamp,catchment_id,precipitation,potential_et,observed_discharge\n"
+            << "2024-01-01T00:00:00.000Z,a,1,0.1,1\n"
+            << "2024-01-01T00:00:00.500Z,a,1,0.1,1\n"
+            << "2024-01-01T00:00:01.000Z,a,1,0.1,1\n";
+    }
+    const auto fractional = loader.loadObservations(fractionalPath, {{"a", 1.0e6}});
+    assert(std::abs(fractional.observations_by_catchment.at("a")[1].elapsed_hours - 0.5 / 3600.0) < 1.0e-12);
+
+    const std::filesystem::path package = "/tmp/hydro_loader_package";
+    std::filesystem::remove_all(package);
+    std::filesystem::create_directories(package);
+    std::filesystem::copy_file(path, package / "observations.csv");
+    {
+        std::ofstream out(package / "catchment_attributes.csv");
+        out << "catchment_id,area_m2,mean_slope\n"
+            << "a,1000000,0.02\n"
+            << "b,2000000,0.03\n";
+    }
+    const auto packaged = loader.loadPackageDirectory(package.string(), HydroDatasetContract::waterBalanceV1());
+    assert(packaged.catchment_area_m2.at("a") == 1.0e6);
+    assert(packaged.observations_by_catchment.at("b").size() == 3);
+
+    {
+        std::ofstream out(package / "catchment_attributes.csv");
+        out << "catchment_id,area_m2\n"
+            << "a,-1\n"
+            << "b,2000000\n";
+    }
+    rejected = false;
+    try {
+        (void)loader.loadPackageDirectory(package.string());
+    } catch (const std::runtime_error&) {
+        rejected = true;
+    }
+    assert(rejected);
     std::remove(path.c_str());
+    std::remove(fractionalPath.c_str());
+    std::filesystem::remove_all(package);
     return 0;
 }
