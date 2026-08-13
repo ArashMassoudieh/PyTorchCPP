@@ -33,7 +33,7 @@ bool canonicalUtcTimestamp(const std::string& text) {
 }
 }
 
-HydroDatasetContract HydroDatasetContract::observationsV1(bool requireStorage) {
+HydroDatasetContract HydroDatasetContract::rainfallRunoffV1() {
     HydroDatasetContract contract;
     contract.variables = {
         {"timestamp", "UTC ISO-8601", "timestamp", true, false},
@@ -41,9 +41,22 @@ HydroDatasetContract HydroDatasetContract::observationsV1(bool requireStorage) {
         {"precipitation", "mm/h", "forcing", true, true},
         {"potential_et", "mm/h", "forcing", true, true},
         {"observed_discharge", "m3/s", "target", true, true},
-        {"storage", "mm", "state", requireStorage, false}
+        {"storage", "mm", "state", false, false}
     };
     return contract;
+}
+
+HydroDatasetContract HydroDatasetContract::waterBalanceV1() {
+    HydroDatasetContract contract = rainfallRunoffV1();
+    contract.profile = "water-balance";
+    for (auto& variable : contract.variables) {
+        if (variable.name == "storage") variable.required = true;
+    }
+    return contract;
+}
+
+HydroDatasetContract HydroDatasetContract::observationsV1(bool requireStorage) {
+    return requireStorage ? waterBalanceV1() : rainfallRunoffV1();
 }
 
 HydroDatasetValidation HydroDatasetValidator::validateCsv(const std::string& path,
@@ -51,7 +64,7 @@ HydroDatasetValidation HydroDatasetValidator::validateCsv(const std::string& pat
                                                            bool hasHeader) const {
     HydroDatasetValidation result;
     if (!hasHeader) {
-        result.errors.push_back("Canonical HydroPINN CSV files require a header row.");
+        result.errors.push_back("Canonical hydro observation CSV files require a header row.");
         return result;
     }
     std::ifstream input(path);

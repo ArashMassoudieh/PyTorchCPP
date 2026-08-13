@@ -13,10 +13,14 @@ struct HydroVariableMetadata {
 };
 
 struct HydroDatasetContract {
-    std::string schema_name = "hydropinn-dataset";
+    std::string schema_name = "hydro-observations";
     std::string schema_version = "1.0.0";
+    std::string profile = "rainfall-runoff";
     std::vector<HydroVariableMetadata> variables;
 
+    static HydroDatasetContract rainfallRunoffV1();
+    static HydroDatasetContract waterBalanceV1();
+    // Backward-compatible convenience for the HydroPINN consumer profile.
     static HydroDatasetContract observationsV1(bool requireStorage = true);
 };
 

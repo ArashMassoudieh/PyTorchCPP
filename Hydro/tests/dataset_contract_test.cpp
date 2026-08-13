@@ -17,6 +17,22 @@ int main() {
     const auto valid = validator.validateCsv(validPath, HydroDatasetContract::observationsV1());
     assert(valid.valid);
     assert(valid.row_count == 3);
+    const auto rainfallRunoff = HydroDatasetContract::rainfallRunoffV1();
+    const auto waterBalance = HydroDatasetContract::waterBalanceV1();
+    assert(rainfallRunoff.schema_name == "hydro-observations");
+    assert(rainfallRunoff.profile == "rainfall-runoff");
+    assert(waterBalance.profile == "water-balance");
+
+    const std::string genericPath = "/tmp/hydro_contract_generic.csv";
+    {
+        std::ofstream out(genericPath);
+        out << "timestamp,catchment_id,precipitation,potential_et,observed_discharge\n"
+            << "2024-01-01T00:00:00Z,watershed_a,0,0.1,1.2\n"
+            << "2024-01-01T01:00:00Z,watershed_a,1,0.1,1.3\n"
+            << "2024-01-01T02:00:00Z,watershed_a,0,0.1,1.1\n";
+    }
+    assert(validator.validateCsv(genericPath, rainfallRunoff).valid);
+    assert(!validator.validateCsv(genericPath, waterBalance).valid);
 
     const std::string multiPath = "/tmp/hydropinn_contract_multi.csv";
     {
@@ -57,6 +73,7 @@ int main() {
     assert(duplicate.errors.size() >= 2);
     std::remove(validPath.c_str());
     std::remove(multiPath.c_str());
+    std::remove(genericPath.c_str());
     std::remove(invalidPath.c_str());
     std::remove(duplicatePath.c_str());
     return 0;

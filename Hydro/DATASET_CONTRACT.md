@@ -1,8 +1,9 @@
-# HydroPINN dataset contract v1
+# Generic hydro dataset contract v1
 
-This contract is the boundary between data-acquisition tools such as GIStoOHQ
-and HydroPINN. Producers acquire, harmonize, quality-control, and document data;
-HydroPINN owns experimental splits, scaling, training, and evaluation.
+This reusable contract is the boundary between data-acquisition tools such as
+GIStoOHQ and downstream hydrology applications. Producers acquire, cache,
+harmonize, quality-control, and document data. Consumers such as HydroPINN own
+their experimental splits, scaling, training, and evaluation.
 
 ## Package layout
 
@@ -20,15 +21,17 @@ HydroPINN owns experimental splits, scaling, training, and evaluation.
   provenance/                  # request parameters and checksums
 ```
 
-`manifest.json` must declare `schema_name=hydropinn-dataset`, semantic schema
-version, dataset/site identifiers, UTC study interval, timestep, file paths, and
+`manifest.json` must declare `schema_name=hydro-observations`, semantic schema
+version, a consumer profile, dataset/watershed identifiers, UTC study interval, timestep, file paths, and
 SHA-256 checksums. `variables.json` must declare canonical name, unit, role,
 source-native name, temporal/spatial support, aggregation, missing-value policy,
 provider, product/station identifier, and retrieval time for every variable.
 
 ## Observation table
 
-Required columns for the water-balance study are:
+The reusable `rainfall-runoff` profile requires timestamp, catchment ID,
+precipitation, PET, and observed discharge. The `water-balance` profile extends
+it by requiring storage:
 
 | Column | Unit | Meaning |
 | --- | --- | --- |
@@ -56,19 +59,26 @@ Forecasts use long form with `issue_time`, `valid_time`, `lead_hours`,
 and optional `ensemble_member`. Retaining issue time prevents future-information
 leakage in retrospective experiments.
 
-## Required GIStoOHQ work
+## GIStoOHQ architecture
 
-GIStoOHQ should implement `hydropinn-data`, `hydropinn-validate`, and
-`hydropinn-report` commands that write and validate this package. Required
-adapters are discharge, historical meteorology, PET/ET, archived forecast
-meteorology, and available storage/state proxies. Static processing must emit
-catchment area, elevation/slope, imperviousness, land-cover and soil fractions,
-hydrography, outlet metadata, and stable subcatchment topology.
+GIStoOHQ should remain a generic acquisition and catchment-data system, not a
+HydroPINN-specific downloader. Its core commands should be `hydro-data fetch`,
+`hydro-data validate`, and `hydro-data report`. A thin `export hydropinn` adapter
+should map the generic catalog into this contract without embedding model,
+normalization, lag, or split decisions in GIStoOHQ.
 
-Before bulk acquisition, GIStoOHQ should create a Hickey Run gauge-reconnaissance
+Provider adapters should cover discharge, historical meteorology, PET/ET,
+archived forecast meteorology, and available storage/state proxies. Static
+processing should emit catchment area, elevation/slope, imperviousness,
+land-cover and soil fractions, hydrography, outlet metadata, and stable
+subcatchment topology. Other consumers can export the same cached assets to
+their own schemas.
+
+Before bulk acquisition for any watershed, GIStoOHQ should create a gauge-reconnaissance
 report containing gauge distance, provider/station ID, observed and modeled
 drainage areas, area mismatch, record period, resolution, completeness, and
-quality status. The runoff target is a go/no-go decision for the study.
+quality status. The runoff target is a go/no-go decision for each study; Hickey
+Run is the first configured site, not a hard-coded special case.
 
 GIStoOHQ must preserve raw responses and record provider, product/station ID,
 request parameters, retrieval timestamp, native units/resolution, license,

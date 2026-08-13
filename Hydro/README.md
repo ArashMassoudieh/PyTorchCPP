@@ -20,7 +20,9 @@ configuration:
 
 See [`APPROACHES.md`](APPROACHES.md) for equations, loss definitions, and model
 semantics. See [`DATASET_CONTRACT.md`](DATASET_CONTRACT.md) for the versioned
-input package that GIStoOHQ and other acquisition tools should produce.
+input package that GIStoOHQ and other acquisition tools should produce, and
+[`GISTOOHQ_PIPELINE.md`](GISTOOHQ_PIPELINE.md) for the generic acquisition/cache
+architecture and thin HydroPINN export adapter.
 
 ## Watershed-oriented PINN inputs
 
