@@ -5,6 +5,8 @@
 
 #include <torch/torch.h>
 
+#include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <vector>
 
@@ -51,4 +53,20 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
     y = torch::from_blob(targets.data(), {n, 1}, torch::kFloat32).clone();
     plotX = torch::from_blob(times.data(), {n, 1}, torch::kFloat32).clone();
     return true;
+}
+
+inline double regularPhysicalTimeStep(const torch::Tensor& inputs,
+                                      double relativeTolerance = 1.0e-6) {
+    if (!inputs.defined() || inputs.dim() != 2 || inputs.size(0) < 2 || inputs.size(1) < 1) {
+        throw std::runtime_error("Physical timestep inference requires inputs [N,F] with N >= 2.");
+    }
+    auto time = inputs.slice(1, 0, 1).reshape({-1});
+    auto intervals = time.slice(0, 1, time.size(0)) - time.slice(0, 0, time.size(0) - 1);
+    if ((intervals <= 0).any().item<bool>()) throw std::runtime_error("Physical timestamps must be strictly increasing.");
+    const double dt = intervals[0].item<double>();
+    const double tolerance = std::max(1.0e-12, std::abs(dt) * relativeTolerance);
+    if ((torch::abs(intervals - dt) > tolerance).any().item<bool>()) {
+        throw std::runtime_error("Current PINN backends require a regular package timestep; irregular timestamps need interval-aware training.");
+    }
+    return dt;
 }

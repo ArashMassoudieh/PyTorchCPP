@@ -449,7 +449,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     const int64_t trainN = xTrain.size(0);
     const int batchSize = std::max(1, config.batch_size);
     const double lambda = config.lambda_decay;
-    const double dt = config.use_hydro_package ? std::max(1.0e-8, config.physics_dt) : ((config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff"))
+    const double dt = config.use_hydro_package ? regularPhysicalTimeStep(x) : ((config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff"))
                           ? 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1)
                           : std::max(1.0e-8, config.physics_dt);
 

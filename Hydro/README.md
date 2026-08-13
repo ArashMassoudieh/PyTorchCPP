@@ -138,6 +138,11 @@ loader. The Data tab exposes **Hydro Package** directory, catchment ID, and
 profile controls. Variable metadata and checksum enforcement remain follow-up
 work.
 
+Package-backed PINN runs infer their physical timestep from the elapsed-hour
+column instead of trusting a manually entered `physics_dt`. Current training
+backends reject irregular package intervals explicitly; this prevents silently
+applying one finite-difference timestep to gapped or irregular observations.
+
 ## Scientific-safety rules
 
 - Runs use chronological train, validation, and test partitions. The validation

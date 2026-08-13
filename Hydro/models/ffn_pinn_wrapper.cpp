@@ -506,7 +506,7 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
         const int rainfallCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 1) : 1;
         const int etCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 2) : 2;
         const int storageCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, waterBalanceStorageCol) : waterBalanceStorageCol;
-        const double dt = config.use_hydro_package ? std::max(1.0e-8, config.physics_dt) : 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1);
+        const double dt = config.use_hydro_package ? regularPhysicalTimeStep(x) : 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1);
         losses = model.trainPINNWaterBalance(config.epochs,
                                              config.batch_size,
                                              config.learning_rate,
@@ -571,7 +571,7 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
         const int etCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 2) : 2;
         const int storageCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, waterBalanceStorageCol) : waterBalanceStorageCol;
         PhysicsConfig physics;
-        physics.dt = (config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff")
+        physics.dt = config.use_hydro_package ? regularPhysicalTimeStep(x) : (config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff")
                          ? 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1)
                          : std::max(1.0e-8, config.physics_dt);
         RRPhysics residuals;
