@@ -52,6 +52,7 @@ struct HydroRunConfig {
 
     // NeuroForge-style extra options (currently informational/plumbing for Hydro UI compatibility)
     double train_split_ratio = 0.8;
+    double validation_split_ratio = 0.1; // chronological fraction reserved for model selection
     bool shuffle_training = true;
     int random_seed = 42;
     std::string optimizer = "adam";      // adam | sgd | rmsprop
@@ -74,6 +75,12 @@ struct HydroRunResult {
     bool success = false;
     double final_loss = 0.0;
     double mse = 0.0;
+    double validation_mse = 0.0;
+    double rmse = 0.0;
+    double mae = 0.0;
+    double nse = 0.0;
+    double pbias = 0.0;
+    double physics_loss = 0.0;
     std::string message;
 
     // Optional series for plotting

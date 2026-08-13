@@ -1,4 +1,5 @@
 #include "ffn_pinn_wrapper.h"
+#include "../dataset/chronological_split.h"
 
 #include "neuralnetworkwrapper.h"
 
@@ -471,13 +472,14 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     model.setLags(currentInputLags(static_cast<int>(x.size(1))));
     model.initializeNetwork(1, config.activation);
 
-    const double split = std::min(0.95, std::max(0.1, config.train_split_ratio));
-    const int64_t nTrain = static_cast<int64_t>(x.size(0) * split);
+    const ChronologicalSplit split = makeChronologicalSplit(x.size(0), config.train_split_ratio, config.validation_split_ratio);
+    const int64_t nTrain = split.train_end;
     torch::Tensor xTrain = x.slice(0, 0, nTrain);
     torch::Tensor yTrain = y.slice(0, 0, nTrain);
-    torch::Tensor xTest = x.slice(0, nTrain, x.size(0));
-    torch::Tensor yTest = y.slice(0, nTrain, y.size(0));
-    torch::Tensor plotXTest = plotX.slice(0, nTrain, plotX.size(0));
+    torch::Tensor xValidation = x.slice(0, nTrain, split.validation_end);
+    torch::Tensor yValidation = y.slice(0, nTrain, split.validation_end);
+    torch::Tensor xTest = x.slice(0, split.validation_end, x.size(0));
+    torch::Tensor yTest = y.slice(0, split.validation_end, y.size(0));
 
     model.setTensorData(DataType::Train, xTrain, yTrain);
     model.setTensorData(DataType::Test, xTest, yTest);
@@ -530,6 +532,10 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     }
     result.final_loss = losses.back();
 
+    model.setTensorData(DataType::Test, xValidation, yValidation);
+    torch::Tensor predValidation = model.forward(DataType::Test);
+    result.validation_mse = torch::mse_loss(predValidation, yValidation).item<double>();
+    model.setTensorData(DataType::Test, xTest, yTest);
     torch::Tensor predTest = model.forward(DataType::Test);
     if (!predTest.defined() || predTest.size(0) != yTest.size(0) || !predTest.isfinite().all().item<bool>()) {
         throw std::runtime_error("FFN-PINN prediction on test set failed or produced non-finite values.");
