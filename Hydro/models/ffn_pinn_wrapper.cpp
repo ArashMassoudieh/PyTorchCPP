@@ -2,6 +2,7 @@
 #include "../dataset/chronological_split.h"
 #include "../evaluation/hydro_metrics.h"
 #include "../physics/rr_physics.h"
+#include "../dataset/hydro_tensor_builder.h"
 
 #include "neuralnetworkwrapper.h"
 
@@ -459,7 +460,7 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     torch::Tensor x;
     torch::Tensor y;
     torch::Tensor plotX;
-    if (!loadSeriesFromCsv(config, x, y, plotX)) {
+    if (!loadHydroPackageTensors(config, x, y, plotX) && !loadSeriesFromCsv(config, x, y, plotX)) {
         buildSyntheticSeries(config, x, y, plotX);
     }
 
@@ -499,13 +500,13 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
 
     std::vector<double> losses;
     if (config.pinn_physics_profile == "water_balance" &&
-        (config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff") &&
+        (config.use_hydro_package || config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff") &&
         x.size(1) >= 5) {
         // watershed_balance/rainfall_runoff columns start [normalized_time, effective precipitation, evapotranspiration, temperature, soil_storage].
         const int rainfallCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 1) : 1;
         const int etCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, 2) : 2;
         const int storageCol = config.use_time_lagged_ffn ? currentFeatureColumn(configuredLags, waterBalanceStorageCol) : waterBalanceStorageCol;
-        const double dt = 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1);
+        const double dt = config.use_hydro_package ? std::max(1.0e-8, config.physics_dt) : 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1);
         losses = model.trainPINNWaterBalance(config.epochs,
                                              config.batch_size,
                                              config.learning_rate,
@@ -583,6 +584,6 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     }
     fillPlotVectors(result, plotX, y, predFull);
     result.success = true;
-    result.message = config.use_csv_data ? "FFN-PINN run completed with CSV input." : "FFN-PINN run completed with synthetic input.";
+    result.message = config.use_hydro_package ? "FFN-PINN run completed with Hydro package input." : (config.use_csv_data ? "FFN-PINN run completed with CSV input." : "FFN-PINN run completed with synthetic input.");
     return result;
 }

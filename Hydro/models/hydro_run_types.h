@@ -31,6 +31,10 @@ struct HydroRunConfig {
 
     // Data input options
     bool use_csv_data = false;
+    bool use_hydro_package = false;
+    std::string hydro_package_path;
+    std::string hydro_catchment_id;
+    std::string hydro_package_profile = "rainfall-runoff";
     std::string csv_path;
     int csv_x_column = 0;
     int csv_y_column = 1;

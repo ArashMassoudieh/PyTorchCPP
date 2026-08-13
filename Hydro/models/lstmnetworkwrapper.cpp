@@ -1,6 +1,7 @@
 #include "lstmnetworkwrapper.h"
 #include "../dataset/chronological_split.h"
 #include "../dataset/tensor_scaler.h"
+#include "../dataset/hydro_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
 
 #include <torch/torch.h>
@@ -390,7 +391,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
     torch::Tensor x, y, plotX;
-    if (!loadSeriesFromCsv(config, x, y, plotX)) buildSyntheticSeries(config, x, y, plotX);
+    if (!loadHydroPackageTensors(config, x, y, plotX) && !loadSeriesFromCsv(config, x, y, plotX)) buildSyntheticSeries(config, x, y, plotX);
 
     const bool needsForcing = physicsInformed &&
         (config.pinn_physics_profile == "linear_reservoir" ||
@@ -448,7 +449,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     const int64_t trainN = xTrain.size(0);
     const int batchSize = std::max(1, config.batch_size);
     const double lambda = config.lambda_decay;
-    const double dt = ((config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff"))
+    const double dt = config.use_hydro_package ? std::max(1.0e-8, config.physics_dt) : ((config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff"))
                           ? 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1)
                           : std::max(1.0e-8, config.physics_dt);
 
@@ -459,7 +460,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         torch::Tensor yMid = p.slice(0, 1, p.size(0));
         torch::Tensor residual;
         if (needsForcing && config.pinn_physics_profile == "water_balance" &&
-            (config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff") && xTrain.size(2) >= 5) {
+            (config.use_hydro_package || config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff") && xTrain.size(2) >= 5) {
             // watershed_balance/rainfall_runoff columns start [normalized_time, effective precipitation, evapotranspiration, temperature, soil_storage].
             torch::Tensor lastStep = xTrain.select(1, xTrain.size(1) - 1);
             torch::Tensor rain = lastStep.slice(1, 1, 2).slice(0, 1, lastStep.size(0));
@@ -546,7 +547,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     fillPlotVectors(result, seq.plotSeq, seq.ySeq, predFull);
     result.success = true;
     result.message = physicsInformed
-        ? (config.use_csv_data ? "LSTM-PINN run completed with CSV input." : "LSTM-PINN run completed with synthetic input.")
-        : (config.use_csv_data ? "LSTM run completed with CSV input." : "LSTM run completed with synthetic input.");
+        ? (config.use_hydro_package ? "LSTM-PINN run completed with Hydro package input." : (config.use_csv_data ? "LSTM-PINN run completed with CSV input." : "LSTM-PINN run completed with synthetic input."))
+        : (config.use_hydro_package ? "LSTM run completed with Hydro package input." : (config.use_csv_data ? "LSTM run completed with CSV input." : "LSTM run completed with synthetic input."));
     return result;
 }

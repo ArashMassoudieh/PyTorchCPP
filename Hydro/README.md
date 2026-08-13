@@ -132,6 +132,11 @@ stable catchment ID, enforce the declared schema/profile, and reject unresolved
 package QC errors. Checksum validation plus full asset-catalog and variable
 metadata parsing remain the next package-loader increment.
 
+All four trainable wrapper families now accept the same package/catchment
+configuration and build named physical tensors through the shared package
+loader. Package mode is currently a programmatic configuration path; GUI
+package selection and variable/checksum metadata remain follow-up work.
+
 ## Scientific-safety rules
 
 - Runs use chronological train, validation, and test partitions. The validation
