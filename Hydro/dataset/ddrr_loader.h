@@ -1,21 +1,34 @@
 #pragma once
 
+#include "hydro_dataset_contract.h"
+
+#include <map>
+#include <optional>
 #include <string>
+#include <vector>
 
-/**
- * @file ddrr_loader.h
- * @brief Loader stub for DDRR-style hydrology datasets.
- */
+struct HydroObservation {
+    std::string timestamp;
+    std::string catchment_id;
+    double elapsed_hours = 0.0;
+    double precipitation_mm_per_hour = 0.0;
+    double potential_et_mm_per_hour = 0.0;
+    double observed_discharge_m3_per_second = 0.0;
+    double observed_runoff_mm_per_hour = 0.0;
+    std::optional<double> storage_mm;
+};
 
-/**
- * @brief Reads dataset resources used by HydroPINN experiments.
- */
+struct HydroObservationDataset {
+    std::map<std::string, double> catchment_area_m2;
+    std::map<std::string, std::vector<HydroObservation>> observations_by_catchment;
+};
+
+/** Loads validated generic hydro-observation CSV exports. */
 class DDRRLoader {
 public:
-    /**
-     * @brief Load dataset content from a file path.
-     * @param path Input file path.
-     * @return True if the input path is considered valid by the loader.
-     */
     bool load(const std::string& path);
+    HydroObservationDataset loadObservations(
+        const std::string& path,
+        const std::map<std::string, double>& catchmentAreasM2,
+        const HydroDatasetContract& contract = HydroDatasetContract::rainfallRunoffV1()) const;
 };
