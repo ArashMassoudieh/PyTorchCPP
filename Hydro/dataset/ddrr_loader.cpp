@@ -87,6 +87,30 @@ std::string jsonString(const std::string& json, const std::string& key, bool req
     return {};
 }
 
+int semanticMajor(const std::string& version) {
+    const auto dot = version.find('.');
+    const std::string major = version.substr(0, dot);
+    if (major.empty()) throw std::runtime_error("Schema version has no major component.");
+    try {
+        std::size_t parsed = 0;
+        const int value = std::stoi(major, &parsed);
+        if (parsed != major.size() || value < 0) throw std::invalid_argument("invalid major");
+        return value;
+    } catch (...) {
+        throw std::runtime_error("Invalid semantic schema version: " + version);
+    }
+}
+
+bool safeRelativePath(const std::string& value) {
+    if (value.empty()) return true;
+    const std::filesystem::path path(value);
+    if (path.is_absolute()) return false;
+    for (const auto& component : path) {
+        if (component == "..") return false;
+    }
+    return true;
+}
+
 void rejectPackageQcErrors(const std::filesystem::path& path) {
     if (path.empty()) return;
     std::ifstream input(path);
@@ -103,7 +127,11 @@ void rejectPackageQcErrors(const std::filesystem::path& path) {
         if (line.empty()) continue;
         const auto fields = splitCsv(line);
         if (fields.size() != header.size()) throw std::runtime_error("Quality-control row has inconsistent columns.");
-        if (fields.at(columns.at("severity")) == "error") {
+        const std::string severity = fields.at(columns.at("severity"));
+        if (severity != "error" && severity != "warning" && severity != "information") {
+            throw std::runtime_error("Unknown QC severity: " + severity);
+        }
+        if (severity == "error") {
             throw std::runtime_error("Package contains unresolved QC error: " + fields.at(columns.at("rule_id")));
         }
     }
@@ -176,7 +204,7 @@ HydroObservationDataset DDRRLoader::loadPackageDirectory(
     }
     const HydroPackageManifest manifest = loadManifest(manifestPath.string());
     if (manifest.schema_name != contract.schema_name) throw std::runtime_error("Package schema_name is incompatible with the selected contract.");
-    if (manifest.schema_version.empty() || manifest.schema_version.front() != contract.schema_version.front()) {
+    if (semanticMajor(manifest.schema_version) != semanticMajor(contract.schema_version)) {
         throw std::runtime_error("Package schema major version is unsupported.");
     }
     if (manifest.profile != contract.profile) throw std::runtime_error("Package profile does not match the selected contract.");
@@ -207,7 +235,7 @@ HydroPackageManifest DDRRLoader::loadManifest(const std::string& manifestPath) c
     manifest.catchment_attributes_file = jsonString(json, "catchment_attributes_file");
     manifest.quality_control_file = jsonString(json, "quality_control_file", false);
     for (const auto& relative : {manifest.observations_file, manifest.catchment_attributes_file, manifest.quality_control_file}) {
-        if (!relative.empty() && (std::filesystem::path(relative).is_absolute() || relative.find("..") != std::string::npos)) {
+        if (!safeRelativePath(relative)) {
             throw std::runtime_error("Manifest file paths must remain within the package directory.");
         }
     }
