@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <limits>
 #include <vector>
 
 /**
@@ -52,6 +53,7 @@ struct HydroRunConfig {
 
     // NeuroForge-style extra options (currently informational/plumbing for Hydro UI compatibility)
     double train_split_ratio = 0.8;
+    double validation_split_ratio = 0.1; // chronological fraction reserved for model selection
     bool shuffle_training = true;
     int random_seed = 42;
     std::string optimizer = "adam";      // adam | sgd | rmsprop
@@ -72,8 +74,14 @@ struct HydroRunConfig {
  */
 struct HydroRunResult {
     bool success = false;
-    double final_loss = 0.0;
-    double mse = 0.0;
+    double final_loss = std::numeric_limits<double>::quiet_NaN();
+    double mse = std::numeric_limits<double>::quiet_NaN();
+    double validation_mse = std::numeric_limits<double>::quiet_NaN();
+    double rmse = std::numeric_limits<double>::quiet_NaN();
+    double mae = std::numeric_limits<double>::quiet_NaN();
+    double nse = std::numeric_limits<double>::quiet_NaN();
+    double pbias = std::numeric_limits<double>::quiet_NaN();
+    double physics_loss = std::numeric_limits<double>::quiet_NaN();
     std::string message;
 
     // Optional series for plotting

@@ -1,4 +1,6 @@
 #include "ffn_pinn_wrapper.h"
+#include "../dataset/chronological_split.h"
+#include "../evaluation/hydro_metrics.h"
 
 #include "neuralnetworkwrapper.h"
 
@@ -6,7 +8,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
-#include <map>
 #include <sstream>
 #include <stdexcept>
 
@@ -433,6 +434,14 @@ void fillPlotVectors(HydroRunResult& result, const torch::Tensor& x, const torch
         result.y_pred.push_back(pc[i].item<double>());
     }
 }
+
+std::vector<double> tensorValues(const torch::Tensor& tensor) {
+    auto values = tensor.detach().to(torch::kCPU).reshape({-1}).contiguous();
+    std::vector<double> out;
+    out.reserve(static_cast<size_t>(values.size(0)));
+    for (int64_t i = 0; i < values.size(0); ++i) out.push_back(values[i].item<double>());
+    return out;
+}
 }
 
 HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
@@ -471,13 +480,14 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     model.setLags(currentInputLags(static_cast<int>(x.size(1))));
     model.initializeNetwork(1, config.activation);
 
-    const double split = std::min(0.95, std::max(0.1, config.train_split_ratio));
-    const int64_t nTrain = static_cast<int64_t>(x.size(0) * split);
+    const ChronologicalSplit split = makeChronologicalSplit(x.size(0), config.train_split_ratio, config.validation_split_ratio);
+    const int64_t nTrain = split.train_end;
     torch::Tensor xTrain = x.slice(0, 0, nTrain);
     torch::Tensor yTrain = y.slice(0, 0, nTrain);
-    torch::Tensor xTest = x.slice(0, nTrain, x.size(0));
-    torch::Tensor yTest = y.slice(0, nTrain, y.size(0));
-    torch::Tensor plotXTest = plotX.slice(0, nTrain, plotX.size(0));
+    torch::Tensor xValidation = x.slice(0, nTrain, split.validation_end);
+    torch::Tensor yValidation = y.slice(0, nTrain, split.validation_end);
+    torch::Tensor xTest = x.slice(0, split.validation_end, x.size(0));
+    torch::Tensor yTest = y.slice(0, split.validation_end, y.size(0));
 
     model.setTensorData(DataType::Train, xTrain, yTrain);
     model.setTensorData(DataType::Test, xTest, yTest);
@@ -530,20 +540,18 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     }
     result.final_loss = losses.back();
 
+    model.setTensorData(DataType::Test, xValidation, yValidation);
+    torch::Tensor predValidation = model.forward(DataType::Test);
+    result.validation_mse = torch::mse_loss(predValidation, yValidation).item<double>();
+    model.setTensorData(DataType::Test, xTest, yTest);
     torch::Tensor predTest = model.forward(DataType::Test);
     if (!predTest.defined() || predTest.size(0) != yTest.size(0) || !predTest.isfinite().all().item<bool>()) {
         throw std::runtime_error("FFN-PINN prediction on test set failed or produced non-finite values.");
     }
 
     if (config.evaluate_metrics) {
-        std::map<std::string, double> metrics = model.evaluate();
-        auto it = metrics.find("mse");
-        if (it != metrics.end()) {
-            if (!std::isfinite(it->second)) {
-                throw std::runtime_error("FFN-PINN evaluation produced non-finite MSE.");
-            }
-            result.mse = it->second;
-        }
+        populateHydroMetrics(result, tensorValues(yTest), tensorValues(predTest));
+        if (!hydroMetricsAreFinite(result)) throw std::runtime_error("FFN-PINN evaluation produced non-finite hydrology metrics.");
     }
 
     // Keep metrics on held-out test set, but plot full-series predictions for better visual coverage.

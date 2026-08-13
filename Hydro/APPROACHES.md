@@ -74,7 +74,7 @@ The standalone **PINN** is intentionally listed as the fifth approach so it is v
 | **FFN + PINN** | `FFNPINNWrapper` | FFN with physics regularization | \(w_{data}\mathcal{L}_{data}+w_{phys}\mathcal{L}_{phys}\) | Optional time-lagged FFN inputs |
 | **LSTM** | `LSTMWrapper` | Recurrent supervised sequence model | \(\mathcal{L}_{data}\) | Ignored; LSTM carries sequence memory |
 | **LSTM + PINN** | `LSTMPINNWrapper` | LSTM with physics regularization | \(w_{data}\mathcal{L}_{data}+w_{phys}\mathcal{L}_{phys}\) | Ignored; LSTM carries sequence memory |
-| **PINN** | `FFNPINNWrapper` | Physics-first standalone PINN | \(\mathcal{L}_{phys}\) | Ignored; uses physics-coordinate inputs |
+| **PINN** | `PINNWrapper` | Explicit physics-only residual solver | \(\mathcal{L}_{phys}\) | Ignored; uses physics-coordinate inputs |
 
 ## 1. FFN
 
@@ -252,7 +252,8 @@ Use **LSTM + PINN** when you want sequence memory and physics-informed regulariz
 
 ### Backend and dispatch behavior
 
-The current runner reuses the feed-forward PINN backend (`FFNPINNWrapper`) and dispatches standalone **PINN** with:
+The explicit `PINNWrapper` enforces the physics-only configuration and delegates
+the shared feed-forward optimization mechanics to `FFNPINNWrapper` with:
 
 \[
 w_{data} = 0,
