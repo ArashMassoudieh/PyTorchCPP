@@ -10,6 +10,7 @@ their experimental splits, scaling, training, and evaluation.
 ```text
 <dataset_id>/
   manifest.json
+  site_spec.json
   observations.csv
   variables.json
   quality_control.csv
@@ -17,7 +18,7 @@ their experimental splits, scaling, training, and evaluation.
   catchment_attributes.csv
   stations.geojson
   forecast.csv                 # optional
-  raw/                         # immutable source responses
+  raw/                         # optional; none, referenced, or self-contained
   provenance/                  # request parameters and checksums
 ```
 
@@ -26,6 +27,10 @@ version, a consumer profile, dataset/watershed identifiers, UTC study interval, 
 SHA-256 checksums. `variables.json` must declare canonical name, unit, role,
 source-native name, temporal/spatial support, aggregation, missing-value policy,
 provider, product/station identifier, and retrieval time for every variable.
+The site specification, mutable asset catalog, and frozen package manifest are
+separate documents. The manifest records their digests, included asset IDs,
+producer version, package QC status, and raw-content inclusion/self-contained
+status.
 
 ## Observation table
 
