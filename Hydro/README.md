@@ -19,7 +19,8 @@ configuration:
 | PINN | Physics-first standalone baseline. | Inspect what the configured residual explains without supervised data loss. |
 
 See [`APPROACHES.md`](APPROACHES.md) for equations, loss definitions, and model
-semantics.
+semantics. See [`DATASET_CONTRACT.md`](DATASET_CONTRACT.md) for the versioned
+input package that GIStoOHQ and other acquisition tools should produce.
 
 ## Watershed-oriented PINN inputs
 
@@ -51,8 +52,10 @@ features while the residual keeps a direct mass-balance interpretation.
    - Enable time-lagged FFN inputs for FFN-family approaches.
    - Keep lag settings disabled for LSTM-family approaches, where sequence memory
      is handled by the recurrent backend.
+   - LSTM sequence length is an independent configuration value; running FFN lag
+     optimization does not silently change the LSTM receptive window.
 4. **Training tab**
-   - Set epochs, batch size, learning rate, train/test split, and PINN weights.
+   - Set epochs, batch size, learning rate, chronological train/validation/test split, and PINN weights.
    - Choose the PINN physics profile that matches the experiment.
    - Use **Train All** to compare all approaches under one configuration.
 5. **Prediction, Performance Assessment, Plot, and Logs tabs**
@@ -102,3 +105,32 @@ interpretability as much as generic prediction error:
 - Add export actions for metrics, residuals, and predictions across all five
   approaches.
 - Expand calibrated watershed-process residuals for snow accumulation/melt, infiltration capacity, groundwater exchange, channel routing, and evapotranspiration stress as field assumptions become available.
+
+The current synthetic workflow is still a software-validation stage. Before
+paper experiments, remaining work includes a named and unit-aware dataset
+contract, timestamp plumbing from that dataset into physics
+training, configuration/result serialization, model persistence, and broader
+five-model integration tests.
+
+FFN and LSTM supervised runs now fit normalization exclusively on the training
+partition and inverse-transform predictions before validation/test metrics are
+computed. PINN-capable runs reject normalization for now: enabling it safely
+requires inverse-transforming predictions and physical forcing/state variables
+inside the differentiable residual rather than applying conservation to scaled
+quantities.
+
+## Scientific-safety rules
+
+- Runs use chronological train, validation, and test partitions. The validation
+  partition is reserved for model and physics-weight selection; test metrics
+  must not drive retries or hyperparameter choices.
+- LSTM + PINN evaluates one ordered full-training-sequence physics gradient per
+  epoch rather than repeating it inside every shuffled supervised mini-batch.
+- `PINNWrapper` is the explicit fifth approach and enforces physics-only training.
+  For water balance with independently known precipitation, ET, and storage,
+  interpret it as a diagnostic residual solver rather than a freely identifiable
+  rainfall-runoff model.
+- Field-data conservation must use compatible physical units and strictly
+  increasing timestamps. `RRPhysics::waterBalanceResidualAtTimes` supports
+  variable physical time steps; normalized plotting coordinates must not be
+  substituted for physical elapsed time.
