@@ -56,14 +56,64 @@ int main() {
     std::filesystem::create_directories(package);
     std::filesystem::copy_file(path, package / "observations.csv");
     {
+        std::ofstream out(package / "manifest.json");
+        out << R"({
+  "schema_name": "hydro-observations",
+  "schema_version": "1.0.0",
+  "profile": "water-balance",
+  "dataset_id": "two-catchment-test",
+  "observations_file": "observations.csv",
+  "catchment_attributes_file": "catchment_attributes.csv",
+  "quality_control_file": "quality_control.csv"
+})";
+    }
+    {
+        std::ofstream out(package / "quality_control.csv");
+        out << "rule_id,severity,message\n"
+            << "coverage,warning,Short test fixture\n";
+    }
+    {
         std::ofstream out(package / "catchment_attributes.csv");
         out << "catchment_id,area_m2,mean_slope\n"
             << "a,1000000,0.02\n"
             << "b,2000000,0.03\n";
     }
     const auto packaged = loader.loadPackageDirectory(package.string(), HydroDatasetContract::waterBalanceV1());
+    assert(packaged.dataset_id == "two-catchment-test");
+    assert(packaged.schema_version == "1.0.0");
+    assert(packaged.profile == "water-balance");
     assert(packaged.catchment_area_m2.at("a") == 1.0e6);
     assert(packaged.observations_by_catchment.at("b").size() == 3);
+
+    // Two-digit incompatible major versions must not pass by sharing a first digit.
+    {
+        std::ofstream out(package / "manifest.json");
+        out << R"({"schema_name":"hydro-observations","schema_version":"10.0.0","profile":"water-balance","dataset_id":"bad-version","observations_file":"observations.csv","catchment_attributes_file":"catchment_attributes.csv"})";
+    }
+    rejected = false;
+    try {
+        (void)loader.loadPackageDirectory(package.string(), HydroDatasetContract::waterBalanceV1());
+    } catch (const std::runtime_error&) { rejected = true; }
+    assert(rejected);
+
+    // A filename containing two dots is safe; only a literal parent component is traversal.
+    std::filesystem::copy_file(path, package / "observations..csv");
+    {
+        std::ofstream out(package / "manifest.json");
+        out << R"({"schema_name":"hydro-observations","schema_version":"1.0.0","profile":"water-balance","dataset_id":"safe-dots","observations_file":"observations..csv","catchment_attributes_file":"catchment_attributes.csv"})";
+    }
+    const auto safeDots = loader.loadPackageDirectory(package.string(), HydroDatasetContract::waterBalanceV1());
+    assert(safeDots.dataset_id == "safe-dots");
+
+    {
+        std::ofstream out(package / "manifest.json");
+        out << R"({"schema_name":"hydro-observations","schema_version":"1.0.0","profile":"water-balance","dataset_id":"traversal","observations_file":"../observations.csv","catchment_attributes_file":"catchment_attributes.csv"})";
+    }
+    rejected = false;
+    try { (void)loader.loadManifest((package / "manifest.json").string()); }
+    catch (const std::runtime_error&) { rejected = true; }
+    assert(rejected);
+
 
     {
         std::ofstream out(package / "catchment_attributes.csv");
@@ -74,6 +124,25 @@ int main() {
     rejected = false;
     try {
         (void)loader.loadPackageDirectory(package.string());
+    } catch (const std::runtime_error&) {
+        rejected = true;
+    }
+    assert(rejected);
+
+    {
+        std::ofstream out(package / "catchment_attributes.csv");
+        out << "catchment_id,area_m2\n"
+            << "a,1000000\n"
+            << "b,2000000\n";
+    }
+    {
+        std::ofstream out(package / "quality_control.csv");
+        out << "rule_id,severity,message\n"
+            << "missing_discharge,error,Target is incomplete\n";
+    }
+    rejected = false;
+    try {
+        (void)loader.loadPackageDirectory(package.string(), HydroDatasetContract::waterBalanceV1());
     } catch (const std::runtime_error&) {
         rejected = true;
     }

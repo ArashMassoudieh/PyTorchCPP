@@ -1,4 +1,5 @@
 #include "../dataset/tensor_scaler.h"
+#include "../dataset/hydro_tensor_builder.h"
 
 #include <cassert>
 
@@ -15,5 +16,15 @@ int main() {
     auto constant = torch::ones({3, 2});
     scaler.fit(constant, "standardize");
     assert(torch::isfinite(scaler.transform(constant)).all().item<bool>());
+
+    auto regular = torch::tensor({{0.0f, 1.0f}, {0.5f, 2.0f}, {1.0f, 3.0f}});
+    assert(regularPhysicalTimeStep(regular) == 0.5);
+    bool irregularRejected = false;
+    try {
+        (void)regularPhysicalTimeStep(torch::tensor({{0.0f}, {0.5f}, {1.1f}}));
+    } catch (const std::runtime_error&) {
+        irregularRejected = true;
+    }
+    assert(irregularRejected);
     return 0;
 }

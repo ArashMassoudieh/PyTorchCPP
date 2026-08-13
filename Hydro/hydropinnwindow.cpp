@@ -92,6 +92,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       browseCsvButton_(new QPushButton("Browse...", this)), csvXColSpin_(new QSpinBox(this)),
       csvYColSpin_(new QSpinBox(this)), csvHeaderCheck_(new QCheckBox("CSV has header row", this)),
       useNeuroforgeCsvPresetButton_(new QPushButton("Use NeuroForge CSV Preset (x=t, y=target)", this)),
+      hydroPackagePathEdit_(new QLineEdit(this)), browseHydroPackageButton_(new QPushButton("Browse...", this)),
+      hydroCatchmentIdEdit_(new QLineEdit(this)), hydroPackageProfileCombo_(new QComboBox(this)),
       sampleCountSpin_(new QSpinBox(this)), tStartSpin_(new QDoubleSpinBox(this)),
       tEndSpin_(new QDoubleSpinBox(this)), profileCombo_(new QComboBox(this)),
       generateSyntheticButton_(new QPushButton("Generate Synthetic Data", this)),
@@ -137,7 +139,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     modeCombo_->addItem("LSTM + PINN", "lstm_pinn");
     modeCombo_->addItem("PINN (physics-first)", "pinn");
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
-    dataSourceCombo_->addItems({"Synthetic", "CSV File"});
+    dataSourceCombo_->addItems({"Synthetic", "CSV File", "Hydro Package"});
+    hydroPackageProfileCombo_->addItems({"rainfall-runoff", "water-balance"});
     profileCombo_->addItems({"watershed_balance", "rainfall_runoff", "neuroforge_inputs_target", "exp_decay", "damped_sine", "mixed_wave"});
 
     auto* tabs = new QTabWidget(central);
@@ -178,6 +181,17 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     dataForm->addRow("CSV y column (0-based)", csvYColSpin_);
     dataForm->addRow(csvHeaderCheck_);
     dataForm->addRow(useNeuroforgeCsvPresetButton_);
+
+    hydroPackagePathEdit_->setPlaceholderText("Select generic Hydro package directory");
+    auto* packageRow = new QWidget(dataTab);
+    auto* packageLayout = new QHBoxLayout(packageRow);
+    packageLayout->setContentsMargins(0, 0, 0, 0);
+    packageLayout->addWidget(hydroPackagePathEdit_, 1);
+    packageLayout->addWidget(browseHydroPackageButton_);
+    hydroCatchmentIdEdit_->setPlaceholderText("Stable catchment_id from package");
+    dataForm->addRow("Hydro package", packageRow);
+    dataForm->addRow("Package catchment ID", hydroCatchmentIdEdit_);
+    dataForm->addRow("Package profile", hydroPackageProfileCombo_);
 
     syntheticExportPathEdit_->setPlaceholderText("Optional export path for generated synthetic CSV");
     auto* syntheticExportRow = new QWidget(dataTab);
@@ -563,6 +577,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
         updateStatus();
     });
     connect(browseCsvButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseCsv);
+    connect(browseHydroPackageButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseHydroPackage);
     connect(browseSyntheticExportButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseSyntheticExportPath);
     connect(generateSyntheticButton_, &QPushButton::clicked, this, &HydroPINNWindow::generateSyntheticDataPreview);
     connect(configureGAButton_, &QPushButton::clicked, this, &HydroPINNWindow::configureGAPlaceholder);
@@ -600,6 +615,10 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
     cfg.forcing_gain = forcingGainSpin_->value();
     cfg.pinn_collocation_points = pinnCollocationSpin_->value();
     cfg.use_csv_data = (dataSourceCombo_->currentText() == "CSV File");
+    cfg.use_hydro_package = (dataSourceCombo_->currentText() == "Hydro Package");
+    cfg.hydro_package_path = hydroPackagePathEdit_->text().toStdString();
+    cfg.hydro_catchment_id = hydroCatchmentIdEdit_->text().toStdString();
+    cfg.hydro_package_profile = hydroPackageProfileCombo_->currentText().toStdString();
     cfg.csv_path = csvPathEdit_->text().toStdString();
     cfg.csv_x_column = csvXColSpin_->value();
     cfg.csv_y_column = csvYColSpin_->value();
@@ -636,9 +655,13 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
 void HydroPINNWindow::setRunningUiState(bool running) {
     dataSourceCombo_->setEnabled(!running);
     browseCsvButton_->setEnabled(!running && dataSourceCombo_->currentText() == "CSV File");
-    generateSyntheticButton_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
-    syntheticExportPathEdit_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
-    browseSyntheticExportButton_->setEnabled(!running && dataSourceCombo_->currentText() != "CSV File");
+    browseHydroPackageButton_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
+    hydroPackagePathEdit_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
+    hydroCatchmentIdEdit_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
+    hydroPackageProfileCombo_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
+    generateSyntheticButton_->setEnabled(!running && dataSourceCombo_->currentText() == "Synthetic");
+    syntheticExportPathEdit_->setEnabled(!running && dataSourceCombo_->currentText() == "Synthetic");
+    browseSyntheticExportButton_->setEnabled(!running && dataSourceCombo_->currentText() == "Synthetic");
     runPredictionButton_->setText(running ? "Running..." : "Show Selected");
     runPredictionButton_->setEnabled(!running);
     runAllPredictionButton_->setEnabled(!running);
@@ -706,20 +729,26 @@ void HydroPINNWindow::updateFfnLagUiState() {
 
 void HydroPINNWindow::updateDataSourceUiState() {
     const bool useCsv = (dataSourceCombo_->currentText() == "CSV File");
+    const bool usePackage = (dataSourceCombo_->currentText() == "Hydro Package");
     csvPathEdit_->setEnabled(useCsv);
     browseCsvButton_->setEnabled(useCsv);
     csvXColSpin_->setEnabled(useCsv);
     csvYColSpin_->setEnabled(useCsv);
     csvHeaderCheck_->setEnabled(useCsv);
     useNeuroforgeCsvPresetButton_->setEnabled(useCsv);
+    hydroPackagePathEdit_->setEnabled(usePackage);
+    browseHydroPackageButton_->setEnabled(usePackage);
+    hydroCatchmentIdEdit_->setEnabled(usePackage);
+    hydroPackageProfileCombo_->setEnabled(usePackage);
 
-    profileCombo_->setEnabled(!useCsv);
-    sampleCountSpin_->setEnabled(!useCsv);
-    tStartSpin_->setEnabled(!useCsv);
-    tEndSpin_->setEnabled(!useCsv);
-    generateSyntheticButton_->setEnabled(!useCsv);
-    syntheticExportPathEdit_->setEnabled(!useCsv);
-    browseSyntheticExportButton_->setEnabled(!useCsv);
+    const bool useSynthetic = !useCsv && !usePackage;
+    profileCombo_->setEnabled(useSynthetic);
+    sampleCountSpin_->setEnabled(useSynthetic);
+    tStartSpin_->setEnabled(useSynthetic);
+    tEndSpin_->setEnabled(useSynthetic);
+    generateSyntheticButton_->setEnabled(useSynthetic);
+    syntheticExportPathEdit_->setEnabled(useSynthetic);
+    browseSyntheticExportButton_->setEnabled(useSynthetic);
 }
 
 void HydroPINNWindow::applyNeuroforgeCsvPreset() {
@@ -737,6 +766,11 @@ void HydroPINNWindow::browseCsv() {
     if (!path.isEmpty()) {
         csvPathEdit_->setText(path);
     }
+}
+
+void HydroPINNWindow::browseHydroPackage() {
+    const QString path = QFileDialog::getExistingDirectory(this, "Select Hydro package directory");
+    if (!path.isEmpty()) hydroPackagePathEdit_->setText(path);
 }
 
 
@@ -1393,7 +1427,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                           "Incremental: enabled=%25, window_size=%26, window_step=%27, epochs/window=%28, reset_opt=%29")
                           .arg(modeCombo_->currentText())
                           .arg(backendInfo)
-                          .arg(cfg.use_csv_data ? "CSV" : "Synthetic")
+                          .arg(cfg.use_hydro_package ? "Hydro Package" : (cfg.use_csv_data ? "CSV" : "Synthetic"))
                           .arg(cfg.evaluate_metrics ? "yes" : "no")
                           .arg(cfg.epochs)
                           .arg(cfg.batch_size)
@@ -1438,13 +1472,16 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.success ? "success" : "failed")
                        .arg(r.final_loss, 0, 'g', 8);
 
-        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, pbias=%6, physics_loss=%7")
+        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, physics_loss=%10")
                        .arg(r.validation_mse, 0, 'g', 8)
                        .arg(r.mse, 0, 'g', 8)
                        .arg(r.rmse, 0, 'g', 8)
                        .arg(r.mae, 0, 'g', 8)
                        .arg(r.nse, 0, 'g', 8)
+                       .arg(r.kge, 0, 'g', 8)
+                       .arg(r.correlation, 0, 'g', 8)
                        .arg(r.pbias, 0, 'g', 8)
+                       .arg(r.volume_error_percent, 0, 'g', 8)
                        .arg(r.physics_loss, 0, 'g', 8);
 
         if (!r.message.empty()) {
@@ -2328,7 +2365,12 @@ void HydroPINNWindow::runMode(const QString& mode) {
             appendLog(QString("Using activation from Network Builder: %1").arg(QString::fromStdString(cfg.activation)));
         }
     }
-    if (cfg.use_csv_data) {
+    if (cfg.use_hydro_package) {
+        appendLog(QString("Using Hydro package: path=%1, catchment=%2, profile=%3")
+                      .arg(QString::fromStdString(cfg.hydro_package_path))
+                      .arg(QString::fromStdString(cfg.hydro_catchment_id))
+                      .arg(QString::fromStdString(cfg.hydro_package_profile)));
+    } else if (cfg.use_csv_data) {
         appendLog(QString("Using CSV data: %1 (x_col=%2, y_col=%3, header=%4)")
                       .arg(QString::fromStdString(cfg.csv_path))
                       .arg(cfg.csv_x_column)

@@ -32,6 +32,13 @@ separate documents. The manifest records their digests, included asset IDs,
 producer version, package QC status, and raw-content inclusion/self-contained
 status.
 
+The current HydroPINN loader requires the string fields `schema_name`,
+`schema_version`, `profile`, `dataset_id`, `observations_file`, and
+`catchment_attributes_file`; `quality_control_file` is optional. Paths must be
+relative and remain inside the package. Package loading rejects incompatible
+schema major versions, profile mismatches, and any QC record with
+`severity=error`.
+
 ## Observation table
 
 The reusable `rainfall-runoff` profile requires timestamp, catchment ID,

@@ -182,6 +182,7 @@ HEADERS += \
     Hydro/dataset/ddrr_loader.h \
     Hydro/dataset/hydro_dataset_contract.h \
     Hydro/dataset/hydro_units.h \
+    Hydro/dataset/hydro_tensor_builder.h \
     Hydro/dataset/lag_builder.h \
     Hydro/dataset/sequence_builder.h \
     Hydro/dataset/chronological_split.h \

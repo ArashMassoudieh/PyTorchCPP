@@ -31,6 +31,10 @@ struct HydroRunConfig {
 
     // Data input options
     bool use_csv_data = false;
+    bool use_hydro_package = false;
+    std::string hydro_package_path;
+    std::string hydro_catchment_id;
+    std::string hydro_package_profile = "rainfall-runoff";
     std::string csv_path;
     int csv_x_column = 0;
     int csv_y_column = 1;
@@ -82,6 +86,9 @@ struct HydroRunResult {
     double mae = std::numeric_limits<double>::quiet_NaN();
     double nse = std::numeric_limits<double>::quiet_NaN();
     double pbias = std::numeric_limits<double>::quiet_NaN();
+    double correlation = std::numeric_limits<double>::quiet_NaN();
+    double kge = std::numeric_limits<double>::quiet_NaN();
+    double volume_error_percent = std::numeric_limits<double>::quiet_NaN();
     double physics_loss = std::numeric_limits<double>::quiet_NaN();
     std::string message;
 

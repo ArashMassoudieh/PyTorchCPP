@@ -126,11 +126,22 @@ hours independently for each catchment, and converts observed discharge to
 `mm/h` using declared catchment areas. Full package manifest/catalog/QC parsing
 and direct wrapper integration remain follow-up work.
 
-The loader can also open a generic package directory containing
-`observations.csv` and `catchment_attributes.csv`; it reads `area_m2` by stable
-catchment ID rather than requiring areas to be entered manually. Parsing and
-checksum validation of `manifest.json`, the asset catalog, variables, and QC
-documents remain the next package-loader increment.
+The loader can also open a generic package directory through `manifest.json`,
+resolve observation and catchment-attribute files safely, read `area_m2` by
+stable catchment ID, enforce the declared schema/profile, and reject unresolved
+package QC errors. Checksum validation plus full asset-catalog and variable
+metadata parsing remain the next package-loader increment.
+
+All four trainable wrapper families accept the same package/catchment
+configuration and build named physical tensors through the shared package
+loader. The Data tab exposes **Hydro Package** directory, catchment ID, and
+profile controls. Variable metadata and checksum enforcement remain follow-up
+work.
+
+Package-backed PINN runs infer their physical timestep from the elapsed-hour
+column instead of trusting a manually entered `physics_dt`. Current training
+backends reject irregular package intervals explicitly; this prevents silently
+applying one finite-difference timestep to gapped or irregular observations.
 
 ## Scientific-safety rules
 

@@ -1,6 +1,7 @@
 #include "ffn_wrapper.h"
 #include "../dataset/chronological_split.h"
 #include "../dataset/tensor_scaler.h"
+#include "../dataset/hydro_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
 
 #include "neuralnetworkwrapper.h"
@@ -429,7 +430,7 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     torch::Tensor x;
     torch::Tensor y;
     torch::Tensor plotX;
-    if (!loadSeriesFromCsv(config, x, y, plotX)) {
+    if (!loadHydroPackageTensors(config, x, y, plotX) && !loadSeriesFromCsv(config, x, y, plotX)) {
         buildSyntheticSeries(config, x, y, plotX);
     }
 
@@ -493,6 +494,6 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     }
     fillPlotVectors(result, plotX, y, predFull);
     result.success = true;
-    result.message = config.use_csv_data ? "FFN run completed with CSV input." : "FFN run completed with synthetic input.";
+    result.message = config.use_hydro_package ? "FFN run completed with Hydro package input." : (config.use_csv_data ? "FFN run completed with CSV input." : "FFN run completed with synthetic input.");
     return result;
 }

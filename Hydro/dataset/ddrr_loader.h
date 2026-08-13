@@ -19,8 +19,21 @@ struct HydroObservation {
 };
 
 struct HydroObservationDataset {
+    std::string dataset_id;
+    std::string schema_version;
+    std::string profile;
     std::map<std::string, double> catchment_area_m2;
     std::map<std::string, std::vector<HydroObservation>> observations_by_catchment;
+};
+
+struct HydroPackageManifest {
+    std::string schema_name;
+    std::string schema_version;
+    std::string profile;
+    std::string dataset_id;
+    std::string observations_file;
+    std::string catchment_attributes_file;
+    std::string quality_control_file;
 };
 
 /** Loads validated generic hydro-observation CSV exports. */
@@ -34,4 +47,5 @@ public:
     HydroObservationDataset loadPackageDirectory(
         const std::string& packageDirectory,
         const HydroDatasetContract& contract = HydroDatasetContract::rainfallRunoffV1()) const;
+    HydroPackageManifest loadManifest(const std::string& manifestPath) const;
 };
