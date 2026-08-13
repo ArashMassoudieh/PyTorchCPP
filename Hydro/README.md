@@ -109,10 +109,9 @@ interpretability as much as generic prediction error:
 - Expand calibrated watershed-process residuals for snow accumulation/melt, infiltration capacity, groundwater exchange, channel routing, and evapotranspiration stress as field assumptions become available.
 
 The current synthetic workflow is still a software-validation stage. Before
-paper experiments, remaining work includes a named and unit-aware dataset
-contract, timestamp plumbing from that dataset into physics
-training, configuration/result serialization, model persistence, and broader
-five-model integration tests.
+paper experiments, remaining work includes full generic-package loading,
+timestamp plumbing into physics training, configuration/result serialization,
+model persistence, and broader five-model integration tests.
 
 FFN and LSTM supervised runs now fit normalization exclusively on the training
 partition and inverse-transform predictions before validation/test metrics are
@@ -120,6 +119,18 @@ computed. PINN-capable runs reject normalization for now: enabling it safely
 requires inverse-transforming predictions and physical forcing/state variables
 inside the differentiable residual rather than applying conservation to scaled
 quantities.
+
+`DDRRLoader` now validates and loads canonical observation CSV exports into
+per-catchment series, preserves UTC timestamps, calculates elapsed physical
+hours independently for each catchment, and converts observed discharge to
+`mm/h` using declared catchment areas. Full package manifest/catalog/QC parsing
+and direct wrapper integration remain follow-up work.
+
+The loader can also open a generic package directory containing
+`observations.csv` and `catchment_attributes.csv`; it reads `area_m2` by stable
+catchment ID rather than requiring areas to be entered manually. Parsing and
+checksum validation of `manifest.json`, the asset catalog, variables, and QC
+documents remain the next package-loader increment.
 
 ## Scientific-safety rules
 
