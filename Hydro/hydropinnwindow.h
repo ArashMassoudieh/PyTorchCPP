@@ -112,6 +112,7 @@ private:
     QPushButton* startGAButton_;
     QPushButton* stopGAButton_;
     QPushButton* refreshPerformanceButton_;
+    QPushButton* exportExperimentButton_;
     QPushButton* clearPlotButton_;
     QPushButton* showInputsOutputsButton_;
     QPushButton* zoomInPlotButton_;
@@ -156,6 +157,7 @@ private:
     int estimatedFfnInputCountForLagSearch(const HydroRunConfig& cfg, const QString& mode) const;
     void stopGAPlaceholder();
     void refreshPerformanceAssessment();
+    void exportExperimentArtifacts();
     void clearPlot();
     void zoomInPlot();
     void zoomOutPlot();
