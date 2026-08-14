@@ -5,6 +5,7 @@
 #include "models/pinn_wrapper.h"
 #include "models/lstm_wrapper.h"
 #include "models/lstm_pinn_wrapper.h"
+#include "evaluation/experiment_exporter.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -110,6 +111,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       runTrainingLSTMButton_(new QPushButton("Train LSTM", this)), runTrainingLSTMPINNButton_(new QPushButton("Train LSTM + PINN", this)),
       gaLagCandidatesSpin_(new QSpinBox(this)), gaMaxLagSpin_(new QSpinBox(this)), configureGAButton_(new QPushButton("Configure GA", this)), startGAButton_(new QPushButton("Start GA", this)),
       stopGAButton_(new QPushButton("Stop GA", this)), refreshPerformanceButton_(new QPushButton("Refresh Assessment", this)),
+      exportExperimentButton_(new QPushButton("Export Experiment...", this)),
       clearPlotButton_(new QPushButton("Clear Plot", this)), showInputsOutputsButton_(new QPushButton("Show Inputs + Output", this)),
       zoomInPlotButton_(new QPushButton("Zoom In", this)), zoomOutPlotButton_(new QPushButton("Zoom Out", this)),
       fitPlotButton_(new QPushButton("Fit Axes", this)),
@@ -434,6 +436,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     auto* performanceLayout = new QVBoxLayout(performanceTab);
     performanceLayout->addWidget(evalCheck_);
     performanceLayout->addWidget(refreshPerformanceButton_);
+    performanceLayout->addWidget(exportExperimentButton_);
     perfSummaryText_->setPlaceholderText("Performance assessment summary appears here after runs.");
     performanceLayout->addWidget(perfSummaryText_, 1);
     tabs->addTab(performanceTab, "Performance");
@@ -584,6 +587,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(startGAButton_, &QPushButton::clicked, this, &HydroPINNWindow::startGAPlaceholder);
     connect(stopGAButton_, &QPushButton::clicked, this, &HydroPINNWindow::stopGAPlaceholder);
     connect(refreshPerformanceButton_, &QPushButton::clicked, this, &HydroPINNWindow::refreshPerformanceAssessment);
+    connect(exportExperimentButton_, &QPushButton::clicked, this, &HydroPINNWindow::exportExperimentArtifacts);
     connect(clearPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::clearPlot);
     connect(showInputsOutputsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showSyntheticInputsOutputs);
     connect(plotAllTargetPredButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotAllTargetVsPredicted);
@@ -680,6 +684,7 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     runTrainingPINNButton_->setEnabled(!running);
     runTrainingLSTMButton_->setEnabled(!running);
     runTrainingLSTMPINNButton_->setEnabled(!running);
+    exportExperimentButton_->setEnabled(!running && !lastModeResults_.empty());
     plotAllTargetPredButton_->setEnabled(!running);
     plotOneToOneButton_->setEnabled(!running);
     plotTaylorButton_->setEnabled(!running);
@@ -1496,6 +1501,26 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
 
     perfSummaryText_->setHtml(summary);
     appendLog("Performance assessment snapshot refreshed.");
+}
+
+void HydroPINNWindow::exportExperimentArtifacts() {
+    if (lastModeResults_.empty()) {
+        QMessageBox::information(this, "HydroPINN Export", "Run at least one approach before exporting.");
+        return;
+    }
+    const QString directory = QFileDialog::getExistingDirectory(this, "Select experiment output directory");
+    if (directory.isEmpty()) return;
+    const QString experimentId = QString("hydro_%1").arg(QDateTime::currentDateTimeUtc().toString("yyyyMMdd_HHmmss_zzz"));
+    std::map<std::string, HydroRunResult> results;
+    for (const auto& entry : lastModeResults_) results.emplace(entry.first.toStdString(), entry.second);
+    try {
+        HydroExperimentExporter().exportRun(directory.toStdString(), experimentId.toStdString(), currentConfig(), results);
+        appendLog(QString("Experiment artifacts exported to %1/%2").arg(directory, experimentId));
+        QMessageBox::information(this, "HydroPINN Export", QString("Exported experiment:\n%1/%2").arg(directory, experimentId));
+    } catch (const std::exception& error) {
+        appendLog(QString("Experiment export failed: %1").arg(error.what()));
+        QMessageBox::critical(this, "HydroPINN Export", QString::fromUtf8(error.what()));
+    }
 }
 
 void HydroPINNWindow::clearPlot() {
