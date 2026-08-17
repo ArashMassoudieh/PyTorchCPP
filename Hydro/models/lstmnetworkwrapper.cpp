@@ -1,4 +1,8 @@
 #include "lstmnetworkwrapper.h"
+#include "../dataset/chronological_split.h"
+#include "../dataset/tensor_scaler.h"
+#include "../dataset/hydro_tensor_builder.h"
+#include "../evaluation/hydro_metrics.h"
 
 #include <torch/torch.h>
 
@@ -6,7 +10,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
-#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -25,23 +28,6 @@ std::vector<int> parseHiddenLayers(const std::string& csv) {
     }
     if (layers.empty()) layers = {32};
     return layers;
-}
-
-int maxConfiguredLag(const std::string& lagSpec) {
-    int maxLag = 1;
-    std::stringstream groups(lagSpec);
-    std::string group;
-    while (std::getline(groups, group, ';')) {
-        std::stringstream groupStream(group);
-        std::string token;
-        while (std::getline(groupStream, token, ',')) {
-            try {
-                const int lag = std::stoi(token);
-                if (lag > maxLag) maxLag = lag;
-            } catch (...) {}
-        }
-    }
-    return std::max(1, maxLag);
 }
 
 std::vector<std::string> splitCsvRow(const std::string& line) {
@@ -386,15 +372,26 @@ void fillPlotVectors(HydroRunResult& result,
     }
 }
 
+std::vector<double> tensorValues(const torch::Tensor& tensor) {
+    auto values = tensor.detach().to(torch::kCPU).reshape({-1}).contiguous();
+    std::vector<double> out;
+    out.reserve(static_cast<size_t>(values.size(0)));
+    for (int64_t i = 0; i < values.size(0); ++i) out.push_back(values[i].item<double>());
+    return out;
+}
+
 } // namespace
 
 
 HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool physicsInformed) {
     HydroRunResult result;
+    if (physicsInformed && config.normalization != "none") {
+        throw std::invalid_argument("LSTM-PINN normalization requires physical-unit inverse transforms inside the residual; use normalization=none until enabled.");
+    }
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
     torch::Tensor x, y, plotX;
-    if (!loadSeriesFromCsv(config, x, y, plotX)) buildSyntheticSeries(config, x, y, plotX);
+    if (!loadHydroPackageTensors(config, x, y, plotX) && !loadSeriesFromCsv(config, x, y, plotX)) buildSyntheticSeries(config, x, y, plotX);
 
     const bool needsForcing = physicsInformed &&
         (config.pinn_physics_profile == "linear_reservoir" ||
@@ -416,17 +413,34 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     const std::vector<int> hiddenLayers = parseHiddenLayers(config.hidden_layers_csv);
     const int64_t hiddenDim = static_cast<int64_t>(hiddenLayers.front());
     const int64_t numLayers = static_cast<int64_t>(std::max<size_t>(1, hiddenLayers.size()));
-    const int sequenceLength = std::max(2, maxConfiguredLag(config.input_lags_csv) + 1);
+    const int sequenceLength = std::max(2, config.lstm_sequence_length);
 
     SequenceData seq = makeSequences(x, y, plotX, sequenceLength);
     const int64_t totalSeq = seq.xSeq.size(0);
-    const double split = std::min(0.95, std::max(0.1, config.train_split_ratio));
-    const int64_t nTrain = std::max<int64_t>(2, std::min<int64_t>(totalSeq - 1, static_cast<int64_t>(totalSeq * split)));
+    const ChronologicalSplit split = makeChronologicalSplit(totalSeq,
+                                                            config.train_split_ratio,
+                                                            config.validation_split_ratio);
+    const int64_t nTrain = split.train_end;
 
     torch::Tensor xTrain = seq.xSeq.slice(0, 0, nTrain).contiguous();
     torch::Tensor yTrain = seq.ySeq.slice(0, 0, nTrain).contiguous();
-    torch::Tensor xTest = seq.xSeq.slice(0, nTrain, totalSeq).contiguous();
-    torch::Tensor yTest = seq.ySeq.slice(0, nTrain, totalSeq).contiguous();
+    torch::Tensor xValidation = seq.xSeq.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor yValidation = seq.ySeq.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor xTest = seq.xSeq.slice(0, split.validation_end, totalSeq).contiguous();
+    torch::Tensor yTest = seq.ySeq.slice(0, split.validation_end, totalSeq).contiguous();
+    torch::Tensor yValidationPhysical = yValidation.clone();
+    torch::Tensor yTestPhysical = yTest.clone();
+
+    TensorScaler inputScaler;
+    TensorScaler targetScaler;
+    inputScaler.fit(xTrain, config.normalization);
+    targetScaler.fit(yTrain, config.normalization);
+    xTrain = inputScaler.transform(xTrain);
+    yTrain = targetScaler.transform(yTrain);
+    xValidation = inputScaler.transform(xValidation);
+    yValidation = targetScaler.transform(yValidation);
+    xTest = inputScaler.transform(xTest);
+    yTest = targetScaler.transform(yTest);
 
     HydroLSTM model(seq.xSeq.size(2), hiddenDim, y.size(1), numLayers);
     torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
@@ -435,7 +449,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     const int64_t trainN = xTrain.size(0);
     const int batchSize = std::max(1, config.batch_size);
     const double lambda = config.lambda_decay;
-    const double dt = ((config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff"))
+    const double dt = config.use_hydro_package ? regularPhysicalTimeStep(x) : ((config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff"))
                           ? 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1)
                           : std::max(1.0e-8, config.physics_dt);
 
@@ -446,7 +460,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         torch::Tensor yMid = p.slice(0, 1, p.size(0));
         torch::Tensor residual;
         if (needsForcing && config.pinn_physics_profile == "water_balance" &&
-            (config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff") && xTrain.size(2) >= 5) {
+            (config.use_hydro_package || config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff") && xTrain.size(2) >= 5) {
             // watershed_balance/rainfall_runoff columns start [normalized_time, effective precipitation, evapotranspiration, temperature, soil_storage].
             torch::Tensor lastStep = xTrain.select(1, xTrain.size(1) - 1);
             torch::Tensor rain = lastStep.slice(1, 1, 2).slice(0, 1, lastStep.size(0));
@@ -485,20 +499,25 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
             optimizer.zero_grad();
             torch::Tensor pred = model->forward(xb);
             torch::Tensor dataLoss = torch::mse_loss(pred, yb);
-            torch::Tensor loss = dataLoss;
-            if (physicsInformed) {
-                torch::Tensor physLoss = physicsResidualLoss();
-                const bool dataWarmup = config.data_weight > 0.0 && epoch < std::max(1, config.epochs / 5);
-                const double effectiveDataWeight = dataWarmup ? std::max(1.0, config.data_weight) : config.data_weight;
-                const double effectivePhysicsWeight = dataWarmup ? 0.0 : config.physics_weight;
-                loss = effectiveDataWeight * dataLoss + effectivePhysicsWeight * physLoss;
-            }
+            const bool dataWarmup = physicsInformed && config.data_weight > 0.0 && epoch < std::max(1, config.epochs / 5);
+            const double effectiveDataWeight = dataWarmup ? std::max(1.0, config.data_weight) : config.data_weight;
+            torch::Tensor loss = physicsInformed ? effectiveDataWeight * dataLoss : dataLoss;
             loss.backward();
             optimizer.step();
 
             const int64_t count = end - start;
             epochDataLoss += loss.item<double>() * static_cast<double>(count);
             seen += count;
+        }
+        // Conservation requires ordered samples. Evaluate its full chronological
+        // gradient once per epoch instead of repeating the same full-sequence
+        // gradient inside every shuffled supervised mini-batch.
+        if (physicsInformed && epoch >= std::max(1, config.epochs / 5) && config.physics_weight > 0.0) {
+            optimizer.zero_grad();
+            torch::Tensor physLoss = physicsResidualLoss();
+            (config.physics_weight * physLoss).backward();
+            optimizer.step();
+            result.physics_loss = physLoss.item<double>();
         }
         losses.push_back(epochDataLoss / static_cast<double>(std::max<int64_t>(1, seen)));
     }
@@ -507,23 +526,34 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         throw std::runtime_error(physicsInformed ? "LSTM-PINN training produced empty/non-finite loss history." : "LSTM training produced empty/non-finite loss history.");
     }
     result.final_loss = losses.back();
+    result.training_loss_history = losses;
 
     model->eval();
     torch::NoGradGuard noGrad;
-    torch::Tensor predTest = model->forward(xTest);
-    if (!predTest.defined() || predTest.size(0) != yTest.size(0) || !predTest.isfinite().all().item<bool>()) {
+    torch::Tensor predValidation = targetScaler.inverseTransform(model->forward(xValidation));
+    result.validation_mse = tensorMSEValue(predValidation, yValidationPhysical);
+    torch::Tensor predTest = targetScaler.inverseTransform(model->forward(xTest));
+    if (!predTest.defined() || predTest.size(0) != yTestPhysical.size(0) || !predTest.isfinite().all().item<bool>()) {
         throw std::runtime_error(physicsInformed ? "LSTM-PINN prediction failed or produced non-finite values." : "LSTM prediction failed or produced non-finite values.");
     }
-    if (config.evaluate_metrics) result.mse = tensorMSEValue(predTest, yTest);
+    if (config.evaluate_metrics) {
+        populateHydroMetrics(result, tensorValues(yTestPhysical), tensorValues(predTest));
+        if (!hydroMetricsAreFinite(result)) throw std::runtime_error(physicsInformed ? "LSTM-PINN evaluation produced non-finite hydrology metrics." : "LSTM evaluation produced non-finite hydrology metrics.");
+    }
 
-    torch::Tensor predFull = model->forward(seq.xSeq);
+    torch::Tensor predFull = targetScaler.inverseTransform(model->forward(inputScaler.transform(seq.xSeq)));
     if (!predFull.defined() || predFull.size(0) != seq.ySeq.size(0) || !predFull.isfinite().all().item<bool>()) {
         throw std::runtime_error(physicsInformed ? "Full-series LSTM-PINN prediction for plotting failed or produced non-finite values." : "Full-series LSTM prediction for plotting failed or produced non-finite values.");
     }
     fillPlotVectors(result, seq.plotSeq, seq.ySeq, predFull);
+    result.split.resize(result.x.size(), "test");
+    for (size_t i = 0; i < result.split.size(); ++i) {
+        if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
+        else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+    }
     result.success = true;
     result.message = physicsInformed
-        ? (config.use_csv_data ? "LSTM-PINN run completed with CSV input." : "LSTM-PINN run completed with synthetic input.")
-        : (config.use_csv_data ? "LSTM run completed with CSV input." : "LSTM run completed with synthetic input.");
+        ? (config.use_hydro_package ? "LSTM-PINN run completed with Hydro package input." : (config.use_csv_data ? "LSTM-PINN run completed with CSV input." : "LSTM-PINN run completed with synthetic input."))
+        : (config.use_hydro_package ? "LSTM run completed with Hydro package input." : (config.use_csv_data ? "LSTM run completed with CSV input." : "LSTM run completed with synthetic input."));
     return result;
 }
