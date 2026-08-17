@@ -545,6 +545,11 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         throw std::runtime_error(physicsInformed ? "Full-series LSTM-PINN prediction for plotting failed or produced non-finite values." : "Full-series LSTM prediction for plotting failed or produced non-finite values.");
     }
     fillPlotVectors(result, seq.plotSeq, seq.ySeq, predFull);
+    result.split.resize(result.x.size(), "test");
+    for (size_t i = 0; i < result.split.size(); ++i) {
+        if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
+        else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+    }
     result.success = true;
     result.message = physicsInformed
         ? (config.use_hydro_package ? "LSTM-PINN run completed with Hydro package input." : (config.use_csv_data ? "LSTM-PINN run completed with CSV input." : "LSTM-PINN run completed with synthetic input."))

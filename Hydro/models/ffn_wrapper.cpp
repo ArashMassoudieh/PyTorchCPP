@@ -493,6 +493,11 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
         throw std::runtime_error("Full-series prediction for plotting failed or produced non-finite values.");
     }
     fillPlotVectors(result, plotX, y, predFull);
+    result.split.resize(result.x.size(), "test");
+    for (size_t i = 0; i < result.split.size(); ++i) {
+        if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
+        else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+    }
     result.success = true;
     result.message = config.use_hydro_package ? "FFN run completed with Hydro package input." : (config.use_csv_data ? "FFN run completed with CSV input." : "FFN run completed with synthetic input.");
     return result;

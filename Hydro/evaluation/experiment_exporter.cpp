@@ -69,12 +69,13 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     const auto predictionsPath = root / "predictions.csv";
     std::ofstream predictions(predictionsPath);
     requireStream(predictions, predictionsPath);
-    predictions << "approach,index,x,observed,predicted,residual\n" << std::setprecision(17);
+    predictions << "approach,index,split,x,observed,predicted,residual\n" << std::setprecision(17);
     for (const auto& entry : results) {
         const auto& r = entry.second;
         const size_t n = std::min(r.x.size(), std::min(r.y_true.size(), r.y_pred.size()));
         for (size_t i = 0; i < n; ++i) {
-            predictions << entry.first << ',' << i << ',' << r.x[i] << ',' << r.y_true[i] << ',' << r.y_pred[i]
+            const std::string split = i < r.split.size() ? r.split[i] : "unknown";
+            predictions << entry.first << ',' << i << ',' << split << ',' << r.x[i] << ',' << r.y_true[i] << ',' << r.y_pred[i]
                         << ',' << (r.y_pred[i] - r.y_true[i]) << '\n';
         }
     }

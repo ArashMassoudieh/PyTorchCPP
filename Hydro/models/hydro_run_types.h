@@ -96,4 +96,5 @@ struct HydroRunResult {
     std::vector<double> x;
     std::vector<double> y_true;
     std::vector<double> y_pred;
+    std::vector<std::string> split;
 };

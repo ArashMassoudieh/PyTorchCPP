@@ -583,6 +583,11 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
         result.physics_loss = torch::mean(residual * residual).item<double>();
     }
     fillPlotVectors(result, plotX, y, predFull);
+    result.split.resize(result.x.size(), "test");
+    for (size_t i = 0; i < result.split.size(); ++i) {
+        if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
+        else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+    }
     result.success = true;
     result.message = config.use_hydro_package ? "FFN-PINN run completed with Hydro package input." : (config.use_csv_data ? "FFN-PINN run completed with CSV input." : "FFN-PINN run completed with synthetic input.");
     return result;
