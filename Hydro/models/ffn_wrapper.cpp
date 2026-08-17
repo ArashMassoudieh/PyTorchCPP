@@ -1,4 +1,8 @@
 #include "ffn_wrapper.h"
+#include "../dataset/chronological_split.h"
+#include "../dataset/tensor_scaler.h"
+#include "../dataset/hydro_tensor_builder.h"
+#include "../evaluation/hydro_metrics.h"
 
 #include "neuralnetworkwrapper.h"
 
@@ -6,7 +10,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
-#include <map>
 #include <sstream>
 #include <stdexcept>
 
@@ -408,6 +411,14 @@ void fillPlotVectors(HydroRunResult& result, const torch::Tensor& x, const torch
         result.y_pred.push_back(pc[i].item<double>());
     }
 }
+
+std::vector<double> tensorValues(const torch::Tensor& tensor) {
+    auto values = tensor.detach().to(torch::kCPU).reshape({-1}).contiguous();
+    std::vector<double> out;
+    out.reserve(static_cast<size_t>(values.size(0)));
+    for (int64_t i = 0; i < values.size(0); ++i) out.push_back(values[i].item<double>());
+    return out;
+}
 } // namespace
 
 HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
@@ -419,7 +430,7 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     torch::Tensor x;
     torch::Tensor y;
     torch::Tensor plotX;
-    if (!loadSeriesFromCsv(config, x, y, plotX)) {
+    if (!loadHydroPackageTensors(config, x, y, plotX) && !loadSeriesFromCsv(config, x, y, plotX)) {
         buildSyntheticSeries(config, x, y, plotX);
     }
 
@@ -431,16 +442,28 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     model.setLags(currentInputLags(static_cast<int>(x.size(1))));
     model.initializeNetwork(1, config.activation);
 
-    const double split = std::min(0.95, std::max(0.1, config.train_split_ratio));
-    const int64_t nTrain = static_cast<int64_t>(x.size(0) * split);
+    const ChronologicalSplit split = makeChronologicalSplit(x.size(0), config.train_split_ratio, config.validation_split_ratio);
+    const int64_t nTrain = split.train_end;
     torch::Tensor xTrain = x.slice(0, 0, nTrain);
     torch::Tensor yTrain = y.slice(0, 0, nTrain);
-    torch::Tensor xTest = x.slice(0, nTrain, x.size(0));
-    torch::Tensor yTest = y.slice(0, nTrain, y.size(0));
-    torch::Tensor plotXTest = plotX.slice(0, nTrain, plotX.size(0));
+    torch::Tensor xValidation = x.slice(0, nTrain, split.validation_end);
+    torch::Tensor yValidation = y.slice(0, nTrain, split.validation_end);
+    torch::Tensor xTest = x.slice(0, split.validation_end, x.size(0));
+    torch::Tensor yTest = y.slice(0, split.validation_end, y.size(0));
+
+    TensorScaler inputScaler;
+    TensorScaler targetScaler;
+    inputScaler.fit(xTrain, config.normalization);
+    targetScaler.fit(yTrain, config.normalization);
+    xTrain = inputScaler.transform(xTrain);
+    yTrain = targetScaler.transform(yTrain);
+    xValidation = inputScaler.transform(xValidation);
+    yValidation = targetScaler.transform(yValidation);
+    xTest = inputScaler.transform(xTest);
+    torch::Tensor yTestScaled = targetScaler.transform(yTest);
 
     model.setTensorData(DataType::Train, xTrain, yTrain);
-    model.setTensorData(DataType::Test, xTest, yTest);
+    model.setTensorData(DataType::Test, xTest, yTestScaled);
 
     std::vector<double> losses = model.train(config.epochs, config.batch_size, config.learning_rate);
     if (losses.empty() || !std::isfinite(losses.back())) {
@@ -448,30 +471,34 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     }
     result.final_loss = losses.back();
 
-    torch::Tensor predTest = model.forward(DataType::Test);
+    model.setTensorData(DataType::Test, xValidation, yValidation);
+    torch::Tensor predValidation = targetScaler.inverseTransform(model.forward(DataType::Test));
+    result.validation_mse = torch::mse_loss(predValidation, y.slice(0, nTrain, split.validation_end)).item<double>();
+    model.setTensorData(DataType::Test, xTest, yTestScaled);
+    torch::Tensor predTest = targetScaler.inverseTransform(model.forward(DataType::Test));
     if (!predTest.defined() || predTest.size(0) != yTest.size(0) || !predTest.isfinite().all().item<bool>()) {
         throw std::runtime_error("FFN prediction on test set failed or produced non-finite values.");
     }
 
     if (config.evaluate_metrics) {
-        std::map<std::string, double> metrics = model.evaluate();
-        auto it = metrics.find("mse");
-        if (it != metrics.end()) {
-            if (!std::isfinite(it->second)) {
-                throw std::runtime_error("FFN evaluation produced non-finite MSE.");
-            }
-            result.mse = it->second;
-        }
+        populateHydroMetrics(result, tensorValues(yTest), tensorValues(predTest));
+        if (!hydroMetricsAreFinite(result)) throw std::runtime_error("FFN evaluation produced non-finite hydrology metrics.");
     }
 
     // Keep metrics on held-out test set, but plot full-series predictions for better visual coverage.
-    model.setTensorData(DataType::Test, x, y);
-    torch::Tensor predFull = model.forward(DataType::Test);
+    torch::Tensor xFullScaled = inputScaler.transform(x);
+    model.setTensorData(DataType::Test, xFullScaled, targetScaler.transform(y));
+    torch::Tensor predFull = targetScaler.inverseTransform(model.forward(DataType::Test));
     if (!predFull.defined() || predFull.size(0) != y.size(0) || !predFull.isfinite().all().item<bool>()) {
         throw std::runtime_error("Full-series prediction for plotting failed or produced non-finite values.");
     }
     fillPlotVectors(result, plotX, y, predFull);
+    result.split.resize(result.x.size(), "test");
+    for (size_t i = 0; i < result.split.size(); ++i) {
+        if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
+        else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+    }
     result.success = true;
-    result.message = config.use_csv_data ? "FFN run completed with CSV input." : "FFN run completed with synthetic input.";
+    result.message = config.use_hydro_package ? "FFN run completed with Hydro package input." : (config.use_csv_data ? "FFN run completed with CSV input." : "FFN run completed with synthetic input.");
     return result;
 }

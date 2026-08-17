@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <limits>
 #include <vector>
 
 /**
@@ -30,6 +31,10 @@ struct HydroRunConfig {
 
     // Data input options
     bool use_csv_data = false;
+    bool use_hydro_package = false;
+    std::string hydro_package_path;
+    std::string hydro_catchment_id;
+    std::string hydro_package_profile = "rainfall-runoff";
     std::string csv_path;
     int csv_x_column = 0;
     int csv_y_column = 1;
@@ -46,12 +51,14 @@ struct HydroRunConfig {
     // Examples: "1" (all features use lag 1), "1,2;1;1,3" (feature-specific lag groups).
     std::string input_lags_csv = "1";
     bool use_time_lagged_ffn = false; // Applies only to FFN and FFN + PINN; LSTM keeps sequence memory internally.
+    int lstm_sequence_length = 6; // Independent of FFN lag-search settings.
     std::string activation = "tanh"; // single backend activation used across hidden/output layers
 
     bool evaluate_metrics = true;
 
     // NeuroForge-style extra options (currently informational/plumbing for Hydro UI compatibility)
     double train_split_ratio = 0.8;
+    double validation_split_ratio = 0.1; // chronological fraction reserved for model selection
     bool shuffle_training = true;
     int random_seed = 42;
     std::string optimizer = "adam";      // adam | sgd | rmsprop
@@ -72,12 +79,22 @@ struct HydroRunConfig {
  */
 struct HydroRunResult {
     bool success = false;
-    double final_loss = 0.0;
-    double mse = 0.0;
+    double final_loss = std::numeric_limits<double>::quiet_NaN();
+    double mse = std::numeric_limits<double>::quiet_NaN();
+    double validation_mse = std::numeric_limits<double>::quiet_NaN();
+    double rmse = std::numeric_limits<double>::quiet_NaN();
+    double mae = std::numeric_limits<double>::quiet_NaN();
+    double nse = std::numeric_limits<double>::quiet_NaN();
+    double pbias = std::numeric_limits<double>::quiet_NaN();
+    double correlation = std::numeric_limits<double>::quiet_NaN();
+    double kge = std::numeric_limits<double>::quiet_NaN();
+    double volume_error_percent = std::numeric_limits<double>::quiet_NaN();
+    double physics_loss = std::numeric_limits<double>::quiet_NaN();
     std::string message;
 
     // Optional series for plotting
     std::vector<double> x;
     std::vector<double> y_true;
     std::vector<double> y_pred;
+    std::vector<std::string> split;
 };
