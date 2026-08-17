@@ -146,9 +146,9 @@ applying one finite-difference timestep to gapped or irregular observations.
 The Performance tab's **Export Experiment...** action writes a deterministic
 artifact directory containing
 `experiment_config.json`, one-row-per-approach `metrics.csv`, and long-form
-`predictions.csv`. Each prediction is labeled as training, validation, or test.
-Model/scaler checkpoints, training histories, and partition-specific physics
-residual files remain to be added.
+`predictions.csv`, and `training_history.csv`. Each prediction is labeled as
+training, validation, or test. Model/scaler checkpoints, per-epoch validation
+history, and partition-specific physics residual files remain to be added.
 
 ## Scientific-safety rules
 

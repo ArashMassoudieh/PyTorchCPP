@@ -79,4 +79,14 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
                         << ',' << (r.y_pred[i] - r.y_true[i]) << '\n';
         }
     }
+
+    const auto historyPath = root / "training_history.csv";
+    std::ofstream history(historyPath);
+    requireStream(history, historyPath);
+    history << "approach,epoch,training_loss\n" << std::setprecision(17);
+    for (const auto& entry : results) {
+        for (size_t epoch = 0; epoch < entry.second.training_loss_history.size(); ++epoch) {
+            history << entry.first << ',' << (epoch + 1) << ',' << entry.second.training_loss_history[epoch] << '\n';
+        }
+    }
 }

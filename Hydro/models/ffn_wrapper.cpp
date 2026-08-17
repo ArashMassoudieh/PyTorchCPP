@@ -470,6 +470,7 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
         throw std::runtime_error("FFN training produced empty/non-finite loss history.");
     }
     result.final_loss = losses.back();
+    result.training_loss_history = losses;
 
     model.setTensorData(DataType::Test, xValidation, yValidation);
     torch::Tensor predValidation = targetScaler.inverseTransform(model.forward(DataType::Test));

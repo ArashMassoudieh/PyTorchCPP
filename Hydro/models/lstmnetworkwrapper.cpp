@@ -526,6 +526,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         throw std::runtime_error(physicsInformed ? "LSTM-PINN training produced empty/non-finite loss history." : "LSTM training produced empty/non-finite loss history.");
     }
     result.final_loss = losses.back();
+    result.training_loss_history = losses;
 
     model->eval();
     torch::NoGradGuard noGrad;

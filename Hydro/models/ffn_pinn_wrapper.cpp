@@ -545,6 +545,7 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
         throw std::runtime_error("FFN-PINN training produced empty/non-finite loss history.");
     }
     result.final_loss = losses.back();
+    result.training_loss_history = losses;
 
     model.setTensorData(DataType::Test, xValidation, yValidation);
     torch::Tensor predValidation = model.forward(DataType::Test);
