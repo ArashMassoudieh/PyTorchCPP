@@ -78,6 +78,10 @@ private:
     QSpinBox* csvYColSpin_;
     QCheckBox* csvHeaderCheck_;
     QPushButton* useNeuroforgeCsvPresetButton_;
+    QLineEdit* hydroPackagePathEdit_;
+    QPushButton* browseHydroPackageButton_;
+    QLineEdit* hydroCatchmentIdEdit_;
+    QComboBox* hydroPackageProfileCombo_;
     QSpinBox* sampleCountSpin_;
     QDoubleSpinBox* tStartSpin_;
     QDoubleSpinBox* tEndSpin_;
@@ -108,6 +112,7 @@ private:
     QPushButton* startGAButton_;
     QPushButton* stopGAButton_;
     QPushButton* refreshPerformanceButton_;
+    QPushButton* exportExperimentButton_;
     QPushButton* clearPlotButton_;
     QPushButton* showInputsOutputsButton_;
     QPushButton* zoomInPlotButton_;
@@ -137,6 +142,7 @@ private:
     void updateDataSourceUiState();
     void updateFfnLagUiState();
     void browseCsv();
+    void browseHydroPackage();
     void browseSyntheticExportPath();
     void generateSyntheticDataPreview();
     void appendLog(const QString& line);
@@ -151,6 +157,7 @@ private:
     int estimatedFfnInputCountForLagSearch(const HydroRunConfig& cfg, const QString& mode) const;
     void stopGAPlaceholder();
     void refreshPerformanceAssessment();
+    void exportExperimentArtifacts();
     void clearPlot();
     void zoomInPlot();
     void zoomOutPlot();

@@ -141,8 +141,11 @@ SOURCES += \
     Utilities/Vector.cpp \
     Utilities/Vector_arma.cpp \
     Hydro/dataset/ddrr_loader.cpp \
+    Hydro/dataset/hydro_dataset_contract.cpp \
     Hydro/dataset/lag_builder.cpp \
     Hydro/dataset/sequence_builder.cpp \
+    Hydro/evaluation/experiment_exporter.cpp \
+    Hydro/models/pinn_wrapper.cpp \
     Hydro/physics/physics_config.cpp \
     Hydro/physics/rr_physics.cpp \
     Hydro/models/ffn_wrapper.cpp \
@@ -178,13 +181,21 @@ HEADERS += \
     Utilities/Vector_arma.h \
     Hydro/hydropinnwindow.h \
     Hydro/dataset/ddrr_loader.h \
+    Hydro/dataset/hydro_dataset_contract.h \
+    Hydro/dataset/hydro_units.h \
+    Hydro/dataset/hydro_tensor_builder.h \
     Hydro/dataset/lag_builder.h \
     Hydro/dataset/sequence_builder.h \
+    Hydro/dataset/chronological_split.h \
+    Hydro/dataset/tensor_scaler.h \
+    Hydro/evaluation/hydro_metrics.h \
+    Hydro/evaluation/experiment_exporter.h \
     Hydro/physics/physics_config.h \
     Hydro/physics/rr_physics.h \
     Hydro/models/hydro_run_types.h \
     Hydro/models/ffn_wrapper.h \
     Hydro/models/ffn_pinn_wrapper.h \
+    Hydro/models/pinn_wrapper.h \
     Hydro/models/lstm_wrapper.h \
     Hydro/models/lstm_pinn_wrapper.h \
     Hydro/models/lstmnetworkwrapper.h
