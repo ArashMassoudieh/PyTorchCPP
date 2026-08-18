@@ -66,6 +66,19 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
                 << r.pbias << ',' << r.volume_error_percent << ',' << r.physics_loss << '\n';
     }
 
+    const auto physicsPath = root / "physics_residuals.csv";
+    std::ofstream physics(physicsPath);
+    requireStream(physics, physicsPath);
+    physics << "approach,index,split,x,physics_residual\n" << std::setprecision(17);
+    for (const auto& entry : results) {
+        const auto& r = entry.second;
+        const size_t n = std::min(r.x.size(), r.physics_residual.size());
+        for (size_t i = 0; i < n; ++i) {
+            const std::string split = i < r.split.size() ? r.split[i] : "unknown";
+            physics << entry.first << ',' << i << ',' << split << ',' << r.x[i] << ',' << r.physics_residual[i] << '\n';
+        }
+    }
+
     const auto predictionsPath = root / "predictions.csv";
     std::ofstream predictions(predictionsPath);
     requireStream(predictions, predictionsPath);

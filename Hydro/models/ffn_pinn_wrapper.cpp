@@ -582,6 +582,11 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
                                                                  x.slice(1, storageCol, storageCol + 1),
                                                                  physics);
         result.physics_loss = torch::mean(residual * residual).item<double>();
+        auto values = residual.detach().to(torch::kCPU).reshape({-1}).contiguous();
+        result.physics_residual.assign(static_cast<size_t>(x.size(0)), std::numeric_limits<double>::quiet_NaN());
+        for (int64_t i = 0; i < values.size(0) && static_cast<size_t>(i + 1) < result.physics_residual.size(); ++i) {
+            result.physics_residual[static_cast<size_t>(i + 1)] = values[i].item<double>();
+        }
     }
     fillPlotVectors(result, plotX, y, predFull);
     result.split.resize(result.x.size(), "test");

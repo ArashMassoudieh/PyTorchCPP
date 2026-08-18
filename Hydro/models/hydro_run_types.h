@@ -98,4 +98,5 @@ struct HydroRunResult {
     std::vector<double> y_pred;
     std::vector<std::string> split;
     std::vector<double> training_loss_history;
+    std::vector<double> physics_residual;
 };

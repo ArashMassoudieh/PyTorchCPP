@@ -21,12 +21,14 @@ int main() {
     result.y_pred = {1.5, 1.5};
     result.split = {"train", "test"};
     result.training_loss_history = {1.0, 0.5};
+    result.physics_residual = {0.1, -0.2};
     HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}});
     const auto root = output / "run_001";
     assert(std::filesystem::is_regular_file(root / "experiment_config.json"));
     assert(std::filesystem::is_regular_file(root / "metrics.csv"));
     assert(std::filesystem::is_regular_file(root / "predictions.csv"));
     assert(std::filesystem::is_regular_file(root / "training_history.csv"));
+    assert(std::filesystem::is_regular_file(root / "physics_residuals.csv"));
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);
@@ -34,6 +36,9 @@ int main() {
     std::ifstream history(root / "training_history.csv");
     const std::string historyText((std::istreambuf_iterator<char>(history)), std::istreambuf_iterator<char>());
     assert(historyText.find("ffn,2,0.5") != std::string::npos);
+    std::ifstream physics(root / "physics_residuals.csv");
+    const std::string physicsText((std::istreambuf_iterator<char>(physics)), std::istreambuf_iterator<char>());
+    assert(physicsText.find("ffn,1,test,1,-0.2") != std::string::npos);
     std::filesystem::remove_all(output);
     return 0;
 }

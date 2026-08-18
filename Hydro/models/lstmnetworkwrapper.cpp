@@ -551,6 +551,23 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
         else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
     }
+    if (physicsInformed && config.pinn_physics_profile == "water_balance" && seq.xSeq.size(0) >= 2 && seq.xSeq.size(2) >= 5) {
+        torch::Tensor lastStep = seq.xSeq.select(1, seq.xSeq.size(1) - 1);
+        torch::Tensor storage = lastStep.slice(1, 4, 5);
+        if (!config.use_hydro_package && config.synthetic_profile == "watershed_balance" && lastStep.size(1) >= 6) {
+            storage = storage + lastStep.slice(1, 5, 6);
+        }
+        torch::Tensor residual = lastStep.slice(1, 1, 2).slice(0, 1, lastStep.size(0))
+                                 - lastStep.slice(1, 2, 3).slice(0, 1, lastStep.size(0))
+                                 - predFull.slice(0, 1, predFull.size(0))
+                                 - (storage.slice(0, 1, storage.size(0)) - storage.slice(0, 0, storage.size(0) - 1)) / dt;
+        auto values = residual.detach().to(torch::kCPU).reshape({-1}).contiguous();
+        result.physics_residual.assign(result.x.size(), std::numeric_limits<double>::quiet_NaN());
+        for (int64_t i = 0; i < values.size(0) && static_cast<size_t>(i + 1) < result.physics_residual.size(); ++i) {
+            result.physics_residual[static_cast<size_t>(i + 1)] = values[i].item<double>();
+        }
+        result.physics_loss = torch::mean(residual * residual).item<double>();
+    }
     result.success = true;
     result.message = physicsInformed
         ? (config.use_hydro_package ? "LSTM-PINN run completed with Hydro package input." : (config.use_csv_data ? "LSTM-PINN run completed with CSV input." : "LSTM-PINN run completed with synthetic input."))

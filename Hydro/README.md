@@ -147,8 +147,9 @@ The Performance tab's **Export Experiment...** action writes a deterministic
 artifact directory containing
 `experiment_config.json`, one-row-per-approach `metrics.csv`, and long-form
 `predictions.csv`, and `training_history.csv`. Each prediction is labeled as
-training, validation, or test. Model/scaler checkpoints, per-epoch validation
-history, and partition-specific physics residual files remain to be added.
+training, validation, or test. PINN-capable water-balance runs also export
+`physics_residuals.csv` with the same partition labels. Model/scaler checkpoints
+and per-epoch validation history remain to be added.
 
 ## Scientific-safety rules
 
