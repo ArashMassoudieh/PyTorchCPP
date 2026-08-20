@@ -82,6 +82,10 @@ private:
     QPushButton* browseHydroPackageButton_;
     QLineEdit* hydroCatchmentIdEdit_;
     QComboBox* hydroPackageProfileCombo_;
+    QCheckBox* hydroForecastFeatureCheck_;
+    QLineEdit* hydroForecastVariableEdit_;
+    QDoubleSpinBox* hydroForecastLeadSpin_;
+    QLineEdit* hydroForecastEnsembleEdit_;
     QSpinBox* sampleCountSpin_;
     QDoubleSpinBox* tStartSpin_;
     QDoubleSpinBox* tEndSpin_;

@@ -95,6 +95,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       useNeuroforgeCsvPresetButton_(new QPushButton("Use NeuroForge CSV Preset (x=t, y=target)", this)),
       hydroPackagePathEdit_(new QLineEdit(this)), browseHydroPackageButton_(new QPushButton("Browse...", this)),
       hydroCatchmentIdEdit_(new QLineEdit(this)), hydroPackageProfileCombo_(new QComboBox(this)),
+      hydroForecastFeatureCheck_(new QCheckBox("Append leakage-safe forecast feature", this)),
+      hydroForecastVariableEdit_(new QLineEdit(this)), hydroForecastLeadSpin_(new QDoubleSpinBox(this)),
+      hydroForecastEnsembleEdit_(new QLineEdit(this)),
       sampleCountSpin_(new QSpinBox(this)), tStartSpin_(new QDoubleSpinBox(this)),
       tEndSpin_(new QDoubleSpinBox(this)), profileCombo_(new QComboBox(this)),
       generateSyntheticButton_(new QPushButton("Generate Synthetic Data", this)),
@@ -143,6 +146,11 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
     dataSourceCombo_->addItems({"Synthetic", "CSV File", "Hydro Package"});
     hydroPackageProfileCombo_->addItems({"rainfall-runoff", "water-balance"});
+    hydroForecastVariableEdit_->setText("precipitation");
+    hydroForecastLeadSpin_->setRange(0.0, 1000.0);
+    hydroForecastLeadSpin_->setDecimals(3);
+    hydroForecastLeadSpin_->setSuffix(" h");
+    hydroForecastEnsembleEdit_->setPlaceholderText("Optional ensemble_member");
     profileCombo_->addItems({"watershed_balance", "rainfall_runoff", "neuroforge_inputs_target", "exp_decay", "damped_sine", "mixed_wave"});
 
     auto* tabs = new QTabWidget(central);
@@ -194,6 +202,10 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     dataForm->addRow("Hydro package", packageRow);
     dataForm->addRow("Package catchment ID", hydroCatchmentIdEdit_);
     dataForm->addRow("Package profile", hydroPackageProfileCombo_);
+    dataForm->addRow(hydroForecastFeatureCheck_);
+    dataForm->addRow("Forecast variable", hydroForecastVariableEdit_);
+    dataForm->addRow("Required forecast lead", hydroForecastLeadSpin_);
+    dataForm->addRow("Forecast ensemble", hydroForecastEnsembleEdit_);
 
     syntheticExportPathEdit_->setPlaceholderText("Optional export path for generated synthetic CSV");
     auto* syntheticExportRow = new QWidget(dataTab);
@@ -579,6 +591,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
         updateDataSourceUiState();
         updateStatus();
     });
+    connect(hydroForecastFeatureCheck_, &QCheckBox::toggled, this, [this](bool) {
+        updateDataSourceUiState();
+    });
     connect(browseCsvButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseCsv);
     connect(browseHydroPackageButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseHydroPackage);
     connect(browseSyntheticExportButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseSyntheticExportPath);
@@ -623,6 +638,10 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
     cfg.hydro_package_path = hydroPackagePathEdit_->text().toStdString();
     cfg.hydro_catchment_id = hydroCatchmentIdEdit_->text().toStdString();
     cfg.hydro_package_profile = hydroPackageProfileCombo_->currentText().toStdString();
+    cfg.use_hydro_forecast_feature = hydroForecastFeatureCheck_->isChecked();
+    cfg.hydro_forecast_variable = hydroForecastVariableEdit_->text().toStdString();
+    cfg.hydro_forecast_lead_hours = hydroForecastLeadSpin_->value();
+    cfg.hydro_forecast_ensemble_member = hydroForecastEnsembleEdit_->text().toStdString();
     cfg.csv_path = csvPathEdit_->text().toStdString();
     cfg.csv_x_column = csvXColSpin_->value();
     cfg.csv_y_column = csvYColSpin_->value();
@@ -663,6 +682,11 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     hydroPackagePathEdit_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
     hydroCatchmentIdEdit_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
     hydroPackageProfileCombo_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
+    hydroForecastFeatureCheck_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
+    const bool forecastEnabled = !running && dataSourceCombo_->currentText() == "Hydro Package" && hydroForecastFeatureCheck_->isChecked();
+    hydroForecastVariableEdit_->setEnabled(forecastEnabled);
+    hydroForecastLeadSpin_->setEnabled(forecastEnabled);
+    hydroForecastEnsembleEdit_->setEnabled(forecastEnabled);
     generateSyntheticButton_->setEnabled(!running && dataSourceCombo_->currentText() == "Synthetic");
     syntheticExportPathEdit_->setEnabled(!running && dataSourceCombo_->currentText() == "Synthetic");
     browseSyntheticExportButton_->setEnabled(!running && dataSourceCombo_->currentText() == "Synthetic");
@@ -745,6 +769,11 @@ void HydroPINNWindow::updateDataSourceUiState() {
     browseHydroPackageButton_->setEnabled(usePackage);
     hydroCatchmentIdEdit_->setEnabled(usePackage);
     hydroPackageProfileCombo_->setEnabled(usePackage);
+    hydroForecastFeatureCheck_->setEnabled(usePackage);
+    const bool forecastEnabled = usePackage && hydroForecastFeatureCheck_->isChecked();
+    hydroForecastVariableEdit_->setEnabled(forecastEnabled);
+    hydroForecastLeadSpin_->setEnabled(forecastEnabled);
+    hydroForecastEnsembleEdit_->setEnabled(forecastEnabled);
 
     const bool useSynthetic = !useCsv && !usePackage;
     profileCombo_->setEnabled(useSynthetic);

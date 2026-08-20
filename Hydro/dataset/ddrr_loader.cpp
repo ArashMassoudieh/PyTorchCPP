@@ -304,7 +304,7 @@ HydroPackageManifest DDRRLoader::loadManifest(const std::string& manifestPath) c
 
 std::vector<HydroForecast> DDRRLoader::loadForecasts(const std::string& path,
                                                      const std::string& predictionTime) const {
-    (void)parseCanonicalUtcTimestamp(predictionTime);
+    if (!predictionTime.empty()) (void)parseCanonicalUtcTimestamp(predictionTime);
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Unable to open forecast table: " + path);
     std::string line;
@@ -350,7 +350,8 @@ std::vector<HydroForecast> DDRRLoader::loadForecasts(const std::string& path,
             forecast.unit.empty() || forecast.forecast_model.empty() || forecast.model_cycle.empty()) {
             throw std::runtime_error("Forecast row " + std::to_string(row) + " has missing or non-finite fields.");
         }
-        if (!forecastTimingIsConsistent(forecast.issue_time, forecast.valid_time, forecast.lead_hours, predictionTime)) {
+        const std::string availabilityCutoff = predictionTime.empty() ? forecast.valid_time : predictionTime;
+        if (!forecastTimingIsConsistent(forecast.issue_time, forecast.valid_time, forecast.lead_hours, availabilityCutoff)) {
             throw std::runtime_error("Forecast row " + std::to_string(row) + " violates issue/valid/lead-time availability.");
         }
         const std::string identity = forecast.issue_time + '\n' + forecast.valid_time + '\n' + forecast.catchment_id + '\n' +

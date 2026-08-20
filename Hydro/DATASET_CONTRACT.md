@@ -84,8 +84,9 @@ Comparisons parse canonical timestamps, including fractional seconds, rather
 than relying on lexical string ordering.
 
 `DDRRLoader::loadForecasts` enforces this long-form schema, rejects duplicate
-forecast identities and non-finite values, and requires an explicit prediction
-time so unavailable future issues cannot enter a retrospective feature set.
+forecast identities and non-finite values. With a prediction-time argument it
+rejects unavailable future issues; archive mode leaves that filtering to the
+mandatory row-alignment cutoff before values become model features.
 Packages may declare `forecast_file` and `forecast_sha256`; package loading
 checks the referenced asset and digest before it can be consumed.
 `selectLatestAvailableForecast` aligns an archived forecast to a catchment,
@@ -96,6 +97,10 @@ time and rejects mixed-unit candidates.
 a declared lead time. Every target valid time must have an available forecast;
 missing forecasts raise an error rather than triggering silent imputation, and
 the output unit must remain constant across the complete feature.
+When enabled in `HydroRunConfig`, the package tensor builder appends this
+aligned feature after the five canonical observation/state features. The
+physical time, precipitation, PET, and storage column positions remain stable
+for the conservation residual.
 
 ## GIStoOHQ architecture
 

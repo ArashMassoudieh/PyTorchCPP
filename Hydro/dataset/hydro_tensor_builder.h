@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ddrr_loader.h"
+#include "forecast_alignment.h"
 #include "../models/hydro_run_types.h"
 
 #include <torch/torch.h>
@@ -30,13 +31,27 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         throw std::runtime_error("Catchment not found in Hydro package: " + config.hydro_catchment_id);
     }
     const auto& rows = found->second;
+    std::optional<AlignedForecastFeature> forecastFeature;
+    if (config.use_hydro_forecast_feature) {
+        const auto manifest = loader.loadManifest(config.hydro_package_path + "/manifest.json");
+        if (manifest.forecast_file.empty()) throw std::runtime_error("Hydro package has no forecast_file for the requested forecast feature.");
+        std::vector<std::string> validTimes;
+        validTimes.reserve(rows.size());
+        for (const auto& row : rows) validTimes.push_back(row.timestamp);
+        const auto forecasts = loader.loadForecasts(config.hydro_package_path + "/" + manifest.forecast_file, {});
+        forecastFeature = buildAlignedForecastFeature(
+            forecasts, validTimes, config.hydro_catchment_id, config.hydro_forecast_variable,
+            config.hydro_forecast_lead_hours, config.hydro_forecast_ensemble_member);
+    }
+    const int64_t featureCount = config.use_hydro_forecast_feature ? 6 : 5;
     std::vector<float> features;
     std::vector<float> targets;
     std::vector<float> times;
-    features.reserve(rows.size() * 5);
+    features.reserve(rows.size() * static_cast<std::size_t>(featureCount));
     targets.reserve(rows.size());
     times.reserve(rows.size());
-    for (const auto& row : rows) {
+    for (std::size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+        const auto& row = rows[rowIndex];
         if (waterBalance && !row.storage_mm.has_value()) {
             throw std::runtime_error("Water-balance package row is missing storage.");
         }
@@ -45,11 +60,12 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         features.push_back(static_cast<float>(row.potential_et_mm_per_hour));
         features.push_back(0.0f); // reserved temperature slot for current wrapper layout
         features.push_back(static_cast<float>(row.storage_mm.value_or(0.0)));
+        if (forecastFeature) features.push_back(static_cast<float>(forecastFeature->values.at(rowIndex)));
         targets.push_back(static_cast<float>(row.observed_runoff_mm_per_hour));
         times.push_back(static_cast<float>(row.elapsed_hours));
     }
     const auto n = static_cast<int64_t>(rows.size());
-    x = torch::from_blob(features.data(), {n, 5}, torch::kFloat32).clone();
+    x = torch::from_blob(features.data(), {n, featureCount}, torch::kFloat32).clone();
     y = torch::from_blob(targets.data(), {n, 1}, torch::kFloat32).clone();
     plotX = torch::from_blob(times.data(), {n, 1}, torch::kFloat32).clone();
     return true;

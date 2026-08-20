@@ -64,7 +64,11 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
               << "  \"use_hydro_package\": " << (config.use_hydro_package ? "true" : "false") << ",\n"
               << "  \"hydro_package_path\": \"" << escapeJson(config.hydro_package_path) << "\",\n"
               << "  \"hydro_catchment_id\": \"" << escapeJson(config.hydro_catchment_id) << "\",\n"
-              << "  \"hydro_package_profile\": \"" << escapeJson(config.hydro_package_profile) << "\"\n"
+              << "  \"hydro_package_profile\": \"" << escapeJson(config.hydro_package_profile) << "\",\n"
+              << "  \"use_hydro_forecast_feature\": " << (config.use_hydro_forecast_feature ? "true" : "false") << ",\n"
+              << "  \"hydro_forecast_variable\": \"" << escapeJson(config.hydro_forecast_variable) << "\",\n"
+              << "  \"hydro_forecast_lead_hours\": " << config.hydro_forecast_lead_hours << ",\n"
+              << "  \"hydro_forecast_ensemble_member\": \"" << escapeJson(config.hydro_forecast_ensemble_member) << "\"\n"
               << "}\n";
 
     const auto environmentPath = root / "environment.json";

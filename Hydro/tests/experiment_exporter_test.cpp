@@ -21,6 +21,10 @@ int main() {
     config.use_hydro_package = true;
     config.hydro_package_path = package.string();
     config.hydro_catchment_id = "watershed_a";
+    config.use_hydro_forecast_feature = true;
+    config.hydro_forecast_variable = "precipitation";
+    config.hydro_forecast_lead_hours = 6.0;
+    config.hydro_forecast_ensemble_member = "m01";
     HydroRunResult result;
     result.success = true;
     result.mse = 0.25;
@@ -55,6 +59,8 @@ int main() {
     const std::string configText((std::istreambuf_iterator<char>(configFile)), std::istreambuf_iterator<char>());
     assert(configText.find("\"optimizer\": \"rmsprop\"") != std::string::npos);
     assert(configText.find("\"shuffle_training\": false") != std::string::npos);
+    assert(configText.find("\"hydro_forecast_lead_hours\": 6") != std::string::npos);
+    assert(configText.find("\"hydro_forecast_ensemble_member\": \"m01\"") != std::string::npos);
     std::ifstream provenance(root / "provenance.json");
     const std::string provenanceText((std::istreambuf_iterator<char>(provenance)), std::istreambuf_iterator<char>());
     assert(provenanceText.find("\"dataset_manifest_sha256\": \"") != std::string::npos);
