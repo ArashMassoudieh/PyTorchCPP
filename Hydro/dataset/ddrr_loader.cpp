@@ -1,6 +1,7 @@
 #include "ddrr_loader.h"
 
 #include "hydro_units.h"
+#include "hydro_checksum.h"
 
 #include <ctime>
 #include <cmath>
@@ -216,6 +217,12 @@ HydroObservationDataset DDRRLoader::loadPackageDirectory(
     if (!std::filesystem::is_regular_file(attributes)) {
         throw std::runtime_error("Hydro package is missing catchment_attributes.csv.");
     }
+    if (!manifest.observations_sha256.empty() && sha256File(observations.string()) != manifest.observations_sha256) {
+        throw std::runtime_error("Observations SHA-256 checksum mismatch.");
+    }
+    if (!manifest.catchment_attributes_sha256.empty() && sha256File(attributes.string()) != manifest.catchment_attributes_sha256) {
+        throw std::runtime_error("Catchment attributes SHA-256 checksum mismatch.");
+    }
     if (!manifest.quality_control_file.empty()) rejectPackageQcErrors(root / manifest.quality_control_file);
     HydroObservationDataset dataset = loadObservations(observations.string(), loadCatchmentAreas(attributes), contract);
     dataset.dataset_id = manifest.dataset_id;
@@ -234,6 +241,8 @@ HydroPackageManifest DDRRLoader::loadManifest(const std::string& manifestPath) c
     manifest.observations_file = jsonString(json, "observations_file");
     manifest.catchment_attributes_file = jsonString(json, "catchment_attributes_file");
     manifest.quality_control_file = jsonString(json, "quality_control_file", false);
+    manifest.observations_sha256 = jsonString(json, "observations_sha256", false);
+    manifest.catchment_attributes_sha256 = jsonString(json, "catchment_attributes_sha256", false);
     for (const auto& relative : {manifest.observations_file, manifest.catchment_attributes_file, manifest.quality_control_file}) {
         if (!safeRelativePath(relative)) {
             throw std::runtime_error("Manifest file paths must remain within the package directory.");

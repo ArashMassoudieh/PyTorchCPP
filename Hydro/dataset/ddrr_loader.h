@@ -34,6 +34,8 @@ struct HydroPackageManifest {
     std::string observations_file;
     std::string catchment_attributes_file;
     std::string quality_control_file;
+    std::string observations_sha256;
+    std::string catchment_attributes_sha256;
 };
 
 /** Loads validated generic hydro-observation CSV exports. */

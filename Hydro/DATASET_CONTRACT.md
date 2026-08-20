@@ -39,6 +39,10 @@ relative and remain inside the package. Package loading rejects incompatible
 schema major versions, profile mismatches, and any QC record with
 `severity=error`.
 
+Producers may provide `observations_sha256` and
+`catchment_attributes_sha256`. When declared, HydroPINN calculates SHA-256 from
+the exact file bytes and rejects mismatches before parsing either asset.
+
 ## Observation table
 
 The reusable `rainfall-runoff` profile requires timestamp, catchment ID,

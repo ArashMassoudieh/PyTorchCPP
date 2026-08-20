@@ -129,8 +129,9 @@ and direct wrapper integration remain follow-up work.
 The loader can also open a generic package directory through `manifest.json`,
 resolve observation and catchment-attribute files safely, read `area_m2` by
 stable catchment ID, enforce the declared schema/profile, and reject unresolved
-package QC errors. Checksum validation plus full asset-catalog and variable
-metadata parsing remain the next package-loader increment.
+package QC errors. Declared observation and catchment-attribute SHA-256 digests
+are verified before parsing. Full asset-catalog and variable metadata parsing
+remain the next package-loader increment.
 
 All four trainable wrapper families accept the same package/catchment
 configuration and build named physical tensors through the shared package

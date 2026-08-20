@@ -1,4 +1,5 @@
 #include "../dataset/ddrr_loader.h"
+#include "../dataset/hydro_checksum.h"
 
 #include <cassert>
 #include <cmath>
@@ -84,6 +85,28 @@ int main() {
     assert(packaged.profile == "water-balance");
     assert(packaged.catchment_area_m2.at("a") == 1.0e6);
     assert(packaged.observations_by_catchment.at("b").size() == 3);
+
+    const std::string observationsDigest = sha256File((package / "observations.csv").string());
+    const std::string attributesDigest = sha256File((package / "catchment_attributes.csv").string());
+    {
+        std::ofstream out(package / "manifest.json");
+        out << "{\"schema_name\":\"hydro-observations\",\"schema_version\":\"1.0.0\","
+            << "\"profile\":\"water-balance\",\"dataset_id\":\"checksummed\","
+            << "\"observations_file\":\"observations.csv\",\"catchment_attributes_file\":\"catchment_attributes.csv\","
+            << "\"quality_control_file\":\"quality_control.csv\","
+            << "\"observations_sha256\":\"" << observationsDigest << "\","
+            << "\"catchment_attributes_sha256\":\"" << attributesDigest << "\"}";
+    }
+    assert(loader.loadPackageDirectory(package.string(), HydroDatasetContract::waterBalanceV1()).dataset_id == "checksummed");
+    {
+        std::ofstream out(package / "observations.csv", std::ios::app);
+        out << '\n';
+    }
+    rejected = false;
+    try { (void)loader.loadPackageDirectory(package.string(), HydroDatasetContract::waterBalanceV1()); }
+    catch (const std::runtime_error&) { rejected = true; }
+    assert(rejected);
+    std::filesystem::copy_file(path, package / "observations.csv", std::filesystem::copy_options::overwrite_existing);
 
     // Two-digit incompatible major versions must not pass by sharing a first digit.
     {
