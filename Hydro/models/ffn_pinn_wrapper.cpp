@@ -499,6 +499,13 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     model.setTensorData(DataType::Test, xTest, yTest);
 
     std::vector<double> losses;
+    std::vector<double> validationLosses;
+    int bestEpoch = 0;
+    const bool physicsOnly = config.data_weight == 0.0;
+    const torch::Tensor checkpointInputs = physicsOnly ? torch::Tensor() : xValidation;
+    const torch::Tensor checkpointTargets = physicsOnly ? torch::Tensor() : yValidation;
+    std::vector<double>* checkpointHistory = physicsOnly ? nullptr : &validationLosses;
+    int* checkpointEpoch = physicsOnly ? nullptr : &bestEpoch;
     if (config.pinn_physics_profile == "water_balance" &&
         (config.use_hydro_package || config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff") &&
         x.size(1) >= 5) {
@@ -515,7 +522,11 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
                                              storageCol,
                                              dt,
                                              config.data_weight,
-                                             config.physics_weight);
+                                             config.physics_weight,
+                                             checkpointInputs,
+                                             checkpointTargets,
+                                             checkpointHistory,
+                                             checkpointEpoch);
     } else if (config.pinn_physics_profile == "linear_reservoir" ||
         config.pinn_physics_profile == "cstr_first_order" ||
         config.pinn_physics_profile == "water_balance") {
@@ -531,7 +542,11 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
                                             effectiveForcingGain,
                                             1,
                                             config.data_weight,
-                                            config.physics_weight);
+                                            config.physics_weight,
+                                            checkpointInputs,
+                                            checkpointTargets,
+                                            checkpointHistory,
+                                            checkpointEpoch);
     } else {
         losses = model.trainPINNExponentialDecay(config.epochs,
                                                  config.batch_size,
@@ -539,13 +554,20 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
                                                  lambda,
                                                  config.data_weight,
                                                  config.physics_weight,
-                                                 config.pinn_collocation_points);
+                                                 config.pinn_collocation_points,
+                                                 checkpointInputs,
+                                                 checkpointTargets,
+                                                 checkpointHistory,
+                                                 checkpointEpoch);
     }
     if (losses.empty() || !std::isfinite(losses.back())) {
         throw std::runtime_error("FFN-PINN training produced empty/non-finite loss history.");
     }
-    result.final_loss = losses.back();
+    if (physicsOnly) bestEpoch = static_cast<int>(losses.size());
+    result.best_epoch = bestEpoch;
+    result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
     result.training_loss_history = losses;
+    result.validation_loss_history = validationLosses;
 
     model.setTensorData(DataType::Test, xValidation, yValidation);
     torch::Tensor predValidation = model.forward(DataType::Test);

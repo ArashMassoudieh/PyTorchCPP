@@ -102,13 +102,18 @@ interpretability as much as generic prediction error:
 - Replace placeholder GA controls with a full GA configuration dialog that shares
   more of NeuroForge's hyperparameter-search behavior.
 - Add model/scaler checkpoint persistence.
-- Extend validation-selected checkpointing to FFN+PINN and the standalone PINN
-  backend.
+- Persist validation-selected model and scaler checkpoints as reloadable files.
 - Expand calibrated watershed-process residuals for snow accumulation/melt, infiltration capacity, groundwater exchange, channel routing, and evapotranspiration stress as field assumptions become available.
 
 The current synthetic workflow is still a software-validation stage. Before
 paper experiments, remaining work includes model/scaler persistence,
-PINN-family validation-selected checkpoints and broader five-model integration tests.
+checkpoint-file persistence and broader five-model integration tests.
+
+Standalone physics-only PINN runs deliberately do not select checkpoints using
+observed validation discharge, because that would introduce supervised model
+selection into the nominally physics-only baseline. Their validation MSE
+remains a post-training diagnostic; physics-based early stopping is a separate
+future option.
 
 FFN and LSTM supervised runs now fit normalization exclusively on the training
 partition and inverse-transform predictions before validation/test metrics are

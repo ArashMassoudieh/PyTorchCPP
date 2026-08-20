@@ -122,7 +122,11 @@ public:
                                                   double lambda_decay,
                                                   double data_weight = 1.0,
                                                   double physics_weight = 1.0,
-                                                  int collocation_points = 0);
+                                                  int collocation_points = 0,
+                                                  const torch::Tensor& validation_inputs = {},
+                                                  const torch::Tensor& validation_targets = {},
+                                                  std::vector<double>* validation_history = nullptr,
+                                                  int* best_epoch = nullptr);
 
     /**
      * @brief Physics-informed training with forcing residual dy/dt + lambda*y - g*u = 0.
@@ -137,7 +141,11 @@ public:
                                              double forcing_gain,
                                              int forcing_feature_index = 1,
                                              double data_weight = 1.0,
-                                             double physics_weight = 1.0);
+                                             double physics_weight = 1.0,
+                                             const torch::Tensor& validation_inputs = {},
+                                             const torch::Tensor& validation_targets = {},
+                                             std::vector<double>* validation_history = nullptr,
+                                             int* best_epoch = nullptr);
 
     /**
      * @brief Physics-informed training with rainfall-runoff mass balance residual P - ET - Q - dS/dt = 0.
@@ -154,7 +162,11 @@ public:
                                               int storage_feature_index,
                                               double dt,
                                               double data_weight = 1.0,
-                                              double physics_weight = 1.0);
+                                              double physics_weight = 1.0,
+                                              const torch::Tensor& validation_inputs = {},
+                                              const torch::Tensor& validation_targets = {},
+                                              std::vector<double>* validation_history = nullptr,
+                                              int* best_epoch = nullptr);
 
     // Evaluation
     /**
