@@ -65,6 +65,7 @@ int main() {
   "dataset_id": "two-catchment-test",
   "observations_file": "observations.csv",
   "catchment_attributes_file": "catchment_attributes.csv",
+  "variables_file": "variables.json",
   "quality_control_file": "quality_control.csv"
 })";
     }
@@ -79,12 +80,37 @@ int main() {
             << "a,1000000,0.02\n"
             << "b,2000000,0.03\n";
     }
+    {
+        std::ofstream out(package / "variables.json");
+        out << R"([
+  {"name":"timestamp","unit":"UTC ISO-8601"},
+  {"name":"catchment_id","unit":"1"},
+  {"name":"precipitation","unit":"mm/h"},
+  {"name":"potential_et","unit":"mm/h"},
+  {"name":"observed_discharge","unit":"m3/s"},
+  {"name":"storage","unit":"mm"}
+])";
+    }
     const auto packaged = loader.loadPackageDirectory(package.string(), HydroDatasetContract::waterBalanceV1());
     assert(packaged.dataset_id == "two-catchment-test");
     assert(packaged.schema_version == "1.0.0");
     assert(packaged.profile == "water-balance");
     assert(packaged.catchment_area_m2.at("a") == 1.0e6);
+    assert(packaged.variable_units.at("observed_discharge") == "m3/s");
     assert(packaged.observations_by_catchment.at("b").size() == 3);
+
+    {
+        std::ofstream out(package / "variables.json");
+        out << R"([{"name":"timestamp","unit":"UTC ISO-8601"},{"name":"catchment_id","unit":"1"},{"name":"precipitation","unit":"mm/h"},{"name":"potential_et","unit":"mm/h"},{"name":"observed_discharge","unit":"ft3/s"},{"name":"storage","unit":"mm"}])";
+    }
+    rejected = false;
+    try { (void)loader.loadPackageDirectory(package.string(), HydroDatasetContract::waterBalanceV1()); }
+    catch (const std::runtime_error&) { rejected = true; }
+    assert(rejected);
+    {
+        std::ofstream out(package / "variables.json");
+        out << R"([{"name":"timestamp","unit":"UTC ISO-8601"},{"name":"catchment_id","unit":"1"},{"name":"precipitation","unit":"mm/h"},{"name":"potential_et","unit":"mm/h"},{"name":"observed_discharge","unit":"m3/s"},{"name":"storage","unit":"mm"}])";
+    }
 
     const std::string observationsDigest = sha256File((package / "observations.csv").string());
     const std::string attributesDigest = sha256File((package / "catchment_attributes.csv").string());

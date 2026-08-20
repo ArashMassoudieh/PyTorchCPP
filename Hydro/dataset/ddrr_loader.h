@@ -23,6 +23,7 @@ struct HydroObservationDataset {
     std::string schema_version;
     std::string profile;
     std::map<std::string, double> catchment_area_m2;
+    std::map<std::string, std::string> variable_units;
     std::map<std::string, std::vector<HydroObservation>> observations_by_catchment;
 };
 
@@ -34,8 +35,10 @@ struct HydroPackageManifest {
     std::string observations_file;
     std::string catchment_attributes_file;
     std::string quality_control_file;
+    std::string variables_file;
     std::string observations_sha256;
     std::string catchment_attributes_sha256;
+    std::string variables_sha256;
 };
 
 /** Loads validated generic hydro-observation CSV exports. */

@@ -34,14 +34,18 @@ status.
 
 The current HydroPINN loader requires the string fields `schema_name`,
 `schema_version`, `profile`, `dataset_id`, `observations_file`, and
-`catchment_attributes_file`; `quality_control_file` is optional. Paths must be
-relative and remain inside the package. Package loading rejects incompatible
-schema major versions, profile mismatches, and any QC record with
-`severity=error`.
+`catchment_attributes_file`; `quality_control_file` and `variables_file` are
+optional for backward compatibility. When `variables_file` is declared, every
+required profile variable must have one metadata record and its unit must match
+the canonical unit in the selected contract. HydroPINN rejects missing,
+duplicate, or unsupported unit declarations rather than silently interpreting
+them. Paths must be relative and remain inside the package. Package loading
+rejects incompatible schema major versions, profile mismatches, and any QC
+record with `severity=error`.
 
-Producers may provide `observations_sha256` and
-`catchment_attributes_sha256`. When declared, HydroPINN calculates SHA-256 from
-the exact file bytes and rejects mismatches before parsing either asset.
+Producers may provide `observations_sha256`, `catchment_attributes_sha256`, and
+`variables_sha256`. When declared, HydroPINN calculates SHA-256 from the exact
+file bytes and rejects mismatches before parsing the corresponding asset.
 
 ## Observation table
 
