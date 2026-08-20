@@ -28,7 +28,7 @@ public:
         double loss = 0.0;
         {
             torch::NoGradGuard no_grad;
-            loss = torch::mse_loss(forward(inputs_), targets_).item<double>();
+            loss = torch::mse_loss(forward(inputs_), targets_).template item<double>();
         }
         if (!std::isfinite(loss)) throw std::runtime_error("Validation produced a non-finite loss.");
         if (history_) history_->push_back(loss);
