@@ -1,6 +1,7 @@
 #pragma once
 
 #include <torch/torch.h>
+#include "../models/hydro_run_types.h"
 
 #include <stdexcept>
 #include <string>
@@ -43,6 +44,33 @@ public:
         if (scale_.numel() != 1) throw std::logic_error("MSE conversion requires a scalar target scale.");
         const double scale = scale_.item<double>();
         return scaledMse * scale * scale;
+    }
+
+    HydroScalerState exportState() const {
+        ensureFitted();
+        HydroScalerState state;
+        state.method = method_;
+        const auto offset = offset_.to(torch::kCPU).to(torch::kFloat64).contiguous();
+        const auto scale = scale_.to(torch::kCPU).to(torch::kFloat64).contiguous();
+        state.shape.assign(offset.sizes().begin(), offset.sizes().end());
+        state.offset.assign(offset.data_ptr<double>(), offset.data_ptr<double>() + offset.numel());
+        state.scale.assign(scale.data_ptr<double>(), scale.data_ptr<double>() + scale.numel());
+        return state;
+    }
+
+    void importState(const HydroScalerState& state) {
+        if (state.offset.empty() || state.offset.size() != state.scale.size() || state.shape.empty()) {
+            throw std::invalid_argument("Scaler state is incomplete.");
+        }
+        int64_t expected = 1;
+        for (const int64_t extent : state.shape) {
+            if (extent <= 0) throw std::invalid_argument("Scaler state has an invalid shape.");
+            expected *= extent;
+        }
+        if (expected != static_cast<int64_t>(state.offset.size())) throw std::invalid_argument("Scaler state shape does not match its values.");
+        method_ = state.method;
+        offset_ = torch::tensor(state.offset, torch::kFloat64).to(torch::kFloat32).reshape(state.shape);
+        scale_ = torch::tensor(state.scale, torch::kFloat64).to(torch::kFloat32).reshape(state.shape);
     }
 
 private:

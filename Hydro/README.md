@@ -101,13 +101,12 @@ interpretability as much as generic prediction error:
 
 - Replace placeholder GA controls with a full GA configuration dialog that shares
   more of NeuroForge's hyperparameter-search behavior.
-- Add model/scaler checkpoint persistence.
-- Persist validation-selected model and scaler checkpoints as reloadable files.
+- Add reloadable model checkpoint persistence for FFN and LSTM backends.
 - Expand calibrated watershed-process residuals for snow accumulation/melt, infiltration capacity, groundwater exchange, channel routing, and evapotranspiration stress as field assumptions become available.
 
 The current synthetic workflow is still a software-validation stage. Before
-paper experiments, remaining work includes model/scaler persistence,
-checkpoint-file persistence and broader five-model integration tests.
+paper experiments, remaining work includes model checkpoint persistence and a
+broader five-model integration test.
 
 Standalone physics-only PINN runs deliberately do not select checkpoints using
 observed validation discharge, because that would introduce supervised model
@@ -151,8 +150,9 @@ artifact directory containing
 `experiment_config.json`, one-row-per-approach `metrics.csv`, and long-form
 `predictions.csv`, and `training_history.csv`. Each prediction is labeled as
 training, validation, or test. PINN-capable water-balance runs also export
-`physics_residuals.csv` with the same partition labels. Model/scaler checkpoints
-and per-epoch validation history remain to be added. Every export includes
+`physics_residuals.csv` with the same partition labels. Model checkpoints
+remain to be added. Per-epoch validation history and fitted scaler state are
+written to `training_history.csv` and `scalers.csv`. Every export includes
 `environment.json`; package-backed exports also preserve the accepted source
 manifest as `dataset_manifest.json` and record its SHA-256 release fingerprint
 in `provenance.json`.

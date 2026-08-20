@@ -39,6 +39,8 @@ int main() {
     result.training_loss_history = {1.0, 0.5};
     result.validation_loss_history = {0.8, 0.4};
     result.best_epoch = 2;
+    result.input_scaler = {"minmax", {0.0}, {2.0}, {1, 1}};
+    result.target_scaler = {"standardize", {1.0}, {0.5}, {1, 1}};
     result.physics_residual = {0.1, -0.2};
     HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}});
     const auto root = output / "run_001";
@@ -50,6 +52,7 @@ int main() {
     assert(std::filesystem::is_regular_file(root / "predictions.csv"));
     assert(std::filesystem::is_regular_file(root / "training_history.csv"));
     assert(std::filesystem::is_regular_file(root / "physics_residuals.csv"));
+    assert(std::filesystem::is_regular_file(root / "scalers.csv"));
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);
@@ -58,6 +61,9 @@ int main() {
     const std::string historyText((std::istreambuf_iterator<char>(history)), std::istreambuf_iterator<char>());
     assert(historyText.find("ffn,2,0.5,") != std::string::npos);
     assert(historyText.find(",1\n") != std::string::npos);
+    std::ifstream scalers(root / "scalers.csv");
+    const std::string scalerText((std::istreambuf_iterator<char>(scalers)), std::istreambuf_iterator<char>());
+    assert(scalerText.find("ffn,input,0,minmax,\"1;1\",0,2") != std::string::npos);
     std::ifstream physics(root / "physics_residuals.csv");
     const std::string physicsText((std::istreambuf_iterator<char>(physics)), std::istreambuf_iterator<char>());
     assert(physicsText.find("ffn,1,test,1,-0.2") != std::string::npos);

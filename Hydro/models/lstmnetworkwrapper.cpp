@@ -548,6 +548,8 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     result.training_loss_history = losses;
     result.validation_loss_history = validationLosses;
     result.best_epoch = bestEpoch;
+    result.input_scaler = inputScaler.exportState();
+    result.target_scaler = targetScaler.exportState();
     if (bestParameters.empty()) throw std::runtime_error("LSTM training did not produce a validation-selected checkpoint.");
     {
         torch::NoGradGuard noGrad;

@@ -477,6 +477,8 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     result.training_loss_history = losses;
     result.validation_loss_history.reserve(validationLossesScaled.size());
     for (const double value : validationLossesScaled) result.validation_loss_history.push_back(targetScaler.mseToPhysical(value));
+    result.input_scaler = inputScaler.exportState();
+    result.target_scaler = targetScaler.exportState();
 
     model.setTensorData(DataType::Test, xValidation, yValidation);
     torch::Tensor predValidation = targetScaler.inverseTransform(model.forward(DataType::Test));

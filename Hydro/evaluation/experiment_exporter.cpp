@@ -121,6 +121,25 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
                 << r.pbias << ',' << r.volume_error_percent << ',' << r.physics_loss << '\n';
     }
 
+    const auto scalersPath = root / "scalers.csv";
+    std::ofstream scalers(scalersPath);
+    requireStream(scalers, scalersPath);
+    scalers << "approach,kind,index,method,shape,offset,scale\n" << std::setprecision(17);
+    for (const auto& entry : results) {
+        const auto writeState = [&](const char* kind, const HydroScalerState& state) {
+            for (std::size_t i = 0; i < state.offset.size(); ++i) {
+                scalers << entry.first << ',' << kind << ',' << i << ',' << state.method << ",\"";
+                for (std::size_t dimension = 0; dimension < state.shape.size(); ++dimension) {
+                    if (dimension) scalers << ';';
+                    scalers << state.shape[dimension];
+                }
+                scalers << "\"," << state.offset[i] << ',' << state.scale.at(i) << '\n';
+            }
+        };
+        writeState("input", entry.second.input_scaler);
+        writeState("target", entry.second.target_scaler);
+    }
+
     const auto physicsPath = root / "physics_residuals.csv";
     std::ofstream physics(physicsPath);
     requireStream(physics, physicsPath);

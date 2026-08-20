@@ -1,8 +1,16 @@
 #pragma once
 
 #include <string>
+#include <cstdint>
 #include <limits>
 #include <vector>
+
+struct HydroScalerState {
+    std::string method = "none";
+    std::vector<double> offset;
+    std::vector<double> scale;
+    std::vector<int64_t> shape;
+};
 
 /**
  * @brief Runtime configuration used by Hydro mode wrappers.
@@ -104,5 +112,7 @@ struct HydroRunResult {
     std::vector<double> training_loss_history;
     std::vector<double> validation_loss_history;
     int best_epoch = 0;
+    HydroScalerState input_scaler;
+    HydroScalerState target_scaler;
     std::vector<double> physics_residual;
 };
