@@ -92,6 +92,10 @@ checks the referenced asset and digest before it can be consumed.
 variable, valid time, prediction time, and optional ensemble member. It selects
 the most recently issued candidate that was actually available at prediction
 time and rejects mixed-unit candidates.
+`buildAlignedForecastFeature` produces a model-row-aligned numeric feature for
+a declared lead time. Every target valid time must have an available forecast;
+missing forecasts raise an error rather than triggering silent imputation, and
+the output unit must remain constant across the complete feature.
 
 ## GIStoOHQ architecture
 
