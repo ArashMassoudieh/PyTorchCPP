@@ -1,4 +1,5 @@
 #include "../evaluation/experiment_exporter.h"
+#include "../evaluation/experiment_loader.h"
 
 #include <cassert>
 #include <filesystem>
@@ -20,7 +21,7 @@ int main() {
     }
     config.use_hydro_package = true;
     config.hydro_package_path = package.string();
-    config.hydro_catchment_id = "watershed_a";
+    config.hydro_catchment_id = "watershed_\"a";
     config.use_hydro_forecast_feature = true;
     config.hydro_forecast_variable = "precipitation";
     config.hydro_forecast_lead_hours = 6.0;
@@ -64,6 +65,15 @@ int main() {
     std::ifstream provenance(root / "provenance.json");
     const std::string provenanceText((std::istreambuf_iterator<char>(provenance)), std::istreambuf_iterator<char>());
     assert(provenanceText.find("\"dataset_manifest_sha256\": \"") != std::string::npos);
+    const auto loaded = HydroExperimentLoader().loadConfig((root / "experiment_config.json").string());
+    assert(loaded.experiment_id == "run_001");
+    assert(loaded.config.random_seed == 7);
+    assert(loaded.config.optimizer == "rmsprop");
+    assert(!loaded.config.shuffle_training);
+    assert(loaded.config.use_hydro_forecast_feature);
+    assert(loaded.config.hydro_forecast_lead_hours == 6.0);
+    assert(loaded.config.hydro_forecast_ensemble_member == "m01");
+    assert(loaded.config.hydro_catchment_id == "watershed_\"a");
     std::filesystem::remove_all(output);
     return 0;
 }

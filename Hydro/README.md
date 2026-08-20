@@ -101,8 +101,8 @@ interpretability as much as generic prediction error:
 
 - Replace placeholder GA controls with a full GA configuration dialog that shares
   more of NeuroForge's hyperparameter-search behavior.
-- Add reload support for exported experiment configurations and model/scaler
-  checkpoints.
+- Add model/scaler checkpoint persistence and GUI application of reloaded
+  experiment configurations.
 - Add per-epoch validation histories and validation-selected checkpoints.
 - Expand calibrated watershed-process residuals for snow accumulation/melt, infiltration capacity, groundwater exchange, channel routing, and evapotranspiration stress as field assumptions become available.
 
@@ -151,6 +151,9 @@ and per-epoch validation history remain to be added. Every export includes
 `environment.json`; package-backed exports also preserve the accepted source
 manifest as `dataset_manifest.json` and record its SHA-256 release fingerprint
 in `provenance.json`.
+`HydroExperimentLoader` reads the exported configuration back into a validated
+`HydroRunConfig`, providing a programmatic rerun boundary without silently
+falling back to current GUI defaults.
 
 ## Scientific-safety rules
 

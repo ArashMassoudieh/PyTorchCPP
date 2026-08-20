@@ -146,6 +146,7 @@ SOURCES += \
     Hydro/dataset/lag_builder.cpp \
     Hydro/dataset/sequence_builder.cpp \
     Hydro/evaluation/experiment_exporter.cpp \
+    Hydro/evaluation/experiment_loader.cpp \
     Hydro/models/pinn_wrapper.cpp \
     Hydro/physics/physics_config.cpp \
     Hydro/physics/rr_physics.cpp \
@@ -193,6 +194,7 @@ HEADERS += \
     Hydro/dataset/tensor_scaler.h \
     Hydro/evaluation/hydro_metrics.h \
     Hydro/evaluation/experiment_exporter.h \
+    Hydro/evaluation/experiment_loader.h \
     Hydro/physics/physics_config.h \
     Hydro/physics/rr_physics.h \
     Hydro/models/hydro_run_types.h \
