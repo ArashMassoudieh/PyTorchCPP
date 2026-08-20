@@ -52,6 +52,26 @@ int main() {
     const auto fractional = loader.loadObservations(fractionalPath, {{"a", 1.0e6}});
     assert(std::abs(fractional.observations_by_catchment.at("a")[1].elapsed_hours - 0.5 / 3600.0) < 1.0e-12);
 
+    const std::string forecastPath = "/tmp/hydro_loader_forecast.csv";
+    {
+        std::ofstream out(forecastPath);
+        out << "issue_time,valid_time,lead_hours,catchment_id,variable,value,unit,forecast_model,model_cycle,ensemble_member\n"
+            << "2024-01-01T00:00:00Z,2024-01-01T06:00:00Z,6,a,precipitation,2.5,mm/h,model-a,00,m01\n";
+    }
+    const auto forecasts = loader.loadForecasts(forecastPath, "2024-01-01T01:00:00Z");
+    assert(forecasts.size() == 1);
+    assert(forecasts.front().lead_hours == 6.0);
+    assert(forecasts.front().ensemble_member == "m01");
+    {
+        std::ofstream out(forecastPath);
+        out << "issue_time,valid_time,lead_hours,catchment_id,variable,value,unit,forecast_model,model_cycle\n"
+            << "2024-01-01T02:00:00Z,2024-01-01T06:00:00Z,4,a,precipitation,2.5,mm/h,model-a,00\n";
+    }
+    rejected = false;
+    try { (void)loader.loadForecasts(forecastPath, "2024-01-01T01:00:00Z"); }
+    catch (const std::runtime_error&) { rejected = true; }
+    assert(rejected);
+
     const std::filesystem::path package = "/tmp/hydro_loader_package";
     std::filesystem::remove_all(package);
     std::filesystem::create_directories(package);
@@ -198,6 +218,7 @@ int main() {
     assert(rejected);
     std::remove(path.c_str());
     std::remove(fractionalPath.c_str());
+    std::remove(forecastPath.c_str());
     std::filesystem::remove_all(package);
     return 0;
 }

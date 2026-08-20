@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <iomanip>
 #include <regex>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 
@@ -236,6 +237,7 @@ HydroObservationDataset DDRRLoader::loadPackageDirectory(
     const auto observations = root / manifest.observations_file;
     const auto attributes = root / manifest.catchment_attributes_file;
     const auto variables = manifest.variables_file.empty() ? std::filesystem::path() : root / manifest.variables_file;
+    const auto forecasts = manifest.forecast_file.empty() ? std::filesystem::path() : root / manifest.forecast_file;
     if (!std::filesystem::is_regular_file(observations)) {
         throw std::runtime_error("Hydro package is missing observations.csv.");
     }
@@ -257,6 +259,15 @@ HydroObservationDataset DDRRLoader::loadPackageDirectory(
     if (!manifest.variables_sha256.empty() && sha256File(variables.string()) != manifest.variables_sha256) {
         throw std::runtime_error("Variables metadata SHA-256 checksum mismatch.");
     }
+    if (!manifest.forecast_file.empty() && !std::filesystem::is_regular_file(forecasts)) {
+        throw std::runtime_error("Manifest references missing forecast file.");
+    }
+    if (manifest.forecast_file.empty() && !manifest.forecast_sha256.empty()) {
+        throw std::runtime_error("forecast_sha256 requires forecast_file.");
+    }
+    if (!manifest.forecast_sha256.empty() && sha256File(forecasts.string()) != manifest.forecast_sha256) {
+        throw std::runtime_error("Forecast SHA-256 checksum mismatch.");
+    }
     if (!manifest.quality_control_file.empty()) rejectPackageQcErrors(root / manifest.quality_control_file);
     HydroObservationDataset dataset = loadObservations(observations.string(), loadCatchmentAreas(attributes), contract);
     dataset.dataset_id = manifest.dataset_id;
@@ -277,13 +288,76 @@ HydroPackageManifest DDRRLoader::loadManifest(const std::string& manifestPath) c
     manifest.catchment_attributes_file = jsonString(json, "catchment_attributes_file");
     manifest.quality_control_file = jsonString(json, "quality_control_file", false);
     manifest.variables_file = jsonString(json, "variables_file", false);
+    manifest.forecast_file = jsonString(json, "forecast_file", false);
     manifest.observations_sha256 = jsonString(json, "observations_sha256", false);
     manifest.catchment_attributes_sha256 = jsonString(json, "catchment_attributes_sha256", false);
     manifest.variables_sha256 = jsonString(json, "variables_sha256", false);
-    for (const auto& relative : {manifest.observations_file, manifest.catchment_attributes_file, manifest.quality_control_file, manifest.variables_file}) {
+    manifest.forecast_sha256 = jsonString(json, "forecast_sha256", false);
+    for (const auto& relative : {manifest.observations_file, manifest.catchment_attributes_file, manifest.quality_control_file,
+                                 manifest.variables_file, manifest.forecast_file}) {
         if (!safeRelativePath(relative)) {
             throw std::runtime_error("Manifest file paths must remain within the package directory.");
         }
     }
     return manifest;
+}
+
+std::vector<HydroForecast> DDRRLoader::loadForecasts(const std::string& path,
+                                                     const std::string& predictionTime) const {
+    (void)parseCanonicalUtcTimestamp(predictionTime);
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Unable to open forecast table: " + path);
+    std::string line;
+    if (!std::getline(input, line)) throw std::runtime_error("Forecast table is empty.");
+    const auto header = splitCsv(line);
+    std::map<std::string, std::size_t> columns;
+    for (std::size_t i = 0; i < header.size(); ++i) {
+        if (!columns.emplace(header[i], i).second) throw std::runtime_error("Duplicate forecast column: " + header[i]);
+    }
+    const std::vector<std::string> required = {"issue_time", "valid_time", "lead_hours", "catchment_id", "variable",
+                                               "value", "unit", "forecast_model", "model_cycle"};
+    for (const auto& name : required) {
+        if (columns.find(name) == columns.end()) throw std::runtime_error("Forecast table is missing column: " + name);
+    }
+    std::vector<HydroForecast> forecasts;
+    std::set<std::string> identities;
+    std::size_t row = 1;
+    while (std::getline(input, line)) {
+        ++row;
+        if (line.empty()) continue;
+        const auto fields = splitCsv(line);
+        if (fields.size() != header.size()) throw std::runtime_error("Forecast row " + std::to_string(row) + " has inconsistent columns.");
+        HydroForecast forecast;
+        forecast.issue_time = fields.at(columns.at("issue_time"));
+        forecast.valid_time = fields.at(columns.at("valid_time"));
+        forecast.catchment_id = fields.at(columns.at("catchment_id"));
+        forecast.variable = fields.at(columns.at("variable"));
+        forecast.unit = fields.at(columns.at("unit"));
+        forecast.forecast_model = fields.at(columns.at("forecast_model"));
+        forecast.model_cycle = fields.at(columns.at("model_cycle"));
+        if (columns.find("ensemble_member") != columns.end()) forecast.ensemble_member = fields.at(columns.at("ensemble_member"));
+        try {
+            std::size_t consumed = 0;
+            forecast.lead_hours = std::stod(fields.at(columns.at("lead_hours")), &consumed);
+            if (consumed != fields.at(columns.at("lead_hours")).size()) throw std::invalid_argument("trailing lead");
+            consumed = 0;
+            forecast.value = std::stod(fields.at(columns.at("value")), &consumed);
+            if (consumed != fields.at(columns.at("value")).size()) throw std::invalid_argument("trailing value");
+        } catch (...) {
+            throw std::runtime_error("Forecast row " + std::to_string(row) + " has an invalid numeric value.");
+        }
+        if (!std::isfinite(forecast.value) || forecast.catchment_id.empty() || forecast.variable.empty() ||
+            forecast.unit.empty() || forecast.forecast_model.empty() || forecast.model_cycle.empty()) {
+            throw std::runtime_error("Forecast row " + std::to_string(row) + " has missing or non-finite fields.");
+        }
+        if (!forecastTimingIsConsistent(forecast.issue_time, forecast.valid_time, forecast.lead_hours, predictionTime)) {
+            throw std::runtime_error("Forecast row " + std::to_string(row) + " violates issue/valid/lead-time availability.");
+        }
+        const std::string identity = forecast.issue_time + '\n' + forecast.valid_time + '\n' + forecast.catchment_id + '\n' +
+            forecast.variable + '\n' + forecast.forecast_model + '\n' + forecast.model_cycle + '\n' + forecast.ensemble_member;
+        if (!identities.insert(identity).second) throw std::runtime_error("Duplicate forecast identity at row " + std::to_string(row) + ".");
+        forecasts.push_back(std::move(forecast));
+    }
+    if (forecasts.empty()) throw std::runtime_error("Forecast table contains no data rows.");
+    return forecasts;
 }

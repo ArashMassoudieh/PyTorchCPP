@@ -108,8 +108,8 @@ interpretability as much as generic prediction error:
 
 The current synthetic workflow is still a software-validation stage. Before
 paper experiments, remaining work includes model/scaler persistence,
-validation-selected checkpoints, full forecast-table ingestion, and broader
-five-model integration tests.
+validation-selected checkpoints, forecast-to-model feature alignment, and
+broader five-model integration tests.
 
 FFN and LSTM supervised runs now fit normalization exclusively on the training
 partition and inverse-transform predictions before validation/test metrics are

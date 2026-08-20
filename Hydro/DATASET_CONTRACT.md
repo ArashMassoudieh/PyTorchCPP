@@ -83,6 +83,12 @@ issue time, or whose declared lead does not equal `valid_time - issue_time`.
 Comparisons parse canonical timestamps, including fractional seconds, rather
 than relying on lexical string ordering.
 
+`DDRRLoader::loadForecasts` enforces this long-form schema, rejects duplicate
+forecast identities and non-finite values, and requires an explicit prediction
+time so unavailable future issues cannot enter a retrospective feature set.
+Packages may declare `forecast_file` and `forecast_sha256`; package loading
+checks the referenced asset and digest before it can be consumed.
+
 ## GIStoOHQ architecture
 
 GIStoOHQ should remain a generic acquisition and catchment-data system, not a
