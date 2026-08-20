@@ -1,4 +1,5 @@
 #include "experiment_exporter.h"
+#include "../dataset/hydro_checksum.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -39,16 +40,28 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
               << "  \"epochs\": " << config.epochs << ",\n"
               << "  \"batch_size\": " << config.batch_size << ",\n"
               << "  \"learning_rate\": " << config.learning_rate << ",\n"
+              << "  \"optimizer\": \"" << escapeJson(config.optimizer) << "\",\n"
+              << "  \"weight_decay\": " << config.weight_decay << ",\n"
+              << "  \"momentum\": " << config.momentum << ",\n"
               << "  \"random_seed\": " << config.random_seed << ",\n"
               << "  \"train_fraction\": " << config.train_split_ratio << ",\n"
               << "  \"validation_fraction\": " << config.validation_split_ratio << ",\n"
+              << "  \"shuffle_training\": " << (config.shuffle_training ? "true" : "false") << ",\n"
               << "  \"normalization\": \"" << escapeJson(config.normalization) << "\",\n"
               << "  \"hidden_layers\": \"" << escapeJson(config.hidden_layers_csv) << "\",\n"
               << "  \"input_lags\": \"" << escapeJson(config.input_lags_csv) << "\",\n"
+              << "  \"activation\": \"" << escapeJson(config.activation) << "\",\n"
+              << "  \"use_time_lagged_ffn\": " << (config.use_time_lagged_ffn ? "true" : "false") << ",\n"
               << "  \"lstm_sequence_length\": " << config.lstm_sequence_length << ",\n"
               << "  \"physics_profile\": \"" << escapeJson(config.pinn_physics_profile) << "\",\n"
               << "  \"data_weight\": " << config.data_weight << ",\n"
               << "  \"physics_weight\": " << config.physics_weight << ",\n"
+              << "  \"physics_dt\": " << config.physics_dt << ",\n"
+              << "  \"forcing_gain\": " << config.forcing_gain << ",\n"
+              << "  \"runoff_coeff\": " << config.runoff_coeff << ",\n"
+              << "  \"storage_coeff\": " << config.storage_coeff << ",\n"
+              << "  \"pinn_collocation_points\": " << config.pinn_collocation_points << ",\n"
+              << "  \"use_hydro_package\": " << (config.use_hydro_package ? "true" : "false") << ",\n"
               << "  \"hydro_package_path\": \"" << escapeJson(config.hydro_package_path) << "\",\n"
               << "  \"hydro_catchment_id\": \"" << escapeJson(config.hydro_catchment_id) << "\",\n"
               << "  \"hydro_package_profile\": \"" << escapeJson(config.hydro_package_profile) << "\"\n"
@@ -71,6 +84,13 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
         }
         std::filesystem::copy_file(sourceManifest, root / "dataset_manifest.json",
                                    std::filesystem::copy_options::overwrite_existing);
+        const auto provenancePath = root / "provenance.json";
+        std::ofstream provenance(provenancePath);
+        requireStream(provenance, provenancePath);
+        provenance << "{\n"
+                   << "  \"fingerprint_algorithm\": \"sha256\",\n"
+                   << "  \"dataset_manifest_sha256\": \"" << sha256File(sourceManifest.string()) << "\"\n"
+                   << "}\n";
     }
 
     const auto metricsPath = root / "metrics.csv";
