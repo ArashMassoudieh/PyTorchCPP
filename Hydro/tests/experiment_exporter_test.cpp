@@ -11,6 +11,8 @@ int main() {
     std::filesystem::remove_all(output);
     HydroRunConfig config;
     config.random_seed = 7;
+    config.lambda_decay = 0.25;
+    config.evaluate_metrics = false;
     config.optimizer = "rmsprop";
     config.shuffle_training = false;
     const auto package = output / "source_package";
@@ -68,6 +70,8 @@ int main() {
     const auto loaded = HydroExperimentLoader().loadConfig((root / "experiment_config.json").string());
     assert(loaded.experiment_id == "run_001");
     assert(loaded.config.random_seed == 7);
+    assert(loaded.config.lambda_decay == 0.25);
+    assert(!loaded.config.evaluate_metrics);
     assert(loaded.config.optimizer == "rmsprop");
     assert(!loaded.config.shuffle_training);
     assert(loaded.config.use_hydro_forecast_feature);

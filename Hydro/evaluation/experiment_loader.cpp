@@ -53,6 +53,7 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.epochs = static_cast<int>(numberValue(json, "epochs"));
     c.batch_size = static_cast<int>(numberValue(json, "batch_size"));
     c.learning_rate = numberValue(json, "learning_rate");
+    c.lambda_decay = numberValue(json, "lambda_decay");
     c.optimizer = stringValue(json, "optimizer");
     c.weight_decay = numberValue(json, "weight_decay");
     c.momentum = numberValue(json, "momentum");
@@ -60,6 +61,7 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.train_split_ratio = numberValue(json, "train_fraction");
     c.validation_split_ratio = numberValue(json, "validation_fraction");
     c.shuffle_training = boolValue(json, "shuffle_training");
+    c.evaluate_metrics = boolValue(json, "evaluate_metrics");
     c.normalization = stringValue(json, "normalization");
     c.hidden_layers_csv = stringValue(json, "hidden_layers");
     c.input_lags_csv = stringValue(json, "input_lags");
@@ -75,6 +77,15 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.storage_coeff = numberValue(json, "storage_coeff");
     c.pinn_collocation_points = static_cast<int>(numberValue(json, "pinn_collocation_points"));
     c.use_hydro_package = boolValue(json, "use_hydro_package");
+    c.use_csv_data = boolValue(json, "use_csv_data");
+    c.csv_path = stringValue(json, "csv_path");
+    c.csv_x_column = static_cast<int>(numberValue(json, "csv_x_column"));
+    c.csv_y_column = static_cast<int>(numberValue(json, "csv_y_column"));
+    c.csv_has_header = boolValue(json, "csv_has_header");
+    c.synthetic_profile = stringValue(json, "synthetic_profile");
+    c.sample_count = static_cast<int>(numberValue(json, "sample_count"));
+    c.t_start = numberValue(json, "t_start");
+    c.t_end = numberValue(json, "t_end");
     c.hydro_package_path = stringValue(json, "hydro_package_path");
     c.hydro_catchment_id = stringValue(json, "hydro_catchment_id");
     c.hydro_package_profile = stringValue(json, "hydro_package_profile");
@@ -82,7 +93,8 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.hydro_forecast_variable = stringValue(json, "hydro_forecast_variable");
     c.hydro_forecast_lead_hours = numberValue(json, "hydro_forecast_lead_hours");
     c.hydro_forecast_ensemble_member = stringValue(json, "hydro_forecast_ensemble_member");
-    if (loaded.experiment_id.empty() || c.epochs <= 0 || c.batch_size <= 0 || c.learning_rate <= 0.0 ||
+    if (c.use_hydro_package && c.use_csv_data) throw std::runtime_error("Experiment configuration selects multiple data sources.");
+    if (loaded.experiment_id.empty() || c.epochs <= 0 || c.batch_size <= 0 || c.learning_rate <= 0.0 || c.sample_count < 3 ||
         c.train_split_ratio <= 0.0 || c.validation_split_ratio <= 0.0 ||
         c.train_split_ratio + c.validation_split_ratio >= 1.0) {
         throw std::runtime_error("Experiment configuration contains invalid training or split settings.");
