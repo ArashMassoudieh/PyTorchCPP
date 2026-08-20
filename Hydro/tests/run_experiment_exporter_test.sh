@@ -6,5 +6,6 @@ binary="${TMPDIR:-/tmp}/hydro_experiment_exporter_test"
   "$repo_root/Hydro/tests/experiment_exporter_test.cpp" \
   "$repo_root/Hydro/evaluation/experiment_exporter.cpp" \
   "$repo_root/Hydro/evaluation/experiment_loader.cpp" \
+  "$repo_root/Hydro/evaluation/artifact_loader.cpp" \
   "$repo_root/Hydro/dataset/hydro_checksum.cpp" -lcrypto -o "$binary"
 "$binary"

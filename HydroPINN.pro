@@ -147,6 +147,7 @@ SOURCES += \
     Hydro/dataset/sequence_builder.cpp \
     Hydro/evaluation/experiment_exporter.cpp \
     Hydro/evaluation/experiment_loader.cpp \
+    Hydro/evaluation/artifact_loader.cpp \
     Hydro/models/pinn_wrapper.cpp \
     Hydro/physics/physics_config.cpp \
     Hydro/physics/rr_physics.cpp \
@@ -195,6 +196,7 @@ HEADERS += \
     Hydro/evaluation/hydro_metrics.h \
     Hydro/evaluation/experiment_exporter.h \
     Hydro/evaluation/experiment_loader.h \
+    Hydro/evaluation/artifact_loader.h \
     Hydro/evaluation/model_checkpoint.h \
     Hydro/physics/physics_config.h \
     Hydro/physics/rr_physics.h \

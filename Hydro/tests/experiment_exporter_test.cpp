@@ -1,5 +1,6 @@
 #include "../evaluation/experiment_exporter.h"
 #include "../evaluation/experiment_loader.h"
+#include "../evaluation/artifact_loader.h"
 
 #include <cassert>
 #include <filesystem>
@@ -41,7 +42,7 @@ int main() {
     result.best_epoch = 2;
     result.input_scaler = {"minmax", {0.0}, {2.0}, {1, 1}};
     result.target_scaler = {"standardize", {1.0}, {0.5}, {1, 1}};
-    result.model_checkpoint_format = "fixture-v1";
+    result.model_checkpoint_format = "neuralnetworkwrapper-v1";
     result.model_checkpoint = {0x01, 0x02, 0x03};
     result.physics_residual = {0.1, -0.2};
     HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}});
@@ -57,6 +58,9 @@ int main() {
     assert(std::filesystem::is_regular_file(root / "scalers.csv"));
     assert(std::filesystem::is_regular_file(root / "models.csv"));
     assert(std::filesystem::file_size(root / "models" / "ffn.pt") == 3);
+    const auto models = HydroArtifactLoader().loadModels(root.string());
+    assert(models.at("ffn").bytes == result.model_checkpoint);
+    assert(models.at("ffn").format == "neuralnetworkwrapper-v1");
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);
@@ -91,6 +95,14 @@ int main() {
     assert(loaded.config.hydro_forecast_lead_hours == 6.0);
     assert(loaded.config.hydro_forecast_ensemble_member == "m01");
     assert(loaded.config.hydro_catchment_id == "watershed_\"a");
+    {
+        std::ofstream corrupt(root / "models" / "ffn.pt", std::ios::binary | std::ios::app);
+        corrupt.put('\x04');
+    }
+    bool rejectedModel = false;
+    try { (void)HydroArtifactLoader().loadModels(root.string()); }
+    catch (const std::runtime_error&) { rejectedModel = true; }
+    assert(rejectedModel);
     std::filesystem::remove_all(output);
     return 0;
 }

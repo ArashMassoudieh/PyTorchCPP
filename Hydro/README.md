@@ -101,11 +101,11 @@ interpretability as much as generic prediction error:
 
 - Replace placeholder GA controls with a full GA configuration dialog that shares
   more of NeuroForge's hyperparameter-search behavior.
-- Add GUI inference from reloaded model checkpoints and compatibility checks.
+- Add GUI inference from compatibility-checked model artifacts.
 - Expand calibrated watershed-process residuals for snow accumulation/melt, infiltration capacity, groundwater exchange, channel routing, and evapotranspiration stress as field assumptions become available.
 
 The current synthetic workflow is still a software-validation stage. Before
-paper experiments, remaining work includes checkpoint reload/inference and a
+paper experiments, remaining work includes checkpoint inference and a
 broader five-model integration test.
 
 Standalone physics-only PINN runs deliberately do not select checkpoints using
@@ -157,6 +157,9 @@ written to `training_history.csv` and `scalers.csv`. Every export includes
 `environment.json`; package-backed exports also preserve the accepted source
 manifest as `dataset_manifest.json` and record its SHA-256 release fingerprint
 in `provenance.json`.
+`HydroArtifactLoader` verifies model-manifest format, safe relative paths, file
+sizes, checkpoint formats, and SHA-256 digests before returning checkpoint
+bytes to a future inference session.
 `HydroExperimentLoader` reads the exported configuration back into a validated
 `HydroRunConfig`, providing a programmatic rerun boundary without silently
 falling back to current GUI defaults. The Performance tab can apply that
