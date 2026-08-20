@@ -3,6 +3,7 @@
 #include "../dataset/tensor_scaler.h"
 #include "../dataset/hydro_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
+#include "../evaluation/model_checkpoint.h"
 
 #include "neuralnetworkwrapper.h"
 
@@ -479,6 +480,13 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     for (const double value : validationLossesScaled) result.validation_loss_history.push_back(targetScaler.mseToPhysical(value));
     result.input_scaler = inputScaler.exportState();
     result.target_scaler = targetScaler.exportState();
+    {
+        const auto checkpoint = temporaryHydroCheckpointPath("hydro_ffn");
+        model.saveModel(checkpoint.string());
+        result.model_checkpoint = readHydroCheckpoint(checkpoint);
+        result.model_checkpoint_format = "neuralnetworkwrapper-v1";
+        std::filesystem::remove(checkpoint);
+    }
 
     model.setTensorData(DataType::Test, xValidation, yValidation);
     torch::Tensor predValidation = targetScaler.inverseTransform(model.forward(DataType::Test));

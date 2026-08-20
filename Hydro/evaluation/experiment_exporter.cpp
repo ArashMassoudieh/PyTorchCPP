@@ -2,6 +2,7 @@
 #include "../dataset/hydro_checksum.h"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -21,6 +22,13 @@ std::string escapeJson(const std::string& value) {
 
 void requireStream(const std::ofstream& stream, const std::filesystem::path& path) {
     if (!stream) throw std::runtime_error("Unable to write experiment artifact: " + path.string());
+}
+
+std::string safeFileStem(const std::string& value) {
+    std::string stem;
+    for (const unsigned char c : value) stem.push_back(std::isalnum(c) ? static_cast<char>(std::tolower(c)) : '_');
+    if (stem.empty()) throw std::runtime_error("Approach name cannot produce an empty checkpoint filename.");
+    return stem;
 }
 }
 
@@ -119,6 +127,25 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
         metrics << entry.first << ',' << (r.success ? 1 : 0) << ',' << r.final_loss << ',' << r.validation_mse << ','
                 << r.mse << ',' << r.rmse << ',' << r.mae << ',' << r.nse << ',' << r.kge << ',' << r.correlation << ','
                 << r.pbias << ',' << r.volume_error_percent << ',' << r.physics_loss << '\n';
+    }
+
+    const auto modelsDirectory = root / "models";
+    std::filesystem::create_directories(modelsDirectory);
+    const auto modelManifestPath = root / "models.csv";
+    std::ofstream modelManifest(modelManifestPath);
+    requireStream(modelManifest, modelManifestPath);
+    modelManifest << "approach,file,format,size_bytes,sha256\n";
+    for (const auto& entry : results) {
+        if (entry.second.model_checkpoint.empty()) continue;
+        const std::string filename = safeFileStem(entry.first) + ".pt";
+        const auto modelPath = modelsDirectory / filename;
+        std::ofstream modelFile(modelPath, std::ios::binary);
+        requireStream(modelFile, modelPath);
+        modelFile.write(reinterpret_cast<const char*>(entry.second.model_checkpoint.data()),
+                        static_cast<std::streamsize>(entry.second.model_checkpoint.size()));
+        modelFile.close();
+        modelManifest << entry.first << ",models/" << filename << ',' << entry.second.model_checkpoint_format << ','
+                      << entry.second.model_checkpoint.size() << ',' << sha256File(modelPath.string()) << '\n';
     }
 
     const auto scalersPath = root / "scalers.csv";

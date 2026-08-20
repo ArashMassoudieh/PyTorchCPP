@@ -3,6 +3,7 @@
 #include "../dataset/tensor_scaler.h"
 #include "../dataset/hydro_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
+#include "../evaluation/model_checkpoint.h"
 
 #include <torch/torch.h>
 
@@ -558,6 +559,15 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         for (std::size_t i = 0; i < parameters.size(); ++i) parameters[i].copy_(bestParameters[i]);
     }
     result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
+    {
+        const auto checkpoint = temporaryHydroCheckpointPath(physicsInformed ? "hydro_lstm_pinn" : "hydro_lstm");
+        torch::serialize::OutputArchive archive;
+        model->save(archive);
+        archive.save_to(checkpoint.string());
+        result.model_checkpoint = readHydroCheckpoint(checkpoint);
+        result.model_checkpoint_format = "torch-module-v1";
+        std::filesystem::remove(checkpoint);
+    }
 
     model->eval();
     torch::NoGradGuard noGrad;

@@ -1,6 +1,7 @@
 #include "ffn_pinn_wrapper.h"
 #include "../dataset/chronological_split.h"
 #include "../evaluation/hydro_metrics.h"
+#include "../evaluation/model_checkpoint.h"
 #include "../physics/rr_physics.h"
 #include "../dataset/hydro_tensor_builder.h"
 
@@ -568,6 +569,13 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
     result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
     result.training_loss_history = losses;
     result.validation_loss_history = validationLosses;
+    {
+        const auto checkpoint = temporaryHydroCheckpointPath(physicsOnly ? "hydro_pinn" : "hydro_ffn_pinn");
+        model.saveModel(checkpoint.string());
+        result.model_checkpoint = readHydroCheckpoint(checkpoint);
+        result.model_checkpoint_format = "neuralnetworkwrapper-v1";
+        std::filesystem::remove(checkpoint);
+    }
 
     model.setTensorData(DataType::Test, xValidation, yValidation);
     torch::Tensor predValidation = model.forward(DataType::Test);

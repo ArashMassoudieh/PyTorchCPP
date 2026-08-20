@@ -41,6 +41,8 @@ int main() {
     result.best_epoch = 2;
     result.input_scaler = {"minmax", {0.0}, {2.0}, {1, 1}};
     result.target_scaler = {"standardize", {1.0}, {0.5}, {1, 1}};
+    result.model_checkpoint_format = "fixture-v1";
+    result.model_checkpoint = {0x01, 0x02, 0x03};
     result.physics_residual = {0.1, -0.2};
     HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}});
     const auto root = output / "run_001";
@@ -53,6 +55,8 @@ int main() {
     assert(std::filesystem::is_regular_file(root / "training_history.csv"));
     assert(std::filesystem::is_regular_file(root / "physics_residuals.csv"));
     assert(std::filesystem::is_regular_file(root / "scalers.csv"));
+    assert(std::filesystem::is_regular_file(root / "models.csv"));
+    assert(std::filesystem::file_size(root / "models" / "ffn.pt") == 3);
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);

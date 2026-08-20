@@ -114,5 +114,7 @@ struct HydroRunResult {
     int best_epoch = 0;
     HydroScalerState input_scaler;
     HydroScalerState target_scaler;
+    std::string model_checkpoint_format;
+    std::vector<std::uint8_t> model_checkpoint;
     std::vector<double> physics_residual;
 };

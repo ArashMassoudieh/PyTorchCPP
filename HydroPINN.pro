@@ -195,6 +195,7 @@ HEADERS += \
     Hydro/evaluation/hydro_metrics.h \
     Hydro/evaluation/experiment_exporter.h \
     Hydro/evaluation/experiment_loader.h \
+    Hydro/evaluation/model_checkpoint.h \
     Hydro/physics/physics_config.h \
     Hydro/physics/rr_physics.h \
     Hydro/models/hydro_run_types.h \
