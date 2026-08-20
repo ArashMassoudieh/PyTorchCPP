@@ -12,6 +12,7 @@ int main() {
     // A scaler leaked from held-out data would map this value to one.
     assert(transformed.item<float>() == 50.0f);
     assert(torch::allclose(scaler.inverseTransform(transformed), heldOut));
+    assert(scaler.mseToPhysical(4.0) == 16.0);
 
     auto constant = torch::ones({3, 2});
     scaler.fit(constant, "standardize");

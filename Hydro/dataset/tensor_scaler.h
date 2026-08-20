@@ -38,6 +38,13 @@ public:
         return values * scale_ + offset_;
     }
 
+    double mseToPhysical(double scaledMse) const {
+        ensureFitted();
+        if (scale_.numel() != 1) throw std::logic_error("MSE conversion requires a scalar target scale.");
+        const double scale = scale_.item<double>();
+        return scaledMse * scale * scale;
+    }
+
 private:
     void ensureFitted() const {
         if (!offset_.defined() || !scale_.defined()) throw std::logic_error("Scaler must be fitted before use.");

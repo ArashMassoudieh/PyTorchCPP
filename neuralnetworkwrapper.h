@@ -91,7 +91,11 @@ public:
      */
     std::vector<double> train(int num_epochs,
                               int batch_size = 32,
-                              double learning_rate = 0.001);
+                              double learning_rate = 0.001,
+                              const torch::Tensor& validation_inputs = {},
+                              const torch::Tensor& validation_targets = {},
+                              std::vector<double>* validation_history = nullptr,
+                              int* best_epoch = nullptr);
 
     /**
      * @brief Physics-informed training for the exponential decay ODE: dy/dt + lambda*y = 0.

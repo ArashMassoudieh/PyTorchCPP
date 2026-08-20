@@ -465,12 +465,18 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     model.setTensorData(DataType::Train, xTrain, yTrain);
     model.setTensorData(DataType::Test, xTest, yTestScaled);
 
-    std::vector<double> losses = model.train(config.epochs, config.batch_size, config.learning_rate);
+    std::vector<double> validationLossesScaled;
+    int bestEpoch = 0;
+    std::vector<double> losses = model.train(config.epochs, config.batch_size, config.learning_rate,
+                                             xValidation, yValidation, &validationLossesScaled, &bestEpoch);
     if (losses.empty() || !std::isfinite(losses.back())) {
         throw std::runtime_error("FFN training produced empty/non-finite loss history.");
     }
-    result.final_loss = losses.back();
+    result.best_epoch = bestEpoch;
+    result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
     result.training_loss_history = losses;
+    result.validation_loss_history.reserve(validationLossesScaled.size());
+    for (const double value : validationLossesScaled) result.validation_loss_history.push_back(targetScaler.mseToPhysical(value));
 
     model.setTensorData(DataType::Test, xValidation, yValidation);
     torch::Tensor predValidation = targetScaler.inverseTransform(model.forward(DataType::Test));

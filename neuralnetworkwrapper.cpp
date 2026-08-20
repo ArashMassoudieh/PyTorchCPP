@@ -557,7 +557,11 @@ torch::Tensor NeuralNetworkWrapper::forward(DataType data_type) {
 
 std::vector<double> NeuralNetworkWrapper::train(int num_epochs,
                                                 int batch_size,
-                                                double learning_rate) {
+                                                double learning_rate,
+                                                const torch::Tensor& validation_inputs,
+                                                const torch::Tensor& validation_targets,
+                                                std::vector<double>* validation_history,
+                                                int* best_epoch) {
     if (!is_initialized_) {
         throw std::runtime_error("Network must be initialized before training. Call initializeNetwork() first.");
     }
@@ -585,6 +589,15 @@ std::vector<double> NeuralNetworkWrapper::train(int num_epochs,
     }
 
     torch::optim::Adam optimizer(params_vector, torch::optim::AdamOptions(learning_rate));
+
+    const bool selectByValidation = validation_inputs.defined() && validation_targets.defined();
+    if (selectByValidation && validation_inputs.size(0) != validation_targets.size(0)) {
+        throw std::runtime_error("Validation input and target counts must match.");
+    }
+    if (validation_history) validation_history->clear();
+    if (best_epoch) *best_epoch = 0;
+    double bestValidation = std::numeric_limits<double>::infinity();
+    std::vector<torch::Tensor> bestParameters;
 
     // Clear previous training history
     training_history_.clear();
@@ -633,6 +646,22 @@ std::vector<double> NeuralNetworkWrapper::train(int num_epochs,
         current_loss_ = avg_loss;
         training_history_.push_back(avg_loss);
 
+        if (selectByValidation) {
+            double validationLoss = 0.0;
+            {
+                torch::NoGradGuard no_grad;
+                validationLoss = torch::mse_loss(forward_internal(validation_inputs), validation_targets).item<double>();
+            }
+            if (!std::isfinite(validationLoss)) throw std::runtime_error("Validation produced a non-finite loss.");
+            if (validation_history) validation_history->push_back(validationLoss);
+            if (validationLoss < bestValidation) {
+                bestValidation = validationLoss;
+                if (best_epoch) *best_epoch = epoch + 1;
+                bestParameters.clear();
+                for (const auto& parameter : params_vector) bestParameters.push_back(parameter.detach().clone());
+            }
+        }
+
         // Print progress
         if (verbose_) {
             if ((epoch + 1) % 20 == 0 || epoch == 0) {
@@ -641,6 +670,12 @@ std::vector<double> NeuralNetworkWrapper::train(int num_epochs,
                           << avg_loss << std::endl;
             }
         }
+    }
+
+    if (selectByValidation) {
+        if (bestParameters.size() != params_vector.size()) throw std::runtime_error("No validation-selected FFN checkpoint was produced.");
+        torch::NoGradGuard no_grad;
+        for (std::size_t i = 0; i < params_vector.size(); ++i) params_vector[i].copy_(bestParameters[i]);
     }
 
     if (verbose_) std::cout << "Training completed!" << std::endl;
