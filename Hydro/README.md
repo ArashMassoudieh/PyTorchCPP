@@ -102,12 +102,13 @@ interpretability as much as generic prediction error:
 - Replace placeholder GA controls with a full GA configuration dialog that shares
   more of NeuroForge's hyperparameter-search behavior.
 - Add model/scaler checkpoint persistence.
-- Add per-epoch validation histories and validation-selected checkpoints.
+- Extend validation-selected checkpointing from LSTM/LSTM+PINN to the FFN and
+  FFN+PINN backends.
 - Expand calibrated watershed-process residuals for snow accumulation/melt, infiltration capacity, groundwater exchange, channel routing, and evapotranspiration stress as field assumptions become available.
 
 The current synthetic workflow is still a software-validation stage. Before
 paper experiments, remaining work includes model/scaler persistence,
-validation-selected checkpoints and broader five-model integration tests.
+FFN-family validation-selected checkpoints and broader five-model integration tests.
 
 FFN and LSTM supervised runs now fit normalization exclusively on the training
 partition and inverse-transform predictions before validation/test metrics are
