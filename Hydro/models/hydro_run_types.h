@@ -1,8 +1,16 @@
 #pragma once
 
 #include <string>
+#include <cstdint>
 #include <limits>
 #include <vector>
+
+struct HydroScalerState {
+    std::string method = "none";
+    std::vector<double> offset;
+    std::vector<double> scale;
+    std::vector<int64_t> shape;
+};
 
 /**
  * @brief Runtime configuration used by Hydro mode wrappers.
@@ -35,6 +43,10 @@ struct HydroRunConfig {
     std::string hydro_package_path;
     std::string hydro_catchment_id;
     std::string hydro_package_profile = "rainfall-runoff";
+    bool use_hydro_forecast_feature = false;
+    std::string hydro_forecast_variable = "precipitation";
+    double hydro_forecast_lead_hours = 0.0;
+    std::string hydro_forecast_ensemble_member;
     std::string csv_path;
     int csv_x_column = 0;
     int csv_y_column = 1;
@@ -98,5 +110,11 @@ struct HydroRunResult {
     std::vector<double> y_pred;
     std::vector<std::string> split;
     std::vector<double> training_loss_history;
+    std::vector<double> validation_loss_history;
+    int best_epoch = 0;
+    HydroScalerState input_scaler;
+    HydroScalerState target_scaler;
+    std::string model_checkpoint_format;
+    std::vector<std::uint8_t> model_checkpoint;
     std::vector<double> physics_residual;
 };

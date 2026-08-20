@@ -3,6 +3,7 @@
 #include "../dataset/tensor_scaler.h"
 #include "../dataset/hydro_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
+#include "../evaluation/model_checkpoint.h"
 
 #include <torch/torch.h>
 
@@ -10,6 +11,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -446,6 +448,10 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
 
     std::vector<double> losses;
+    std::vector<double> validationLosses;
+    std::vector<torch::Tensor> bestParameters;
+    double bestValidation = std::numeric_limits<double>::infinity();
+    int bestEpoch = 0;
     const int64_t trainN = xTrain.size(0);
     const int batchSize = std::max(1, config.batch_size);
     const double lambda = config.lambda_decay;
@@ -520,13 +526,48 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
             result.physics_loss = physLoss.item<double>();
         }
         losses.push_back(epochDataLoss / static_cast<double>(std::max<int64_t>(1, seen)));
+        model->eval();
+        double epochValidation = 0.0;
+        {
+            torch::NoGradGuard noGrad;
+            const torch::Tensor validationPrediction = targetScaler.inverseTransform(model->forward(xValidation));
+            epochValidation = tensorMSEValue(validationPrediction, yValidationPhysical);
+        }
+        if (!std::isfinite(epochValidation)) throw std::runtime_error("LSTM validation produced a non-finite loss.");
+        validationLosses.push_back(epochValidation);
+        if (epochValidation < bestValidation) {
+            bestValidation = epochValidation;
+            bestEpoch = epoch + 1;
+            bestParameters.clear();
+            for (const auto& parameter : model->parameters()) bestParameters.push_back(parameter.detach().clone());
+        }
     }
 
     if (losses.empty() || !std::isfinite(losses.back())) {
         throw std::runtime_error(physicsInformed ? "LSTM-PINN training produced empty/non-finite loss history." : "LSTM training produced empty/non-finite loss history.");
     }
-    result.final_loss = losses.back();
     result.training_loss_history = losses;
+    result.validation_loss_history = validationLosses;
+    result.best_epoch = bestEpoch;
+    result.input_scaler = inputScaler.exportState();
+    result.target_scaler = targetScaler.exportState();
+    if (bestParameters.empty()) throw std::runtime_error("LSTM training did not produce a validation-selected checkpoint.");
+    {
+        torch::NoGradGuard noGrad;
+        auto parameters = model->parameters();
+        if (parameters.size() != bestParameters.size()) throw std::runtime_error("LSTM checkpoint parameter count changed.");
+        for (std::size_t i = 0; i < parameters.size(); ++i) parameters[i].copy_(bestParameters[i]);
+    }
+    result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
+    {
+        const auto checkpoint = temporaryHydroCheckpointPath(physicsInformed ? "hydro_lstm_pinn" : "hydro_lstm");
+        torch::serialize::OutputArchive archive;
+        model->save(archive);
+        archive.save_to(checkpoint.string());
+        result.model_checkpoint = readHydroCheckpoint(checkpoint);
+        result.model_checkpoint_format = "torch-module-v1";
+        std::filesystem::remove(checkpoint);
+    }
 
     model->eval();
     torch::NoGradGuard noGrad;

@@ -6,6 +6,7 @@
 #include "models/lstm_wrapper.h"
 #include "models/lstm_pinn_wrapper.h"
 #include "evaluation/experiment_exporter.h"
+#include "evaluation/experiment_loader.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -95,6 +96,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       useNeuroforgeCsvPresetButton_(new QPushButton("Use NeuroForge CSV Preset (x=t, y=target)", this)),
       hydroPackagePathEdit_(new QLineEdit(this)), browseHydroPackageButton_(new QPushButton("Browse...", this)),
       hydroCatchmentIdEdit_(new QLineEdit(this)), hydroPackageProfileCombo_(new QComboBox(this)),
+      hydroForecastFeatureCheck_(new QCheckBox("Append leakage-safe forecast feature", this)),
+      hydroForecastVariableEdit_(new QLineEdit(this)), hydroForecastLeadSpin_(new QDoubleSpinBox(this)),
+      hydroForecastEnsembleEdit_(new QLineEdit(this)),
       sampleCountSpin_(new QSpinBox(this)), tStartSpin_(new QDoubleSpinBox(this)),
       tEndSpin_(new QDoubleSpinBox(this)), profileCombo_(new QComboBox(this)),
       generateSyntheticButton_(new QPushButton("Generate Synthetic Data", this)),
@@ -112,6 +116,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       gaLagCandidatesSpin_(new QSpinBox(this)), gaMaxLagSpin_(new QSpinBox(this)), configureGAButton_(new QPushButton("Configure GA", this)), startGAButton_(new QPushButton("Start GA", this)),
       stopGAButton_(new QPushButton("Stop GA", this)), refreshPerformanceButton_(new QPushButton("Refresh Assessment", this)),
       exportExperimentButton_(new QPushButton("Export Experiment...", this)),
+      loadExperimentConfigButton_(new QPushButton("Load Experiment Config...", this)),
       clearPlotButton_(new QPushButton("Clear Plot", this)), showInputsOutputsButton_(new QPushButton("Show Inputs + Output", this)),
       zoomInPlotButton_(new QPushButton("Zoom In", this)), zoomOutPlotButton_(new QPushButton("Zoom Out", this)),
       fitPlotButton_(new QPushButton("Fit Axes", this)),
@@ -143,6 +148,11 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     activationCombo_->addItems({"relu", "tanh", "sigmoid"});
     dataSourceCombo_->addItems({"Synthetic", "CSV File", "Hydro Package"});
     hydroPackageProfileCombo_->addItems({"rainfall-runoff", "water-balance"});
+    hydroForecastVariableEdit_->setText("precipitation");
+    hydroForecastLeadSpin_->setRange(0.0, 1000.0);
+    hydroForecastLeadSpin_->setDecimals(3);
+    hydroForecastLeadSpin_->setSuffix(" h");
+    hydroForecastEnsembleEdit_->setPlaceholderText("Optional ensemble_member");
     profileCombo_->addItems({"watershed_balance", "rainfall_runoff", "neuroforge_inputs_target", "exp_decay", "damped_sine", "mixed_wave"});
 
     auto* tabs = new QTabWidget(central);
@@ -194,6 +204,10 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     dataForm->addRow("Hydro package", packageRow);
     dataForm->addRow("Package catchment ID", hydroCatchmentIdEdit_);
     dataForm->addRow("Package profile", hydroPackageProfileCombo_);
+    dataForm->addRow(hydroForecastFeatureCheck_);
+    dataForm->addRow("Forecast variable", hydroForecastVariableEdit_);
+    dataForm->addRow("Required forecast lead", hydroForecastLeadSpin_);
+    dataForm->addRow("Forecast ensemble", hydroForecastEnsembleEdit_);
 
     syntheticExportPathEdit_->setPlaceholderText("Optional export path for generated synthetic CSV");
     auto* syntheticExportRow = new QWidget(dataTab);
@@ -437,6 +451,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     performanceLayout->addWidget(evalCheck_);
     performanceLayout->addWidget(refreshPerformanceButton_);
     performanceLayout->addWidget(exportExperimentButton_);
+    performanceLayout->addWidget(loadExperimentConfigButton_);
     perfSummaryText_->setPlaceholderText("Performance assessment summary appears here after runs.");
     performanceLayout->addWidget(perfSummaryText_, 1);
     tabs->addTab(performanceTab, "Performance");
@@ -579,6 +594,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
         updateDataSourceUiState();
         updateStatus();
     });
+    connect(hydroForecastFeatureCheck_, &QCheckBox::toggled, this, [this](bool) {
+        updateDataSourceUiState();
+    });
     connect(browseCsvButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseCsv);
     connect(browseHydroPackageButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseHydroPackage);
     connect(browseSyntheticExportButton_, &QPushButton::clicked, this, &HydroPINNWindow::browseSyntheticExportPath);
@@ -588,6 +606,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(stopGAButton_, &QPushButton::clicked, this, &HydroPINNWindow::stopGAPlaceholder);
     connect(refreshPerformanceButton_, &QPushButton::clicked, this, &HydroPINNWindow::refreshPerformanceAssessment);
     connect(exportExperimentButton_, &QPushButton::clicked, this, &HydroPINNWindow::exportExperimentArtifacts);
+    connect(loadExperimentConfigButton_, &QPushButton::clicked, this, &HydroPINNWindow::loadExperimentConfiguration);
     connect(clearPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::clearPlot);
     connect(showInputsOutputsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showSyntheticInputsOutputs);
     connect(plotAllTargetPredButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotAllTargetVsPredicted);
@@ -623,6 +642,10 @@ HydroRunConfig HydroPINNWindow::currentConfig() const {
     cfg.hydro_package_path = hydroPackagePathEdit_->text().toStdString();
     cfg.hydro_catchment_id = hydroCatchmentIdEdit_->text().toStdString();
     cfg.hydro_package_profile = hydroPackageProfileCombo_->currentText().toStdString();
+    cfg.use_hydro_forecast_feature = hydroForecastFeatureCheck_->isChecked();
+    cfg.hydro_forecast_variable = hydroForecastVariableEdit_->text().toStdString();
+    cfg.hydro_forecast_lead_hours = hydroForecastLeadSpin_->value();
+    cfg.hydro_forecast_ensemble_member = hydroForecastEnsembleEdit_->text().toStdString();
     cfg.csv_path = csvPathEdit_->text().toStdString();
     cfg.csv_x_column = csvXColSpin_->value();
     cfg.csv_y_column = csvYColSpin_->value();
@@ -663,6 +686,11 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     hydroPackagePathEdit_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
     hydroCatchmentIdEdit_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
     hydroPackageProfileCombo_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
+    hydroForecastFeatureCheck_->setEnabled(!running && dataSourceCombo_->currentText() == "Hydro Package");
+    const bool forecastEnabled = !running && dataSourceCombo_->currentText() == "Hydro Package" && hydroForecastFeatureCheck_->isChecked();
+    hydroForecastVariableEdit_->setEnabled(forecastEnabled);
+    hydroForecastLeadSpin_->setEnabled(forecastEnabled);
+    hydroForecastEnsembleEdit_->setEnabled(forecastEnabled);
     generateSyntheticButton_->setEnabled(!running && dataSourceCombo_->currentText() == "Synthetic");
     syntheticExportPathEdit_->setEnabled(!running && dataSourceCombo_->currentText() == "Synthetic");
     browseSyntheticExportButton_->setEnabled(!running && dataSourceCombo_->currentText() == "Synthetic");
@@ -685,6 +713,7 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     runTrainingLSTMButton_->setEnabled(!running);
     runTrainingLSTMPINNButton_->setEnabled(!running);
     exportExperimentButton_->setEnabled(!running && !lastModeResults_.empty());
+    loadExperimentConfigButton_->setEnabled(!running);
     plotAllTargetPredButton_->setEnabled(!running);
     plotOneToOneButton_->setEnabled(!running);
     plotTaylorButton_->setEnabled(!running);
@@ -745,6 +774,11 @@ void HydroPINNWindow::updateDataSourceUiState() {
     browseHydroPackageButton_->setEnabled(usePackage);
     hydroCatchmentIdEdit_->setEnabled(usePackage);
     hydroPackageProfileCombo_->setEnabled(usePackage);
+    hydroForecastFeatureCheck_->setEnabled(usePackage);
+    const bool forecastEnabled = usePackage && hydroForecastFeatureCheck_->isChecked();
+    hydroForecastVariableEdit_->setEnabled(forecastEnabled);
+    hydroForecastLeadSpin_->setEnabled(forecastEnabled);
+    hydroForecastEnsembleEdit_->setEnabled(forecastEnabled);
 
     const bool useSynthetic = !useCsv && !usePackage;
     profileCombo_->setEnabled(useSynthetic);
@@ -1520,6 +1554,66 @@ void HydroPINNWindow::exportExperimentArtifacts() {
     } catch (const std::exception& error) {
         appendLog(QString("Experiment export failed: %1").arg(error.what()));
         QMessageBox::critical(this, "HydroPINN Export", QString::fromUtf8(error.what()));
+    }
+}
+
+void HydroPINNWindow::loadExperimentConfiguration() {
+    const QString path = QFileDialog::getOpenFileName(
+        this, "Load Hydro experiment configuration", QString(), "Hydro experiment config (experiment_config.json);;JSON files (*.json)");
+    if (path.isEmpty()) return;
+    try {
+        const auto loaded = HydroExperimentLoader().loadConfig(path.toStdString());
+        const auto& cfg = loaded.config;
+        auto selectText = [](QComboBox* combo, const std::string& value) {
+            const int index = combo->findText(QString::fromStdString(value), Qt::MatchFixedString);
+            if (index < 0) throw std::runtime_error("Configuration value is not supported by this GUI: " + value);
+            combo->setCurrentIndex(index);
+        };
+        epochsSpin_->setValue(cfg.epochs);
+        batchSpin_->setValue(cfg.batch_size);
+        lrSpin_->setValue(cfg.learning_rate);
+        lambdaSpin_->setValue(cfg.lambda_decay);
+        dataWeightSpin_->setValue(cfg.data_weight);
+        physicsWeightSpin_->setValue(cfg.physics_weight);
+        forcingGainSpin_->setValue(cfg.forcing_gain);
+        pinnCollocationSpin_->setValue(cfg.pinn_collocation_points);
+        selectText(pinnPhysicsProfileCombo_, cfg.pinn_physics_profile);
+        hiddenLayersEdit_->setText(QString::fromStdString(cfg.hidden_layers_csv));
+        inputLagsEdit_->setText(QString::fromStdString(cfg.input_lags_csv));
+        useTimeLaggedFFNCheck_->setChecked(cfg.use_time_lagged_ffn);
+        selectText(activationCombo_, cfg.activation);
+        evalCheck_->setChecked(cfg.evaluate_metrics);
+        splitRatioSpin_->setValue(cfg.train_split_ratio);
+        shuffleCheck_->setChecked(cfg.shuffle_training);
+        seedSpin_->setValue(cfg.random_seed);
+        selectText(optimizerCombo_, cfg.optimizer);
+        weightDecaySpin_->setValue(cfg.weight_decay);
+        momentumSpin_->setValue(cfg.momentum);
+        selectText(normalizationCombo_, cfg.normalization);
+        dataSourceCombo_->setCurrentText(cfg.use_hydro_package ? "Hydro Package" : (cfg.use_csv_data ? "CSV File" : "Synthetic"));
+        csvPathEdit_->setText(QString::fromStdString(cfg.csv_path));
+        csvXColSpin_->setValue(cfg.csv_x_column);
+        csvYColSpin_->setValue(cfg.csv_y_column);
+        csvHeaderCheck_->setChecked(cfg.csv_has_header);
+        selectText(profileCombo_, cfg.synthetic_profile);
+        sampleCountSpin_->setValue(cfg.sample_count);
+        tStartSpin_->setValue(cfg.t_start);
+        tEndSpin_->setValue(cfg.t_end);
+        hydroPackagePathEdit_->setText(QString::fromStdString(cfg.hydro_package_path));
+        hydroCatchmentIdEdit_->setText(QString::fromStdString(cfg.hydro_catchment_id));
+        selectText(hydroPackageProfileCombo_, cfg.hydro_package_profile);
+        hydroForecastFeatureCheck_->setChecked(cfg.use_hydro_forecast_feature);
+        hydroForecastVariableEdit_->setText(QString::fromStdString(cfg.hydro_forecast_variable));
+        hydroForecastLeadSpin_->setValue(cfg.hydro_forecast_lead_hours);
+        hydroForecastEnsembleEdit_->setText(QString::fromStdString(cfg.hydro_forecast_ensemble_member));
+        updateDataSourceUiState();
+        updateFfnLagUiState();
+        appendLog(QString("Loaded experiment configuration '%1' from %2")
+                      .arg(QString::fromStdString(loaded.experiment_id), path));
+        QMessageBox::information(this, "HydroPINN", "Experiment configuration loaded. Review paths before running.");
+    } catch (const std::exception& error) {
+        appendLog(QString("Experiment configuration load failed: %1").arg(error.what()));
+        QMessageBox::critical(this, "HydroPINN", QString::fromUtf8(error.what()));
     }
 }
 

@@ -82,6 +82,10 @@ private:
     QPushButton* browseHydroPackageButton_;
     QLineEdit* hydroCatchmentIdEdit_;
     QComboBox* hydroPackageProfileCombo_;
+    QCheckBox* hydroForecastFeatureCheck_;
+    QLineEdit* hydroForecastVariableEdit_;
+    QDoubleSpinBox* hydroForecastLeadSpin_;
+    QLineEdit* hydroForecastEnsembleEdit_;
     QSpinBox* sampleCountSpin_;
     QDoubleSpinBox* tStartSpin_;
     QDoubleSpinBox* tEndSpin_;
@@ -113,6 +117,7 @@ private:
     QPushButton* stopGAButton_;
     QPushButton* refreshPerformanceButton_;
     QPushButton* exportExperimentButton_;
+    QPushButton* loadExperimentConfigButton_;
     QPushButton* clearPlotButton_;
     QPushButton* showInputsOutputsButton_;
     QPushButton* zoomInPlotButton_;
@@ -158,6 +163,7 @@ private:
     void stopGAPlaceholder();
     void refreshPerformanceAssessment();
     void exportExperimentArtifacts();
+    void loadExperimentConfiguration();
     void clearPlot();
     void zoomInPlot();
     void zoomOutPlot();

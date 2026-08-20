@@ -3,6 +3,7 @@
 #include "../dataset/tensor_scaler.h"
 #include "../dataset/hydro_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
+#include "../evaluation/model_checkpoint.h"
 
 #include "neuralnetworkwrapper.h"
 
@@ -465,12 +466,27 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     model.setTensorData(DataType::Train, xTrain, yTrain);
     model.setTensorData(DataType::Test, xTest, yTestScaled);
 
-    std::vector<double> losses = model.train(config.epochs, config.batch_size, config.learning_rate);
+    std::vector<double> validationLossesScaled;
+    int bestEpoch = 0;
+    std::vector<double> losses = model.train(config.epochs, config.batch_size, config.learning_rate,
+                                             xValidation, yValidation, &validationLossesScaled, &bestEpoch);
     if (losses.empty() || !std::isfinite(losses.back())) {
         throw std::runtime_error("FFN training produced empty/non-finite loss history.");
     }
-    result.final_loss = losses.back();
+    result.best_epoch = bestEpoch;
+    result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
     result.training_loss_history = losses;
+    result.validation_loss_history.reserve(validationLossesScaled.size());
+    for (const double value : validationLossesScaled) result.validation_loss_history.push_back(targetScaler.mseToPhysical(value));
+    result.input_scaler = inputScaler.exportState();
+    result.target_scaler = targetScaler.exportState();
+    {
+        const auto checkpoint = temporaryHydroCheckpointPath("hydro_ffn");
+        model.saveModel(checkpoint.string());
+        result.model_checkpoint = readHydroCheckpoint(checkpoint);
+        result.model_checkpoint_format = "neuralnetworkwrapper-v1";
+        std::filesystem::remove(checkpoint);
+    }
 
     model.setTensorData(DataType::Test, xValidation, yValidation);
     torch::Tensor predValidation = targetScaler.inverseTransform(model.forward(DataType::Test));

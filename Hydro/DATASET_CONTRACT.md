@@ -34,10 +34,18 @@ status.
 
 The current HydroPINN loader requires the string fields `schema_name`,
 `schema_version`, `profile`, `dataset_id`, `observations_file`, and
-`catchment_attributes_file`; `quality_control_file` is optional. Paths must be
-relative and remain inside the package. Package loading rejects incompatible
-schema major versions, profile mismatches, and any QC record with
-`severity=error`.
+`catchment_attributes_file`; `quality_control_file` and `variables_file` are
+optional for backward compatibility. When `variables_file` is declared, every
+required profile variable must have one metadata record and its unit must match
+the canonical unit in the selected contract. HydroPINN rejects missing,
+duplicate, or unsupported unit declarations rather than silently interpreting
+them. Paths must be relative and remain inside the package. Package loading
+rejects incompatible schema major versions, profile mismatches, and any QC
+record with `severity=error`.
+
+Producers may provide `observations_sha256`, `catchment_attributes_sha256`, and
+`variables_sha256`. When declared, HydroPINN calculates SHA-256 from the exact
+file bytes and rejects mismatches before parsing the corresponding asset.
 
 ## Observation table
 
@@ -69,7 +77,30 @@ observations so chronological train/validation/test partitioning is possible.
 Forecasts use long form with `issue_time`, `valid_time`, `lead_hours`,
 `catchment_id`, `variable`, `value`, `unit`, `forecast_model`, `model_cycle`,
 and optional `ensemble_member`. Retaining issue time prevents future-information
-leakage in retrospective experiments.
+leakage in retrospective experiments. Consumers must reject a forecast whose
+issue time is later than the prediction time, whose valid time precedes its
+issue time, or whose declared lead does not equal `valid_time - issue_time`.
+Comparisons parse canonical timestamps, including fractional seconds, rather
+than relying on lexical string ordering.
+
+`DDRRLoader::loadForecasts` enforces this long-form schema, rejects duplicate
+forecast identities and non-finite values. With a prediction-time argument it
+rejects unavailable future issues; archive mode leaves that filtering to the
+mandatory row-alignment cutoff before values become model features.
+Packages may declare `forecast_file` and `forecast_sha256`; package loading
+checks the referenced asset and digest before it can be consumed.
+`selectLatestAvailableForecast` aligns an archived forecast to a catchment,
+variable, valid time, prediction time, and optional ensemble member. It selects
+the most recently issued candidate that was actually available at prediction
+time and rejects mixed-unit candidates.
+`buildAlignedForecastFeature` produces a model-row-aligned numeric feature for
+a declared lead time. Every target valid time must have an available forecast;
+missing forecasts raise an error rather than triggering silent imputation, and
+the output unit must remain constant across the complete feature.
+When enabled in `HydroRunConfig`, the package tensor builder appends this
+aligned feature after the five canonical observation/state features. The
+physical time, precipitation, PET, and storage column positions remain stable
+for the conservation residual.
 
 ## GIStoOHQ architecture
 

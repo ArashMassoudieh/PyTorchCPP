@@ -1,9 +1,12 @@
 #include "experiment_exporter.h"
+#include "../dataset/hydro_checksum.h"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <stdexcept>
 
 namespace {
@@ -19,6 +22,13 @@ std::string escapeJson(const std::string& value) {
 
 void requireStream(const std::ofstream& stream, const std::filesystem::path& path) {
     if (!stream) throw std::runtime_error("Unable to write experiment artifact: " + path.string());
+}
+
+std::string safeFileStem(const std::string& value) {
+    std::string stem;
+    for (const unsigned char c : value) stem.push_back(std::isalnum(c) ? static_cast<char>(std::tolower(c)) : '_');
+    if (stem.empty()) throw std::runtime_error("Approach name cannot produce an empty checkpoint filename.");
+    return stem;
 }
 }
 
@@ -39,20 +49,73 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
               << "  \"epochs\": " << config.epochs << ",\n"
               << "  \"batch_size\": " << config.batch_size << ",\n"
               << "  \"learning_rate\": " << config.learning_rate << ",\n"
+              << "  \"lambda_decay\": " << config.lambda_decay << ",\n"
+              << "  \"optimizer\": \"" << escapeJson(config.optimizer) << "\",\n"
+              << "  \"weight_decay\": " << config.weight_decay << ",\n"
+              << "  \"momentum\": " << config.momentum << ",\n"
               << "  \"random_seed\": " << config.random_seed << ",\n"
               << "  \"train_fraction\": " << config.train_split_ratio << ",\n"
               << "  \"validation_fraction\": " << config.validation_split_ratio << ",\n"
+              << "  \"shuffle_training\": " << (config.shuffle_training ? "true" : "false") << ",\n"
+              << "  \"evaluate_metrics\": " << (config.evaluate_metrics ? "true" : "false") << ",\n"
               << "  \"normalization\": \"" << escapeJson(config.normalization) << "\",\n"
               << "  \"hidden_layers\": \"" << escapeJson(config.hidden_layers_csv) << "\",\n"
               << "  \"input_lags\": \"" << escapeJson(config.input_lags_csv) << "\",\n"
+              << "  \"activation\": \"" << escapeJson(config.activation) << "\",\n"
+              << "  \"use_time_lagged_ffn\": " << (config.use_time_lagged_ffn ? "true" : "false") << ",\n"
               << "  \"lstm_sequence_length\": " << config.lstm_sequence_length << ",\n"
               << "  \"physics_profile\": \"" << escapeJson(config.pinn_physics_profile) << "\",\n"
               << "  \"data_weight\": " << config.data_weight << ",\n"
               << "  \"physics_weight\": " << config.physics_weight << ",\n"
+              << "  \"physics_dt\": " << config.physics_dt << ",\n"
+              << "  \"forcing_gain\": " << config.forcing_gain << ",\n"
+              << "  \"runoff_coeff\": " << config.runoff_coeff << ",\n"
+              << "  \"storage_coeff\": " << config.storage_coeff << ",\n"
+              << "  \"pinn_collocation_points\": " << config.pinn_collocation_points << ",\n"
+              << "  \"use_hydro_package\": " << (config.use_hydro_package ? "true" : "false") << ",\n"
+              << "  \"use_csv_data\": " << (config.use_csv_data ? "true" : "false") << ",\n"
+              << "  \"csv_path\": \"" << escapeJson(config.csv_path) << "\",\n"
+              << "  \"csv_x_column\": " << config.csv_x_column << ",\n"
+              << "  \"csv_y_column\": " << config.csv_y_column << ",\n"
+              << "  \"csv_has_header\": " << (config.csv_has_header ? "true" : "false") << ",\n"
+              << "  \"synthetic_profile\": \"" << escapeJson(config.synthetic_profile) << "\",\n"
+              << "  \"sample_count\": " << config.sample_count << ",\n"
+              << "  \"t_start\": " << config.t_start << ",\n"
+              << "  \"t_end\": " << config.t_end << ",\n"
               << "  \"hydro_package_path\": \"" << escapeJson(config.hydro_package_path) << "\",\n"
               << "  \"hydro_catchment_id\": \"" << escapeJson(config.hydro_catchment_id) << "\",\n"
-              << "  \"hydro_package_profile\": \"" << escapeJson(config.hydro_package_profile) << "\"\n"
+              << "  \"hydro_package_profile\": \"" << escapeJson(config.hydro_package_profile) << "\",\n"
+              << "  \"use_hydro_forecast_feature\": " << (config.use_hydro_forecast_feature ? "true" : "false") << ",\n"
+              << "  \"hydro_forecast_variable\": \"" << escapeJson(config.hydro_forecast_variable) << "\",\n"
+              << "  \"hydro_forecast_lead_hours\": " << config.hydro_forecast_lead_hours << ",\n"
+              << "  \"hydro_forecast_ensemble_member\": \"" << escapeJson(config.hydro_forecast_ensemble_member) << "\"\n"
               << "}\n";
+
+    const auto environmentPath = root / "environment.json";
+    std::ofstream environment(environmentPath);
+    requireStream(environment, environmentPath);
+    environment << "{\n"
+                << "  \"compiler\": \"" << escapeJson(__VERSION__) << "\",\n"
+                << "  \"cplusplus\": " << __cplusplus << ",\n"
+                << "  \"build_date\": \"" << __DATE__ << "\",\n"
+                << "  \"build_time\": \"" << __TIME__ << "\"\n"
+                << "}\n";
+
+    if (config.use_hydro_package && !config.hydro_package_path.empty()) {
+        const auto sourceManifest = std::filesystem::path(config.hydro_package_path) / "manifest.json";
+        if (!std::filesystem::is_regular_file(sourceManifest)) {
+            throw std::runtime_error("Cannot export package-backed experiment without source manifest.json.");
+        }
+        std::filesystem::copy_file(sourceManifest, root / "dataset_manifest.json",
+                                   std::filesystem::copy_options::overwrite_existing);
+        const auto provenancePath = root / "provenance.json";
+        std::ofstream provenance(provenancePath);
+        requireStream(provenance, provenancePath);
+        provenance << "{\n"
+                   << "  \"fingerprint_algorithm\": \"sha256\",\n"
+                   << "  \"dataset_manifest_sha256\": \"" << sha256File(sourceManifest.string()) << "\"\n"
+                   << "}\n";
+    }
 
     const auto metricsPath = root / "metrics.csv";
     std::ofstream metrics(metricsPath);
@@ -64,6 +127,44 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
         metrics << entry.first << ',' << (r.success ? 1 : 0) << ',' << r.final_loss << ',' << r.validation_mse << ','
                 << r.mse << ',' << r.rmse << ',' << r.mae << ',' << r.nse << ',' << r.kge << ',' << r.correlation << ','
                 << r.pbias << ',' << r.volume_error_percent << ',' << r.physics_loss << '\n';
+    }
+
+    const auto modelsDirectory = root / "models";
+    std::filesystem::create_directories(modelsDirectory);
+    const auto modelManifestPath = root / "models.csv";
+    std::ofstream modelManifest(modelManifestPath);
+    requireStream(modelManifest, modelManifestPath);
+    modelManifest << "approach,file,format,size_bytes,sha256\n";
+    for (const auto& entry : results) {
+        if (entry.second.model_checkpoint.empty()) continue;
+        const std::string filename = safeFileStem(entry.first) + ".pt";
+        const auto modelPath = modelsDirectory / filename;
+        std::ofstream modelFile(modelPath, std::ios::binary);
+        requireStream(modelFile, modelPath);
+        modelFile.write(reinterpret_cast<const char*>(entry.second.model_checkpoint.data()),
+                        static_cast<std::streamsize>(entry.second.model_checkpoint.size()));
+        modelFile.close();
+        modelManifest << entry.first << ",models/" << filename << ',' << entry.second.model_checkpoint_format << ','
+                      << entry.second.model_checkpoint.size() << ',' << sha256File(modelPath.string()) << '\n';
+    }
+
+    const auto scalersPath = root / "scalers.csv";
+    std::ofstream scalers(scalersPath);
+    requireStream(scalers, scalersPath);
+    scalers << "approach,kind,index,method,shape,offset,scale\n" << std::setprecision(17);
+    for (const auto& entry : results) {
+        const auto writeState = [&](const char* kind, const HydroScalerState& state) {
+            for (std::size_t i = 0; i < state.offset.size(); ++i) {
+                scalers << entry.first << ',' << kind << ',' << i << ',' << state.method << ",\"";
+                for (std::size_t dimension = 0; dimension < state.shape.size(); ++dimension) {
+                    if (dimension) scalers << ';';
+                    scalers << state.shape[dimension];
+                }
+                scalers << "\"," << state.offset[i] << ',' << state.scale.at(i) << '\n';
+            }
+        };
+        writeState("input", entry.second.input_scaler);
+        writeState("target", entry.second.target_scaler);
     }
 
     const auto physicsPath = root / "physics_residuals.csv";
@@ -96,10 +197,13 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     const auto historyPath = root / "training_history.csv";
     std::ofstream history(historyPath);
     requireStream(history, historyPath);
-    history << "approach,epoch,training_loss\n" << std::setprecision(17);
+    history << "approach,epoch,training_loss,validation_loss,selected_checkpoint\n" << std::setprecision(17);
     for (const auto& entry : results) {
         for (size_t epoch = 0; epoch < entry.second.training_loss_history.size(); ++epoch) {
-            history << entry.first << ',' << (epoch + 1) << ',' << entry.second.training_loss_history[epoch] << '\n';
+            const double validationLoss = epoch < entry.second.validation_loss_history.size()
+                ? entry.second.validation_loss_history[epoch] : std::numeric_limits<double>::quiet_NaN();
+            history << entry.first << ',' << (epoch + 1) << ',' << entry.second.training_loss_history[epoch] << ','
+                    << validationLoss << ',' << (entry.second.best_epoch == static_cast<int>(epoch + 1) ? 1 : 0) << '\n';
         }
     }
 }
