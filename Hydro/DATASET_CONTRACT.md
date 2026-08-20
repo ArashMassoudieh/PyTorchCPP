@@ -77,7 +77,11 @@ observations so chronological train/validation/test partitioning is possible.
 Forecasts use long form with `issue_time`, `valid_time`, `lead_hours`,
 `catchment_id`, `variable`, `value`, `unit`, `forecast_model`, `model_cycle`,
 and optional `ensemble_member`. Retaining issue time prevents future-information
-leakage in retrospective experiments.
+leakage in retrospective experiments. Consumers must reject a forecast whose
+issue time is later than the prediction time, whose valid time precedes its
+issue time, or whose declared lead does not equal `valid_time - issue_time`.
+Comparisons parse canonical timestamps, including fractional seconds, rather
+than relying on lexical string ordering.
 
 ## GIStoOHQ architecture
 
