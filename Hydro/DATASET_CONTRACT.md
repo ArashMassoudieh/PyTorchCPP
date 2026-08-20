@@ -88,6 +88,10 @@ forecast identities and non-finite values, and requires an explicit prediction
 time so unavailable future issues cannot enter a retrospective feature set.
 Packages may declare `forecast_file` and `forecast_sha256`; package loading
 checks the referenced asset and digest before it can be consumed.
+`selectLatestAvailableForecast` aligns an archived forecast to a catchment,
+variable, valid time, prediction time, and optional ensemble member. It selects
+the most recently issued candidate that was actually available at prediction
+time and rejects mixed-unit candidates.
 
 ## GIStoOHQ architecture
 

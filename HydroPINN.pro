@@ -185,6 +185,7 @@ HEADERS += \
     Hydro/dataset/hydro_checksum.h \
     Hydro/dataset/hydro_dataset_contract.h \
     Hydro/dataset/hydro_units.h \
+    Hydro/dataset/forecast_alignment.h \
     Hydro/dataset/hydro_tensor_builder.h \
     Hydro/dataset/lag_builder.h \
     Hydro/dataset/sequence_builder.h \
