@@ -8,6 +8,56 @@
 #include <limits>
 #include "hyperparameters.h"
 
+namespace {
+class ValidationCheckpoint {
+public:
+    ValidationCheckpoint(const torch::Tensor& inputs,
+                         const torch::Tensor& targets,
+                         std::vector<double>* history,
+                         int* bestEpoch)
+        : inputs_(inputs), targets_(targets), history_(history), best_epoch_(bestEpoch),
+          enabled_(inputs.defined() && targets.defined()) {
+        if (enabled_ && inputs.size(0) != targets.size(0)) throw std::runtime_error("Validation input and target counts must match.");
+        if (history_) history_->clear();
+        if (best_epoch_) *best_epoch_ = 0;
+    }
+
+    template <typename Forward>
+    void record(int epoch, const std::vector<torch::Tensor>& parameters, Forward&& forward) {
+        if (!enabled_) return;
+        double loss = 0.0;
+        {
+            torch::NoGradGuard no_grad;
+            loss = torch::mse_loss(forward(inputs_), targets_).template item<double>();
+        }
+        if (!std::isfinite(loss)) throw std::runtime_error("Validation produced a non-finite loss.");
+        if (history_) history_->push_back(loss);
+        if (loss < best_loss_) {
+            best_loss_ = loss;
+            if (best_epoch_) *best_epoch_ = epoch + 1;
+            best_parameters_.clear();
+            for (const auto& parameter : parameters) best_parameters_.push_back(parameter.detach().clone());
+        }
+    }
+
+    void restore(std::vector<torch::Tensor>& parameters) const {
+        if (!enabled_) return;
+        if (best_parameters_.size() != parameters.size()) throw std::runtime_error("No validation-selected PINN checkpoint was produced.");
+        torch::NoGradGuard no_grad;
+        for (std::size_t i = 0; i < parameters.size(); ++i) parameters[i].copy_(best_parameters_[i]);
+    }
+
+private:
+    torch::Tensor inputs_;
+    torch::Tensor targets_;
+    std::vector<double>* history_;
+    int* best_epoch_;
+    bool enabled_;
+    double best_loss_ = std::numeric_limits<double>::infinity();
+    std::vector<torch::Tensor> best_parameters_;
+};
+}
+
 #ifdef QT_GUI_SUPPORT
 #include "ProgressWindow.h"
 #include <QApplication>
@@ -557,7 +607,11 @@ torch::Tensor NeuralNetworkWrapper::forward(DataType data_type) {
 
 std::vector<double> NeuralNetworkWrapper::train(int num_epochs,
                                                 int batch_size,
-                                                double learning_rate) {
+                                                double learning_rate,
+                                                const torch::Tensor& validation_inputs,
+                                                const torch::Tensor& validation_targets,
+                                                std::vector<double>* validation_history,
+                                                int* best_epoch) {
     if (!is_initialized_) {
         throw std::runtime_error("Network must be initialized before training. Call initializeNetwork() first.");
     }
@@ -585,6 +639,15 @@ std::vector<double> NeuralNetworkWrapper::train(int num_epochs,
     }
 
     torch::optim::Adam optimizer(params_vector, torch::optim::AdamOptions(learning_rate));
+
+    const bool selectByValidation = validation_inputs.defined() && validation_targets.defined();
+    if (selectByValidation && validation_inputs.size(0) != validation_targets.size(0)) {
+        throw std::runtime_error("Validation input and target counts must match.");
+    }
+    if (validation_history) validation_history->clear();
+    if (best_epoch) *best_epoch = 0;
+    double bestValidation = std::numeric_limits<double>::infinity();
+    std::vector<torch::Tensor> bestParameters;
 
     // Clear previous training history
     training_history_.clear();
@@ -633,6 +696,22 @@ std::vector<double> NeuralNetworkWrapper::train(int num_epochs,
         current_loss_ = avg_loss;
         training_history_.push_back(avg_loss);
 
+        if (selectByValidation) {
+            double validationLoss = 0.0;
+            {
+                torch::NoGradGuard no_grad;
+                validationLoss = torch::mse_loss(forward_internal(validation_inputs), validation_targets).item<double>();
+            }
+            if (!std::isfinite(validationLoss)) throw std::runtime_error("Validation produced a non-finite loss.");
+            if (validation_history) validation_history->push_back(validationLoss);
+            if (validationLoss < bestValidation) {
+                bestValidation = validationLoss;
+                if (best_epoch) *best_epoch = epoch + 1;
+                bestParameters.clear();
+                for (const auto& parameter : params_vector) bestParameters.push_back(parameter.detach().clone());
+            }
+        }
+
         // Print progress
         if (verbose_) {
             if ((epoch + 1) % 20 == 0 || epoch == 0) {
@@ -641,6 +720,12 @@ std::vector<double> NeuralNetworkWrapper::train(int num_epochs,
                           << avg_loss << std::endl;
             }
         }
+    }
+
+    if (selectByValidation) {
+        if (bestParameters.size() != params_vector.size()) throw std::runtime_error("No validation-selected FFN checkpoint was produced.");
+        torch::NoGradGuard no_grad;
+        for (std::size_t i = 0; i < params_vector.size(); ++i) params_vector[i].copy_(bestParameters[i]);
     }
 
     if (verbose_) std::cout << "Training completed!" << std::endl;
@@ -653,7 +738,11 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
                                                                     double lambda_decay,
                                                                     double data_weight,
                                                                     double physics_weight,
-                                                                    int collocation_points) {
+                                                                    int collocation_points,
+                                                                    const torch::Tensor& validation_inputs,
+                                                                    const torch::Tensor& validation_targets,
+                                                                    std::vector<double>* validation_history,
+                                                                    int* best_epoch) {
     if (!is_initialized_) {
         throw std::runtime_error("Network must be initialized before training. Call initializeNetwork() first.");
     }
@@ -696,6 +785,7 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
         params_vector.push_back(layer->bias);
     }
     torch::optim::Adam optimizer(params_vector, torch::optim::AdamOptions(learning_rate));
+    ValidationCheckpoint checkpoint(validation_inputs, validation_targets, validation_history, best_epoch);
 
     training_history_.clear();
     training_history_.reserve(num_epochs);
@@ -779,6 +869,7 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
 
         current_loss_ = avg_loss;
         training_history_.push_back(avg_loss);
+        checkpoint.record(epoch, params_vector, [this](const torch::Tensor& inputs) { return forward_internal(inputs); });
 
         if (verbose_ && ((epoch + 1) % 20 == 0 || epoch == 0)) {
             std::cout << "PINN Epoch [" << (epoch + 1) << "/" << num_epochs
@@ -787,6 +878,8 @@ std::vector<double> NeuralNetworkWrapper::trainPINNExponentialDecay(int num_epoc
                       << " | Physics: " << avg_physics_loss << std::endl;
         }
     }
+
+    checkpoint.restore(params_vector);
 
     if (verbose_) std::cout << "PINN training completed!" << std::endl;
     return training_history_;
@@ -799,7 +892,11 @@ std::vector<double> NeuralNetworkWrapper::trainPINNWithForcing(int num_epochs,
                                                                double forcing_gain,
                                                                int forcing_feature_index,
                                                                double data_weight,
-                                                               double physics_weight) {
+                                                               double physics_weight,
+                                                               const torch::Tensor& validation_inputs,
+                                                               const torch::Tensor& validation_targets,
+                                                               std::vector<double>* validation_history,
+                                                               int* best_epoch) {
     if (!is_initialized_) {
         throw std::runtime_error("Network not initialized. Call initializeNetwork() first.");
     }
@@ -844,6 +941,7 @@ std::vector<double> NeuralNetworkWrapper::trainPINNWithForcing(int num_epochs,
         params_vector.push_back(layer->bias);
     }
     torch::optim::Adam optimizer(params_vector, torch::optim::AdamOptions(learning_rate));
+    ValidationCheckpoint checkpoint(validation_inputs, validation_targets, validation_history, best_epoch);
 
     training_history_.clear();
     training_history_.reserve(num_epochs);
@@ -892,7 +990,10 @@ std::vector<double> NeuralNetworkWrapper::trainPINNWithForcing(int num_epochs,
         const double avg_loss = total_epoch_loss / static_cast<double>(std::max(1, num_batches));
         current_loss_ = avg_loss;
         training_history_.push_back(avg_loss);
+        checkpoint.record(epoch, params_vector, [this](const torch::Tensor& inputs) { return forward_internal(inputs); });
     }
+
+    checkpoint.restore(params_vector);
 
     return training_history_;
 }
@@ -905,7 +1006,11 @@ std::vector<double> NeuralNetworkWrapper::trainPINNWaterBalance(int num_epochs,
                                                                 int storage_feature_index,
                                                                 double dt,
                                                                 double data_weight,
-                                                                double physics_weight) {
+                                                                double physics_weight,
+                                                                const torch::Tensor& validation_inputs,
+                                                                const torch::Tensor& validation_targets,
+                                                                std::vector<double>* validation_history,
+                                                                int* best_epoch) {
     if (!is_initialized_) {
         throw std::runtime_error("Network not initialized. Call initializeNetwork() first.");
     }
@@ -949,6 +1054,7 @@ std::vector<double> NeuralNetworkWrapper::trainPINNWaterBalance(int num_epochs,
         params_vector.push_back(layer->bias);
     }
     torch::optim::Adam optimizer(params_vector, torch::optim::AdamOptions(learning_rate));
+    ValidationCheckpoint checkpoint(validation_inputs, validation_targets, validation_history, best_epoch);
 
     training_history_.clear();
     training_history_.reserve(num_epochs);
@@ -992,7 +1098,10 @@ std::vector<double> NeuralNetworkWrapper::trainPINNWaterBalance(int num_epochs,
         const double avg_loss = total_epoch_loss / static_cast<double>(std::max(1, num_batches));
         current_loss_ = avg_loss;
         training_history_.push_back(avg_loss);
+        checkpoint.record(epoch, params_vector, [this](const torch::Tensor& inputs) { return forward_internal(inputs); });
     }
+
+    checkpoint.restore(params_vector);
 
     return training_history_;
 }

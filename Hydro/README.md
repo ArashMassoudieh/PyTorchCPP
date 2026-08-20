@@ -19,7 +19,10 @@ configuration:
 | PINN | Physics-first standalone baseline. | Inspect what the configured residual explains without supervised data loss. |
 
 See [`APPROACHES.md`](APPROACHES.md) for equations, loss definitions, and model
-semantics.
+semantics. See [`DATASET_CONTRACT.md`](DATASET_CONTRACT.md) for the versioned
+input package that GIStoOHQ and other acquisition tools should produce, and
+[`GISTOOHQ_PIPELINE.md`](GISTOOHQ_PIPELINE.md) for the generic acquisition/cache
+architecture and thin HydroPINN export adapter.
 
 ## Watershed-oriented PINN inputs
 
@@ -51,8 +54,10 @@ features while the residual keeps a direct mass-balance interpretation.
    - Enable time-lagged FFN inputs for FFN-family approaches.
    - Keep lag settings disabled for LSTM-family approaches, where sequence memory
      is handled by the recurrent backend.
+   - LSTM sequence length is an independent configuration value; running FFN lag
+     optimization does not silently change the LSTM receptive window.
 4. **Training tab**
-   - Set epochs, batch size, learning rate, train/test split, and PINN weights.
+   - Set epochs, batch size, learning rate, chronological train/validation/test split, and PINN weights.
    - Choose the PINN physics profile that matches the experiment.
    - Use **Train All** to compare all approaches under one configuration.
 5. **Prediction, Performance Assessment, Plot, and Logs tabs**
@@ -96,9 +101,82 @@ interpretability as much as generic prediction error:
 
 - Replace placeholder GA controls with a full GA configuration dialog that shares
   more of NeuroForge's hyperparameter-search behavior.
-- Add named hydrology datasets and metadata validation for required forcing,
-  discharge, storage, and timestamp columns.
-- Persist HydroPINN experiment configurations so runs can be reloaded exactly.
-- Add export actions for metrics, residuals, and predictions across all five
-  approaches.
+- Add GUI inference from compatibility-checked model artifacts.
 - Expand calibrated watershed-process residuals for snow accumulation/melt, infiltration capacity, groundwater exchange, channel routing, and evapotranspiration stress as field assumptions become available.
+
+The current synthetic workflow is still a software-validation stage. Before
+paper experiments, remaining work includes checkpoint inference and a
+broader five-model integration test.
+
+Standalone physics-only PINN runs deliberately do not select checkpoints using
+observed validation discharge, because that would introduce supervised model
+selection into the nominally physics-only baseline. Their validation MSE
+remains a post-training diagnostic; physics-based early stopping is a separate
+future option.
+
+FFN and LSTM supervised runs now fit normalization exclusively on the training
+partition and inverse-transform predictions before validation/test metrics are
+computed. PINN-capable runs reject normalization for now: enabling it safely
+requires inverse-transforming predictions and physical forcing/state variables
+inside the differentiable residual rather than applying conservation to scaled
+quantities.
+
+`DDRRLoader` now validates and loads canonical observation CSV exports into
+per-catchment series, preserves UTC timestamps, calculates elapsed physical
+hours independently for each catchment, and converts observed discharge to
+`mm/h` using declared catchment areas.
+
+The loader can also open a generic package directory through `manifest.json`,
+resolve observation and catchment-attribute files safely, read `area_m2` by
+stable catchment ID, enforce the declared schema/profile, and reject unresolved
+package QC errors. Declared observation, catchment-attribute, and
+variable-metadata SHA-256 digests are verified before parsing. Required
+variable names and canonical units are enforced when the package declares
+`variables_file`; full generic asset-catalog ingestion remains producer-side
+work.
+
+All four trainable wrapper families accept the same package/catchment
+configuration and build named physical tensors through the shared package
+loader. The Data tab exposes **Hydro Package** directory, catchment ID, and
+profile controls.
+
+Package-backed PINN runs infer their physical timestep from the elapsed-hour
+column instead of trusting a manually entered `physics_dt`. Current training
+backends reject irregular package intervals explicitly; this prevents silently
+applying one finite-difference timestep to gapped or irregular observations.
+
+The Performance tab's **Export Experiment...** action writes a deterministic
+artifact directory containing
+`experiment_config.json`, one-row-per-approach `metrics.csv`, and long-form
+`predictions.csv`, and `training_history.csv`. Each prediction is labeled as
+training, validation, or test. PINN-capable water-balance runs also export
+`physics_residuals.csv` with the same partition labels. Validation-selected
+model checkpoints are written beneath `models/` with checksums in `models.csv`.
+Per-epoch validation history and fitted scaler state are
+written to `training_history.csv` and `scalers.csv`. Every export includes
+`environment.json`; package-backed exports also preserve the accepted source
+manifest as `dataset_manifest.json` and record its SHA-256 release fingerprint
+in `provenance.json`.
+`HydroArtifactLoader` verifies model-manifest format, safe relative paths, file
+sizes, checkpoint formats, and SHA-256 digests before returning checkpoint
+bytes to a future inference session.
+`HydroExperimentLoader` reads the exported configuration back into a validated
+`HydroRunConfig`, providing a programmatic rerun boundary without silently
+falling back to current GUI defaults. The Performance tab can apply that
+configuration back to the GUI through **Load Experiment Config...**.
+
+## Scientific-safety rules
+
+- Runs use chronological train, validation, and test partitions. The validation
+  partition is reserved for model and physics-weight selection; test metrics
+  must not drive retries or hyperparameter choices.
+- LSTM + PINN evaluates one ordered full-training-sequence physics gradient per
+  epoch rather than repeating it inside every shuffled supervised mini-batch.
+- `PINNWrapper` is the explicit fifth approach and enforces physics-only training.
+  For water balance with independently known precipitation, ET, and storage,
+  interpret it as a diagnostic residual solver rather than a freely identifiable
+  rainfall-runoff model.
+- Field-data conservation must use compatible physical units and strictly
+  increasing timestamps. `RRPhysics::waterBalanceResidualAtTimes` supports
+  variable physical time steps; normalized plotting coordinates must not be
+  substituted for physical elapsed time.
