@@ -63,6 +63,9 @@ features while the residual keeps a direct mass-balance interpretation.
 5. **Prediction, Performance Assessment, Plot, and Logs tabs**
    - Replot stored predictions, inspect metrics, compare target/predicted curves,
      analyze residuals, and review run logs.
+   - Load an exported experiment directory in the Prediction tab to validate and
+     retain its configuration, checkpoints, and scaler states for artifact-backed
+     inference.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.
 
