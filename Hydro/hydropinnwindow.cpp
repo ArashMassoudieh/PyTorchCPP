@@ -1564,6 +1564,9 @@ void HydroPINNWindow::loadExperimentConfiguration() {
     try {
         const auto loaded = HydroExperimentLoader().loadConfig(path.toStdString());
         const std::filesystem::path experimentDirectory = std::filesystem::path(path.toStdString()).parent_path();
+        if (std::filesystem::is_regular_file(experimentDirectory / "artifacts.csv")) {
+            HydroArtifactLoader().verifyArtifactManifest(experimentDirectory.string());
+        }
         loadedModelArtifacts_.clear();
         loadedScalerArtifacts_.clear();
         if (std::filesystem::is_regular_file(experimentDirectory / "models.csv")) {

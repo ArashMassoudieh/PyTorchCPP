@@ -206,4 +206,35 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
                     << validationLoss << ',' << (entry.second.best_epoch == static_cast<int>(epoch + 1) ? 1 : 0) << '\n';
         }
     }
+
+    configOut.close();
+    environment.close();
+    metrics.close();
+    modelManifest.close();
+    scalers.close();
+    physics.close();
+    predictions.close();
+    history.close();
+
+    const std::vector<std::filesystem::path> requiredArtifacts = {
+        "experiment_config.json", "environment.json", "metrics.csv", "models.csv", "scalers.csv",
+        "physics_residuals.csv", "predictions.csv", "training_history.csv"
+    };
+    const auto artifactManifestPath = root / "artifacts.csv";
+    std::ofstream artifactManifest(artifactManifestPath);
+    requireStream(artifactManifest, artifactManifestPath);
+    artifactManifest << "file,size_bytes,sha256\n";
+    for (const auto& relativePath : requiredArtifacts) {
+        const auto path = root / relativePath;
+        artifactManifest << relativePath.generic_string() << ',' << std::filesystem::file_size(path) << ','
+                         << sha256File(path.string()) << '\n';
+    }
+    if (config.use_hydro_package && !config.hydro_package_path.empty()) {
+        for (const auto& relativePath : {std::filesystem::path("dataset_manifest.json"),
+                                         std::filesystem::path("provenance.json")}) {
+            const auto path = root / relativePath;
+            artifactManifest << relativePath.generic_string() << ',' << std::filesystem::file_size(path) << ','
+                             << sha256File(path.string()) << '\n';
+        }
+    }
 }

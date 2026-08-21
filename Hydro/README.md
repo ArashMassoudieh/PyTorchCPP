@@ -164,7 +164,9 @@ session. Loading an experiment config in the GUI performs those checks and
 retains the verified model/scaler sets. It also restores exported metrics,
 prediction series, training histories, and physics residuals so plots and
 performance summaries can be inspected without retraining or invoking a
-checkpoint.
+checkpoint. New exports include `artifacts.csv`, which records byte sizes and
+SHA-256 digests for the configuration and result artifacts; the GUI verifies
+this manifest before accepting an exported experiment.
 `HydroExperimentLoader` reads the exported configuration back into a validated
 `HydroRunConfig`, providing a programmatic rerun boundary without silently
 falling back to current GUI defaults. The Performance tab can apply that

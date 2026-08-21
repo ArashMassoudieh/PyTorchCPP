@@ -21,6 +21,7 @@ struct HydroScalerArtifacts {
 
 class HydroArtifactLoader {
 public:
+    void verifyArtifactManifest(const std::string& experimentDirectory) const;
     std::map<std::string, HydroModelArtifact> loadModels(const std::string& experimentDirectory) const;
     std::map<std::string, HydroScalerArtifacts> loadScalers(const std::string& experimentDirectory) const;
     std::map<std::string, HydroRunResult> loadResults(const std::string& experimentDirectory) const;

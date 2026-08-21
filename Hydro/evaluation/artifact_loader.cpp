@@ -44,6 +44,40 @@ std::vector<int64_t> parseShape(std::string text) {
 }
 }
 
+void HydroArtifactLoader::verifyArtifactManifest(const std::string& experimentDirectory) const {
+    const std::filesystem::path root(experimentDirectory);
+    const auto canonicalRoot = std::filesystem::weakly_canonical(root);
+    std::ifstream manifest(root / "artifacts.csv");
+    if (!manifest) throw std::runtime_error("Experiment is missing artifacts.csv.");
+    std::string line;
+    if (!std::getline(manifest, line) || line != "file,size_bytes,sha256") {
+        throw std::runtime_error("artifacts.csv has an incompatible header.");
+    }
+    std::map<std::string, bool> seen;
+    std::size_t row = 1;
+    while (std::getline(manifest, line)) {
+        ++row;
+        if (line.empty()) continue;
+        const auto fields = splitCsv(line);
+        if (fields.size() != 3 || !safeRelativePath(fields[0]) || !seen.emplace(fields[0], true).second) {
+            throw std::runtime_error("Invalid artifacts.csv row " + std::to_string(row) + ".");
+        }
+        std::uintmax_t expectedSize = 0;
+        try {
+            std::size_t consumed = 0;
+            expectedSize = std::stoull(fields[1], &consumed);
+            if (consumed != fields[1].size()) throw std::invalid_argument("trailing size");
+        } catch (...) { throw std::runtime_error("Invalid artifact size at row " + std::to_string(row) + "."); }
+        const auto path = std::filesystem::weakly_canonical(root / fields[0]);
+        const auto relativeToRoot = path.lexically_relative(canonicalRoot);
+        if (relativeToRoot.empty() || *relativeToRoot.begin() == ".." || !std::filesystem::is_regular_file(path) ||
+            std::filesystem::file_size(path) != expectedSize || sha256File(path.string()) != fields[2]) {
+            throw std::runtime_error("Experiment artifact verification failed: " + fields[0]);
+        }
+    }
+    if (seen.empty()) throw std::runtime_error("artifacts.csv contains no artifacts.");
+}
+
 std::map<std::string, HydroModelArtifact> HydroArtifactLoader::loadModels(
     const std::string& experimentDirectory) const {
     const std::filesystem::path root(experimentDirectory);

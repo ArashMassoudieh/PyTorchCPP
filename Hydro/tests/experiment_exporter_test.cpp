@@ -57,6 +57,8 @@ int main() {
     assert(std::filesystem::is_regular_file(root / "physics_residuals.csv"));
     assert(std::filesystem::is_regular_file(root / "scalers.csv"));
     assert(std::filesystem::is_regular_file(root / "models.csv"));
+    assert(std::filesystem::is_regular_file(root / "artifacts.csv"));
+    HydroArtifactLoader().verifyArtifactManifest(root.string());
     assert(std::filesystem::file_size(root / "models" / "ffn.pt") == 3);
     const auto models = HydroArtifactLoader().loadModels(root.string());
     assert(models.at("ffn").bytes == result.model_checkpoint);
@@ -115,6 +117,10 @@ int main() {
         std::ofstream corrupt(root / "predictions.csv", std::ios::app);
         corrupt << "unknown,0,test,0,0,0,0\n";
     }
+    bool rejectedManifest = false;
+    try { HydroArtifactLoader().verifyArtifactManifest(root.string()); }
+    catch (const std::runtime_error&) { rejectedManifest = true; }
+    assert(rejectedManifest);
     bool rejectedResults = false;
     try { (void)HydroArtifactLoader().loadResults(root.string()); }
     catch (const std::runtime_error&) { rejectedResults = true; }
