@@ -6,6 +6,7 @@
 #include <map>
 
 #include "models/hydro_run_types.h"
+#include "evaluation/artifact_loader.h"
 
 class QLabel;
 class QComboBox;
@@ -78,6 +79,14 @@ private:
     QSpinBox* csvYColSpin_;
     QCheckBox* csvHeaderCheck_;
     QPushButton* useNeuroforgeCsvPresetButton_;
+    QLineEdit* hydroPackagePathEdit_;
+    QPushButton* browseHydroPackageButton_;
+    QLineEdit* hydroCatchmentIdEdit_;
+    QComboBox* hydroPackageProfileCombo_;
+    QCheckBox* hydroForecastFeatureCheck_;
+    QLineEdit* hydroForecastVariableEdit_;
+    QDoubleSpinBox* hydroForecastLeadSpin_;
+    QLineEdit* hydroForecastEnsembleEdit_;
     QSpinBox* sampleCountSpin_;
     QDoubleSpinBox* tStartSpin_;
     QDoubleSpinBox* tEndSpin_;
@@ -108,6 +117,8 @@ private:
     QPushButton* startGAButton_;
     QPushButton* stopGAButton_;
     QPushButton* refreshPerformanceButton_;
+    QPushButton* exportExperimentButton_;
+    QPushButton* loadExperimentConfigButton_;
     QPushButton* clearPlotButton_;
     QPushButton* showInputsOutputsButton_;
     QPushButton* zoomInPlotButton_;
@@ -120,6 +131,8 @@ private:
     QPushButton* plotResidualsButton_;
     QPushButton* plotErrorCdfButton_;
     std::map<QString, HydroRunResult> lastModeResults_;
+    std::map<std::string, HydroModelArtifact> loadedModelArtifacts_;
+    std::map<std::string, HydroScalerArtifacts> loadedScalerArtifacts_;
     std::vector<double> lastSyntheticX_;
     std::vector<double> lastSyntheticTarget_;
     std::map<QString, std::vector<double>> lastSyntheticInputs_;
@@ -137,6 +150,7 @@ private:
     void updateDataSourceUiState();
     void updateFfnLagUiState();
     void browseCsv();
+    void browseHydroPackage();
     void browseSyntheticExportPath();
     void generateSyntheticDataPreview();
     void appendLog(const QString& line);
@@ -151,6 +165,8 @@ private:
     int estimatedFfnInputCountForLagSearch(const HydroRunConfig& cfg, const QString& mode) const;
     void stopGAPlaceholder();
     void refreshPerformanceAssessment();
+    void exportExperimentArtifacts();
+    void loadExperimentConfiguration();
     void clearPlot();
     void zoomInPlot();
     void zoomOutPlot();

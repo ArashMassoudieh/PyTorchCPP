@@ -40,6 +40,13 @@ public:
                                        const torch::Tensor& storage,
                                        const PhysicsConfig& cfg) const;
 
+    /** Water balance using per-sample physical timestamps (strictly increasing). */
+    torch::Tensor waterBalanceResidualAtTimes(const torch::Tensor& rainfall,
+                                              const torch::Tensor& evapotranspiration,
+                                              const torch::Tensor& runoff,
+                                              const torch::Tensor& storage,
+                                              const torch::Tensor& timestamps) const;
+
     /**
      * @brief Penalty for negative runoff values: max(0, -Q).
      */
