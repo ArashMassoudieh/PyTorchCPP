@@ -63,6 +63,12 @@ features while the residual keeps a direct mass-balance interpretation.
 5. **Prediction, Performance Assessment, Plot, and Logs tabs**
    - Replot stored predictions, inspect metrics, compare target/predicted curves,
      analyze residuals, and review run logs.
+   - Load an exported experiment directory in the Prediction tab to validate and
+     retain its configuration, checkpoints, and scaler states for artifact-backed
+     inference. Exported predictions are restored immediately for plotting and
+     review. The programmatic inference runner can execute FFN, FFN + PINN, and
+     standalone PINN checkpoints on compatible physical input tensors using the
+     training-fitted input and target scalers.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.
 
@@ -159,7 +165,12 @@ manifest as `dataset_manifest.json` and record its SHA-256 release fingerprint
 in `provenance.json`.
 `HydroArtifactLoader` verifies model-manifest format, safe relative paths, file
 sizes, checkpoint formats, and SHA-256 digests before returning checkpoint
-bytes to a future inference session.
+bytes to a future inference session. It also reloads and validates the exported
+input and target scaler states so inference can reproduce the transformations
+that were fitted exclusively on the training partition. The inference artifact
+entry point loads the experiment configuration, checkpoints, and scalers as one
+bundle, then rejects missing counterparts, unknown approaches, and checkpoint
+formats that do not match the selected model family.
 `HydroExperimentLoader` reads the exported configuration back into a validated
 `HydroRunConfig`, providing a programmatic rerun boundary without silently
 falling back to current GUI defaults. The Performance tab can apply that
