@@ -148,6 +148,7 @@ SOURCES += \
     Hydro/evaluation/experiment_exporter.cpp \
     Hydro/evaluation/experiment_loader.cpp \
     Hydro/evaluation/artifact_loader.cpp \
+    Hydro/evaluation/inference_runner.cpp \
     Hydro/models/pinn_wrapper.cpp \
     Hydro/physics/physics_config.cpp \
     Hydro/physics/rr_physics.cpp \
@@ -197,10 +198,12 @@ HEADERS += \
     Hydro/evaluation/experiment_exporter.h \
     Hydro/evaluation/experiment_loader.h \
     Hydro/evaluation/artifact_loader.h \
+    Hydro/evaluation/inference_runner.h \
     Hydro/evaluation/model_checkpoint.h \
     Hydro/physics/physics_config.h \
     Hydro/physics/rr_physics.h \
     Hydro/models/hydro_run_types.h \
+    Hydro/models/hydro_lstm_module.h \
     Hydro/models/ffn_wrapper.h \
     Hydro/models/ffn_pinn_wrapper.h \
     Hydro/models/pinn_wrapper.h \

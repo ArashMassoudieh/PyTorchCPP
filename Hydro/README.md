@@ -66,7 +66,11 @@ features while the residual keeps a direct mass-balance interpretation.
    - Load an exported experiment directory in the Prediction tab to validate and
      retain its configuration, checkpoints, and scaler states for artifact-backed
      inference. Exported predictions are restored immediately for plotting and
-     review while checkpoint execution on new data remains a separate step.
+     review. The programmatic inference runner can execute all five checkpoint
+     families on compatible physical input tensors or LSTM sequences using the
+     training-fitted input and target scalers.
+   - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
+     verify checkpoint round trips for both feed-forward and recurrent families.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.
 

@@ -1,4 +1,5 @@
 #include "lstmnetworkwrapper.h"
+#include "hydro_lstm_module.h"
 #include "../dataset/chronological_split.h"
 #include "../dataset/tensor_scaler.h"
 #include "../dataset/hydro_tensor_builder.h"
@@ -329,28 +330,6 @@ SequenceData makeSequences(const torch::Tensor& x,
     seq.plotSeq = plotX.slice(0, sequenceLength - 1, plotX.size(0)).contiguous();
     return seq;
 }
-
-struct HydroLSTMImpl : torch::nn::Module {
-    HydroLSTMImpl(int64_t inputDim, int64_t hiddenDim, int64_t outputDim, int64_t numLayers)
-        : lstm(torch::nn::LSTMOptions(inputDim, hiddenDim)
-                   .num_layers(numLayers)
-                   .batch_first(true)),
-          fc(hiddenDim, outputDim) {
-        register_module("lstm", lstm);
-        register_module("fc", fc);
-    }
-
-    torch::Tensor forward(const torch::Tensor& x) {
-        auto outTuple = lstm->forward(x);
-        torch::Tensor out = std::get<0>(outTuple);
-        torch::Tensor last = out.select(1, out.size(1) - 1);
-        return fc->forward(last);
-    }
-
-    torch::nn::LSTM lstm{nullptr};
-    torch::nn::Linear fc{nullptr};
-};
-TORCH_MODULE(HydroLSTM);
 
 double tensorMSEValue(const torch::Tensor& pred, const torch::Tensor& truth) {
     return torch::mse_loss(pred, truth).item<double>();
