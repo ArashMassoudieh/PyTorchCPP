@@ -66,6 +66,13 @@ int main() {
     assert(loadedScalers.at("ffn").input.scale == std::vector<double>{2.0});
     assert(loadedScalers.at("ffn").target.offset == std::vector<double>{1.0});
     HydroArtifactLoader().validateCompatibility(config, models, loadedScalers);
+    const auto loadedResults = HydroArtifactLoader().loadResults(root.string());
+    assert(loadedResults.at("ffn").split == result.split);
+    assert(loadedResults.at("ffn").y_pred == result.y_pred);
+    assert(loadedResults.at("ffn").training_loss_history == result.training_loss_history);
+    assert(loadedResults.at("ffn").validation_loss_history == result.validation_loss_history);
+    assert(loadedResults.at("ffn").best_epoch == result.best_epoch);
+    assert(loadedResults.at("ffn").physics_residual == result.physics_residual);
     bool rejectedCompatibility = false;
     try { HydroArtifactLoader().validateCompatibility(config, models, {}); }
     catch (const std::runtime_error&) { rejectedCompatibility = true; }
@@ -104,6 +111,14 @@ int main() {
     assert(loaded.config.hydro_forecast_lead_hours == 6.0);
     assert(loaded.config.hydro_forecast_ensemble_member == "m01");
     assert(loaded.config.hydro_catchment_id == "watershed_\"a");
+    {
+        std::ofstream corrupt(root / "predictions.csv", std::ios::app);
+        corrupt << "unknown,0,test,0,0,0,0\n";
+    }
+    bool rejectedResults = false;
+    try { (void)HydroArtifactLoader().loadResults(root.string()); }
+    catch (const std::runtime_error&) { rejectedResults = true; }
+    assert(rejectedResults);
     {
         std::ofstream corrupt(root / "models" / "ffn.pt", std::ios::binary | std::ios::app);
         corrupt.put('\x04');

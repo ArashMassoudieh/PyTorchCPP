@@ -1572,6 +1572,7 @@ void HydroPINNWindow::loadExperimentConfiguration() {
         if (std::filesystem::is_regular_file(experimentDirectory / "scalers.csv")) {
             loadedScalerArtifacts_ = HydroArtifactLoader().loadScalers(experimentDirectory.string());
         }
+        const auto loadedResults = HydroArtifactLoader().loadResults(experimentDirectory.string());
         const auto& cfg = loaded.config;
         if (!loadedModelArtifacts_.empty()) {
             HydroArtifactLoader().validateCompatibility(cfg, loadedModelArtifacts_, loadedScalerArtifacts_);
@@ -1624,6 +1625,10 @@ void HydroPINNWindow::loadExperimentConfiguration() {
                       .arg(QString::fromStdString(loaded.experiment_id), path));
         appendLog(QString("Verified %1 model checkpoint(s) and %2 scaler set(s).")
                       .arg(loadedModelArtifacts_.size()).arg(loadedScalerArtifacts_.size()));
+        lastModeResults_.clear();
+        for (const auto& entry : loadedResults) lastModeResults_[QString::fromStdString(entry.first)] = entry.second;
+        refreshPerformanceAssessment();
+        appendLog(QString("Restored predictions and metrics for %1 approach(es).").arg(lastModeResults_.size()));
         QMessageBox::information(this, "HydroPINN", "Experiment configuration loaded. Review paths before running.");
     } catch (const std::exception& error) {
         appendLog(QString("Experiment configuration load failed: %1").arg(error.what()));

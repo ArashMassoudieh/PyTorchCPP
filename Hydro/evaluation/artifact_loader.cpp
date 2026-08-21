@@ -2,6 +2,7 @@
 
 #include "../dataset/hydro_checksum.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <cmath>
 #include <fstream>
@@ -145,6 +146,146 @@ std::map<std::string, HydroScalerArtifacts> HydroArtifactLoader::loadScalers(
         }
     }
     return scalers;
+}
+
+std::map<std::string, HydroRunResult> HydroArtifactLoader::loadResults(
+    const std::string& experimentDirectory) const {
+    const std::filesystem::path root(experimentDirectory);
+    std::ifstream metrics(root / "metrics.csv");
+    if (!metrics) throw std::runtime_error("Experiment is missing metrics.csv.");
+    std::string line;
+    if (!std::getline(metrics, line) ||
+        line != "approach,success,final_loss,validation_mse,test_mse,rmse,mae,nse,kge,correlation,pbias,volume_error_percent,physics_loss") {
+        throw std::runtime_error("metrics.csv has an incompatible header.");
+    }
+    std::map<std::string, HydroRunResult> results;
+    std::size_t row = 1;
+    while (std::getline(metrics, line)) {
+        ++row;
+        if (line.empty()) continue;
+        const auto fields = splitCsv(line);
+        if (fields.size() != 13 || fields[0].empty()) throw std::runtime_error("Invalid metrics.csv row " + std::to_string(row) + ".");
+        HydroRunResult result;
+        try {
+            if (fields[1] != "0" && fields[1] != "1") throw std::invalid_argument("invalid success flag");
+            result.success = fields[1] == "1";
+            result.final_loss = std::stod(fields[2]);
+            result.validation_mse = std::stod(fields[3]);
+            result.mse = std::stod(fields[4]);
+            result.rmse = std::stod(fields[5]);
+            result.mae = std::stod(fields[6]);
+            result.nse = std::stod(fields[7]);
+            result.kge = std::stod(fields[8]);
+            result.correlation = std::stod(fields[9]);
+            result.pbias = std::stod(fields[10]);
+            result.volume_error_percent = std::stod(fields[11]);
+            result.physics_loss = std::stod(fields[12]);
+        } catch (...) { throw std::runtime_error("Invalid metric value at row " + std::to_string(row) + "."); }
+        if (!results.emplace(fields[0], std::move(result)).second) throw std::runtime_error("Duplicate approach in metrics.csv: " + fields[0]);
+    }
+    if (results.empty()) throw std::runtime_error("metrics.csv contains no approaches.");
+
+    std::ifstream predictions(root / "predictions.csv");
+    if (!predictions) throw std::runtime_error("Experiment is missing predictions.csv.");
+    if (!std::getline(predictions, line) || line != "approach,index,split,x,observed,predicted,residual") {
+        throw std::runtime_error("predictions.csv has an incompatible header.");
+    }
+    std::map<std::string, std::size_t> nextIndex;
+    row = 1;
+    while (std::getline(predictions, line)) {
+        ++row;
+        if (line.empty()) continue;
+        const auto fields = splitCsv(line);
+        if (fields.size() != 7) throw std::runtime_error("Invalid predictions.csv row " + std::to_string(row) + ".");
+        auto found = results.find(fields[0]);
+        if (found == results.end()) throw std::runtime_error("Prediction references unknown approach: " + fields[0]);
+        try {
+            std::size_t consumed = 0;
+            const std::size_t index = std::stoull(fields[1], &consumed);
+            if (consumed != fields[1].size() || index != nextIndex[fields[0]]++) throw std::invalid_argument("unordered index");
+            const double x = std::stod(fields[3]);
+            const double observed = std::stod(fields[4]);
+            const double predicted = std::stod(fields[5]);
+            const double residual = std::stod(fields[6]);
+            if (!std::isfinite(x) || !std::isfinite(observed) || !std::isfinite(predicted) ||
+                !std::isfinite(residual) || std::abs((predicted - observed) - residual) > 1.0e-8 * std::max(1.0, std::abs(residual))) {
+                throw std::invalid_argument("invalid prediction");
+            }
+            if (fields[2] != "train" && fields[2] != "validation" && fields[2] != "test") throw std::invalid_argument("invalid split");
+            found->second.x.push_back(x);
+            found->second.y_true.push_back(observed);
+            found->second.y_pred.push_back(predicted);
+            found->second.split.push_back(fields[2]);
+        } catch (...) { throw std::runtime_error("Invalid prediction value at row " + std::to_string(row) + "."); }
+    }
+    for (const auto& entry : results) {
+        if (entry.second.success && entry.second.x.empty()) {
+            throw std::runtime_error("Successful approach has no exported predictions: " + entry.first);
+        }
+    }
+
+    std::ifstream history(root / "training_history.csv");
+    if (!history) throw std::runtime_error("Experiment is missing training_history.csv.");
+    if (!std::getline(history, line) || line != "approach,epoch,training_loss,validation_loss,selected_checkpoint") {
+        throw std::runtime_error("training_history.csv has an incompatible header.");
+    }
+    std::map<std::string, std::size_t> nextEpoch;
+    row = 1;
+    while (std::getline(history, line)) {
+        ++row;
+        if (line.empty()) continue;
+        const auto fields = splitCsv(line);
+        if (fields.size() != 5) throw std::runtime_error("Invalid training_history.csv row " + std::to_string(row) + ".");
+        auto found = results.find(fields[0]);
+        if (found == results.end()) throw std::runtime_error("Training history references unknown approach: " + fields[0]);
+        try {
+            const std::size_t epoch = std::stoull(fields[1]);
+            if (epoch != ++nextEpoch[fields[0]]) throw std::invalid_argument("unordered epoch");
+            const double trainingLoss = std::stod(fields[2]);
+            const double validationLoss = std::stod(fields[3]);
+            if (!std::isfinite(trainingLoss) || (!std::isfinite(validationLoss) && !std::isnan(validationLoss)) ||
+                (fields[4] != "0" && fields[4] != "1")) {
+                throw std::invalid_argument("invalid history value");
+            }
+            found->second.training_loss_history.push_back(trainingLoss);
+            found->second.validation_loss_history.push_back(validationLoss);
+            if (fields[4] == "1") {
+                if (found->second.best_epoch != 0) throw std::invalid_argument("multiple selected checkpoints");
+                found->second.best_epoch = static_cast<int>(epoch);
+            }
+        } catch (...) { throw std::runtime_error("Invalid training history value at row " + std::to_string(row) + "."); }
+    }
+
+    std::ifstream physics(root / "physics_residuals.csv");
+    if (!physics) throw std::runtime_error("Experiment is missing physics_residuals.csv.");
+    if (!std::getline(physics, line) || line != "approach,index,split,x,physics_residual") {
+        throw std::runtime_error("physics_residuals.csv has an incompatible header.");
+    }
+    nextIndex.clear();
+    row = 1;
+    while (std::getline(physics, line)) {
+        ++row;
+        if (line.empty()) continue;
+        const auto fields = splitCsv(line);
+        if (fields.size() != 5) throw std::runtime_error("Invalid physics_residuals.csv row " + std::to_string(row) + ".");
+        auto found = results.find(fields[0]);
+        if (found == results.end()) throw std::runtime_error("Physics residual references unknown approach: " + fields[0]);
+        try {
+            const std::size_t index = std::stoull(fields[1]);
+            if (index != nextIndex[fields[0]]++ || index >= found->second.x.size() ||
+                fields[2] != found->second.split[index]) {
+                throw std::invalid_argument("misaligned residual");
+            }
+            const double x = std::stod(fields[3]);
+            const double residual = std::stod(fields[4]);
+            if (!std::isfinite(x) || !std::isfinite(residual) ||
+                std::abs(x - found->second.x[index]) > 1.0e-8 * std::max(1.0, std::abs(x))) {
+                throw std::invalid_argument("invalid residual");
+            }
+            found->second.physics_residual.push_back(residual);
+        } catch (...) { throw std::runtime_error("Invalid physics residual value at row " + std::to_string(row) + "."); }
+    }
+    return results;
 }
 
 void HydroArtifactLoader::validateCompatibility(
