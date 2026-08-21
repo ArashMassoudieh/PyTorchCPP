@@ -146,3 +146,44 @@ std::map<std::string, HydroScalerArtifacts> HydroArtifactLoader::loadScalers(
     }
     return scalers;
 }
+
+void HydroArtifactLoader::validateCompatibility(
+    const HydroRunConfig& config,
+    const std::map<std::string, HydroModelArtifact>& models,
+    const std::map<std::string, HydroScalerArtifacts>& scalers) const {
+    if (models.empty()) throw std::runtime_error("Experiment contains no verified model checkpoints.");
+    const auto elementCount = [](const HydroScalerState& state) {
+        int64_t count = 1;
+        for (const int64_t extent : state.shape) count *= extent;
+        return count;
+    };
+    for (const auto& entry : models) {
+        const bool recurrent = entry.first == "lstm" || entry.first == "lstm_pinn";
+        const bool feedForward = entry.first == "ffn" || entry.first == "ffn_pinn" || entry.first == "pinn";
+        if (!recurrent && !feedForward) throw std::runtime_error("Unknown Hydro approach in model artifacts: " + entry.first);
+        const std::string expectedFormat = recurrent ? "torch-module-v1" : "neuralnetworkwrapper-v1";
+        if (entry.second.format != expectedFormat) {
+            throw std::runtime_error("Checkpoint format is incompatible with approach " + entry.first + ".");
+        }
+        const bool requiresScaler = entry.first == "ffn" || recurrent;
+        const auto scaler = scalers.find(entry.first);
+        if (requiresScaler && scaler == scalers.end()) {
+            throw std::runtime_error("Checkpoint is missing fitted scaler artifacts for " + entry.first + ".");
+        }
+        if (scaler != scalers.end()) {
+            if (scaler->second.input.offset.size() != scaler->second.input.scale.size() ||
+                scaler->second.target.offset.size() != scaler->second.target.scale.size() ||
+                elementCount(scaler->second.input) != static_cast<int64_t>(scaler->second.input.offset.size()) ||
+                elementCount(scaler->second.target) != 1) {
+                throw std::runtime_error("Scaler tensor dimensions are incompatible with approach " + entry.first + ".");
+            }
+            if ((entry.first == "ffn_pinn" || entry.first == "pinn" || entry.first == "lstm_pinn") &&
+                scaler->second.input.method != "none") {
+                throw std::runtime_error("PINN checkpoint cannot apply a non-physical input scaler.");
+            }
+        }
+    }
+    if (config.use_hydro_forecast_feature && config.hydro_forecast_variable.empty()) {
+        throw std::runtime_error("Forecast-enabled checkpoint configuration has no forecast variable.");
+    }
+}

@@ -65,6 +65,11 @@ int main() {
     assert(loadedScalers.at("ffn").input.method == "minmax");
     assert(loadedScalers.at("ffn").input.scale == std::vector<double>{2.0});
     assert(loadedScalers.at("ffn").target.offset == std::vector<double>{1.0});
+    HydroArtifactLoader().validateCompatibility(config, models, loadedScalers);
+    bool rejectedCompatibility = false;
+    try { HydroArtifactLoader().validateCompatibility(config, models, {}); }
+    catch (const std::runtime_error&) { rejectedCompatibility = true; }
+    assert(rejectedCompatibility);
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);

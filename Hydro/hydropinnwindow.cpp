@@ -1573,6 +1573,9 @@ void HydroPINNWindow::loadExperimentConfiguration() {
             loadedScalerArtifacts_ = HydroArtifactLoader().loadScalers(experimentDirectory.string());
         }
         const auto& cfg = loaded.config;
+        if (!loadedModelArtifacts_.empty()) {
+            HydroArtifactLoader().validateCompatibility(cfg, loadedModelArtifacts_, loadedScalerArtifacts_);
+        }
         auto selectText = [](QComboBox* combo, const std::string& value) {
             const int index = combo->findText(QString::fromStdString(value), Qt::MatchFixedString);
             if (index < 0) throw std::runtime_error("Configuration value is not supported by this GUI: " + value);

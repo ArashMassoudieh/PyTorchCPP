@@ -158,9 +158,10 @@ written to `training_history.csv` and `scalers.csv`. Every export includes
 manifest as `dataset_manifest.json` and record its SHA-256 release fingerprint
 in `provenance.json`.
 `HydroArtifactLoader` verifies model-manifest format, safe relative paths, file
-sizes, checkpoint formats, SHA-256 digests, and fitted scaler metadata before
-returning artifacts to an inference session. Loading an experiment config in
-the GUI now performs those checks and retains the verified model/scaler sets.
+sizes, checkpoint formats, SHA-256 digests, fitted scaler metadata, and
+approach/format/scaler compatibility before returning artifacts to an inference
+session. Loading an experiment config in the GUI performs those checks and
+retains the verified model/scaler sets.
 `HydroExperimentLoader` reads the exported configuration back into a validated
 `HydroRunConfig`, providing a programmatic rerun boundary without silently
 falling back to current GUI defaults. The Performance tab can apply that

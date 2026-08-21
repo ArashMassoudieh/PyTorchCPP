@@ -23,4 +23,7 @@ class HydroArtifactLoader {
 public:
     std::map<std::string, HydroModelArtifact> loadModels(const std::string& experimentDirectory) const;
     std::map<std::string, HydroScalerArtifacts> loadScalers(const std::string& experimentDirectory) const;
+    void validateCompatibility(const HydroRunConfig& config,
+                               const std::map<std::string, HydroModelArtifact>& models,
+                               const std::map<std::string, HydroScalerArtifacts>& scalers) const;
 };
