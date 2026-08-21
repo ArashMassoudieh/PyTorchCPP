@@ -61,6 +61,14 @@ int main() {
     const auto models = HydroArtifactLoader().loadModels(root.string());
     assert(models.at("ffn").bytes == result.model_checkpoint);
     assert(models.at("ffn").format == "neuralnetworkwrapper-v1");
+    const auto scalerStates = HydroArtifactLoader().loadScalers(root.string());
+    assert(scalerStates.at("ffn").input.method == "minmax");
+    assert(scalerStates.at("ffn").input.shape == std::vector<int64_t>({1, 1}));
+    assert(scalerStates.at("ffn").input.offset == std::vector<double>({0.0}));
+    assert(scalerStates.at("ffn").input.scale == std::vector<double>({2.0}));
+    assert(scalerStates.at("ffn").target.method == "standardize");
+    assert(scalerStates.at("ffn").target.offset == std::vector<double>({1.0}));
+    assert(scalerStates.at("ffn").target.scale == std::vector<double>({0.5}));
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);
@@ -103,6 +111,15 @@ int main() {
     try { (void)HydroArtifactLoader().loadModels(root.string()); }
     catch (const std::runtime_error&) { rejectedModel = true; }
     assert(rejectedModel);
+    {
+        std::ofstream invalidScalers(root / "scalers.csv", std::ios::trunc);
+        invalidScalers << "approach,kind,index,method,shape,offset,scale\n"
+                       << "ffn,input,1,minmax,\"1;1\",0,2\n";
+    }
+    bool rejectedScalers = false;
+    try { (void)HydroArtifactLoader().loadScalers(root.string()); }
+    catch (const std::runtime_error&) { rejectedScalers = true; }
+    assert(rejectedScalers);
     std::filesystem::remove_all(output);
     return 0;
 }

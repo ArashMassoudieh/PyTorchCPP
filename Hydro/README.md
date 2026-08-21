@@ -159,7 +159,9 @@ manifest as `dataset_manifest.json` and record its SHA-256 release fingerprint
 in `provenance.json`.
 `HydroArtifactLoader` verifies model-manifest format, safe relative paths, file
 sizes, checkpoint formats, and SHA-256 digests before returning checkpoint
-bytes to a future inference session.
+bytes to a future inference session. It also reloads and validates the exported
+input and target scaler states so inference can reproduce the transformations
+that were fitted exclusively on the training partition.
 `HydroExperimentLoader` reads the exported configuration back into a validated
 `HydroRunConfig`, providing a programmatic rerun boundary without silently
 falling back to current GUI defaults. The Performance tab can apply that
