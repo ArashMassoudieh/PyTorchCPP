@@ -2,6 +2,7 @@
 
 #include "model_checkpoint.h"
 #include "../dataset/tensor_scaler.h"
+#include "../models/hydro_lstm_module.h"
 #include "../../neuralnetworkwrapper.h"
 
 #include <filesystem>
@@ -100,6 +101,57 @@ torch::Tensor HydroInferenceRunner::predictFeedForward(
     if (!prediction.defined() || prediction.dim() != 2 || prediction.size(0) != physicalInputs.size(0) ||
         prediction.size(1) != 1 || !prediction.isfinite().all().item<bool>()) {
         throw std::runtime_error("Feed-forward checkpoint produced invalid predictions.");
+    }
+    return prediction;
+}
+
+torch::Tensor HydroInferenceRunner::predictRecurrent(
+    const HydroInferenceArtifacts& artifacts,
+    const std::string& approach,
+    const torch::Tensor& physicalSequences) const {
+    if (approach != "lstm" && approach != "lstm_pinn") {
+        throw std::invalid_argument("Recurrent inference does not support approach: " + approach);
+    }
+    const auto modelArtifact = artifacts.models.find(approach);
+    const auto scalerArtifact = artifacts.scalers.find(approach);
+    if (modelArtifact == artifacts.models.end() || scalerArtifact == artifacts.scalers.end()) {
+        throw std::runtime_error("Inference artifacts are incomplete for approach: " + approach);
+    }
+    if (modelArtifact->second.format != "torch-module-v1") {
+        throw std::runtime_error("Recurrent inference requires torch-module-v1.");
+    }
+    if (!physicalSequences.defined() || physicalSequences.dim() != 3 ||
+        physicalSequences.size(0) == 0 || physicalSequences.size(1) == 0) {
+        throw std::invalid_argument("Recurrent inference inputs must be a non-empty [batch, sequence, feature] tensor.");
+    }
+    if (physicalSequences.size(1) != artifacts.experiment.config.lstm_sequence_length) {
+        throw std::invalid_argument("Inference sequence length does not match the exported configuration.");
+    }
+    if (scalerArtifact->second.input.offset.size() != static_cast<std::size_t>(physicalSequences.size(2))) {
+        throw std::invalid_argument("Inference input feature count does not match the exported scaler state.");
+    }
+    if (scalerArtifact->second.target.offset.size() != 1) {
+        throw std::runtime_error("Recurrent inference requires a scalar target scaler.");
+    }
+
+    TensorScaler inputScaler;
+    TensorScaler targetScaler;
+    inputScaler.importState(scalerArtifact->second.input);
+    targetScaler.importState(scalerArtifact->second.target);
+    const auto scaledSequences = inputScaler.transform(physicalSequences);
+    const auto hiddenLayers = parseHiddenLayers(artifacts.experiment.config.hidden_layers_csv);
+    HydroLSTM model(physicalSequences.size(2), hiddenLayers.front(), 1,
+                    static_cast<int64_t>(hiddenLayers.size()));
+    TemporaryCheckpoint checkpoint(modelArtifact->second.bytes, "hydro_inference_" + approach);
+    torch::serialize::InputArchive archive;
+    archive.load_from(checkpoint.path().string());
+    model->load(archive);
+    model->eval();
+    torch::NoGradGuard noGrad;
+    const auto prediction = targetScaler.inverseTransform(model->forward(scaledSequences));
+    if (!prediction.defined() || prediction.dim() != 2 || prediction.size(0) != physicalSequences.size(0) ||
+        prediction.size(1) != 1 || !prediction.isfinite().all().item<bool>()) {
+        throw std::runtime_error("Recurrent checkpoint produced invalid predictions.");
     }
     return prediction;
 }

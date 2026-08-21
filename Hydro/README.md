@@ -66,8 +66,8 @@ features while the residual keeps a direct mass-balance interpretation.
    - Load an exported experiment directory in the Prediction tab to validate and
      retain its configuration, checkpoints, and scaler states for artifact-backed
      inference. Exported predictions are restored immediately for plotting and
-     review. The programmatic inference runner can execute FFN, FFN + PINN, and
-     standalone PINN checkpoints on compatible physical input tensors using the
+     review. The programmatic inference runner can execute all five checkpoint
+     families on compatible physical input tensors or LSTM sequences using the
      training-fitted input and target scalers.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.

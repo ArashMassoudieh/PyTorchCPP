@@ -203,6 +203,7 @@ HEADERS += \
     Hydro/physics/physics_config.h \
     Hydro/physics/rr_physics.h \
     Hydro/models/hydro_run_types.h \
+    Hydro/models/hydro_lstm_module.h \
     Hydro/models/ffn_wrapper.h \
     Hydro/models/ffn_pinn_wrapper.h \
     Hydro/models/pinn_wrapper.h \
