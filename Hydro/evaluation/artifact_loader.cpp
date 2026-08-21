@@ -193,3 +193,34 @@ std::map<std::string, HydroArtifactScalers> HydroArtifactLoader::loadScalers(
     }
     return scalers;
 }
+
+HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
+    const std::string& experimentDirectory) const {
+    const std::filesystem::path root(experimentDirectory);
+    HydroInferenceArtifacts artifacts;
+    artifacts.experiment = HydroExperimentLoader().loadConfig((root / "experiment_config.json").string());
+    artifacts.models = loadModels(experimentDirectory);
+    artifacts.scalers = loadScalers(experimentDirectory);
+
+    for (const auto& entry : artifacts.models) {
+        const auto scaler = artifacts.scalers.find(entry.first);
+        if (scaler == artifacts.scalers.end()) {
+            throw std::runtime_error("Model is missing scaler state for approach: " + entry.first);
+        }
+        const bool recurrent = entry.first == "lstm" || entry.first == "lstm_pinn";
+        const bool feedForward = entry.first == "ffn" || entry.first == "ffn_pinn" || entry.first == "pinn";
+        if (!recurrent && !feedForward) {
+            throw std::runtime_error("Unsupported inference approach: " + entry.first);
+        }
+        const std::string expectedFormat = recurrent ? "torch-module-v1" : "neuralnetworkwrapper-v1";
+        if (entry.second.format != expectedFormat) {
+            throw std::runtime_error("Checkpoint format does not match approach " + entry.first + ".");
+        }
+    }
+    for (const auto& entry : artifacts.scalers) {
+        if (artifacts.models.find(entry.first) == artifacts.models.end()) {
+            throw std::runtime_error("Scaler state has no matching model for approach: " + entry.first);
+        }
+    }
+    return artifacts;
+}

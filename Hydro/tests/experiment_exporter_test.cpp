@@ -69,6 +69,10 @@ int main() {
     assert(scalerStates.at("ffn").target.method == "standardize");
     assert(scalerStates.at("ffn").target.offset == std::vector<double>({1.0}));
     assert(scalerStates.at("ffn").target.scale == std::vector<double>({0.5}));
+    const auto inferenceArtifacts = HydroArtifactLoader().loadForInference(root.string());
+    assert(inferenceArtifacts.experiment.experiment_id == "run_001");
+    assert(inferenceArtifacts.models.count("ffn") == 1);
+    assert(inferenceArtifacts.scalers.count("ffn") == 1);
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);
@@ -103,6 +107,20 @@ int main() {
     assert(loaded.config.hydro_forecast_lead_hours == 6.0);
     assert(loaded.config.hydro_forecast_ensemble_member == "m01");
     assert(loaded.config.hydro_catchment_id == "watershed_\"a");
+    {
+        std::ofstream incompatibleModels(root / "models.csv", std::ios::trunc);
+        incompatibleModels << "approach,file,format,size_bytes,sha256\n"
+                           << "ffn,models/ffn.pt,torch-module-v1,3," << models.at("ffn").sha256 << '\n';
+    }
+    bool rejectedInferenceBundle = false;
+    try { (void)HydroArtifactLoader().loadForInference(root.string()); }
+    catch (const std::runtime_error&) { rejectedInferenceBundle = true; }
+    assert(rejectedInferenceBundle);
+    {
+        std::ofstream compatibleModels(root / "models.csv", std::ios::trunc);
+        compatibleModels << "approach,file,format,size_bytes,sha256\n"
+                         << "ffn,models/ffn.pt,neuralnetworkwrapper-v1,3," << models.at("ffn").sha256 << '\n';
+    }
     {
         std::ofstream corrupt(root / "models" / "ffn.pt", std::ios::binary | std::ios::app);
         corrupt.put('\x04');
