@@ -65,7 +65,8 @@ features while the residual keeps a direct mass-balance interpretation.
      analyze residuals, and review run logs.
    - Load an exported experiment directory in the Prediction tab to validate and
      retain its configuration, checkpoints, and scaler states for artifact-backed
-     inference.
+     inference. Exported predictions are restored immediately for plotting and
+     review while checkpoint execution on new data remains a separate step.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.
 

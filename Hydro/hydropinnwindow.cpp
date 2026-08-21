@@ -1571,6 +1571,15 @@ void HydroPINNWindow::loadInferenceArtifacts() {
         QStringList approaches;
         for (const auto& entry : artifacts.models) approaches.push_back(QString::fromStdString(entry.first));
         const QString experimentId = QString::fromStdString(artifacts.experiment.experiment_id);
+        const auto storedResults = HydroArtifactLoader().loadPredictions(directory.toStdString());
+        std::map<QString, HydroRunResult> restoredResults;
+        for (const auto& entry : storedResults) {
+            if (artifacts.models.find(entry.first) == artifacts.models.end()) {
+                throw std::runtime_error("Exported predictions have no matching checkpoint: " + entry.first);
+            }
+            restoredResults.emplace(QString::fromStdString(entry.first), entry.second);
+        }
+        lastModeResults_ = std::move(restoredResults);
         loadedInferenceArtifacts_ = std::make_unique<HydroInferenceArtifacts>(std::move(artifacts));
         appendLog(QString("Loaded compatibility-checked inference artifacts for experiment '%1': %2.")
                       .arg(experimentId, approaches.join(", ")));
@@ -1578,6 +1587,7 @@ void HydroPINNWindow::loadInferenceArtifacts() {
             this, "HydroPINN Inference Artifacts",
             QString("Loaded experiment '%1'.\nAvailable checkpoints: %2")
                 .arg(experimentId, approaches.join(", ")));
+        refreshPerformanceAssessment();
     } catch (const std::exception& error) {
         loadedInferenceArtifacts_.reset();
         appendLog(QString("Inference artifact load failed: %1").arg(error.what()));

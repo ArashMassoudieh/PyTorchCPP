@@ -73,6 +73,10 @@ int main() {
     assert(inferenceArtifacts.experiment.experiment_id == "run_001");
     assert(inferenceArtifacts.models.count("ffn") == 1);
     assert(inferenceArtifacts.scalers.count("ffn") == 1);
+    const auto storedResults = HydroArtifactLoader().loadPredictions(root.string());
+    assert(storedResults.at("ffn").success);
+    assert(storedResults.at("ffn").split == std::vector<std::string>({"train", "test"}));
+    assert(storedResults.at("ffn").y_pred == std::vector<double>({1.5, 1.5}));
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);
@@ -138,6 +142,15 @@ int main() {
     try { (void)HydroArtifactLoader().loadScalers(root.string()); }
     catch (const std::runtime_error&) { rejectedScalers = true; }
     assert(rejectedScalers);
+    {
+        std::ofstream invalidPredictions(root / "predictions.csv", std::ios::trunc);
+        invalidPredictions << "approach,index,split,x,observed,predicted,residual\n"
+                           << "ffn,0,test,0,1,2,99\n";
+    }
+    bool rejectedPredictions = false;
+    try { (void)HydroArtifactLoader().loadPredictions(root.string()); }
+    catch (const std::runtime_error&) { rejectedPredictions = true; }
+    assert(rejectedPredictions);
     std::filesystem::remove_all(output);
     return 0;
 }

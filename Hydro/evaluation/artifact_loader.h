@@ -30,5 +30,6 @@ class HydroArtifactLoader {
 public:
     std::map<std::string, HydroModelArtifact> loadModels(const std::string& experimentDirectory) const;
     std::map<std::string, HydroArtifactScalers> loadScalers(const std::string& experimentDirectory) const;
+    std::map<std::string, HydroRunResult> loadPredictions(const std::string& experimentDirectory) const;
     HydroInferenceArtifacts loadForInference(const std::string& experimentDirectory) const;
 };

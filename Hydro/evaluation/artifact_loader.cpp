@@ -2,6 +2,7 @@
 
 #include "../dataset/hydro_checksum.h"
 
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -192,6 +193,57 @@ std::map<std::string, HydroArtifactScalers> HydroArtifactLoader::loadScalers(
         validateState(entry.second.target, "target");
     }
     return scalers;
+}
+
+std::map<std::string, HydroRunResult> HydroArtifactLoader::loadPredictions(
+    const std::string& experimentDirectory) const {
+    std::ifstream input(std::filesystem::path(experimentDirectory) / "predictions.csv");
+    if (!input) throw std::runtime_error("Experiment is missing predictions.csv.");
+    std::string line;
+    if (!std::getline(input, line) || line != "approach,index,split,x,observed,predicted,residual") {
+        throw std::runtime_error("predictions.csv has an incompatible header.");
+    }
+
+    std::map<std::string, HydroRunResult> results;
+    std::size_t row = 1;
+    while (std::getline(input, line)) {
+        ++row;
+        if (line.empty()) continue;
+        const auto fields = splitCsv(line);
+        if (fields.size() != 7 || fields[0].empty() ||
+            (fields[2] != "train" && fields[2] != "validation" && fields[2] != "test")) {
+            throw std::runtime_error("Invalid predictions.csv row " + std::to_string(row) + ".");
+        }
+        auto& result = results[fields[0]];
+        std::size_t index = 0;
+        try {
+            std::size_t consumed = 0;
+            index = std::stoull(fields[1], &consumed);
+            if (consumed != fields[1].size()) throw std::invalid_argument("invalid index");
+        } catch (...) {
+            throw std::runtime_error("Invalid prediction index in row " + std::to_string(row) + ".");
+        }
+        if (index != result.x.size()) {
+            throw std::runtime_error("Prediction indices are not contiguous in row " + std::to_string(row) + ".");
+        }
+        const double x = parseFiniteDouble(fields[3], "x", row);
+        const double observed = parseFiniteDouble(fields[4], "observed", row);
+        const double predicted = parseFiniteDouble(fields[5], "predicted", row);
+        const double residual = parseFiniteDouble(fields[6], "residual", row);
+        const double expectedResidual = predicted - observed;
+        const double tolerance = 1.0e-10 * std::max({1.0, std::abs(expectedResidual), std::abs(residual)});
+        if (std::abs(residual - expectedResidual) > tolerance) {
+            throw std::runtime_error("Prediction residual is inconsistent in row " + std::to_string(row) + ".");
+        }
+        result.x.push_back(x);
+        result.y_true.push_back(observed);
+        result.y_pred.push_back(predicted);
+        result.split.push_back(fields[2]);
+        result.success = true;
+        result.message = "Reloaded exported predictions.";
+    }
+    if (results.empty()) throw std::runtime_error("predictions.csv contains no predictions.");
+    return results;
 }
 
 HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
