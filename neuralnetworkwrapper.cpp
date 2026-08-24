@@ -605,6 +605,16 @@ torch::Tensor NeuralNetworkWrapper::forward(DataType data_type) {
     return x;
 }
 
+torch::Tensor NeuralNetworkWrapper::forwardTensor(const torch::Tensor& input) {
+    if (!is_initialized_ || layers_.empty()) {
+        throw std::runtime_error("Network must be initialized before forward pass.");
+    }
+    if (!input.defined() || input.dim() != 2 || input.size(1) != input_size_) {
+        throw std::invalid_argument("Direct forward input must have shape [batch, configured features].");
+    }
+    return forward_internal(input);
+}
+
 std::vector<double> NeuralNetworkWrapper::train(int num_epochs,
                                                 int batch_size,
                                                 double learning_rate,

@@ -4,7 +4,22 @@
 
 #include <torch/torch.h>
 
+#include <memory>
 #include <string>
+
+class HydroInferenceSession {
+public:
+    HydroInferenceSession(const HydroInferenceArtifacts& artifacts, const std::string& approach);
+    ~HydroInferenceSession();
+    HydroInferenceSession(HydroInferenceSession&&) noexcept;
+    HydroInferenceSession& operator=(HydroInferenceSession&&) noexcept;
+
+    torch::Tensor predict(const torch::Tensor& physicalInputs) const;
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
 
 class HydroInferenceRunner {
 public:

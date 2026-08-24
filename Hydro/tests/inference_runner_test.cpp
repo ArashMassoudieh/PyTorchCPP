@@ -33,6 +33,9 @@ int main() {
     artifacts.scalers["ffn"] = {identityScaler({1, 2}, 2), identityScaler({1, 1}, 1)};
     const auto actualFeedForward = HydroInferenceRunner().predictFeedForward(artifacts, "ffn", feedForwardInputs);
     assert(torch::allclose(actualFeedForward, expectedFeedForward));
+    HydroInferenceSession feedForwardSession(artifacts, "ffn");
+    assert(torch::allclose(feedForwardSession.predict(feedForwardInputs), expectedFeedForward));
+    assert(torch::allclose(feedForwardSession.predict(feedForwardInputs), expectedFeedForward));
 
     const torch::Tensor recurrentInputs = torch::tensor(
         {{{1.0f, 2.0f}, {2.0f, 3.0f}}, {{3.0f, 4.0f}, {4.0f, 5.0f}}});
@@ -49,6 +52,9 @@ int main() {
     artifacts.scalers["lstm"] = {identityScaler({1, 1, 2}, 2), identityScaler({1, 1}, 1)};
     const auto actualRecurrent = HydroInferenceRunner().predictRecurrent(artifacts, "lstm", recurrentInputs);
     assert(torch::allclose(actualRecurrent, expectedRecurrent));
+    HydroInferenceSession recurrentSession(artifacts, "lstm");
+    assert(torch::allclose(recurrentSession.predict(recurrentInputs), expectedRecurrent));
+    assert(torch::allclose(recurrentSession.predict(recurrentInputs), expectedRecurrent));
 
     bool rejectedWidth = false;
     try { (void)HydroInferenceRunner().predictFeedForward(artifacts, "ffn", torch::zeros({2, 3})); }

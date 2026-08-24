@@ -70,6 +70,9 @@ public:
      */
     torch::Tensor forward(DataType data_type);
 
+    /** Run a forward pass without copying inputs into the stored train/test datasets. */
+    torch::Tensor forwardTensor(const torch::Tensor& input);
+
     /**
      * @brief Get the number of output time series (output features).
      * @return Number of output features/time series
