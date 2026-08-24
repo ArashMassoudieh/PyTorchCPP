@@ -93,7 +93,9 @@ int main() {
     assert(storedResults.at("ffn").mse == 0.25);
     assert(storedResults.at("ffn").rmse == 0.5);
     const auto storedResiduals = HydroArtifactLoader().loadPhysicsResiduals(root.string());
-    assert(storedResiduals.at("ffn") == result.physics_residual);
+    assert(storedResiduals.at("ffn").values == result.physics_residual);
+    assert(storedResiduals.at("ffn").x == result.x);
+    assert(storedResiduals.at("ffn").split == result.split);
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);

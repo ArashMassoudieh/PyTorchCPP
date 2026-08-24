@@ -1620,10 +1620,17 @@ void HydroPINNWindow::loadInferenceArtifacts() {
         const auto storedResiduals = HydroArtifactLoader().loadPhysicsResiduals(directory.toStdString());
         for (const auto& entry : storedResiduals) {
             const auto result = storedResults.find(entry.first);
-            if (result == storedResults.end() || entry.second.size() != result->second.x.size()) {
+            if (result == storedResults.end() || entry.second.values.size() != result->second.x.size() ||
+                entry.second.split != result->second.split) {
                 throw std::runtime_error("Exported physics residuals do not align with predictions for: " + entry.first);
             }
-            result->second.physics_residual = entry.second;
+            for (std::size_t i = 0; i < entry.second.x.size(); ++i) {
+                const double tolerance = 1.0e-10 * std::max({1.0, std::abs(entry.second.x[i]), std::abs(result->second.x[i])});
+                if (std::abs(entry.second.x[i] - result->second.x[i]) > tolerance) {
+                    throw std::runtime_error("Exported physics residual timestamps do not match predictions for: " + entry.first);
+                }
+            }
+            result->second.physics_residual = entry.second.values;
             populateHydroPhysicsResidualMetrics(result->second);
         }
         std::map<QString, HydroRunResult> restoredResults;
