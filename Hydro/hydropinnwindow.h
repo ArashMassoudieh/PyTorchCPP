@@ -146,6 +146,7 @@ private:
     void showSelectedPrediction();
     void showAllPredictions();
     void showPredictionForMode(const QString& mode);
+    bool runLoadedInferenceForMode(const QString& mode);
     void loadInferenceArtifacts();
     void showSyntheticInputsOutputs();
     void applyNeuroforgeCsvPreset();

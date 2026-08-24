@@ -7,6 +7,7 @@
 #include "models/lstm_pinn_wrapper.h"
 #include "evaluation/experiment_exporter.h"
 #include "evaluation/experiment_loader.h"
+#include "dataset/hydro_tensor_builder.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -109,7 +110,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       runPredictionPINNButton_(new QPushButton("Run PINN", this)),
       runPredictionLSTMButton_(new QPushButton("Run LSTM", this)), runPredictionLSTMPINNButton_(new QPushButton("Run LSTM + PINN", this)),
       loadInferenceArtifactsButton_(new QPushButton("Load Inference Artifacts...", this)),
-      predictionUseCurrentDataCheck_(new QCheckBox("Prediction uses current Data tab settings (re-run mode)", this)),
+      predictionUseCurrentDataCheck_(new QCheckBox("Run loaded checkpoint on current Hydro Package", this)),
       runTrainingButton_(new QPushButton("Train Selected", this)), runAllTrainingButton_(new QPushButton("Train All", this)),
       runTrainingFFNButton_(new QPushButton("Train FFN", this)), runTrainingFFNPINNButton_(new QPushButton("Train FFN + PINN", this)),
       runTrainingPINNButton_(new QPushButton("Train PINN", this)),
@@ -1824,10 +1825,10 @@ void HydroPINNWindow::runAllModes() {
 
 void HydroPINNWindow::showPredictionForMode(const QString& mode) {
     if (predictionUseCurrentDataCheck_->isChecked()) {
-        appendLog(QString("Prediction is set to current data settings; re-running approach '%1'.").arg(modeDisplayName(mode)));
-        runMode(mode);
-        predictionUseCurrentDataCheck_->setChecked(false);
-        appendLog("Prediction re-run mode auto-disabled after one execution to prevent repeated retraining loops.");
+        if (!runLoadedInferenceForMode(mode)) {
+            QMessageBox::warning(this, "HydroPINN Inference",
+                                 "Loaded checkpoint inference failed. Review the Logs tab for details.");
+        }
         return;
     }
 
@@ -1843,16 +1844,62 @@ void HydroPINNWindow::showPredictionForMode(const QString& mode) {
     appendLog(QString("Displayed stored target vs prediction for approach '%1'.").arg(modeDisplayName(mode)));
 }
 
+bool HydroPINNWindow::runLoadedInferenceForMode(const QString& mode) {
+    const auto session = inferenceSessions_.find(mode);
+    if (session == inferenceSessions_.end()) {
+        appendLog(QString("No loaded checkpoint session is available for '%1'.").arg(modeDisplayName(mode)));
+        return false;
+    }
+    HydroRunConfig config = currentConfig();
+    if (!config.use_hydro_package) {
+        appendLog("Loaded checkpoint inference currently requires Hydro Package as the Data tab source.");
+        return false;
+    }
+    try {
+        torch::Tensor inputs;
+        torch::Tensor targets;
+        torch::Tensor plotX;
+        if (!loadHydroPackageTensors(config, inputs, targets, plotX)) {
+            throw std::runtime_error("Unable to build tensors from the selected Hydro package.");
+        }
+        const torch::Tensor predictions = session->second->predictSeries(inputs).to(torch::kCPU).contiguous();
+        const int64_t offset = inputs.size(0) - predictions.size(0);
+        if (offset < 0 || offset + predictions.size(0) > targets.size(0)) {
+            throw std::runtime_error("Inference predictions do not align with the selected package.");
+        }
+        const auto alignedTargets = targets.slice(0, offset, offset + predictions.size(0)).to(torch::kCPU).contiguous();
+        const auto alignedX = plotX.slice(0, offset, offset + predictions.size(0)).to(torch::kCPU).contiguous();
+        HydroRunResult result;
+        result.success = true;
+        result.message = "Loaded checkpoint inference on current Hydro package.";
+        result.x.reserve(static_cast<std::size_t>(predictions.size(0)));
+        result.y_true.reserve(result.x.capacity());
+        result.y_pred.reserve(result.x.capacity());
+        result.split.assign(static_cast<std::size_t>(predictions.size(0)), "test");
+        for (int64_t i = 0; i < predictions.size(0); ++i) {
+            result.x.push_back(alignedX[i].item<double>());
+            result.y_true.push_back(alignedTargets[i].item<double>());
+            result.y_pred.push_back(predictions[i].item<double>());
+        }
+        lastModeResults_[mode] = std::move(result);
+        updatePlot(mode, lastModeResults_.at(mode));
+        appendLog(QString("Ran loaded '%1' checkpoint on %2 current package samples.")
+                      .arg(modeDisplayName(mode)).arg(predictions.size(0)));
+        return true;
+    } catch (const std::exception& error) {
+        appendLog(QString("Loaded checkpoint inference failed for '%1': %2")
+                      .arg(modeDisplayName(mode), QString::fromUtf8(error.what())));
+        return false;
+    }
+}
+
 void HydroPINNWindow::showSelectedPrediction() {
     showPredictionForMode(selectedModeKey());
 }
 
 void HydroPINNWindow::showAllPredictions() {
     if (predictionUseCurrentDataCheck_->isChecked()) {
-        appendLog("Prediction is set to current data settings; re-running all approaches.");
-        runAllModes();
-        predictionUseCurrentDataCheck_->setChecked(false);
-        appendLog("Prediction re-run mode auto-disabled after one execution to prevent repeated retraining loops.");
+        for (const auto& entry : inferenceSessions_) runLoadedInferenceForMode(entry.first);
         return;
     }
 
