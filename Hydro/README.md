@@ -85,6 +85,8 @@ features while the residual keeps a direct mass-balance interpretation.
      aligns observations and timestamps after the maximum lag automatically.
      Training and inference share the same CSV tensor builder, preventing parser
      or feature-order drift between checkpoint creation and later execution.
+     The builder accepts quoted numeric fields and LF or CRLF records, and rejects
+     partial or non-finite numeric values instead of silently truncating them.
      FFN training and inference also share lag parsing, feature-column mapping,
      tensor expansion, and leading-row alignment.
      Artifact CSV manifests accept both Unix LF and Windows CRLF line endings.

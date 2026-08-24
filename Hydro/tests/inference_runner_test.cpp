@@ -47,9 +47,9 @@ int main() {
     assert(torch::allclose(lagged.inputs, torch::tensor({{3.0f, 2.0f, 30.0f, 10.0f}})));
     const std::filesystem::path csvPath = "/tmp/hydro_inference_input_test.csv";
     {
-        std::ofstream csv(csvPath);
-        csv << "time,target\n";
-        for (int i = 0; i < 10; ++i) csv << i << ',' << i * 2 << '\n';
+        std::ofstream csv(csvPath, std::ios::binary);
+        csv << "time,target\r\n";
+        for (int i = 0; i < 10; ++i) csv << '"' << i << "\",\"" << i * 2 << "\"\r\n";
     }
     HydroRunConfig csvConfig;
     csvConfig.csv_path = csvPath.string();
