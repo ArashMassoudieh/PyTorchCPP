@@ -7,6 +7,7 @@
 #include "models/lstm_pinn_wrapper.h"
 #include "evaluation/experiment_exporter.h"
 #include "evaluation/experiment_loader.h"
+#include "evaluation/hydro_metrics.h"
 #include "dataset/hydro_tensor_builder.h"
 
 #include <QCheckBox>
@@ -1850,12 +1851,31 @@ bool HydroPINNWindow::runLoadedInferenceForMode(const QString& mode) {
         appendLog(QString("No loaded checkpoint session is available for '%1'.").arg(modeDisplayName(mode)));
         return false;
     }
-    HydroRunConfig config = currentConfig();
-    if (!config.use_hydro_package) {
+    const HydroRunConfig current = currentConfig();
+    if (!current.use_hydro_package) {
         appendLog("Loaded checkpoint inference currently requires Hydro Package as the Data tab source.");
         return false;
     }
+    if (!loadedInferenceArtifacts_) {
+        appendLog("Loaded checkpoint inference has no active experiment configuration.");
+        return false;
+    }
     try {
+        const HydroRunConfig& exported = loadedInferenceArtifacts_->experiment.config;
+        if (current.hydro_package_profile != exported.hydro_package_profile ||
+            current.use_hydro_forecast_feature != exported.use_hydro_forecast_feature ||
+            (exported.use_hydro_forecast_feature &&
+             (current.hydro_forecast_variable != exported.hydro_forecast_variable ||
+              std::abs(current.hydro_forecast_lead_hours - exported.hydro_forecast_lead_hours) > 1.0e-9 ||
+              current.hydro_forecast_ensemble_member != exported.hydro_forecast_ensemble_member))) {
+            throw std::runtime_error(
+                "Current Hydro Package feature settings do not match the loaded experiment configuration.");
+        }
+        HydroRunConfig config = exported;
+        config.use_hydro_package = true;
+        config.use_csv_data = false;
+        config.hydro_package_path = current.hydro_package_path;
+        config.hydro_catchment_id = current.hydro_catchment_id;
         torch::Tensor inputs;
         torch::Tensor targets;
         torch::Tensor plotX;
@@ -1881,6 +1901,7 @@ bool HydroPINNWindow::runLoadedInferenceForMode(const QString& mode) {
             result.y_true.push_back(alignedTargets[i].item<double>());
             result.y_pred.push_back(predictions[i].item<double>());
         }
+        populateHydroMetrics(result, result.y_true, result.y_pred);
         lastModeResults_[mode] = std::move(result);
         updatePlot(mode, lastModeResults_.at(mode));
         appendLog(QString("Ran loaded '%1' checkpoint on %2 current package samples.")

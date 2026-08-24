@@ -78,7 +78,9 @@ features while the residual keeps a direct mass-balance interpretation.
      For LSTM approaches, `predictSeries` builds all overlapping sequence windows
      with a tensor view operation instead of a per-window allocation loop.
      Select **Run loaded checkpoint on current Hydro Package** to execute prepared
-     GUI sessions on the package selected in the Data tab without retraining.
+     GUI sessions on the package selected in the Data tab without retraining. The
+     package profile and forecast-feature semantics must match the exported run;
+     only the package directory and catchment identity may change.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify checkpoint round trips for both feed-forward and recurrent families.
 6. **GA tab**
