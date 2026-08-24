@@ -469,6 +469,7 @@ HydroRunResult FFNPINNWrapper::train(const HydroRunConfig& config) {
         if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
         else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
     }
+    populateHydroPeakMetrics(result);
     result.success = true;
     result.message = config.use_hydro_package ? "FFN-PINN run completed with Hydro package input." : (config.use_csv_data ? "FFN-PINN run completed with CSV input." : "FFN-PINN run completed with synthetic input.");
     return result;

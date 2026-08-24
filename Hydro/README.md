@@ -125,6 +125,10 @@ interpretability as much as generic prediction error:
 - **Experiment table export:** one row per approach with data loss, physics loss,
   NSE/KGE/RMSE/MAE/bias, peak timing error, and key configuration values.
 
+Current run summaries and `metrics.csv` include signed peak-timing error and
+peak-magnitude error percentage on the held-out test partition. Flow-duration
+curves and regime-conditioned peak diagnostics remain future result views.
+
 ## Suggested next development milestones
 
 - Replace placeholder GA controls with a full GA configuration dialog that shares

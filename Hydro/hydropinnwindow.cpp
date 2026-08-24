@@ -1538,7 +1538,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.success ? "success" : "failed")
                        .arg(r.final_loss, 0, 'g', 8);
 
-        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, physics_loss=%10")
+        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, peak_timing_error=%10, peak_magnitude_error_percent=%11, physics_loss=%12")
                        .arg(r.validation_mse, 0, 'g', 8)
                        .arg(r.mse, 0, 'g', 8)
                        .arg(r.rmse, 0, 'g', 8)
@@ -1548,6 +1548,8 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.correlation, 0, 'g', 8)
                        .arg(r.pbias, 0, 'g', 8)
                        .arg(r.volume_error_percent, 0, 'g', 8)
+                       .arg(r.peak_timing_error, 0, 'g', 8)
+                       .arg(r.peak_magnitude_error_percent, 0, 'g', 8)
                        .arg(r.physics_loss, 0, 'g', 8);
 
         if (!r.message.empty()) {
@@ -1938,6 +1940,7 @@ bool HydroPINNWindow::runLoadedInferenceForMode(const QString& mode) {
             result.y_pred.push_back(predictions[i].item<double>());
         }
         populateHydroMetrics(result, result.y_true, result.y_pred);
+        populateHydroPeakMetrics(result);
         lastModeResults_[mode] = std::move(result);
         updatePlot(mode, lastModeResults_.at(mode));
         appendLog(QString("Ran loaded '%1' checkpoint on %2 current package samples.")

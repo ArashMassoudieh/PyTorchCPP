@@ -502,6 +502,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
         else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
     }
+    populateHydroPeakMetrics(result);
     if (physicsInformed && config.pinn_physics_profile == "water_balance" && seq.xSeq.size(0) >= 2 && seq.xSeq.size(2) >= 5) {
         torch::Tensor lastStep = seq.xSeq.select(1, seq.xSeq.size(1) - 1);
         torch::Tensor storage = lastStep.slice(1, 4, 5);

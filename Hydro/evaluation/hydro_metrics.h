@@ -61,3 +61,22 @@ inline bool hydroMetricsAreFinite(const HydroRunResult& result) {
     return std::isfinite(result.mse) && std::isfinite(result.rmse) &&
            std::isfinite(result.mae);
 }
+
+inline void populateHydroPeakMetrics(HydroRunResult& result) {
+    const size_t n = std::min(result.x.size(), std::min(result.y_true.size(), result.y_pred.size()));
+    if (n == 0) return;
+    size_t observedPeak = n;
+    size_t predictedPeak = n;
+    for (size_t i = 0; i < n; ++i) {
+        if (i < result.split.size() && result.split[i] != "test") continue;
+        if (observedPeak == n || result.y_true[i] > result.y_true[observedPeak]) observedPeak = i;
+        if (predictedPeak == n || result.y_pred[i] > result.y_pred[predictedPeak]) predictedPeak = i;
+    }
+    if (observedPeak == n || predictedPeak == n) return;
+    result.peak_timing_error = result.x[predictedPeak] - result.x[observedPeak];
+    const double observedMagnitude = result.y_true[observedPeak];
+    if (std::abs(observedMagnitude) > 0.0) {
+        result.peak_magnitude_error_percent =
+            100.0 * (result.y_pred[predictedPeak] - observedMagnitude) / std::abs(observedMagnitude);
+    }
+}
