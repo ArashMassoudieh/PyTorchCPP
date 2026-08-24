@@ -108,6 +108,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       runPredictionFFNButton_(new QPushButton("Run FFN", this)), runPredictionFFNPINNButton_(new QPushButton("Run FFN + PINN", this)),
       runPredictionPINNButton_(new QPushButton("Run PINN", this)),
       runPredictionLSTMButton_(new QPushButton("Run LSTM", this)), runPredictionLSTMPINNButton_(new QPushButton("Run LSTM + PINN", this)),
+      loadInferenceArtifactsButton_(new QPushButton("Load Inference Artifacts...", this)),
       predictionUseCurrentDataCheck_(new QCheckBox("Prediction uses current Data tab settings (re-run mode)", this)),
       runTrainingButton_(new QPushButton("Train Selected", this)), runAllTrainingButton_(new QPushButton("Train All", this)),
       runTrainingFFNButton_(new QPushButton("Train FFN", this)), runTrainingFFNPINNButton_(new QPushButton("Train FFN + PINN", this)),
@@ -417,6 +418,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     runPredictionLSTMButton_->setText("Show LSTM");
     runPredictionLSTMPINNButton_->setText("Show LSTM + PINN");
     predictionUseCurrentDataCheck_->setChecked(false);
+    predictionLayout->addWidget(loadInferenceArtifactsButton_);
     predictionLayout->addWidget(predictionUseCurrentDataCheck_);
     predictionLayout->addWidget(predictionButtons);
     predictionLayout->addStretch(1);
@@ -551,6 +553,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(runPredictionPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("pinn"); });
     connect(runPredictionLSTMButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm"); });
     connect(runPredictionLSTMPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm_pinn"); });
+    connect(loadInferenceArtifactsButton_, &QPushButton::clicked, this, &HydroPINNWindow::loadInferenceArtifacts);
     connect(useNeuroforgeCsvPresetButton_, &QPushButton::clicked, this, &HydroPINNWindow::applyNeuroforgeCsvPreset);
     connect(modeCombo_, &QComboBox::currentTextChanged, this, [this](const QString&) {
         updateFfnLagUiState();
@@ -702,6 +705,7 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     runPredictionPINNButton_->setEnabled(!running);
     runPredictionLSTMButton_->setEnabled(!running);
     runPredictionLSTMPINNButton_->setEnabled(!running);
+    loadInferenceArtifactsButton_->setEnabled(!running);
     predictionUseCurrentDataCheck_->setEnabled(!running);
     useTimeLaggedFFNCheck_->setEnabled(!running && (selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn"));
     inputLagsEdit_->setEnabled(!running && (selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn") && useTimeLaggedFFNCheck_->isChecked());
@@ -1554,6 +1558,40 @@ void HydroPINNWindow::exportExperimentArtifacts() {
     } catch (const std::exception& error) {
         appendLog(QString("Experiment export failed: %1").arg(error.what()));
         QMessageBox::critical(this, "HydroPINN Export", QString::fromUtf8(error.what()));
+    }
+}
+
+void HydroPINNWindow::loadInferenceArtifacts() {
+    const QString directory = QFileDialog::getExistingDirectory(
+        this, "Load Hydro inference artifact directory");
+    if (directory.isEmpty()) return;
+
+    try {
+        auto artifacts = HydroArtifactLoader().loadForInference(directory.toStdString());
+        QStringList approaches;
+        for (const auto& entry : artifacts.models) approaches.push_back(QString::fromStdString(entry.first));
+        const QString experimentId = QString::fromStdString(artifacts.experiment.experiment_id);
+        const auto storedResults = HydroArtifactLoader().loadPredictions(directory.toStdString());
+        std::map<QString, HydroRunResult> restoredResults;
+        for (const auto& entry : storedResults) {
+            if (artifacts.models.find(entry.first) == artifacts.models.end()) {
+                throw std::runtime_error("Exported predictions have no matching checkpoint: " + entry.first);
+            }
+            restoredResults.emplace(QString::fromStdString(entry.first), entry.second);
+        }
+        lastModeResults_ = std::move(restoredResults);
+        loadedInferenceArtifacts_ = std::make_unique<HydroInferenceArtifacts>(std::move(artifacts));
+        appendLog(QString("Loaded compatibility-checked inference artifacts for experiment '%1': %2.")
+                      .arg(experimentId, approaches.join(", ")));
+        QMessageBox::information(
+            this, "HydroPINN Inference Artifacts",
+            QString("Loaded experiment '%1'.\nAvailable checkpoints: %2")
+                .arg(experimentId, approaches.join(", ")));
+        refreshPerformanceAssessment();
+    } catch (const std::exception& error) {
+        loadedInferenceArtifacts_.reset();
+        appendLog(QString("Inference artifact load failed: %1").arg(error.what()));
+        QMessageBox::critical(this, "HydroPINN Inference Artifacts", QString::fromUtf8(error.what()));
     }
 }
 

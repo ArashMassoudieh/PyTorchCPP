@@ -1,10 +1,12 @@
 // NeuralNetworkWrapper.h
 #pragma once
 
-#include <torch/torch.h>
+#include <iosfwd>
 #include <memory>
 #include <string>
 #include <vector>
+
+#include <torch/torch.h>
 #include "TimeSeriesSet.h"
 #include "hyperparameters.h"
 #include "commontypes.h"
@@ -209,6 +211,9 @@ public:
      * @param filepath Path to load the model from
      */
     void loadModel(const std::string& filepath);
+
+    /** Load model parameters directly from an in-memory archive stream. */
+    void loadModel(std::istream& input);
 
     // Getters
     /**
