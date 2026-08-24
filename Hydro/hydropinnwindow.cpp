@@ -1538,7 +1538,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.success ? "success" : "failed")
                        .arg(r.final_loss, 0, 'g', 8);
 
-        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, peak_timing_error=%10, peak_magnitude_error_percent=%11, physics_loss=%12")
+        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, peak_timing_error=%10, peak_magnitude_error_percent=%11, high_flow_rmse=%12, low_flow_rmse=%13, physics_loss=%14")
                        .arg(r.validation_mse, 0, 'g', 8)
                        .arg(r.mse, 0, 'g', 8)
                        .arg(r.rmse, 0, 'g', 8)
@@ -1550,6 +1550,8 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.volume_error_percent, 0, 'g', 8)
                        .arg(r.peak_timing_error, 0, 'g', 8)
                        .arg(r.peak_magnitude_error_percent, 0, 'g', 8)
+                       .arg(r.high_flow_rmse, 0, 'g', 8)
+                       .arg(r.low_flow_rmse, 0, 'g', 8)
                        .arg(r.physics_loss, 0, 'g', 8);
 
         if (!r.message.empty()) {

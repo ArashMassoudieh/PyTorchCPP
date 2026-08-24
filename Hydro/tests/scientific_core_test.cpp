@@ -46,5 +46,15 @@ int main() {
     assert(std::isnan(constant.nse));
     assert(std::isnan(constant.pbias));
     assert(hydroMetricsAreFinite(constant));
+    HydroRunResult flows;
+    flows.x = {0.0, 1.0, 2.0, 3.0};
+    flows.y_true = {1.0, 2.0, 3.0, 10.0};
+    flows.y_pred = {2.0, 2.0, 3.0, 8.0};
+    flows.split = {"test", "test", "test", "test"};
+    populateHydroPeakMetrics(flows);
+    assert(flows.peak_timing_error == 0.0);
+    assert(std::abs(flows.peak_magnitude_error_percent + 20.0) < 1.0e-12);
+    assert(flows.low_flow_rmse == 1.0);
+    assert(flows.high_flow_rmse == 2.0);
     return 0;
 }

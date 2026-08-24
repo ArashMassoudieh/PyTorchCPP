@@ -125,9 +125,10 @@ interpretability as much as generic prediction error:
 - **Experiment table export:** one row per approach with data loss, physics loss,
   NSE/KGE/RMSE/MAE/bias, peak timing error, and key configuration values.
 
-Current run summaries and `metrics.csv` include signed peak-timing error and
-peak-magnitude error percentage on the held-out test partition. Flow-duration
-curves and regime-conditioned peak diagnostics remain future result views.
+Current run summaries and `metrics.csv` include signed peak-timing error,
+peak-magnitude error percentage, and RMSE for the highest and lowest observed
+10% of flows on the held-out test partition. Full flow-duration curves and
+regime-conditioned peak diagnostics remain future result views.
 
 ## Suggested next development milestones
 
