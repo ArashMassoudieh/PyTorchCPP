@@ -15,6 +15,16 @@ int main() {
     assert(torch::allclose(scaler.inverseTransform(transformed), heldOut));
     assert(scaler.mseToPhysical(4.0) == 16.0);
     const HydroScalerState saved = scaler.exportState();
+    bool nonFiniteTrainingRejected = false;
+    try { scaler.fit(torch::tensor({{0.0f}, {std::numeric_limits<float>::infinity()}}), "minmax"); }
+    catch (const std::invalid_argument&) { nonFiniteTrainingRejected = true; }
+    assert(nonFiniteTrainingRejected);
+    assert(scaler.exportState().method == saved.method);
+    bool invalidFitMethodRejected = false;
+    try { scaler.fit(train, "custom"); }
+    catch (const std::invalid_argument&) { invalidFitMethodRejected = true; }
+    assert(invalidFitMethodRejected);
+    assert(scaler.exportState().method == saved.method);
     TensorScaler restored;
     restored.importState(saved);
     assert(torch::allclose(restored.transform(heldOut), transformed));

@@ -14,22 +14,33 @@ class TensorScaler {
 public:
     void fit(const torch::Tensor& training, const std::string& method) {
         if (!training.defined() || training.numel() == 0) throw std::invalid_argument("Cannot fit scaler on empty training data.");
-        method_ = method;
+        if (method != "none" && method != "standardize" && method != "minmax") {
+            throw std::invalid_argument("Unknown normalization method: " + method);
+        }
+        if (training.dim() != 2 && training.dim() != 3) {
+            throw std::invalid_argument("Scaler training data must be a 2D or 3D tensor.");
+        }
+        if (!training.is_floating_point() || !training.isfinite().all().item<bool>()) {
+            throw std::invalid_argument("Scaler training data must contain finite floating-point values.");
+        }
         const auto reduceDimensions = training.dim() == 3 ? std::vector<int64_t>{0, 1}
                                                            : std::vector<int64_t>{0};
-        if (method_ == "standardize") {
-            offset_ = training.mean(reduceDimensions, true);
-            scale_ = training.std(reduceDimensions, false, true);
-        } else if (method_ == "minmax") {
-            offset_ = training.amin(reduceDimensions, true);
-            scale_ = training.amax(reduceDimensions, true) - offset_;
-        } else if (method_ == "none") {
-            offset_ = torch::zeros_like(training.mean(reduceDimensions, true));
-            scale_ = torch::ones_like(offset_);
+        torch::Tensor offset;
+        torch::Tensor scale;
+        if (method == "standardize") {
+            offset = training.mean(reduceDimensions, true);
+            scale = training.std(reduceDimensions, false, true);
+        } else if (method == "minmax") {
+            offset = training.amin(reduceDimensions, true);
+            scale = training.amax(reduceDimensions, true) - offset;
         } else {
-            throw std::invalid_argument("Unknown normalization method: " + method_);
+            offset = torch::zeros_like(training.mean(reduceDimensions, true));
+            scale = torch::ones_like(offset);
         }
-        scale_ = torch::where(torch::abs(scale_) < 1.0e-12, torch::ones_like(scale_), scale_);
+        scale = torch::where(torch::abs(scale) < 1.0e-12, torch::ones_like(scale), scale);
+        method_ = method;
+        offset_ = std::move(offset);
+        scale_ = std::move(scale);
     }
 
     torch::Tensor transform(const torch::Tensor& values) const {
