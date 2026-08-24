@@ -12,6 +12,12 @@
 #include <stdexcept>
 
 namespace {
+bool readCsvLine(std::istream& input, std::string& line) {
+    if (!std::getline(input, line)) return false;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    return true;
+}
+
 std::vector<std::string> splitCsv(const std::string& line) {
     std::vector<std::string> values;
     std::string value;
@@ -86,12 +92,12 @@ std::map<std::string, HydroModelArtifact> HydroArtifactLoader::loadModels(
     std::ifstream manifest(root / "models.csv");
     if (!manifest) throw std::runtime_error("Experiment is missing models.csv.");
     std::string line;
-    if (!std::getline(manifest, line) || line != "approach,file,format,size_bytes,sha256") {
+    if (!readCsvLine(manifest, line) || line != "approach,file,format,size_bytes,sha256") {
         throw std::runtime_error("models.csv has an incompatible header.");
     }
     std::map<std::string, HydroModelArtifact> models;
     std::size_t row = 1;
-    while (std::getline(manifest, line)) {
+    while (readCsvLine(manifest, line)) {
         ++row;
         if (line.empty()) continue;
         const auto fields = splitCsv(line);
@@ -133,14 +139,14 @@ std::map<std::string, HydroArtifactScalers> HydroArtifactLoader::loadScalers(
     std::ifstream manifest(std::filesystem::path(experimentDirectory) / "scalers.csv");
     if (!manifest) throw std::runtime_error("Experiment is missing scalers.csv.");
     std::string line;
-    if (!std::getline(manifest, line) || line != "approach,kind,index,method,shape,offset,scale") {
+    if (!readCsvLine(manifest, line) || line != "approach,kind,index,method,shape,offset,scale") {
         throw std::runtime_error("scalers.csv has an incompatible header.");
     }
 
     std::map<std::string, HydroArtifactScalers> scalers;
     std::map<std::string, std::map<std::string, std::size_t>> nextIndices;
     std::size_t row = 1;
-    while (std::getline(manifest, line)) {
+    while (readCsvLine(manifest, line)) {
         ++row;
         if (line.empty()) continue;
         const auto fields = splitCsv(line);
@@ -206,13 +212,13 @@ std::map<std::string, HydroRunResult> HydroArtifactLoader::loadPredictions(
     std::ifstream input(std::filesystem::path(experimentDirectory) / "predictions.csv");
     if (!input) throw std::runtime_error("Experiment is missing predictions.csv.");
     std::string line;
-    if (!std::getline(input, line) || line != "approach,index,split,x,observed,predicted,residual") {
+    if (!readCsvLine(input, line) || line != "approach,index,split,x,observed,predicted,residual") {
         throw std::runtime_error("predictions.csv has an incompatible header.");
     }
 
     std::map<std::string, HydroRunResult> results;
     std::size_t row = 1;
-    while (std::getline(input, line)) {
+    while (readCsvLine(input, line)) {
         ++row;
         if (line.empty()) continue;
         const auto fields = splitCsv(line);
@@ -272,10 +278,10 @@ std::map<std::string, HydroRunResult> HydroArtifactLoader::loadMetrics(
     if (!input) throw std::runtime_error("Experiment is missing metrics.csv.");
     std::string line;
     const std::string header = "approach,success,final_loss,validation_mse,test_mse,rmse,mae,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual,physics_loss";
-    if (!std::getline(input, line) || line != header) throw std::runtime_error("metrics.csv has an incompatible header.");
+    if (!readCsvLine(input, line) || line != header) throw std::runtime_error("metrics.csv has an incompatible header.");
     std::map<std::string, HydroRunResult> metrics;
     std::size_t row = 1;
-    while (std::getline(input, line)) {
+    while (readCsvLine(input, line)) {
         ++row;
         if (line.empty()) continue;
         const auto fields = splitCsv(line);
@@ -300,12 +306,12 @@ std::map<std::string, HydroPhysicsResidualArtifact> HydroArtifactLoader::loadPhy
     std::ifstream input(std::filesystem::path(experimentDirectory) / "physics_residuals.csv");
     if (!input) throw std::runtime_error("Experiment is missing physics_residuals.csv.");
     std::string line;
-    if (!std::getline(input, line) || line != "approach,index,split,x,physics_residual") {
+    if (!readCsvLine(input, line) || line != "approach,index,split,x,physics_residual") {
         throw std::runtime_error("physics_residuals.csv has an incompatible header.");
     }
     std::map<std::string, HydroPhysicsResidualArtifact> residuals;
     std::size_t row = 1;
-    while (std::getline(input, line)) {
+    while (readCsvLine(input, line)) {
         ++row;
         if (line.empty()) continue;
         const auto fields = splitCsv(line);

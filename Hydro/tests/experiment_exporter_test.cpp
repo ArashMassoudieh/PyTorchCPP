@@ -95,6 +95,27 @@ int main() {
     const auto storedMetrics = HydroArtifactLoader().loadMetrics(root.string());
     assert(storedMetrics.at("ffn").mse == result.mse);
     assert(storedMetrics.at("ffn").peak_timing_error == result.peak_timing_error);
+    {
+        const auto metricsPath = root / "metrics.csv";
+        std::ifstream input(metricsPath, std::ios::binary);
+        const std::string lfText((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        std::string crlfText;
+        crlfText.reserve(lfText.size() + 2);
+        for (const char character : lfText) {
+            if (character == '\n') crlfText.push_back('\r');
+            crlfText.push_back(character);
+        }
+        {
+            std::ofstream outputFile(metricsPath, std::ios::binary | std::ios::trunc);
+            outputFile << crlfText;
+        }
+        const auto crlfMetrics = HydroArtifactLoader().loadMetrics(root.string());
+        assert(crlfMetrics.at("ffn").mse == result.mse);
+        {
+            std::ofstream outputFile(metricsPath, std::ios::binary | std::ios::trunc);
+            outputFile << lfText;
+        }
+    }
     const auto storedResiduals = HydroArtifactLoader().loadPhysicsResiduals(root.string());
     assert(storedResiduals.at("ffn").values == result.physics_residual);
     assert(storedResiduals.at("ffn").x == result.x);
