@@ -69,7 +69,8 @@ features while the residual keeps a direct mass-balance interpretation.
      review. The programmatic inference runner can execute all five checkpoint
      families on compatible physical input tensors or LSTM sequences using the
      training-fitted input and target scalers. Checkpoints load directly from
-     their verified in-memory bytes, avoiding temporary-file I/O on each run.
+     their verified in-memory bytes through a zero-copy stream view, avoiding
+     temporary-file I/O and a second checkpoint-sized allocation on each run.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify checkpoint round trips for both feed-forward and recurrent families.
 6. **GA tab**

@@ -4,6 +4,8 @@
 #include "../models/hydro_lstm_module.h"
 #include "../../neuralnetworkwrapper.h"
 
+#include <istream>
+#include <streambuf>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -27,11 +29,23 @@ std::vector<int> parseHiddenLayers(const std::string& csv) {
     return layers;
 }
 
-std::istringstream checkpointStream(const std::vector<std::uint8_t>& bytes) {
-    return std::istringstream(
-        std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size()),
-        std::ios::in | std::ios::binary);
-}
+class CheckpointMemoryBuffer : public std::streambuf {
+public:
+    explicit CheckpointMemoryBuffer(const std::vector<std::uint8_t>& bytes) {
+        if (bytes.empty()) throw std::runtime_error("Inference checkpoint is empty.");
+        auto* begin = const_cast<char*>(reinterpret_cast<const char*>(bytes.data()));
+        setg(begin, begin, begin + bytes.size());
+    }
+};
+
+class CheckpointMemoryStream : public std::istream {
+public:
+    explicit CheckpointMemoryStream(const std::vector<std::uint8_t>& bytes)
+        : std::istream(nullptr), buffer_(bytes) { rdbuf(&buffer_); }
+
+private:
+    CheckpointMemoryBuffer buffer_;
+};
 }
 
 torch::Tensor HydroInferenceRunner::predictFeedForward(
@@ -69,7 +83,7 @@ torch::Tensor HydroInferenceRunner::predictFeedForward(
     model.setHiddenLayers(parseHiddenLayers(artifacts.experiment.config.hidden_layers_csv));
     model.setLags(std::vector<std::vector<int>>(static_cast<std::size_t>(scaledInputs.size(1)), {1}));
     model.initializeNetwork(1, artifacts.experiment.config.activation);
-    auto archiveStream = checkpointStream(modelArtifact->second.bytes);
+    CheckpointMemoryStream archiveStream(modelArtifact->second.bytes);
     model.loadModel(archiveStream);
     model.setTensorData(DataType::Test, scaledInputs,
                         torch::zeros({scaledInputs.size(0), 1}, scaledInputs.options()));
@@ -118,7 +132,7 @@ torch::Tensor HydroInferenceRunner::predictRecurrent(
     const auto hiddenLayers = parseHiddenLayers(artifacts.experiment.config.hidden_layers_csv);
     HydroLSTM model(physicalSequences.size(2), hiddenLayers.front(), 1,
                     static_cast<int64_t>(hiddenLayers.size()));
-    auto archiveStream = checkpointStream(modelArtifact->second.bytes);
+    CheckpointMemoryStream archiveStream(modelArtifact->second.bytes);
     torch::serialize::InputArchive archive;
     archive.load_from(archiveStream);
     model->load(archive);

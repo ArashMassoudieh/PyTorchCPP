@@ -54,5 +54,13 @@ int main() {
     try { (void)HydroInferenceRunner().predictFeedForward(artifacts, "ffn", torch::zeros({2, 3})); }
     catch (const std::invalid_argument&) { rejectedWidth = true; }
     assert(rejectedWidth);
+
+    const auto checkpointBytes = artifacts.models.at("ffn").bytes;
+    artifacts.models.at("ffn").bytes.clear();
+    bool rejectedEmptyCheckpoint = false;
+    try { (void)HydroInferenceRunner().predictFeedForward(artifacts, "ffn", feedForwardInputs); }
+    catch (const std::runtime_error&) { rejectedEmptyCheckpoint = true; }
+    assert(rejectedEmptyCheckpoint);
+    artifacts.models.at("ffn").bytes = checkpointBytes;
     return 0;
 }
