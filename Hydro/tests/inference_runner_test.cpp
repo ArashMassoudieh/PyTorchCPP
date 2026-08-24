@@ -45,11 +45,19 @@ int main() {
         torch::tensor({{1.0f, 10.0f}, {2.0f, 20.0f}, {3.0f, 30.0f}}), "1;2");
     assert(lagged.leading_rows == 2);
     assert(torch::allclose(lagged.inputs, torch::tensor({{3.0f, 2.0f, 30.0f, 10.0f}})));
+    bool rejectedInvalidLag = false;
+    try { (void)parseHydroLagSpecification("1,invalid;2", 2); }
+    catch (const std::invalid_argument&) { rejectedInvalidLag = true; }
+    assert(rejectedInvalidLag);
+    bool rejectedExtraLagGroup = false;
+    try { (void)parseHydroLagSpecification("1;2;3", 2); }
+    catch (const std::invalid_argument&) { rejectedExtraLagGroup = true; }
+    assert(rejectedExtraLagGroup);
     const std::filesystem::path csvPath = "/tmp/hydro_inference_input_test.csv";
     {
-        std::ofstream csv(csvPath);
-        csv << "time,target\n";
-        for (int i = 0; i < 10; ++i) csv << i << ',' << i * 2 << '\n';
+        std::ofstream csv(csvPath, std::ios::binary);
+        csv << "time,target\r\n";
+        for (int i = 0; i < 10; ++i) csv << '"' << i << "\",\"" << i * 2 << "\"\r\n";
     }
     HydroRunConfig csvConfig;
     csvConfig.csv_path = csvPath.string();
@@ -58,6 +66,11 @@ int main() {
     loadHydroCsvTensors(csvConfig, csvInputs, csvTargets, csvPlot);
     assert(csvInputs.size(0) == 10 && csvInputs.size(1) == 1);
     assert(csvTargets[9].item<float>() == 18.0f);
+    assert(parseHydroCsvRow("\"a,b\",\"c\"\"d\"") == std::vector<std::string>({"a,b", "c\"d"}));
+    bool rejectedMalformedCsv = false;
+    try { (void)parseHydroCsvRow("1\"2,3"); }
+    catch (const std::runtime_error&) { rejectedMalformedCsv = true; }
+    assert(rejectedMalformedCsv);
     std::filesystem::remove(csvPath);
     assert(torch::allclose(feedForwardSession.predict(feedForwardInputs), expectedFeedForward));
 

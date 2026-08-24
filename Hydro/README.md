@@ -85,8 +85,17 @@ features while the residual keeps a direct mass-balance interpretation.
      aligns observations and timestamps after the maximum lag automatically.
      Training and inference share the same CSV tensor builder, preventing parser
      or feature-order drift between checkpoint creation and later execution.
+     The builder accepts quoted numeric fields and LF or CRLF records, and rejects
+     malformed quoting, partial numeric values, and non-finite numeric values
+     instead of silently rewriting or truncating them.
      FFN training and inference also share lag parsing, feature-column mapping,
-     tensor expansion, and leading-row alignment.
+     tensor expansion, and leading-row alignment. Invalid, duplicate, empty, or
+     excess lag groups are rejected instead of being silently shifted or dropped.
+     Artifact CSV manifests accept both Unix LF and Windows CRLF line endings.
+     Imported scaler states are revalidated at the tensor boundary, including
+     method, shape overflow, numeric finiteness, and non-zero scale checks.
+     Scaler fitting likewise rejects non-floating or non-finite training tensors
+     without replacing a previously fitted, valid scaler state.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
    - Reloaded experiments restore exported physics-residual series as well as
@@ -94,6 +103,8 @@ features while the residual keeps a direct mass-balance interpretation.
      Residual timestamps and partition labels must match prediction artifacts.
    - Predictive and peak diagnostics are recomputed from the restored held-out
      test rows rather than trusting potentially stale summary values.
+     Exported MSE/RMSE/MAE must agree with those recomputed values before training
+     and validation summaries are restored into the GUI.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.
    - Stop requests cancel between training trials without applying a partial

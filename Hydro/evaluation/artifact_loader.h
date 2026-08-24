@@ -37,6 +37,7 @@ public:
     std::map<std::string, HydroModelArtifact> loadModels(const std::string& experimentDirectory) const;
     std::map<std::string, HydroArtifactScalers> loadScalers(const std::string& experimentDirectory) const;
     std::map<std::string, HydroRunResult> loadPredictions(const std::string& experimentDirectory) const;
+    std::map<std::string, HydroRunResult> loadMetrics(const std::string& experimentDirectory) const;
     std::map<std::string, HydroPhysicsResidualArtifact> loadPhysicsResiduals(const std::string& experimentDirectory) const;
     HydroInferenceArtifacts loadForInference(const std::string& experimentDirectory) const;
 };

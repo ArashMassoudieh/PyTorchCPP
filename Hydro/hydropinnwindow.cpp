@@ -1617,6 +1617,24 @@ void HydroPINNWindow::loadInferenceArtifacts() {
         }
         const QString experimentId = QString::fromStdString(artifacts.experiment.experiment_id);
         auto storedResults = HydroArtifactLoader().loadPredictions(directory.toStdString());
+        const auto storedMetrics = HydroArtifactLoader().loadMetrics(directory.toStdString());
+        for (auto& entry : storedResults) {
+            const auto metric = storedMetrics.find(entry.first);
+            if (metric == storedMetrics.end()) throw std::runtime_error("Exported metrics are missing approach: " + entry.first);
+            const auto consistent = [](const double recomputed, const double exported) {
+                return !std::isfinite(exported) ||
+                       (std::isfinite(recomputed) &&
+                        std::abs(recomputed - exported) <= 1.0e-10 * std::max({1.0, std::abs(recomputed), std::abs(exported)}));
+            };
+            if (!consistent(entry.second.mse, metric->second.mse) || !consistent(entry.second.rmse, metric->second.rmse) ||
+                !consistent(entry.second.mae, metric->second.mae)) {
+                throw std::runtime_error("Exported summary metrics do not match predictions for: " + entry.first);
+            }
+            entry.second.final_loss = metric->second.final_loss;
+            entry.second.validation_mse = metric->second.validation_mse;
+            entry.second.physics_loss = metric->second.physics_loss;
+        }
+        if (storedMetrics.size() != storedResults.size()) throw std::runtime_error("Exported metrics and predictions have different approach sets.");
         const auto storedResiduals = HydroArtifactLoader().loadPhysicsResiduals(directory.toStdString());
         for (const auto& entry : storedResiduals) {
             const auto result = storedResults.find(entry.first);

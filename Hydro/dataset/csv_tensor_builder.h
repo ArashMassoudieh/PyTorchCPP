@@ -5,11 +5,57 @@
 #include <torch/torch.h>
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+inline std::vector<std::string> parseHydroCsvRow(const std::string& line) {
+    std::vector<std::string> columns;
+    std::string cell;
+    bool quoted = false;
+    bool quoteClosed = false;
+    for (std::size_t i = 0; i < line.size(); ++i) {
+        const char character = line[i];
+        if (quoted) {
+            if (character == '"' && i + 1 < line.size() && line[i + 1] == '"') {
+                cell.push_back('"');
+                ++i;
+            } else if (character == '"') {
+                quoted = false;
+                quoteClosed = true;
+            } else {
+                cell.push_back(character);
+            }
+        } else if (character == ',') {
+            columns.push_back(cell);
+            cell.clear();
+            quoteClosed = false;
+        } else if (character == '"' && cell.empty() && !quoteClosed) {
+            quoted = true;
+        } else if (character != '\r' || i + 1 != line.size()) {
+            if (quoteClosed || character == '"') {
+                throw std::runtime_error("CSV row contains characters outside a quoted field.");
+            }
+            cell.push_back(character);
+        }
+    }
+    if (quoted) throw std::runtime_error("CSV row contains an unterminated quoted field.");
+    columns.push_back(cell);
+    return columns;
+}
+
+inline float parseHydroCsvNumber(const std::string& value) {
+    std::size_t consumed = 0;
+    const double parsed = std::stod(value, &consumed);
+    if (consumed != value.size() || !std::isfinite(parsed)) {
+        throw std::invalid_argument("CSV field is not a finite number.");
+    }
+    const float result = static_cast<float>(parsed);
+    if (!std::isfinite(result)) throw std::out_of_range("CSV field exceeds the supported numeric range.");
+    return result;
+}
 
 inline void loadHydroCsvTensors(const HydroRunConfig& config,
                                 torch::Tensor& inputs,
@@ -29,27 +75,24 @@ inline void loadHydroCsvTensors(const HydroRunConfig& config,
         if (line.empty()) continue;
         if (firstLine && config.csv_has_header) { firstLine = false; continue; }
         firstLine = false;
-        std::vector<std::string> columns;
-        std::stringstream row(line);
-        std::string cell;
-        while (std::getline(row, cell, ',')) columns.push_back(cell);
+        const auto columns = parseHydroCsvRow(line);
         if (requiredColumn < 0 || static_cast<int>(columns.size()) <= requiredColumn) continue;
         try {
             std::vector<float> rowInputs;
             float rowPlot = 0.0f;
             if (config.synthetic_profile == "neuroforge_inputs_target") {
                 for (int column = 0; column < static_cast<int>(columns.size()); ++column) {
-                    if (column != config.csv_y_column) rowInputs.push_back(static_cast<float>(std::stod(columns[column])));
+                    if (column != config.csv_y_column) rowInputs.push_back(parseHydroCsvNumber(columns[column]));
                 }
                 if (rowInputs.empty()) continue;
                 rowPlot = config.csv_x_column != config.csv_y_column
-                              ? static_cast<float>(std::stod(columns[config.csv_x_column]))
+                              ? parseHydroCsvNumber(columns[config.csv_x_column])
                               : rowInputs.front();
             } else {
-                rowPlot = static_cast<float>(std::stod(columns[config.csv_x_column]));
+                rowPlot = parseHydroCsvNumber(columns[config.csv_x_column]);
                 rowInputs.push_back(rowPlot);
             }
-            const float target = static_cast<float>(std::stod(columns[config.csv_y_column]));
+            const float target = parseHydroCsvNumber(columns[config.csv_y_column]);
             if (featureCount == 0) featureCount = rowInputs.size();
             if (rowInputs.size() != featureCount) throw std::runtime_error("CSV input feature width changes between rows.");
             flatInputs.insert(flatInputs.end(), rowInputs.begin(), rowInputs.end());
