@@ -9,6 +9,7 @@
 #include "evaluation/experiment_loader.h"
 #include "evaluation/hydro_metrics.h"
 #include "dataset/hydro_tensor_builder.h"
+#include "dataset/lagged_tensor_builder.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -1881,6 +1882,12 @@ bool HydroPINNWindow::runLoadedInferenceForMode(const QString& mode) {
         torch::Tensor plotX;
         if (!loadHydroPackageTensors(config, inputs, targets, plotX)) {
             throw std::runtime_error("Unable to build tensors from the selected Hydro package.");
+        }
+        if ((mode == "ffn" || mode == "ffn_pinn") && exported.use_time_lagged_ffn) {
+            const auto lagged = buildHydroLaggedTensor(inputs, exported.input_lags_csv);
+            inputs = lagged.inputs;
+            targets = targets.slice(0, lagged.leading_rows, targets.size(0)).contiguous();
+            plotX = plotX.slice(0, lagged.leading_rows, plotX.size(0)).contiguous();
         }
         const torch::Tensor predictions = session->second->predictSeries(inputs).to(torch::kCPU).contiguous();
         const int64_t offset = inputs.size(0) - predictions.size(0);

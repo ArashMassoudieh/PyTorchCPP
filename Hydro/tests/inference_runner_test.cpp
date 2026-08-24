@@ -1,5 +1,6 @@
 #include "../evaluation/inference_runner.h"
 #include "../evaluation/model_checkpoint.h"
+#include "../dataset/lagged_tensor_builder.h"
 #include "../models/hydro_lstm_module.h"
 #include "../../neuralnetworkwrapper.h"
 
@@ -35,6 +36,10 @@ int main() {
     assert(torch::allclose(actualFeedForward, expectedFeedForward));
     HydroInferenceSession feedForwardSession(artifacts, "ffn");
     assert(torch::allclose(feedForwardSession.predict(feedForwardInputs), expectedFeedForward));
+    const auto lagged = buildHydroLaggedTensor(
+        torch::tensor({{1.0f, 10.0f}, {2.0f, 20.0f}, {3.0f, 30.0f}}), "1;2");
+    assert(lagged.leading_rows == 2);
+    assert(torch::allclose(lagged.inputs, torch::tensor({{3.0f, 2.0f, 30.0f, 10.0f}})));
     assert(torch::allclose(feedForwardSession.predict(feedForwardInputs), expectedFeedForward));
 
     const torch::Tensor recurrentInputs = torch::tensor(
