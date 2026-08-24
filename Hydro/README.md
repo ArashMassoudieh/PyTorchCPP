@@ -84,7 +84,7 @@ features while the residual keeps a direct mass-balance interpretation.
      FFN-family inference reconstructs the exported per-feature lag expansion and
      aligns observations and timestamps after the maximum lag automatically.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
-     verify checkpoint round trips for both feed-forward and recurrent families.
+     verify export/reload/checkpoint round trips across all five approaches.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.
 
@@ -126,9 +126,10 @@ interpretability as much as generic prediction error:
 - Add GUI inference from compatibility-checked model artifacts.
 - Expand calibrated watershed-process residuals for snow accumulation/melt, infiltration capacity, groundwater exchange, channel routing, and evapotranspiration stress as field assumptions become available.
 
-The current synthetic workflow is still a software-validation stage. Before
-paper experiments, remaining work includes checkpoint inference and a
-broader five-model integration test.
+The current synthetic workflow is still a software-validation stage. Artifact
+inference now has a five-approach export/reload integration test; field-data
+calibration and broader scientific validation remain necessary before paper
+experiments.
 
 Standalone physics-only PINN runs deliberately do not select checkpoints using
 observed validation discharge, because that would introduce supervised model

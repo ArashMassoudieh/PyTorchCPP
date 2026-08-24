@@ -1,11 +1,14 @@
 #include "../evaluation/inference_runner.h"
 #include "../evaluation/model_checkpoint.h"
+#include "../evaluation/experiment_exporter.h"
 #include "../dataset/lagged_tensor_builder.h"
 #include "../models/hydro_lstm_module.h"
 #include "../../neuralnetworkwrapper.h"
 
 #include <cassert>
 #include <filesystem>
+#include <map>
+#include <string>
 
 namespace {
 HydroScalerState identityScaler(const std::vector<int64_t>& shape, const std::size_t values) {
@@ -78,5 +81,38 @@ int main() {
     catch (const std::runtime_error&) { rejectedEmptyCheckpoint = true; }
     assert(rejectedEmptyCheckpoint);
     artifacts.models.at("ffn").bytes = checkpointBytes;
+
+    const std::filesystem::path integrationRoot = "/tmp/hydro_five_model_inference_test";
+    std::filesystem::remove_all(integrationRoot);
+    HydroRunResult feedForwardResult;
+    feedForwardResult.success = true;
+    feedForwardResult.x = {0.0, 1.0};
+    feedForwardResult.y_true = {0.0, 0.0};
+    feedForwardResult.y_pred = {0.0, 0.0};
+    feedForwardResult.split = {"test", "test"};
+    feedForwardResult.input_scaler = artifacts.scalers.at("ffn").input;
+    feedForwardResult.target_scaler = artifacts.scalers.at("ffn").target;
+    feedForwardResult.model_checkpoint_format = artifacts.models.at("ffn").format;
+    feedForwardResult.model_checkpoint = artifacts.models.at("ffn").bytes;
+    HydroRunResult recurrentResult = feedForwardResult;
+    recurrentResult.input_scaler = artifacts.scalers.at("lstm").input;
+    recurrentResult.target_scaler = artifacts.scalers.at("lstm").target;
+    recurrentResult.model_checkpoint_format = artifacts.models.at("lstm").format;
+    recurrentResult.model_checkpoint = artifacts.models.at("lstm").bytes;
+    const std::map<std::string, HydroRunResult> fiveResults = {
+        {"ffn", feedForwardResult}, {"ffn_pinn", feedForwardResult}, {"pinn", feedForwardResult},
+        {"lstm", recurrentResult}, {"lstm_pinn", recurrentResult}};
+    HydroExperimentExporter().exportRun(integrationRoot.string(), "run", artifacts.experiment.config, fiveResults);
+    const auto reloaded = HydroArtifactLoader().loadForInference((integrationRoot / "run").string());
+    assert(reloaded.models.size() == 5);
+    for (const std::string approach : {"ffn", "ffn_pinn", "pinn"}) {
+        assert(torch::allclose(HydroInferenceSession(reloaded, approach).predict(feedForwardInputs),
+                               expectedFeedForward));
+    }
+    for (const std::string approach : {"lstm", "lstm_pinn"}) {
+        assert(torch::allclose(HydroInferenceSession(reloaded, approach).predict(recurrentInputs),
+                               expectedRecurrent));
+    }
+    std::filesystem::remove_all(integrationRoot);
     return 0;
 }
