@@ -130,6 +130,8 @@ peak-magnitude error percentage, and RMSE for the highest and lowest observed
 10% of flows on the held-out test partition. The Plot tab provides observed and
 predicted flow-duration curves using exceedance probabilities for the same
 held-out samples; regime-conditioned peak diagnostics remain a future view.
+PINN-capable water-balance runs also summarize finite physical residuals with
+mean bias, RMSE, and a timestep-integrated signed cumulative residual.
 
 ## Suggested next development milestones
 

@@ -520,6 +520,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         }
         result.physics_loss = torch::mean(residual * residual).item<double>();
     }
+    populateHydroPhysicsResidualMetrics(result);
     result.success = true;
     result.message = physicsInformed
         ? (config.use_hydro_package ? "LSTM-PINN run completed with Hydro package input." : (config.use_csv_data ? "LSTM-PINN run completed with CSV input." : "LSTM-PINN run completed with synthetic input."))

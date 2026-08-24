@@ -56,5 +56,12 @@ int main() {
     assert(std::abs(flows.peak_magnitude_error_percent + 20.0) < 1.0e-12);
     assert(flows.low_flow_rmse == 1.0);
     assert(flows.high_flow_rmse == 2.0);
+    HydroRunResult physics;
+    physics.x = {0.0, 1.0, 3.0};
+    physics.physics_residual = {std::numeric_limits<double>::quiet_NaN(), 2.0, -1.0};
+    populateHydroPhysicsResidualMetrics(physics);
+    assert(physics.physics_residual_mean == 0.5);
+    assert(std::abs(physics.physics_residual_rmse - std::sqrt(2.5)) < 1.0e-12);
+    assert(physics.cumulative_physics_residual == 0.0);
     return 0;
 }
