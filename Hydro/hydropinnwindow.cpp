@@ -1569,7 +1569,13 @@ void HydroPINNWindow::loadInferenceArtifacts() {
     try {
         auto artifacts = HydroArtifactLoader().loadForInference(directory.toStdString());
         QStringList approaches;
-        for (const auto& entry : artifacts.models) approaches.push_back(QString::fromStdString(entry.first));
+        std::map<QString, std::unique_ptr<HydroInferenceSession>> preparedSessions;
+        for (const auto& entry : artifacts.models) {
+            const QString approach = QString::fromStdString(entry.first);
+            approaches.push_back(approach);
+            preparedSessions.emplace(
+                approach, std::make_unique<HydroInferenceSession>(artifacts, entry.first));
+        }
         const QString experimentId = QString::fromStdString(artifacts.experiment.experiment_id);
         const auto storedResults = HydroArtifactLoader().loadPredictions(directory.toStdString());
         std::map<QString, HydroRunResult> restoredResults;
@@ -1580,8 +1586,9 @@ void HydroPINNWindow::loadInferenceArtifacts() {
             restoredResults.emplace(QString::fromStdString(entry.first), entry.second);
         }
         lastModeResults_ = std::move(restoredResults);
+        inferenceSessions_ = std::move(preparedSessions);
         loadedInferenceArtifacts_ = std::make_unique<HydroInferenceArtifacts>(std::move(artifacts));
-        appendLog(QString("Loaded compatibility-checked inference artifacts for experiment '%1': %2.")
+        appendLog(QString("Loaded and prepared inference artifacts for experiment '%1': %2.")
                       .arg(experimentId, approaches.join(", ")));
         QMessageBox::information(
             this, "HydroPINN Inference Artifacts",
@@ -1590,6 +1597,7 @@ void HydroPINNWindow::loadInferenceArtifacts() {
         refreshPerformanceAssessment();
     } catch (const std::exception& error) {
         loadedInferenceArtifacts_.reset();
+        inferenceSessions_.clear();
         appendLog(QString("Inference artifact load failed: %1").arg(error.what()));
         QMessageBox::critical(this, "HydroPINN Inference Artifacts", QString::fromUtf8(error.what()));
     }

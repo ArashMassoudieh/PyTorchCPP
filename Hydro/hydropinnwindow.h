@@ -6,7 +6,7 @@
 #include <map>
 #include <memory>
 
-#include "evaluation/artifact_loader.h"
+#include "evaluation/inference_runner.h"
 #include "models/hydro_run_types.h"
 
 class QLabel;
@@ -134,6 +134,7 @@ private:
     QPushButton* plotErrorCdfButton_;
     std::map<QString, HydroRunResult> lastModeResults_;
     std::unique_ptr<HydroInferenceArtifacts> loadedInferenceArtifacts_;
+    std::map<QString, std::unique_ptr<HydroInferenceSession>> inferenceSessions_;
     std::vector<double> lastSyntheticX_;
     std::vector<double> lastSyntheticTarget_;
     std::map<QString, std::vector<double>> lastSyntheticInputs_;

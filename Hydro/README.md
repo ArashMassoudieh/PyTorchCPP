@@ -73,6 +73,8 @@ features while the residual keeps a direct mass-balance interpretation.
      temporary-file I/O and a second checkpoint-sized allocation on each run.
      Reuse `HydroInferenceSession` for repeated predictions so model construction,
      scaler import, and checkpoint deserialization occur only once.
+     The GUI prepares one reusable session per checkpoint while loading an
+     experiment, so corrupt or architecture-incompatible archives fail before use.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify checkpoint round trips for both feed-forward and recurrent families.
 6. **GA tab**
