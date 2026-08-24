@@ -15,19 +15,29 @@ inline std::vector<std::string> parseHydroCsvRow(const std::string& line) {
     std::vector<std::string> columns;
     std::string cell;
     bool quoted = false;
+    bool quoteClosed = false;
     for (std::size_t i = 0; i < line.size(); ++i) {
         const char character = line[i];
-        if (character == '"') {
-            if (quoted && i + 1 < line.size() && line[i + 1] == '"') {
+        if (quoted) {
+            if (character == '"' && i + 1 < line.size() && line[i + 1] == '"') {
                 cell.push_back('"');
                 ++i;
+            } else if (character == '"') {
+                quoted = false;
+                quoteClosed = true;
             } else {
-                quoted = !quoted;
+                cell.push_back(character);
             }
-        } else if (character == ',' && !quoted) {
+        } else if (character == ',') {
             columns.push_back(cell);
             cell.clear();
+            quoteClosed = false;
+        } else if (character == '"' && cell.empty() && !quoteClosed) {
+            quoted = true;
         } else if (character != '\r' || i + 1 != line.size()) {
+            if (quoteClosed || character == '"') {
+                throw std::runtime_error("CSV row contains characters outside a quoted field.");
+            }
             cell.push_back(character);
         }
     }

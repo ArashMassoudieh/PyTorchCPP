@@ -58,6 +58,11 @@ int main() {
     loadHydroCsvTensors(csvConfig, csvInputs, csvTargets, csvPlot);
     assert(csvInputs.size(0) == 10 && csvInputs.size(1) == 1);
     assert(csvTargets[9].item<float>() == 18.0f);
+    assert(parseHydroCsvRow("\"a,b\",\"c\"\"d\"") == std::vector<std::string>({"a,b", "c\"d"}));
+    bool rejectedMalformedCsv = false;
+    try { (void)parseHydroCsvRow("1\"2,3"); }
+    catch (const std::runtime_error&) { rejectedMalformedCsv = true; }
+    assert(rejectedMalformedCsv);
     std::filesystem::remove(csvPath);
     assert(torch::allclose(feedForwardSession.predict(feedForwardInputs), expectedFeedForward));
 
