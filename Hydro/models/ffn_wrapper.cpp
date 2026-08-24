@@ -2,6 +2,7 @@
 #include "../dataset/chronological_split.h"
 #include "../dataset/tensor_scaler.h"
 #include "../dataset/hydro_tensor_builder.h"
+#include "../dataset/csv_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
 #include "../evaluation/model_checkpoint.h"
 
@@ -10,7 +11,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-#include <fstream>
 #include <sstream>
 #include <stdexcept>
 
@@ -117,87 +117,6 @@ void applyTimeLaggedInputs(torch::Tensor& x,
     x = lagged.contiguous();
     y = y.slice(0, maxLag, y.size(0)).contiguous();
     plotX = plotX.slice(0, maxLag, plotX.size(0)).contiguous();
-}
-
-std::vector<std::string> splitCsvRow(const std::string& line) {
-    std::vector<std::string> cols;
-    std::stringstream ss(line);
-    std::string cell;
-    while (std::getline(ss, cell, ',')) {
-        cols.push_back(cell);
-    }
-    return cols;
-}
-
-bool loadSeriesFromCsv(const HydroRunConfig& config,
-                       torch::Tensor& x,
-                       torch::Tensor& y,
-                       torch::Tensor& plotX) {
-    if (!config.use_csv_data) {
-        return false;
-    }
-    if (config.csv_path.empty()) {
-        throw std::runtime_error("CSV data source selected but csv_path is empty.");
-    }
-
-    std::ifstream in(config.csv_path);
-    if (!in.is_open()) {
-        throw std::runtime_error("Unable to open CSV file: " + config.csv_path);
-    }
-
-    std::vector<float> flatInputs;
-    std::vector<float> ys;
-    std::vector<float> plotXs;
-    std::string line;
-    bool firstLine = true;
-    const int requiredCol = std::max(config.csv_x_column, config.csv_y_column);
-
-    while (std::getline(in, line)) {
-        if (line.empty()) continue;
-        if (firstLine && config.csv_has_header) {
-            firstLine = false;
-            continue;
-        }
-        firstLine = false;
-
-        const std::vector<std::string> cols = splitCsvRow(line);
-        if (static_cast<int>(cols.size()) <= requiredCol) continue;
-
-        try {
-            if (config.synthetic_profile == "neuroforge_inputs_target") {
-                int features = 0;
-                for (int c = 0; c < static_cast<int>(cols.size()); ++c) {
-                    if (c == config.csv_y_column) continue;
-                    flatInputs.push_back(static_cast<float>(std::stod(cols[c])));
-                    ++features;
-                }
-                if (features == 0) continue;
-                plotXs.push_back((config.csv_x_column >= 0 && config.csv_x_column < static_cast<int>(cols.size()) &&
-                                  config.csv_x_column != config.csv_y_column)
-                                     ? static_cast<float>(std::stod(cols[config.csv_x_column]))
-                                     : flatInputs[flatInputs.size() - features]);
-            } else {
-                flatInputs.push_back(static_cast<float>(std::stod(cols[config.csv_x_column])));
-                plotXs.push_back(flatInputs.back());
-            }
-            ys.push_back(static_cast<float>(std::stod(cols[config.csv_y_column])));
-        } catch (...) { continue; }
-    }
-
-    if (ys.size() < 10) {
-        throw std::runtime_error("CSV parsing yielded too few numeric samples (<10).");
-    }
-
-    const int64_t samples = static_cast<int64_t>(ys.size());
-    const int64_t inputDim = static_cast<int64_t>(flatInputs.size() / ys.size());
-    if (inputDim <= 0 || static_cast<size_t>(samples * inputDim) != flatInputs.size()) {
-        throw std::runtime_error("CSV parsing yielded inconsistent input feature widths.");
-    }
-
-    x = torch::from_blob(flatInputs.data(), {samples, inputDim}, torch::kFloat32).clone();
-    y = torch::from_blob(ys.data(), {(long)ys.size(), 1}, torch::kFloat32).clone();
-    plotX = torch::from_blob(plotXs.data(), {(long)plotXs.size(), 1}, torch::kFloat32).clone();
-    return true;
 }
 
 void buildSyntheticSeries(const HydroRunConfig& config, torch::Tensor& x, torch::Tensor& y, torch::Tensor& plotX) {
@@ -431,8 +350,9 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     torch::Tensor x;
     torch::Tensor y;
     torch::Tensor plotX;
-    if (!loadHydroPackageTensors(config, x, y, plotX) && !loadSeriesFromCsv(config, x, y, plotX)) {
-        buildSyntheticSeries(config, x, y, plotX);
+    if (!loadHydroPackageTensors(config, x, y, plotX)) {
+        if (config.use_csv_data) loadHydroCsvTensors(config, x, y, plotX);
+        else buildSyntheticSeries(config, x, y, plotX);
     }
 
     const int inputDim = static_cast<int>(x.size(1));
