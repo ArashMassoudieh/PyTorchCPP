@@ -90,6 +90,8 @@ int main() {
     assert(storedResults.at("ffn").success);
     assert(storedResults.at("ffn").split == std::vector<std::string>({"train", "test"}));
     assert(storedResults.at("ffn").y_pred == std::vector<double>({1.5, 1.5}));
+    assert(storedResults.at("ffn").mse == 0.25);
+    assert(storedResults.at("ffn").rmse == 0.5);
     const auto storedResiduals = HydroArtifactLoader().loadPhysicsResiduals(root.string());
     assert(storedResiduals.at("ffn") == result.physics_residual);
     std::ifstream predictions(root / "predictions.csv");

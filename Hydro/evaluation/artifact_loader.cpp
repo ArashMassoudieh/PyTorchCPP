@@ -1,6 +1,7 @@
 #include "artifact_loader.h"
 
 #include "../dataset/hydro_checksum.h"
+#include "hydro_metrics.h"
 
 #include <algorithm>
 #include <cmath>
@@ -243,6 +244,20 @@ std::map<std::string, HydroRunResult> HydroArtifactLoader::loadPredictions(
         result.message = "Reloaded exported predictions.";
     }
     if (results.empty()) throw std::runtime_error("predictions.csv contains no predictions.");
+    for (auto& entry : results) {
+        std::vector<double> observedTest;
+        std::vector<double> predictedTest;
+        for (std::size_t i = 0; i < entry.second.split.size(); ++i) {
+            if (entry.second.split[i] != "test") continue;
+            observedTest.push_back(entry.second.y_true[i]);
+            predictedTest.push_back(entry.second.y_pred[i]);
+        }
+        if (observedTest.empty()) {
+            throw std::runtime_error("Exported predictions contain no test partition for approach: " + entry.first);
+        }
+        populateHydroMetrics(entry.second, observedTest, predictedTest);
+        populateHydroPeakMetrics(entry.second);
+    }
     return results;
 }
 

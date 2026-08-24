@@ -91,6 +91,8 @@ features while the residual keeps a direct mass-balance interpretation.
      verify export/reload/checkpoint round trips across all five approaches.
    - Reloaded experiments restore exported physics-residual series as well as
      predictions, so residual and cumulative-drift plots remain available.
+   - Predictive and peak diagnostics are recomputed from the restored held-out
+     test rows rather than trusting potentially stale summary values.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.
    - Stop requests cancel between training trials without applying a partial
