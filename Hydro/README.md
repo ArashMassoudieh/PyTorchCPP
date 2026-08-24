@@ -63,8 +63,36 @@ features while the residual keeps a direct mass-balance interpretation.
 5. **Prediction, Performance Assessment, Plot, and Logs tabs**
    - Replot stored predictions, inspect metrics, compare target/predicted curves,
      analyze residuals, and review run logs.
+   - Load an exported experiment directory in the Prediction tab to validate and
+     retain its configuration, checkpoints, and scaler states for artifact-backed
+     inference. Exported predictions are restored immediately for plotting and
+     review. The programmatic inference runner can execute all five checkpoint
+     families on compatible physical input tensors or LSTM sequences using the
+     training-fitted input and target scalers. Checkpoints load directly from
+     their verified in-memory bytes through a zero-copy stream view, avoiding
+     temporary-file I/O and a second checkpoint-sized allocation on each run.
+     Reuse `HydroInferenceSession` for repeated predictions so model construction,
+     scaler import, and checkpoint deserialization occur only once.
+     The GUI prepares one reusable session per checkpoint while loading an
+     experiment, so corrupt or architecture-incompatible archives fail before use.
+     For LSTM approaches, `predictSeries` builds all overlapping sequence windows
+     with a tensor view operation instead of a per-window allocation loop.
+     Select **Run loaded checkpoint on current Data source** to execute prepared
+     GUI sessions on a Hydro Package or CSV selected in the Data tab without retraining. The
+     package profile and forecast-feature semantics must match the exported run;
+     only the package directory and catchment identity may change.
+     FFN-family inference reconstructs the exported per-feature lag expansion and
+     aligns observations and timestamps after the maximum lag automatically.
+     Training and inference share the same CSV tensor builder, preventing parser
+     or feature-order drift between checkpoint creation and later execution.
+     FFN training and inference also share lag parsing, feature-column mapping,
+     tensor expansion, and leading-row alignment.
+   - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
+     verify export/reload/checkpoint round trips across all five approaches.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.
+   - Stop requests cancel between training trials without applying a partial
+     candidate selection; an active backend epoch run completes first.
 
 ## Build
 
@@ -97,6 +125,12 @@ interpretability as much as generic prediction error:
 - **Experiment table export:** one row per approach with data loss, physics loss,
   NSE/KGE/RMSE/MAE/bias, peak timing error, and key configuration values.
 
+Current run summaries and `metrics.csv` include signed peak-timing error,
+peak-magnitude error percentage, and RMSE for the highest and lowest observed
+10% of flows on the held-out test partition. The Plot tab provides observed and
+predicted flow-duration curves using exceedance probabilities for the same
+held-out samples; regime-conditioned peak diagnostics remain a future view.
+
 ## Suggested next development milestones
 
 - Replace placeholder GA controls with a full GA configuration dialog that shares
@@ -104,9 +138,10 @@ interpretability as much as generic prediction error:
 - Add GUI inference from compatibility-checked model artifacts.
 - Expand calibrated watershed-process residuals for snow accumulation/melt, infiltration capacity, groundwater exchange, channel routing, and evapotranspiration stress as field assumptions become available.
 
-The current synthetic workflow is still a software-validation stage. Before
-paper experiments, remaining work includes checkpoint inference and a
-broader five-model integration test.
+The current synthetic workflow is still a software-validation stage. Artifact
+inference now has a five-approach export/reload integration test; field-data
+calibration and broader scientific validation remain necessary before paper
+experiments.
 
 Standalone physics-only PINN runs deliberately do not select checkpoints using
 observed validation discharge, because that would introduce supervised model
@@ -159,7 +194,12 @@ manifest as `dataset_manifest.json` and record its SHA-256 release fingerprint
 in `provenance.json`.
 `HydroArtifactLoader` verifies model-manifest format, safe relative paths, file
 sizes, checkpoint formats, and SHA-256 digests before returning checkpoint
-bytes to a future inference session.
+bytes to a future inference session. It also reloads and validates the exported
+input and target scaler states so inference can reproduce the transformations
+that were fitted exclusively on the training partition. The inference artifact
+entry point loads the experiment configuration, checkpoints, and scalers as one
+bundle, then rejects missing counterparts, unknown approaches, and checkpoint
+formats that do not match the selected model family.
 `HydroExperimentLoader` reads the exported configuration back into a validated
 `HydroRunConfig`, providing a programmatic rerun boundary without silently
 falling back to current GUI defaults. The Performance tab can apply that

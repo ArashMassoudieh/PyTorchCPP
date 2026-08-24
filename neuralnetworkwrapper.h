@@ -1,10 +1,12 @@
 // NeuralNetworkWrapper.h
 #pragma once
 
-#include <torch/torch.h>
+#include <iosfwd>
 #include <memory>
 #include <string>
 #include <vector>
+
+#include <torch/torch.h>
 #include "TimeSeriesSet.h"
 #include "hyperparameters.h"
 #include "commontypes.h"
@@ -67,6 +69,9 @@ public:
      * @return Output tensor from the forward pass
      */
     torch::Tensor forward(DataType data_type);
+
+    /** Run a forward pass without copying inputs into the stored train/test datasets. */
+    torch::Tensor forwardTensor(const torch::Tensor& input);
 
     /**
      * @brief Get the number of output time series (output features).
@@ -209,6 +214,9 @@ public:
      * @param filepath Path to load the model from
      */
     void loadModel(const std::string& filepath);
+
+    /** Load model parameters directly from an in-memory archive stream. */
+    void loadModel(std::istream& input);
 
     // Getters
     /**
