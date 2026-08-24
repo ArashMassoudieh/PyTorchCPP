@@ -13,11 +13,9 @@ struct HydroLaggedTensor {
     int64_t leading_rows = 0;
 };
 
-inline HydroLaggedTensor buildHydroLaggedTensor(const torch::Tensor& inputs,
-                                                const std::string& lagSpecification) {
-    if (!inputs.defined() || inputs.dim() != 2 || inputs.size(0) <= 1) {
-        throw std::invalid_argument("Lagged inputs require a 2D tensor with more than one sample.");
-    }
+inline std::vector<std::vector<int>> parseHydroLagSpecification(
+    const std::string& lagSpecification, const int64_t featureCount) {
+    if (featureCount <= 0) throw std::invalid_argument("Lag configuration requires at least one feature.");
     std::vector<std::vector<int>> lags;
     std::stringstream groups(lagSpecification);
     std::string group;
@@ -34,8 +32,24 @@ inline HydroLaggedTensor buildHydroLaggedTensor(const torch::Tensor& inputs,
         if (!featureLags.empty()) lags.push_back(std::move(featureLags));
     }
     if (lags.empty()) lags.push_back({1});
-    while (lags.size() < static_cast<std::size_t>(inputs.size(1))) lags.push_back(lags.front());
-    lags.resize(static_cast<std::size_t>(inputs.size(1)));
+    while (lags.size() < static_cast<std::size_t>(featureCount)) lags.push_back(lags.front());
+    lags.resize(static_cast<std::size_t>(featureCount));
+    return lags;
+}
+
+inline int hydroCurrentFeatureColumn(const std::vector<std::vector<int>>& lags, const int featureIndex) {
+    int column = 0;
+    for (int feature = 0; feature < featureIndex; ++feature)
+        column += 1 + static_cast<int>(lags.at(static_cast<std::size_t>(feature)).size());
+    return column;
+}
+
+inline HydroLaggedTensor buildHydroLaggedTensor(const torch::Tensor& inputs,
+                                                const std::string& lagSpecification) {
+    if (!inputs.defined() || inputs.dim() != 2 || inputs.size(0) <= 1) {
+        throw std::invalid_argument("Lagged inputs require a 2D tensor with more than one sample.");
+    }
+    const auto lags = parseHydroLagSpecification(lagSpecification, inputs.size(1));
 
     int64_t maxLag = 0;
     for (const auto& featureLags : lags) {

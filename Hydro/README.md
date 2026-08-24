@@ -85,6 +85,8 @@ features while the residual keeps a direct mass-balance interpretation.
      aligns observations and timestamps after the maximum lag automatically.
      Training and inference share the same CSV tensor builder, preventing parser
      or feature-order drift between checkpoint creation and later execution.
+     FFN training and inference also share lag parsing, feature-column mapping,
+     tensor expansion, and leading-row alignment.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
 6. **GA tab**
