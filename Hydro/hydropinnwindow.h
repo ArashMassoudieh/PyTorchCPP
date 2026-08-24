@@ -132,6 +132,7 @@ private:
     QPushButton* plotSubplotsButton_;
     QPushButton* plotResidualsButton_;
     QPushButton* plotErrorCdfButton_;
+    bool gaStopRequested_ = false;
     std::map<QString, HydroRunResult> lastModeResults_;
     std::unique_ptr<HydroInferenceArtifacts> loadedInferenceArtifacts_;
     std::map<QString, std::unique_ptr<HydroInferenceSession>> inferenceSessions_;

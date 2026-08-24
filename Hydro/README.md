@@ -91,6 +91,8 @@ features while the residual keeps a direct mass-balance interpretation.
      verify export/reload/checkpoint round trips across all five approaches.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.
+   - Stop requests cancel between training trials without applying a partial
+     candidate selection; an active backend epoch run completes first.
 
 ## Build
 

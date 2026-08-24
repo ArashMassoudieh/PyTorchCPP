@@ -1182,6 +1182,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         return;
     }
 
+    gaStopRequested_ = false;
     appendLog(QString("Starting GA-style lag optimization for %1.").arg(modeDisplayName(mode)));
     startGAButton_->setEnabled(false);
     stopGAButton_->setEnabled(true);
@@ -1290,7 +1291,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
     int evaluated = 0;
     int attempts = 0;
     const int maxAttempts = std::max(candidateCount * 20, candidateCount + 10);
-    while (evaluated < candidateCount && attempts < maxAttempts) {
+    while (evaluated < candidateCount && attempts < maxAttempts && !gaStopRequested_) {
         ++attempts;
         HydroRunConfig trialCfg = baseCfg;
         QString candidateSpec;
@@ -1355,6 +1356,15 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         QCoreApplication::processEvents();
     }
 
+    if (gaStopRequested_) {
+        appendLog(QString("GA lag optimization cancelled after %1 evaluated candidate(s).").arg(evaluated));
+        statusLabel_->setText("GA lag optimization cancelled.");
+        stopGAButton_->setEnabled(false);
+        startGAButton_->setEnabled(true);
+        updateFfnLagUiState();
+        return;
+    }
+
     if (evaluated < candidateCount) {
         appendLog(QString("GA lag optimization evaluated %1/%2 unique candidates; search space was exhausted or duplicate-heavy.")
                       .arg(evaluated)
@@ -1380,7 +1390,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         appendLog(QString("GA lag optimization confirming top %1 candidate(s) with full epoch count=%2.")
                       .arg(confirmCount)
                       .arg(confirmBaseCfg.epochs));
-        for (int i = 0; i < confirmCount; ++i) {
+        for (int i = 0; i < confirmCount && !gaStopRequested_; ++i) {
             HydroRunConfig confirmCfg = confirmBaseCfg;
             confirmCfg.input_lags_csv = successfulCandidates[static_cast<size_t>(i)].spec.toStdString();
             try {
@@ -1414,6 +1424,15 @@ void HydroPINNWindow::runLagOptimizationSearch() {
             QCoreApplication::processEvents();
         }
 
+        if (gaStopRequested_) {
+            appendLog("GA lag optimization cancelled during full-epoch candidate confirmation.");
+            statusLabel_->setText("GA lag optimization cancelled.");
+            stopGAButton_->setEnabled(false);
+            startGAButton_->setEnabled(true);
+            updateFfnLagUiState();
+            return;
+        }
+
         if (std::isfinite(confirmedScore)) {
             bestSpec = confirmedSpec;
             bestMse = confirmedScore;
@@ -1439,10 +1458,10 @@ void HydroPINNWindow::runLagOptimizationSearch() {
 }
 
 void HydroPINNWindow::stopGAPlaceholder() {
-    appendLog("GA stop requested (placeholder).");
-    startGAButton_->setEnabled(true);
+    gaStopRequested_ = true;
+    appendLog("GA stop requested; cancellation will occur after the active training trial finishes.");
+    statusLabel_->setText("Stopping GA lag optimization...");
     stopGAButton_->setEnabled(false);
-    updateStatus();
 }
 
 void HydroPINNWindow::refreshPerformanceAssessment() {
