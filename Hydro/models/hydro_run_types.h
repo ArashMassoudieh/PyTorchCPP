@@ -101,6 +101,13 @@ struct HydroRunResult {
     double correlation = std::numeric_limits<double>::quiet_NaN();
     double kge = std::numeric_limits<double>::quiet_NaN();
     double volume_error_percent = std::numeric_limits<double>::quiet_NaN();
+    double peak_timing_error = std::numeric_limits<double>::quiet_NaN();
+    double peak_magnitude_error_percent = std::numeric_limits<double>::quiet_NaN();
+    double high_flow_rmse = std::numeric_limits<double>::quiet_NaN();
+    double low_flow_rmse = std::numeric_limits<double>::quiet_NaN();
+    double physics_residual_mean = std::numeric_limits<double>::quiet_NaN();
+    double physics_residual_rmse = std::numeric_limits<double>::quiet_NaN();
+    double cumulative_physics_residual = std::numeric_limits<double>::quiet_NaN();
     double physics_loss = std::numeric_limits<double>::quiet_NaN();
     std::string message;
 

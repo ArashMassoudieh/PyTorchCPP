@@ -61,3 +61,64 @@ inline bool hydroMetricsAreFinite(const HydroRunResult& result) {
     return std::isfinite(result.mse) && std::isfinite(result.rmse) &&
            std::isfinite(result.mae);
 }
+
+inline void populateHydroPeakMetrics(HydroRunResult& result) {
+    const size_t n = std::min(result.x.size(), std::min(result.y_true.size(), result.y_pred.size()));
+    if (n == 0) return;
+    std::vector<size_t> testIndices;
+    testIndices.reserve(n);
+    size_t observedPeak = n;
+    size_t predictedPeak = n;
+    for (size_t i = 0; i < n; ++i) {
+        if (i < result.split.size() && result.split[i] != "test") continue;
+        testIndices.push_back(i);
+        if (observedPeak == n || result.y_true[i] > result.y_true[observedPeak]) observedPeak = i;
+        if (predictedPeak == n || result.y_pred[i] > result.y_pred[predictedPeak]) predictedPeak = i;
+    }
+    if (observedPeak == n || predictedPeak == n) return;
+    result.peak_timing_error = result.x[predictedPeak] - result.x[observedPeak];
+    const double observedMagnitude = result.y_true[observedPeak];
+    if (std::abs(observedMagnitude) > 0.0) {
+        result.peak_magnitude_error_percent =
+            100.0 * (result.y_pred[predictedPeak] - observedMagnitude) / std::abs(observedMagnitude);
+    }
+    std::sort(testIndices.begin(), testIndices.end(), [&](const size_t left, const size_t right) {
+        return result.y_true[left] < result.y_true[right];
+    });
+    const size_t tailCount = std::max<size_t>(1, static_cast<size_t>(std::ceil(testIndices.size() * 0.1)));
+    double lowSquaredError = 0.0;
+    double highSquaredError = 0.0;
+    for (size_t rank = 0; rank < tailCount; ++rank) {
+        const size_t low = testIndices[rank];
+        const size_t high = testIndices[testIndices.size() - 1 - rank];
+        const double lowError = result.y_pred[low] - result.y_true[low];
+        const double highError = result.y_pred[high] - result.y_true[high];
+        lowSquaredError += lowError * lowError;
+        highSquaredError += highError * highError;
+    }
+    result.low_flow_rmse = std::sqrt(lowSquaredError / static_cast<double>(tailCount));
+    result.high_flow_rmse = std::sqrt(highSquaredError / static_cast<double>(tailCount));
+}
+
+inline void populateHydroPhysicsResidualMetrics(HydroRunResult& result) {
+    double sum = 0.0;
+    double squared = 0.0;
+    double cumulative = 0.0;
+    size_t count = 0;
+    for (size_t i = 0; i < result.physics_residual.size(); ++i) {
+        const double residual = result.physics_residual[i];
+        if (!std::isfinite(residual)) continue;
+        sum += residual;
+        squared += residual * residual;
+        ++count;
+        if (i > 0 && i < result.x.size() && std::isfinite(result.x[i]) && std::isfinite(result.x[i - 1])) {
+            cumulative += residual * (result.x[i] - result.x[i - 1]);
+        } else if (result.x.empty()) {
+            cumulative += residual;
+        }
+    }
+    if (count == 0) return;
+    result.physics_residual_mean = sum / static_cast<double>(count);
+    result.physics_residual_rmse = std::sqrt(squared / static_cast<double>(count));
+    result.cumulative_physics_residual = cumulative;
+}

@@ -120,13 +120,16 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     const auto metricsPath = root / "metrics.csv";
     std::ofstream metrics(metricsPath);
     requireStream(metrics, metricsPath);
-    metrics << "approach,success,final_loss,validation_mse,test_mse,rmse,mae,nse,kge,correlation,pbias,volume_error_percent,physics_loss\n";
+    metrics << "approach,success,final_loss,validation_mse,test_mse,rmse,mae,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual,physics_loss\n";
     metrics << std::setprecision(17);
     for (const auto& entry : results) {
         const auto& r = entry.second;
         metrics << entry.first << ',' << (r.success ? 1 : 0) << ',' << r.final_loss << ',' << r.validation_mse << ','
                 << r.mse << ',' << r.rmse << ',' << r.mae << ',' << r.nse << ',' << r.kge << ',' << r.correlation << ','
-                << r.pbias << ',' << r.volume_error_percent << ',' << r.physics_loss << '\n';
+                << r.pbias << ',' << r.volume_error_percent << ',' << r.peak_timing_error << ','
+                << r.peak_magnitude_error_percent << ',' << r.high_flow_rmse << ',' << r.low_flow_rmse << ','
+                << r.physics_residual_mean << ',' << r.physics_residual_rmse << ','
+                << r.cumulative_physics_residual << ',' << r.physics_loss << '\n';
     }
 
     const auto modelsDirectory = root / "models";
