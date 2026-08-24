@@ -92,6 +92,8 @@ features while the residual keeps a direct mass-balance interpretation.
      tensor expansion, and leading-row alignment. Invalid, duplicate, empty, or
      excess lag groups are rejected instead of being silently shifted or dropped.
      Artifact CSV manifests accept both Unix LF and Windows CRLF line endings.
+     Imported scaler states are revalidated at the tensor boundary, including
+     method, shape overflow, numeric finiteness, and non-zero scale checks.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
    - Reloaded experiments restore exported physics-residual series as well as

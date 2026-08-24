@@ -3,8 +3,11 @@
 #include <torch/torch.h>
 #include "../models/hydro_run_types.h"
 
+#include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 class TensorScaler {
@@ -62,15 +65,32 @@ public:
         if (state.offset.empty() || state.offset.size() != state.scale.size() || state.shape.empty()) {
             throw std::invalid_argument("Scaler state is incomplete.");
         }
+        if (state.method != "none" && state.method != "standardize" && state.method != "minmax") {
+            throw std::invalid_argument("Scaler state has an unsupported method.");
+        }
         int64_t expected = 1;
         for (const int64_t extent : state.shape) {
             if (extent <= 0) throw std::invalid_argument("Scaler state has an invalid shape.");
+            if (expected > std::numeric_limits<int64_t>::max() / extent) {
+                throw std::invalid_argument("Scaler state shape is too large.");
+            }
             expected *= extent;
         }
         if (expected != static_cast<int64_t>(state.offset.size())) throw std::invalid_argument("Scaler state shape does not match its values.");
+        for (std::size_t i = 0; i < state.offset.size(); ++i) {
+            if (!std::isfinite(state.offset[i]) || !std::isfinite(state.scale[i]) || state.scale[i] == 0.0) {
+                throw std::invalid_argument("Scaler state contains invalid numeric values.");
+            }
+        }
+        auto offset = torch::tensor(state.offset, torch::kFloat64).to(torch::kFloat32).reshape(state.shape);
+        auto scale = torch::tensor(state.scale, torch::kFloat64).to(torch::kFloat32).reshape(state.shape);
+        if (!offset.isfinite().all().item<bool>() || !scale.isfinite().all().item<bool>() ||
+            torch::eq(scale, 0).any().item<bool>()) {
+            throw std::invalid_argument("Scaler state cannot be represented safely as float tensors.");
+        }
         method_ = state.method;
-        offset_ = torch::tensor(state.offset, torch::kFloat64).to(torch::kFloat32).reshape(state.shape);
-        scale_ = torch::tensor(state.scale, torch::kFloat64).to(torch::kFloat32).reshape(state.shape);
+        offset_ = std::move(offset);
+        scale_ = std::move(scale);
     }
 
 private:

@@ -2,6 +2,7 @@
 #include "../dataset/hydro_tensor_builder.h"
 
 #include <cassert>
+#include <limits>
 
 int main() {
     auto train = torch::tensor({{0.0f}, {2.0f}});
@@ -17,6 +18,18 @@ int main() {
     TensorScaler restored;
     restored.importState(saved);
     assert(torch::allclose(restored.transform(heldOut), transformed));
+    bool zeroScaleRejected = false;
+    try { restored.importState({"minmax", {0.0}, {0.0}, {1, 1}}); }
+    catch (const std::invalid_argument&) { zeroScaleRejected = true; }
+    assert(zeroScaleRejected);
+    bool unsupportedMethodRejected = false;
+    try { restored.importState({"custom", {0.0}, {1.0}, {1, 1}}); }
+    catch (const std::invalid_argument&) { unsupportedMethodRejected = true; }
+    assert(unsupportedMethodRejected);
+    bool overflowingShapeRejected = false;
+    try { restored.importState({"none", {0.0}, {1.0}, {std::numeric_limits<int64_t>::max(), 2}}); }
+    catch (const std::invalid_argument&) { overflowingShapeRejected = true; }
+    assert(overflowingShapeRejected);
 
     auto constant = torch::ones({3, 2});
     scaler.fit(constant, "standardize");
