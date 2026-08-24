@@ -89,6 +89,8 @@ features while the residual keeps a direct mass-balance interpretation.
      tensor expansion, and leading-row alignment.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
+   - Reloaded experiments restore exported physics-residual series as well as
+     predictions, so residual and cumulative-drift plots remain available.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.
    - Stop requests cancel between training trials without applying a partial

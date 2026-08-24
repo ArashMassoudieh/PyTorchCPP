@@ -1616,7 +1616,16 @@ void HydroPINNWindow::loadInferenceArtifacts() {
                 approach, std::make_unique<HydroInferenceSession>(artifacts, entry.first));
         }
         const QString experimentId = QString::fromStdString(artifacts.experiment.experiment_id);
-        const auto storedResults = HydroArtifactLoader().loadPredictions(directory.toStdString());
+        auto storedResults = HydroArtifactLoader().loadPredictions(directory.toStdString());
+        const auto storedResiduals = HydroArtifactLoader().loadPhysicsResiduals(directory.toStdString());
+        for (const auto& entry : storedResiduals) {
+            const auto result = storedResults.find(entry.first);
+            if (result == storedResults.end() || entry.second.size() != result->second.x.size()) {
+                throw std::runtime_error("Exported physics residuals do not align with predictions for: " + entry.first);
+            }
+            result->second.physics_residual = entry.second;
+            populateHydroPhysicsResidualMetrics(result->second);
+        }
         std::map<QString, HydroRunResult> restoredResults;
         for (const auto& entry : storedResults) {
             if (artifacts.models.find(entry.first) == artifacts.models.end()) {

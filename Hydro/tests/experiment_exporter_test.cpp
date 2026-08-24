@@ -90,6 +90,8 @@ int main() {
     assert(storedResults.at("ffn").success);
     assert(storedResults.at("ffn").split == std::vector<std::string>({"train", "test"}));
     assert(storedResults.at("ffn").y_pred == std::vector<double>({1.5, 1.5}));
+    const auto storedResiduals = HydroArtifactLoader().loadPhysicsResiduals(root.string());
+    assert(storedResiduals.at("ffn") == result.physics_residual);
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);
