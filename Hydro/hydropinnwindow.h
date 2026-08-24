@@ -6,7 +6,7 @@
 #include <map>
 #include <memory>
 
-#include "evaluation/artifact_loader.h"
+#include "evaluation/inference_runner.h"
 #include "models/hydro_run_types.h"
 
 class QLabel;
@@ -132,8 +132,10 @@ private:
     QPushButton* plotSubplotsButton_;
     QPushButton* plotResidualsButton_;
     QPushButton* plotErrorCdfButton_;
+    bool gaStopRequested_ = false;
     std::map<QString, HydroRunResult> lastModeResults_;
     std::unique_ptr<HydroInferenceArtifacts> loadedInferenceArtifacts_;
+    std::map<QString, std::unique_ptr<HydroInferenceSession>> inferenceSessions_;
     std::vector<double> lastSyntheticX_;
     std::vector<double> lastSyntheticTarget_;
     std::map<QString, std::vector<double>> lastSyntheticInputs_;
@@ -145,6 +147,7 @@ private:
     void showSelectedPrediction();
     void showAllPredictions();
     void showPredictionForMode(const QString& mode);
+    bool runLoadedInferenceForMode(const QString& mode);
     void loadInferenceArtifacts();
     void showSyntheticInputsOutputs();
     void applyNeuroforgeCsvPreset();

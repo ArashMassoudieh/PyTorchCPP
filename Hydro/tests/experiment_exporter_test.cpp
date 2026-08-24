@@ -45,6 +45,10 @@ int main() {
     result.model_checkpoint_format = "neuralnetworkwrapper-v1";
     result.model_checkpoint = {0x01, 0x02, 0x03};
     result.physics_residual = {0.1, -0.2};
+    result.peak_timing_error = 1.0;
+    result.peak_magnitude_error_percent = -5.0;
+    result.high_flow_rmse = 0.25;
+    result.low_flow_rmse = 0.125;
     HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}});
     const auto root = output / "run_001";
     assert(std::filesystem::is_regular_file(root / "experiment_config.json"));
@@ -57,6 +61,12 @@ int main() {
     assert(std::filesystem::is_regular_file(root / "physics_residuals.csv"));
     assert(std::filesystem::is_regular_file(root / "scalers.csv"));
     assert(std::filesystem::is_regular_file(root / "models.csv"));
+    {
+        std::ifstream metrics(root / "metrics.csv");
+        const std::string metricsText((std::istreambuf_iterator<char>(metrics)), std::istreambuf_iterator<char>());
+        assert(metricsText.find("peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse") != std::string::npos);
+        assert(metricsText.find(",1,-5,0.25,0.125,") != std::string::npos);
+    }
     assert(std::filesystem::file_size(root / "models" / "ffn.pt") == 3);
     const auto models = HydroArtifactLoader().loadModels(root.string());
     assert(models.at("ffn").bytes == result.model_checkpoint);

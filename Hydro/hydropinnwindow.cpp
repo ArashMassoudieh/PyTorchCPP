@@ -7,6 +7,10 @@
 #include "models/lstm_pinn_wrapper.h"
 #include "evaluation/experiment_exporter.h"
 #include "evaluation/experiment_loader.h"
+#include "evaluation/hydro_metrics.h"
+#include "dataset/hydro_tensor_builder.h"
+#include "dataset/lagged_tensor_builder.h"
+#include "dataset/csv_tensor_builder.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -109,7 +113,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       runPredictionPINNButton_(new QPushButton("Run PINN", this)),
       runPredictionLSTMButton_(new QPushButton("Run LSTM", this)), runPredictionLSTMPINNButton_(new QPushButton("Run LSTM + PINN", this)),
       loadInferenceArtifactsButton_(new QPushButton("Load Inference Artifacts...", this)),
-      predictionUseCurrentDataCheck_(new QCheckBox("Prediction uses current Data tab settings (re-run mode)", this)),
+      predictionUseCurrentDataCheck_(new QCheckBox("Run loaded checkpoint on current Data source", this)),
       runTrainingButton_(new QPushButton("Train Selected", this)), runAllTrainingButton_(new QPushButton("Train All", this)),
       runTrainingFFNButton_(new QPushButton("Train FFN", this)), runTrainingFFNPINNButton_(new QPushButton("Train FFN + PINN", this)),
       runTrainingPINNButton_(new QPushButton("Train PINN", this)),
@@ -1178,6 +1182,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         return;
     }
 
+    gaStopRequested_ = false;
     appendLog(QString("Starting GA-style lag optimization for %1.").arg(modeDisplayName(mode)));
     startGAButton_->setEnabled(false);
     stopGAButton_->setEnabled(true);
@@ -1286,7 +1291,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
     int evaluated = 0;
     int attempts = 0;
     const int maxAttempts = std::max(candidateCount * 20, candidateCount + 10);
-    while (evaluated < candidateCount && attempts < maxAttempts) {
+    while (evaluated < candidateCount && attempts < maxAttempts && !gaStopRequested_) {
         ++attempts;
         HydroRunConfig trialCfg = baseCfg;
         QString candidateSpec;
@@ -1351,6 +1356,15 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         QCoreApplication::processEvents();
     }
 
+    if (gaStopRequested_) {
+        appendLog(QString("GA lag optimization cancelled after %1 evaluated candidate(s).").arg(evaluated));
+        statusLabel_->setText("GA lag optimization cancelled.");
+        stopGAButton_->setEnabled(false);
+        startGAButton_->setEnabled(true);
+        updateFfnLagUiState();
+        return;
+    }
+
     if (evaluated < candidateCount) {
         appendLog(QString("GA lag optimization evaluated %1/%2 unique candidates; search space was exhausted or duplicate-heavy.")
                       .arg(evaluated)
@@ -1376,7 +1390,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         appendLog(QString("GA lag optimization confirming top %1 candidate(s) with full epoch count=%2.")
                       .arg(confirmCount)
                       .arg(confirmBaseCfg.epochs));
-        for (int i = 0; i < confirmCount; ++i) {
+        for (int i = 0; i < confirmCount && !gaStopRequested_; ++i) {
             HydroRunConfig confirmCfg = confirmBaseCfg;
             confirmCfg.input_lags_csv = successfulCandidates[static_cast<size_t>(i)].spec.toStdString();
             try {
@@ -1410,6 +1424,15 @@ void HydroPINNWindow::runLagOptimizationSearch() {
             QCoreApplication::processEvents();
         }
 
+        if (gaStopRequested_) {
+            appendLog("GA lag optimization cancelled during full-epoch candidate confirmation.");
+            statusLabel_->setText("GA lag optimization cancelled.");
+            stopGAButton_->setEnabled(false);
+            startGAButton_->setEnabled(true);
+            updateFfnLagUiState();
+            return;
+        }
+
         if (std::isfinite(confirmedScore)) {
             bestSpec = confirmedSpec;
             bestMse = confirmedScore;
@@ -1435,10 +1458,10 @@ void HydroPINNWindow::runLagOptimizationSearch() {
 }
 
 void HydroPINNWindow::stopGAPlaceholder() {
-    appendLog("GA stop requested (placeholder).");
-    startGAButton_->setEnabled(true);
+    gaStopRequested_ = true;
+    appendLog("GA stop requested; cancellation will occur after the active training trial finishes.");
+    statusLabel_->setText("Stopping GA lag optimization...");
     stopGAButton_->setEnabled(false);
-    updateStatus();
 }
 
 void HydroPINNWindow::refreshPerformanceAssessment() {
@@ -1515,7 +1538,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.success ? "success" : "failed")
                        .arg(r.final_loss, 0, 'g', 8);
 
-        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, physics_loss=%10")
+        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, peak_timing_error=%10, peak_magnitude_error_percent=%11, high_flow_rmse=%12, low_flow_rmse=%13, physics_loss=%14")
                        .arg(r.validation_mse, 0, 'g', 8)
                        .arg(r.mse, 0, 'g', 8)
                        .arg(r.rmse, 0, 'g', 8)
@@ -1525,6 +1548,10 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.correlation, 0, 'g', 8)
                        .arg(r.pbias, 0, 'g', 8)
                        .arg(r.volume_error_percent, 0, 'g', 8)
+                       .arg(r.peak_timing_error, 0, 'g', 8)
+                       .arg(r.peak_magnitude_error_percent, 0, 'g', 8)
+                       .arg(r.high_flow_rmse, 0, 'g', 8)
+                       .arg(r.low_flow_rmse, 0, 'g', 8)
                        .arg(r.physics_loss, 0, 'g', 8);
 
         if (!r.message.empty()) {
@@ -1569,7 +1596,13 @@ void HydroPINNWindow::loadInferenceArtifacts() {
     try {
         auto artifacts = HydroArtifactLoader().loadForInference(directory.toStdString());
         QStringList approaches;
-        for (const auto& entry : artifacts.models) approaches.push_back(QString::fromStdString(entry.first));
+        std::map<QString, std::unique_ptr<HydroInferenceSession>> preparedSessions;
+        for (const auto& entry : artifacts.models) {
+            const QString approach = QString::fromStdString(entry.first);
+            approaches.push_back(approach);
+            preparedSessions.emplace(
+                approach, std::make_unique<HydroInferenceSession>(artifacts, entry.first));
+        }
         const QString experimentId = QString::fromStdString(artifacts.experiment.experiment_id);
         const auto storedResults = HydroArtifactLoader().loadPredictions(directory.toStdString());
         std::map<QString, HydroRunResult> restoredResults;
@@ -1580,8 +1613,9 @@ void HydroPINNWindow::loadInferenceArtifacts() {
             restoredResults.emplace(QString::fromStdString(entry.first), entry.second);
         }
         lastModeResults_ = std::move(restoredResults);
+        inferenceSessions_ = std::move(preparedSessions);
         loadedInferenceArtifacts_ = std::make_unique<HydroInferenceArtifacts>(std::move(artifacts));
-        appendLog(QString("Loaded compatibility-checked inference artifacts for experiment '%1': %2.")
+        appendLog(QString("Loaded and prepared inference artifacts for experiment '%1': %2.")
                       .arg(experimentId, approaches.join(", ")));
         QMessageBox::information(
             this, "HydroPINN Inference Artifacts",
@@ -1590,6 +1624,7 @@ void HydroPINNWindow::loadInferenceArtifacts() {
         refreshPerformanceAssessment();
     } catch (const std::exception& error) {
         loadedInferenceArtifacts_.reset();
+        inferenceSessions_.clear();
         appendLog(QString("Inference artifact load failed: %1").arg(error.what()));
         QMessageBox::critical(this, "HydroPINN Inference Artifacts", QString::fromUtf8(error.what()));
     }
@@ -1816,10 +1851,10 @@ void HydroPINNWindow::runAllModes() {
 
 void HydroPINNWindow::showPredictionForMode(const QString& mode) {
     if (predictionUseCurrentDataCheck_->isChecked()) {
-        appendLog(QString("Prediction is set to current data settings; re-running approach '%1'.").arg(modeDisplayName(mode)));
-        runMode(mode);
-        predictionUseCurrentDataCheck_->setChecked(false);
-        appendLog("Prediction re-run mode auto-disabled after one execution to prevent repeated retraining loops.");
+        if (!runLoadedInferenceForMode(mode)) {
+            QMessageBox::warning(this, "HydroPINN Inference",
+                                 "Loaded checkpoint inference failed. Review the Logs tab for details.");
+        }
         return;
     }
 
@@ -1835,16 +1870,98 @@ void HydroPINNWindow::showPredictionForMode(const QString& mode) {
     appendLog(QString("Displayed stored target vs prediction for approach '%1'.").arg(modeDisplayName(mode)));
 }
 
+bool HydroPINNWindow::runLoadedInferenceForMode(const QString& mode) {
+    const auto session = inferenceSessions_.find(mode);
+    if (session == inferenceSessions_.end()) {
+        appendLog(QString("No loaded checkpoint session is available for '%1'.").arg(modeDisplayName(mode)));
+        return false;
+    }
+    const HydroRunConfig current = currentConfig();
+    if (!current.use_hydro_package && !current.use_csv_data) {
+        appendLog("Loaded checkpoint inference currently requires Hydro Package or CSV as the Data tab source.");
+        return false;
+    }
+    if (!loadedInferenceArtifacts_) {
+        appendLog("Loaded checkpoint inference has no active experiment configuration.");
+        return false;
+    }
+    try {
+        const HydroRunConfig& exported = loadedInferenceArtifacts_->experiment.config;
+        if (current.use_hydro_package != exported.use_hydro_package ||
+            current.use_csv_data != exported.use_csv_data) {
+            throw std::runtime_error("Current data-source type does not match the loaded experiment.");
+        }
+        if (current.use_hydro_package && (current.hydro_package_profile != exported.hydro_package_profile ||
+            current.use_hydro_forecast_feature != exported.use_hydro_forecast_feature ||
+            (exported.use_hydro_forecast_feature &&
+             (current.hydro_forecast_variable != exported.hydro_forecast_variable ||
+              std::abs(current.hydro_forecast_lead_hours - exported.hydro_forecast_lead_hours) > 1.0e-9 ||
+              current.hydro_forecast_ensemble_member != exported.hydro_forecast_ensemble_member)))) {
+            throw std::runtime_error(
+                "Current Hydro Package feature settings do not match the loaded experiment configuration.");
+        }
+        if (current.use_csv_data &&
+            (current.csv_x_column != exported.csv_x_column || current.csv_y_column != exported.csv_y_column ||
+             current.csv_has_header != exported.csv_has_header || current.synthetic_profile != exported.synthetic_profile)) {
+            throw std::runtime_error("Current CSV column/profile settings do not match the loaded experiment.");
+        }
+        HydroRunConfig config = exported;
+        config.hydro_package_path = current.hydro_package_path;
+        config.hydro_catchment_id = current.hydro_catchment_id;
+        config.csv_path = current.csv_path;
+        torch::Tensor inputs;
+        torch::Tensor targets;
+        torch::Tensor plotX;
+        if (config.use_hydro_package) {
+            if (!loadHydroPackageTensors(config, inputs, targets, plotX))
+                throw std::runtime_error("Unable to build tensors from the selected Hydro package.");
+        } else loadHydroCsvTensors(config, inputs, targets, plotX);
+        if ((mode == "ffn" || mode == "ffn_pinn") && exported.use_time_lagged_ffn) {
+            const auto lagged = buildHydroLaggedTensor(inputs, exported.input_lags_csv);
+            inputs = lagged.inputs;
+            targets = targets.slice(0, lagged.leading_rows, targets.size(0)).contiguous();
+            plotX = plotX.slice(0, lagged.leading_rows, plotX.size(0)).contiguous();
+        }
+        const torch::Tensor predictions = session->second->predictSeries(inputs).to(torch::kCPU).contiguous();
+        const int64_t offset = inputs.size(0) - predictions.size(0);
+        if (offset < 0 || offset + predictions.size(0) > targets.size(0)) {
+            throw std::runtime_error("Inference predictions do not align with the selected package.");
+        }
+        const auto alignedTargets = targets.slice(0, offset, offset + predictions.size(0)).to(torch::kCPU).contiguous();
+        const auto alignedX = plotX.slice(0, offset, offset + predictions.size(0)).to(torch::kCPU).contiguous();
+        HydroRunResult result;
+        result.success = true;
+        result.message = "Loaded checkpoint inference on current Hydro package.";
+        result.x.reserve(static_cast<std::size_t>(predictions.size(0)));
+        result.y_true.reserve(result.x.capacity());
+        result.y_pred.reserve(result.x.capacity());
+        result.split.assign(static_cast<std::size_t>(predictions.size(0)), "test");
+        for (int64_t i = 0; i < predictions.size(0); ++i) {
+            result.x.push_back(alignedX[i].item<double>());
+            result.y_true.push_back(alignedTargets[i].item<double>());
+            result.y_pred.push_back(predictions[i].item<double>());
+        }
+        populateHydroMetrics(result, result.y_true, result.y_pred);
+        populateHydroPeakMetrics(result);
+        lastModeResults_[mode] = std::move(result);
+        updatePlot(mode, lastModeResults_.at(mode));
+        appendLog(QString("Ran loaded '%1' checkpoint on %2 current package samples.")
+                      .arg(modeDisplayName(mode)).arg(predictions.size(0)));
+        return true;
+    } catch (const std::exception& error) {
+        appendLog(QString("Loaded checkpoint inference failed for '%1': %2")
+                      .arg(modeDisplayName(mode), QString::fromUtf8(error.what())));
+        return false;
+    }
+}
+
 void HydroPINNWindow::showSelectedPrediction() {
     showPredictionForMode(selectedModeKey());
 }
 
 void HydroPINNWindow::showAllPredictions() {
     if (predictionUseCurrentDataCheck_->isChecked()) {
-        appendLog("Prediction is set to current data settings; re-running all approaches.");
-        runAllModes();
-        predictionUseCurrentDataCheck_->setChecked(false);
-        appendLog("Prediction re-run mode auto-disabled after one execution to prevent repeated retraining loops.");
+        for (const auto& entry : inferenceSessions_) runLoadedInferenceForMode(entry.first);
         return;
     }
 

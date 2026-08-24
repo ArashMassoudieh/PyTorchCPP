@@ -2,6 +2,8 @@
 #include "../dataset/chronological_split.h"
 #include "../dataset/tensor_scaler.h"
 #include "../dataset/hydro_tensor_builder.h"
+#include "../dataset/csv_tensor_builder.h"
+#include "../dataset/lagged_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
 #include "../evaluation/model_checkpoint.h"
 
@@ -10,7 +12,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-#include <fstream>
 #include <sstream>
 #include <stdexcept>
 
@@ -29,175 +30,8 @@ std::vector<int> parseHiddenLayers(const std::string& csv) {
     return layers;
 }
 
-std::vector<std::vector<int>> parseLagConfig(const std::string& lagSpec, int inputDim) {
-    std::vector<std::vector<int>> parsed;
-    std::stringstream groups(lagSpec);
-    std::string group;
-    while (std::getline(groups, group, ';')) {
-        std::stringstream groupStream(group);
-        std::string token;
-        std::vector<int> featureLags;
-        while (std::getline(groupStream, token, ',')) {
-            try {
-                const int lag = std::stoi(token);
-                if (lag > 0) {
-                    featureLags.push_back(lag);
-                }
-            } catch (...) {}
-        }
-        if (!featureLags.empty()) {
-            parsed.push_back(std::move(featureLags));
-        }
-    }
-
-    if (parsed.empty()) {
-        parsed.push_back({1});
-    }
-
-    if (inputDim <= 0) {
-        return parsed;
-    }
-
-    if (static_cast<int>(parsed.size()) < inputDim) {
-        const std::vector<int> fallback = parsed.front();
-        while (static_cast<int>(parsed.size()) < inputDim) {
-            parsed.push_back(fallback);
-        }
-    } else if (static_cast<int>(parsed.size()) > inputDim) {
-        parsed.resize(static_cast<size_t>(inputDim));
-    }
-    return parsed;
-}
-
 std::vector<std::vector<int>> currentInputLags(int inputDim) {
     return std::vector<std::vector<int>>(static_cast<size_t>(std::max(0, inputDim)), std::vector<int>{1});
-}
-
-void applyTimeLaggedInputs(torch::Tensor& x,
-                           torch::Tensor& y,
-                           torch::Tensor& plotX,
-                           const std::vector<std::vector<int>>& lagConfig) {
-    if (!x.defined() || x.dim() != 2 || x.size(0) <= 1) {
-        throw std::runtime_error("Time-lagged FFN input requires a 2D input tensor with more than one sample.");
-    }
-
-    int maxLag = 0;
-    int outputDim = 0;
-    for (const auto& featureLags : lagConfig) {
-        ++outputDim; // Current X(t)
-        for (const int lag : featureLags) {
-            if (lag > 0) {
-                maxLag = std::max(maxLag, lag);
-                ++outputDim;
-            }
-        }
-    }
-
-    if (maxLag <= 0 || outputDim <= x.size(1)) {
-        return;
-    }
-    if (x.size(0) <= maxLag) {
-        throw std::runtime_error("Time-lagged FFN input has fewer samples than the requested maximum lag.");
-    }
-
-    const int64_t rows = x.size(0) - maxLag;
-    torch::Tensor lagged = torch::empty({rows, outputDim}, torch::kFloat32);
-    int col = 0;
-    for (int64_t feature = 0; feature < x.size(1); ++feature) {
-        const auto& featureLags = lagConfig[static_cast<size_t>(feature)];
-        lagged.slice(1, col, col + 1).copy_(x.slice(0, maxLag, x.size(0)).slice(1, feature, feature + 1));
-        ++col;
-        for (const int lag : featureLags) {
-            if (lag <= 0) continue;
-            lagged.slice(1, col, col + 1).copy_(x.slice(0, maxLag - lag, x.size(0) - lag).slice(1, feature, feature + 1));
-            ++col;
-        }
-    }
-
-    x = lagged.contiguous();
-    y = y.slice(0, maxLag, y.size(0)).contiguous();
-    plotX = plotX.slice(0, maxLag, plotX.size(0)).contiguous();
-}
-
-std::vector<std::string> splitCsvRow(const std::string& line) {
-    std::vector<std::string> cols;
-    std::stringstream ss(line);
-    std::string cell;
-    while (std::getline(ss, cell, ',')) {
-        cols.push_back(cell);
-    }
-    return cols;
-}
-
-bool loadSeriesFromCsv(const HydroRunConfig& config,
-                       torch::Tensor& x,
-                       torch::Tensor& y,
-                       torch::Tensor& plotX) {
-    if (!config.use_csv_data) {
-        return false;
-    }
-    if (config.csv_path.empty()) {
-        throw std::runtime_error("CSV data source selected but csv_path is empty.");
-    }
-
-    std::ifstream in(config.csv_path);
-    if (!in.is_open()) {
-        throw std::runtime_error("Unable to open CSV file: " + config.csv_path);
-    }
-
-    std::vector<float> flatInputs;
-    std::vector<float> ys;
-    std::vector<float> plotXs;
-    std::string line;
-    bool firstLine = true;
-    const int requiredCol = std::max(config.csv_x_column, config.csv_y_column);
-
-    while (std::getline(in, line)) {
-        if (line.empty()) continue;
-        if (firstLine && config.csv_has_header) {
-            firstLine = false;
-            continue;
-        }
-        firstLine = false;
-
-        const std::vector<std::string> cols = splitCsvRow(line);
-        if (static_cast<int>(cols.size()) <= requiredCol) continue;
-
-        try {
-            if (config.synthetic_profile == "neuroforge_inputs_target") {
-                int features = 0;
-                for (int c = 0; c < static_cast<int>(cols.size()); ++c) {
-                    if (c == config.csv_y_column) continue;
-                    flatInputs.push_back(static_cast<float>(std::stod(cols[c])));
-                    ++features;
-                }
-                if (features == 0) continue;
-                plotXs.push_back((config.csv_x_column >= 0 && config.csv_x_column < static_cast<int>(cols.size()) &&
-                                  config.csv_x_column != config.csv_y_column)
-                                     ? static_cast<float>(std::stod(cols[config.csv_x_column]))
-                                     : flatInputs[flatInputs.size() - features]);
-            } else {
-                flatInputs.push_back(static_cast<float>(std::stod(cols[config.csv_x_column])));
-                plotXs.push_back(flatInputs.back());
-            }
-            ys.push_back(static_cast<float>(std::stod(cols[config.csv_y_column])));
-        } catch (...) { continue; }
-    }
-
-    if (ys.size() < 10) {
-        throw std::runtime_error("CSV parsing yielded too few numeric samples (<10).");
-    }
-
-    const int64_t samples = static_cast<int64_t>(ys.size());
-    const int64_t inputDim = static_cast<int64_t>(flatInputs.size() / ys.size());
-    if (inputDim <= 0 || static_cast<size_t>(samples * inputDim) != flatInputs.size()) {
-        throw std::runtime_error("CSV parsing yielded inconsistent input feature widths.");
-    }
-
-    x = torch::from_blob(flatInputs.data(), {samples, inputDim}, torch::kFloat32).clone();
-    y = torch::from_blob(ys.data(), {(long)ys.size(), 1}, torch::kFloat32).clone();
-    plotX = torch::from_blob(plotXs.data(), {(long)plotXs.size(), 1}, torch::kFloat32).clone();
-    return true;
 }
 
 void buildSyntheticSeries(const HydroRunConfig& config, torch::Tensor& x, torch::Tensor& y, torch::Tensor& plotX) {
@@ -431,13 +265,17 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     torch::Tensor x;
     torch::Tensor y;
     torch::Tensor plotX;
-    if (!loadHydroPackageTensors(config, x, y, plotX) && !loadSeriesFromCsv(config, x, y, plotX)) {
-        buildSyntheticSeries(config, x, y, plotX);
+    if (!loadHydroPackageTensors(config, x, y, plotX)) {
+        if (config.use_csv_data) loadHydroCsvTensors(config, x, y, plotX);
+        else buildSyntheticSeries(config, x, y, plotX);
     }
 
     const int inputDim = static_cast<int>(x.size(1));
     if (config.use_time_lagged_ffn) {
-        applyTimeLaggedInputs(x, y, plotX, parseLagConfig(config.input_lags_csv, inputDim));
+        const auto lagged = buildHydroLaggedTensor(x, config.input_lags_csv);
+        x = lagged.inputs;
+        y = y.slice(0, lagged.leading_rows, y.size(0)).contiguous();
+        plotX = plotX.slice(0, lagged.leading_rows, plotX.size(0)).contiguous();
     }
     model.setHiddenLayers(parseHiddenLayers(config.hidden_layers_csv));
     model.setLags(currentInputLags(static_cast<int>(x.size(1))));
@@ -515,6 +353,7 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
         if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
         else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
     }
+    populateHydroPeakMetrics(result);
     result.success = true;
     result.message = config.use_hydro_package ? "FFN run completed with Hydro package input." : (config.use_csv_data ? "FFN run completed with CSV input." : "FFN run completed with synthetic input.");
     return result;

@@ -190,7 +190,9 @@ HEADERS += \
     Hydro/dataset/hydro_units.h \
     Hydro/dataset/forecast_alignment.h \
     Hydro/dataset/hydro_tensor_builder.h \
+    Hydro/dataset/csv_tensor_builder.h \
     Hydro/dataset/lag_builder.h \
+    Hydro/dataset/lagged_tensor_builder.h \
     Hydro/dataset/sequence_builder.h \
     Hydro/dataset/chronological_split.h \
     Hydro/dataset/tensor_scaler.h \

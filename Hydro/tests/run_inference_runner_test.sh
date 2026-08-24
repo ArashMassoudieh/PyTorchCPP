@@ -12,10 +12,14 @@ binary="${TMPDIR:-/tmp}/hydro_inference_runner_test"
   -I"$libtorch/include" -I"$libtorch/include/torch/csrc/api/include" \
   "$repo_root/Hydro/tests/inference_runner_test.cpp" \
   "$repo_root/Hydro/evaluation/inference_runner.cpp" \
+  "$repo_root/Hydro/evaluation/artifact_loader.cpp" \
+  "$repo_root/Hydro/evaluation/experiment_exporter.cpp" \
+  "$repo_root/Hydro/evaluation/experiment_loader.cpp" \
+  "$repo_root/Hydro/dataset/hydro_checksum.cpp" \
   "$repo_root/neuralnetworkwrapper.cpp" "$repo_root/neuralnetworkfactory.cpp" "$repo_root/hyperparameters.cpp" \
   "$repo_root/Utilities/Distribution.cpp" "$repo_root/Utilities/Matrix.cpp" \
   "$repo_root/Utilities/Matrix_arma.cpp" "$repo_root/Utilities/Matrix_arma_sp.cpp" \
   "$repo_root/Utilities/QuickSort.cpp" "$repo_root/Utilities/Utilities.cpp" \
   "$repo_root/Utilities/Vector.cpp" "$repo_root/Utilities/Vector_arma.cpp" \
-  -L"$libtorch/lib" -Wl,-rpath,"$libtorch/lib" -ltorch -ltorch_cpu -lc10 -larmadillo -lgomp -lpthread -o "$binary"
+  -L"$libtorch/lib" -Wl,-rpath,"$libtorch/lib" -ltorch -ltorch_cpu -lc10 -larmadillo -lcrypto -lgomp -lpthread -o "$binary"
 "$binary"
