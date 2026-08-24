@@ -133,6 +133,21 @@ torch::Tensor HydroInferenceSession::predict(const torch::Tensor& physicalInputs
     return prediction;
 }
 
+torch::Tensor HydroInferenceSession::predictSeries(const torch::Tensor& physicalSeries) const {
+    if (!physicalSeries.defined() || physicalSeries.dim() != 2 ||
+        physicalSeries.size(0) == 0 || physicalSeries.size(1) != impl_->featureCount) {
+        throw std::invalid_argument("Inference series must have shape [samples, configured features].");
+    }
+    if (impl_->feedForward) return predict(physicalSeries);
+    if (physicalSeries.size(0) < impl_->sequenceLength) {
+        throw std::invalid_argument("Inference series is shorter than the exported LSTM sequence length.");
+    }
+    const auto sequences = physicalSeries.unfold(0, impl_->sequenceLength, 1)
+                               .transpose(1, 2)
+                               .contiguous();
+    return predict(sequences);
+}
+
 torch::Tensor HydroInferenceRunner::predictFeedForward(
     const HydroInferenceArtifacts& artifacts,
     const std::string& approach,

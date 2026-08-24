@@ -15,6 +15,7 @@ public:
     HydroInferenceSession& operator=(HydroInferenceSession&&) noexcept;
 
     torch::Tensor predict(const torch::Tensor& physicalInputs) const;
+    torch::Tensor predictSeries(const torch::Tensor& physicalSeries) const;
 
 private:
     struct Impl;

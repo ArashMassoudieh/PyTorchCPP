@@ -55,6 +55,11 @@ int main() {
     HydroInferenceSession recurrentSession(artifacts, "lstm");
     assert(torch::allclose(recurrentSession.predict(recurrentInputs), expectedRecurrent));
     assert(torch::allclose(recurrentSession.predict(recurrentInputs), expectedRecurrent));
+    const torch::Tensor recurrentSeries = torch::tensor(
+        {{1.0f, 2.0f}, {2.0f, 3.0f}, {3.0f, 4.0f}, {4.0f, 5.0f}});
+    const auto seriesPrediction = recurrentSession.predictSeries(recurrentSeries);
+    assert(seriesPrediction.size(0) == 3);
+    assert(torch::allclose(seriesPrediction.slice(0, 0, 1), expectedRecurrent.slice(0, 0, 1)));
 
     bool rejectedWidth = false;
     try { (void)HydroInferenceRunner().predictFeedForward(artifacts, "ffn", torch::zeros({2, 3})); }

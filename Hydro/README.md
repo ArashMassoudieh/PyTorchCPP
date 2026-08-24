@@ -75,6 +75,8 @@ features while the residual keeps a direct mass-balance interpretation.
      scaler import, and checkpoint deserialization occur only once.
      The GUI prepares one reusable session per checkpoint while loading an
      experiment, so corrupt or architecture-incompatible archives fail before use.
+     For LSTM approaches, `predictSeries` builds all overlapping sequence windows
+     with a tensor view operation instead of a per-window allocation loop.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify checkpoint round trips for both feed-forward and recurrent families.
 6. **GA tab**
