@@ -20,6 +20,12 @@ struct HydroArtifactScalers {
     HydroScalerState target;
 };
 
+struct HydroPhysicsResidualArtifact {
+    std::vector<double> x;
+    std::vector<std::string> split;
+    std::vector<double> values;
+};
+
 struct HydroInferenceArtifacts {
     LoadedHydroExperiment experiment;
     std::map<std::string, HydroModelArtifact> models;
@@ -31,5 +37,6 @@ public:
     std::map<std::string, HydroModelArtifact> loadModels(const std::string& experimentDirectory) const;
     std::map<std::string, HydroArtifactScalers> loadScalers(const std::string& experimentDirectory) const;
     std::map<std::string, HydroRunResult> loadPredictions(const std::string& experimentDirectory) const;
+    std::map<std::string, HydroPhysicsResidualArtifact> loadPhysicsResiduals(const std::string& experimentDirectory) const;
     HydroInferenceArtifacts loadForInference(const std::string& experimentDirectory) const;
 };

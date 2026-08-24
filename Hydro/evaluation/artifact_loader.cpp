@@ -1,6 +1,7 @@
 #include "artifact_loader.h"
 
 #include "../dataset/hydro_checksum.h"
+#include "hydro_metrics.h"
 
 #include <algorithm>
 #include <cmath>
@@ -243,7 +244,59 @@ std::map<std::string, HydroRunResult> HydroArtifactLoader::loadPredictions(
         result.message = "Reloaded exported predictions.";
     }
     if (results.empty()) throw std::runtime_error("predictions.csv contains no predictions.");
+    for (auto& entry : results) {
+        std::vector<double> observedTest;
+        std::vector<double> predictedTest;
+        for (std::size_t i = 0; i < entry.second.split.size(); ++i) {
+            if (entry.second.split[i] != "test") continue;
+            observedTest.push_back(entry.second.y_true[i]);
+            predictedTest.push_back(entry.second.y_pred[i]);
+        }
+        if (observedTest.empty()) {
+            throw std::runtime_error("Exported predictions contain no test partition for approach: " + entry.first);
+        }
+        populateHydroMetrics(entry.second, observedTest, predictedTest);
+        populateHydroPeakMetrics(entry.second);
+    }
     return results;
+}
+
+std::map<std::string, HydroPhysicsResidualArtifact> HydroArtifactLoader::loadPhysicsResiduals(
+    const std::string& experimentDirectory) const {
+    std::ifstream input(std::filesystem::path(experimentDirectory) / "physics_residuals.csv");
+    if (!input) throw std::runtime_error("Experiment is missing physics_residuals.csv.");
+    std::string line;
+    if (!std::getline(input, line) || line != "approach,index,split,x,physics_residual") {
+        throw std::runtime_error("physics_residuals.csv has an incompatible header.");
+    }
+    std::map<std::string, HydroPhysicsResidualArtifact> residuals;
+    std::size_t row = 1;
+    while (std::getline(input, line)) {
+        ++row;
+        if (line.empty()) continue;
+        const auto fields = splitCsv(line);
+        if (fields.size() != 5 || fields[0].empty() ||
+            (fields[2] != "train" && fields[2] != "validation" && fields[2] != "test")) {
+            throw std::runtime_error("Invalid physics_residuals.csv row " + std::to_string(row) + ".");
+        }
+        auto& artifact = residuals[fields[0]];
+        std::size_t index = 0;
+        try {
+            std::size_t consumed = 0;
+            index = std::stoull(fields[1], &consumed);
+            if (consumed != fields[1].size()) throw std::invalid_argument("invalid index");
+        } catch (...) {
+            throw std::runtime_error("Invalid physics residual index in row " + std::to_string(row) + ".");
+        }
+        if (index != artifact.values.size()) {
+            throw std::runtime_error("Physics residual indices are not contiguous in row " + std::to_string(row) + ".");
+        }
+        artifact.split.push_back(fields[2]);
+        artifact.x.push_back(parseFiniteDouble(fields[3], "x", row));
+        if (fields[4] == "nan" || fields[4] == "NaN") artifact.values.push_back(std::numeric_limits<double>::quiet_NaN());
+        else artifact.values.push_back(parseFiniteDouble(fields[4], "physics residual", row));
+    }
+    return residuals;
 }
 
 HydroInferenceArtifacts HydroArtifactLoader::loadForInference(

@@ -89,6 +89,11 @@ features while the residual keeps a direct mass-balance interpretation.
      tensor expansion, and leading-row alignment.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
+   - Reloaded experiments restore exported physics-residual series as well as
+     predictions, so residual and cumulative-drift plots remain available.
+     Residual timestamps and partition labels must match prediction artifacts.
+   - Predictive and peak diagnostics are recomputed from the restored held-out
+     test rows rather than trusting potentially stale summary values.
 6. **GA tab**
    - Run lag-structure optimization for FFN and FFN + PINN workflows.
    - Stop requests cancel between training trials without applying a partial
@@ -127,8 +132,12 @@ interpretability as much as generic prediction error:
 
 Current run summaries and `metrics.csv` include signed peak-timing error,
 peak-magnitude error percentage, and RMSE for the highest and lowest observed
-10% of flows on the held-out test partition. Full flow-duration curves and
-regime-conditioned peak diagnostics remain future result views.
+10% of flows on the held-out test partition. The Plot tab provides observed and
+predicted flow-duration curves using exceedance probabilities for the same
+held-out samples; regime-conditioned peak diagnostics remain a future view.
+PINN-capable water-balance runs also summarize finite physical residuals with
+mean bias, RMSE, and a timestep-integrated signed cumulative residual. The Plot
+tab can compare cumulative residual drift across all stored PINN approaches.
 
 ## Suggested next development milestones
 

@@ -99,3 +99,26 @@ inline void populateHydroPeakMetrics(HydroRunResult& result) {
     result.low_flow_rmse = std::sqrt(lowSquaredError / static_cast<double>(tailCount));
     result.high_flow_rmse = std::sqrt(highSquaredError / static_cast<double>(tailCount));
 }
+
+inline void populateHydroPhysicsResidualMetrics(HydroRunResult& result) {
+    double sum = 0.0;
+    double squared = 0.0;
+    double cumulative = 0.0;
+    size_t count = 0;
+    for (size_t i = 0; i < result.physics_residual.size(); ++i) {
+        const double residual = result.physics_residual[i];
+        if (!std::isfinite(residual)) continue;
+        sum += residual;
+        squared += residual * residual;
+        ++count;
+        if (i > 0 && i < result.x.size() && std::isfinite(result.x[i]) && std::isfinite(result.x[i - 1])) {
+            cumulative += residual * (result.x[i] - result.x[i - 1]);
+        } else if (result.x.empty()) {
+            cumulative += residual;
+        }
+    }
+    if (count == 0) return;
+    result.physics_residual_mean = sum / static_cast<double>(count);
+    result.physics_residual_rmse = std::sqrt(squared / static_cast<double>(count));
+    result.cumulative_physics_residual = cumulative;
+}

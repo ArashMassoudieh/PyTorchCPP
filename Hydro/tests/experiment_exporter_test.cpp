@@ -49,6 +49,9 @@ int main() {
     result.peak_magnitude_error_percent = -5.0;
     result.high_flow_rmse = 0.25;
     result.low_flow_rmse = 0.125;
+    result.physics_residual_mean = -0.5;
+    result.physics_residual_rmse = 0.25;
+    result.cumulative_physics_residual = -0.25;
     HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}});
     const auto root = output / "run_001";
     assert(std::filesystem::is_regular_file(root / "experiment_config.json"));
@@ -65,7 +68,7 @@ int main() {
         std::ifstream metrics(root / "metrics.csv");
         const std::string metricsText((std::istreambuf_iterator<char>(metrics)), std::istreambuf_iterator<char>());
         assert(metricsText.find("peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse") != std::string::npos);
-        assert(metricsText.find(",1,-5,0.25,0.125,") != std::string::npos);
+        assert(metricsText.find(",1,-5,0.25,0.125,-0.5,0.25,-0.25,") != std::string::npos);
     }
     assert(std::filesystem::file_size(root / "models" / "ffn.pt") == 3);
     const auto models = HydroArtifactLoader().loadModels(root.string());
@@ -87,6 +90,12 @@ int main() {
     assert(storedResults.at("ffn").success);
     assert(storedResults.at("ffn").split == std::vector<std::string>({"train", "test"}));
     assert(storedResults.at("ffn").y_pred == std::vector<double>({1.5, 1.5}));
+    assert(storedResults.at("ffn").mse == 0.25);
+    assert(storedResults.at("ffn").rmse == 0.5);
+    const auto storedResiduals = HydroArtifactLoader().loadPhysicsResiduals(root.string());
+    assert(storedResiduals.at("ffn").values == result.physics_residual);
+    assert(storedResiduals.at("ffn").x == result.x);
+    assert(storedResiduals.at("ffn").split == result.split);
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);

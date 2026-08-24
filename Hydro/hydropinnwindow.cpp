@@ -56,6 +56,7 @@
 #include <cstdlib>
 #include <exception>
 #include <fstream>
+#include <functional>
 #include <limits>
 #include <random>
 #include <set>
@@ -130,7 +131,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       plotTaylorButton_(new QPushButton("Taylor Diagram (All)", this)),
       plotSubplotsButton_(new QPushButton("Show Approach Subplots (Same Plot)", this)),
       plotResidualsButton_(new QPushButton("Residuals vs t (All)", this)),
-      plotErrorCdfButton_(new QPushButton("|Error| CDF (All)", this)) {
+      plotErrorCdfButton_(new QPushButton("|Error| CDF (All)", this)),
+      plotFlowDurationButton_(new QPushButton("Flow Duration (All)", this)),
+      plotCumulativeResidualButton_(new QPushButton("Cumulative Physics Residual", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
     resize(1024, 700);
 
@@ -474,10 +477,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     plotButtonsLayout->addWidget(plotResidualsButton_, 1, 0);
     plotButtonsLayout->addWidget(plotErrorCdfButton_, 1, 1);
     plotButtonsLayout->addWidget(plotTaylorButton_, 1, 2);
+    plotButtonsLayout->addWidget(plotFlowDurationButton_, 1, 3);
     plotButtonsLayout->addWidget(zoomInPlotButton_, 2, 0);
     plotButtonsLayout->addWidget(zoomOutPlotButton_, 2, 1);
     plotButtonsLayout->addWidget(fitPlotButton_, 2, 2);
     plotButtonsLayout->addWidget(clearPlotButton_, 2, 3);
+    plotButtonsLayout->addWidget(plotCumulativeResidualButton_, 3, 0, 1, 2);
     for (int col = 0; col < 4; ++col) {
         plotButtonsLayout->setColumnStretch(col, 1);
     }
@@ -622,6 +627,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(plotSubplotsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showModeSubplots);
     connect(plotResidualsButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotResidualsAllModes);
     connect(plotErrorCdfButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotErrorCdfAllModes);
+    connect(plotFlowDurationButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotFlowDurationAllModes);
+    connect(plotCumulativeResidualButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotCumulativeResidualAllModes);
     connect(zoomInPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::zoomInPlot);
     connect(zoomOutPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::zoomOutPlot);
     connect(fitPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::fitPlotAxes);
@@ -728,6 +735,8 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     plotSubplotsButton_->setEnabled(!running);
     plotResidualsButton_->setEnabled(!running);
     plotErrorCdfButton_->setEnabled(!running);
+    plotFlowDurationButton_->setEnabled(!running);
+    plotCumulativeResidualButton_->setEnabled(!running);
     useNeuroforgeCsvPresetButton_->setEnabled(!running && dataSourceCombo_->currentText() == "CSV File");
 }
 
@@ -1538,7 +1547,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.success ? "success" : "failed")
                        .arg(r.final_loss, 0, 'g', 8);
 
-        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, peak_timing_error=%10, peak_magnitude_error_percent=%11, high_flow_rmse=%12, low_flow_rmse=%13, physics_loss=%14")
+        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, peak_timing_error=%10, peak_magnitude_error_percent=%11, high_flow_rmse=%12, low_flow_rmse=%13, physics_residual_mean=%14, physics_residual_rmse=%15, cumulative_physics_residual=%16, physics_loss=%17")
                        .arg(r.validation_mse, 0, 'g', 8)
                        .arg(r.mse, 0, 'g', 8)
                        .arg(r.rmse, 0, 'g', 8)
@@ -1552,6 +1561,9 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.peak_magnitude_error_percent, 0, 'g', 8)
                        .arg(r.high_flow_rmse, 0, 'g', 8)
                        .arg(r.low_flow_rmse, 0, 'g', 8)
+                       .arg(r.physics_residual_mean, 0, 'g', 8)
+                       .arg(r.physics_residual_rmse, 0, 'g', 8)
+                       .arg(r.cumulative_physics_residual, 0, 'g', 8)
                        .arg(r.physics_loss, 0, 'g', 8);
 
         if (!r.message.empty()) {
@@ -1604,7 +1616,23 @@ void HydroPINNWindow::loadInferenceArtifacts() {
                 approach, std::make_unique<HydroInferenceSession>(artifacts, entry.first));
         }
         const QString experimentId = QString::fromStdString(artifacts.experiment.experiment_id);
-        const auto storedResults = HydroArtifactLoader().loadPredictions(directory.toStdString());
+        auto storedResults = HydroArtifactLoader().loadPredictions(directory.toStdString());
+        const auto storedResiduals = HydroArtifactLoader().loadPhysicsResiduals(directory.toStdString());
+        for (const auto& entry : storedResiduals) {
+            const auto result = storedResults.find(entry.first);
+            if (result == storedResults.end() || entry.second.values.size() != result->second.x.size() ||
+                entry.second.split != result->second.split) {
+                throw std::runtime_error("Exported physics residuals do not align with predictions for: " + entry.first);
+            }
+            for (std::size_t i = 0; i < entry.second.x.size(); ++i) {
+                const double tolerance = 1.0e-10 * std::max({1.0, std::abs(entry.second.x[i]), std::abs(result->second.x[i])});
+                if (std::abs(entry.second.x[i] - result->second.x[i]) > tolerance) {
+                    throw std::runtime_error("Exported physics residual timestamps do not match predictions for: " + entry.first);
+                }
+            }
+            result->second.physics_residual = entry.second.values;
+            populateHydroPhysicsResidualMetrics(result->second);
+        }
         std::map<QString, HydroRunResult> restoredResults;
         for (const auto& entry : storedResults) {
             if (artifacts.models.find(entry.first) == artifacts.models.end()) {
@@ -2608,6 +2636,122 @@ void HydroPINNWindow::plotErrorCdfAllModes() {
     chart->legend()->setVisible(true);
     fitPlotAxesInternal(false);
     appendLog("Displayed |error| CDF plot for all stored approaches.");
+}
+
+void HydroPINNWindow::plotFlowDurationAllModes() {
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn"};
+    const QList<QColor> colors = {QColor(0, 114, 178), QColor(213, 94, 0), QColor(86, 180, 233),
+                                  QColor(0, 158, 115), QColor(204, 121, 167)};
+    auto* chart = chartView_->chart();
+    chart->removeAllSeries();
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) { chart->removeAxis(axis); delete axis; }
+    bool addedAny = false;
+    int colorIndex = 0;
+    for (const QString& mode : modes) {
+        const auto found = lastModeResults_.find(mode);
+        if (found == lastModeResults_.end()) continue;
+        const auto& result = found->second;
+        const size_t n = std::min(result.y_true.size(), result.y_pred.size());
+        std::vector<double> observed;
+        std::vector<double> predicted;
+        for (size_t i = 0; i < n; ++i) {
+            if (i < result.split.size() && result.split[i] != "test") continue;
+            observed.push_back(result.y_true[i]);
+            predicted.push_back(result.y_pred[i]);
+        }
+        if (observed.empty()) continue;
+        std::sort(observed.begin(), observed.end(), std::greater<double>());
+        std::sort(predicted.begin(), predicted.end(), std::greater<double>());
+        auto* observedSeries = new QLineSeries(chart);
+        auto* predictedSeries = new QLineSeries(chart);
+        observedSeries->setName(QString("Observed FDC (%1)").arg(modeDisplayName(mode)));
+        predictedSeries->setName(QString("Predicted FDC (%1)").arg(modeDisplayName(mode)));
+        QPen observedPen(colors[colorIndex % colors.size()]);
+        observedPen.setWidth(2);
+        QPen predictedPen = observedPen;
+        predictedPen.setStyle(Qt::DashLine);
+        observedSeries->setPen(observedPen);
+        predictedSeries->setPen(predictedPen);
+        for (size_t rank = 0; rank < observed.size(); ++rank) {
+            const double exceedance = 100.0 * static_cast<double>(rank + 1) /
+                                      static_cast<double>(observed.size() + 1);
+            observedSeries->append(exceedance, observed[rank]);
+            predictedSeries->append(exceedance, predicted[rank]);
+        }
+        chart->addSeries(observedSeries);
+        chart->addSeries(predictedSeries);
+        addedAny = true;
+        ++colorIndex;
+    }
+    if (!addedAny) {
+        appendLog("No held-out test results are available for a flow-duration plot.");
+        return;
+    }
+    auto* axisX = new QValueAxis(chart);
+    axisX->setTitleText("Exceedance probability (%)");
+    axisX->setRange(0.0, 100.0);
+    auto* axisY = new QValueAxis(chart);
+    axisY->setTitleText("Runoff / discharge");
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    for (auto* series : chart->series()) { series->attachAxis(axisX); series->attachAxis(axisY); }
+    chart->setTitle("Flow-Duration Curves (Held-Out Test Data)");
+    chart->legend()->setVisible(true);
+    fitPlotAxesInternal(false);
+    appendLog("Displayed observed and predicted flow-duration curves for held-out test data.");
+}
+
+void HydroPINNWindow::plotCumulativeResidualAllModes() {
+    const QStringList modes = {"ffn_pinn", "lstm_pinn", "pinn"};
+    const QList<QColor> colors = {QColor(213, 94, 0), QColor(0, 158, 115), QColor(204, 121, 167)};
+    auto* chart = chartView_->chart();
+    chart->removeAllSeries();
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) { chart->removeAxis(axis); delete axis; }
+    bool addedAny = false;
+    int colorIndex = 0;
+    for (const QString& mode : modes) {
+        const auto found = lastModeResults_.find(mode);
+        if (found == lastModeResults_.end()) continue;
+        const auto& result = found->second;
+        const size_t n = std::min(result.x.size(), result.physics_residual.size());
+        if (n < 2) continue;
+        auto* series = new QLineSeries(chart);
+        series->setName(QString("Cumulative residual (%1)").arg(modeDisplayName(mode)));
+        QPen pen(colors[colorIndex % colors.size()]);
+        pen.setWidth(2);
+        series->setPen(pen);
+        double cumulative = 0.0;
+        bool hasFiniteResidual = false;
+        for (size_t i = 1; i < n; ++i) {
+            const double residual = result.physics_residual[i];
+            const double dt = result.x[i] - result.x[i - 1];
+            if (!std::isfinite(residual) || !std::isfinite(dt) || dt <= 0.0) continue;
+            cumulative += residual * dt;
+            series->append(result.x[i], cumulative);
+            hasFiniteResidual = true;
+        }
+        if (!hasFiniteResidual) { delete series; continue; }
+        chart->addSeries(series);
+        addedAny = true;
+        ++colorIndex;
+    }
+    if (!addedAny) {
+        appendLog("No finite PINN physics residuals are available for cumulative plotting.");
+        return;
+    }
+    auto* axisX = new QValueAxis(chart);
+    axisX->setTitleText("Time");
+    auto* axisY = new QValueAxis(chart);
+    axisY->setTitleText("Integrated signed physics residual");
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    for (auto* series : chart->series()) { series->attachAxis(axisX); series->attachAxis(axisY); }
+    chart->setTitle("Cumulative Physics Residual (PINN Approaches)");
+    chart->legend()->setVisible(true);
+    fitPlotAxesInternal(false);
+    appendLog("Displayed timestep-integrated cumulative physics residuals for PINN approaches.");
 }
 
 void HydroPINNWindow::runMode(const QString& mode) {
