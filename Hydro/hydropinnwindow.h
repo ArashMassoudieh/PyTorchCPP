@@ -133,6 +133,7 @@ private:
     QPushButton* plotResidualsButton_;
     QPushButton* plotErrorCdfButton_;
     QPushButton* plotFlowDurationButton_;
+    QPushButton* plotCumulativeResidualButton_;
     bool gaStopRequested_ = false;
     std::map<QString, HydroRunResult> lastModeResults_;
     std::unique_ptr<HydroInferenceArtifacts> loadedInferenceArtifacts_;
@@ -185,4 +186,5 @@ private:
     void plotResidualsAllModes();
     void plotErrorCdfAllModes();
     void plotFlowDurationAllModes();
+    void plotCumulativeResidualAllModes();
 };
