@@ -2,11 +2,13 @@
 #include "../evaluation/model_checkpoint.h"
 #include "../evaluation/experiment_exporter.h"
 #include "../dataset/lagged_tensor_builder.h"
+#include "../dataset/csv_tensor_builder.h"
 #include "../models/hydro_lstm_module.h"
 #include "../../neuralnetworkwrapper.h"
 
 #include <cassert>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <string>
 
@@ -43,6 +45,20 @@ int main() {
         torch::tensor({{1.0f, 10.0f}, {2.0f, 20.0f}, {3.0f, 30.0f}}), "1;2");
     assert(lagged.leading_rows == 2);
     assert(torch::allclose(lagged.inputs, torch::tensor({{3.0f, 2.0f, 30.0f, 10.0f}})));
+    const std::filesystem::path csvPath = "/tmp/hydro_inference_input_test.csv";
+    {
+        std::ofstream csv(csvPath);
+        csv << "time,target\n";
+        for (int i = 0; i < 10; ++i) csv << i << ',' << i * 2 << '\n';
+    }
+    HydroRunConfig csvConfig;
+    csvConfig.csv_path = csvPath.string();
+    csvConfig.csv_has_header = true;
+    torch::Tensor csvInputs, csvTargets, csvPlot;
+    loadHydroCsvTensors(csvConfig, csvInputs, csvTargets, csvPlot);
+    assert(csvInputs.size(0) == 10 && csvInputs.size(1) == 1);
+    assert(csvTargets[9].item<float>() == 18.0f);
+    std::filesystem::remove(csvPath);
     assert(torch::allclose(feedForwardSession.predict(feedForwardInputs), expectedFeedForward));
 
     const torch::Tensor recurrentInputs = torch::tensor(

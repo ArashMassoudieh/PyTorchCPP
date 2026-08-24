@@ -77,8 +77,8 @@ features while the residual keeps a direct mass-balance interpretation.
      experiment, so corrupt or architecture-incompatible archives fail before use.
      For LSTM approaches, `predictSeries` builds all overlapping sequence windows
      with a tensor view operation instead of a per-window allocation loop.
-     Select **Run loaded checkpoint on current Hydro Package** to execute prepared
-     GUI sessions on the package selected in the Data tab without retraining. The
+     Select **Run loaded checkpoint on current Data source** to execute prepared
+     GUI sessions on a Hydro Package or CSV selected in the Data tab without retraining. The
      package profile and forecast-feature semantics must match the exported run;
      only the package directory and catchment identity may change.
      FFN-family inference reconstructs the exported per-feature lag expansion and

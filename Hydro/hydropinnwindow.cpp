@@ -10,6 +10,7 @@
 #include "evaluation/hydro_metrics.h"
 #include "dataset/hydro_tensor_builder.h"
 #include "dataset/lagged_tensor_builder.h"
+#include "dataset/csv_tensor_builder.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -112,7 +113,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       runPredictionPINNButton_(new QPushButton("Run PINN", this)),
       runPredictionLSTMButton_(new QPushButton("Run LSTM", this)), runPredictionLSTMPINNButton_(new QPushButton("Run LSTM + PINN", this)),
       loadInferenceArtifactsButton_(new QPushButton("Load Inference Artifacts...", this)),
-      predictionUseCurrentDataCheck_(new QCheckBox("Run loaded checkpoint on current Hydro Package", this)),
+      predictionUseCurrentDataCheck_(new QCheckBox("Run loaded checkpoint on current Data source", this)),
       runTrainingButton_(new QPushButton("Train Selected", this)), runAllTrainingButton_(new QPushButton("Train All", this)),
       runTrainingFFNButton_(new QPushButton("Train FFN", this)), runTrainingFFNPINNButton_(new QPushButton("Train FFN + PINN", this)),
       runTrainingPINNButton_(new QPushButton("Train PINN", this)),
@@ -1853,8 +1854,8 @@ bool HydroPINNWindow::runLoadedInferenceForMode(const QString& mode) {
         return false;
     }
     const HydroRunConfig current = currentConfig();
-    if (!current.use_hydro_package) {
-        appendLog("Loaded checkpoint inference currently requires Hydro Package as the Data tab source.");
+    if (!current.use_hydro_package && !current.use_csv_data) {
+        appendLog("Loaded checkpoint inference currently requires Hydro Package or CSV as the Data tab source.");
         return false;
     }
     if (!loadedInferenceArtifacts_) {
@@ -1863,26 +1864,35 @@ bool HydroPINNWindow::runLoadedInferenceForMode(const QString& mode) {
     }
     try {
         const HydroRunConfig& exported = loadedInferenceArtifacts_->experiment.config;
-        if (current.hydro_package_profile != exported.hydro_package_profile ||
+        if (current.use_hydro_package != exported.use_hydro_package ||
+            current.use_csv_data != exported.use_csv_data) {
+            throw std::runtime_error("Current data-source type does not match the loaded experiment.");
+        }
+        if (current.use_hydro_package && (current.hydro_package_profile != exported.hydro_package_profile ||
             current.use_hydro_forecast_feature != exported.use_hydro_forecast_feature ||
             (exported.use_hydro_forecast_feature &&
              (current.hydro_forecast_variable != exported.hydro_forecast_variable ||
               std::abs(current.hydro_forecast_lead_hours - exported.hydro_forecast_lead_hours) > 1.0e-9 ||
-              current.hydro_forecast_ensemble_member != exported.hydro_forecast_ensemble_member))) {
+              current.hydro_forecast_ensemble_member != exported.hydro_forecast_ensemble_member)))) {
             throw std::runtime_error(
                 "Current Hydro Package feature settings do not match the loaded experiment configuration.");
         }
+        if (current.use_csv_data &&
+            (current.csv_x_column != exported.csv_x_column || current.csv_y_column != exported.csv_y_column ||
+             current.csv_has_header != exported.csv_has_header || current.synthetic_profile != exported.synthetic_profile)) {
+            throw std::runtime_error("Current CSV column/profile settings do not match the loaded experiment.");
+        }
         HydroRunConfig config = exported;
-        config.use_hydro_package = true;
-        config.use_csv_data = false;
         config.hydro_package_path = current.hydro_package_path;
         config.hydro_catchment_id = current.hydro_catchment_id;
+        config.csv_path = current.csv_path;
         torch::Tensor inputs;
         torch::Tensor targets;
         torch::Tensor plotX;
-        if (!loadHydroPackageTensors(config, inputs, targets, plotX)) {
-            throw std::runtime_error("Unable to build tensors from the selected Hydro package.");
-        }
+        if (config.use_hydro_package) {
+            if (!loadHydroPackageTensors(config, inputs, targets, plotX))
+                throw std::runtime_error("Unable to build tensors from the selected Hydro package.");
+        } else loadHydroCsvTensors(config, inputs, targets, plotX);
         if ((mode == "ffn" || mode == "ffn_pinn") && exported.use_time_lagged_ffn) {
             const auto lagged = buildHydroLaggedTensor(inputs, exported.input_lags_csv);
             inputs = lagged.inputs;
