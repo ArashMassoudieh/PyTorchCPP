@@ -3,6 +3,7 @@
 #include <torch/torch.h>
 
 #include <algorithm>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -16,6 +17,12 @@ struct HydroLaggedTensor {
 inline std::vector<std::vector<int>> parseHydroLagSpecification(
     const std::string& lagSpecification, const int64_t featureCount) {
     if (featureCount <= 0) throw std::invalid_argument("Lag configuration requires at least one feature.");
+    if (lagSpecification.empty()) {
+        return std::vector<std::vector<int>>(static_cast<std::size_t>(featureCount), {1});
+    }
+    if (lagSpecification.back() == ';' || lagSpecification.back() == ',') {
+        throw std::invalid_argument("FFN lag configuration cannot end with an empty token.");
+    }
     std::vector<std::vector<int>> lags;
     std::stringstream groups(lagSpecification);
     std::string group;
@@ -25,15 +32,27 @@ inline std::vector<std::vector<int>> parseHydroLagSpecification(
         std::string token;
         while (std::getline(tokens, token, ',')) {
             try {
-                const int lag = std::stoi(token);
-                if (lag > 0) featureLags.push_back(lag);
-            } catch (...) {}
+                std::size_t consumed = 0;
+                const long long parsed = std::stoll(token, &consumed);
+                if (consumed != token.size() || parsed <= 0 || parsed > std::numeric_limits<int>::max()) {
+                    throw std::invalid_argument("invalid lag");
+                }
+                const int lag = static_cast<int>(parsed);
+                if (std::find(featureLags.begin(), featureLags.end(), lag) != featureLags.end()) {
+                    throw std::invalid_argument("duplicate lag");
+                }
+                featureLags.push_back(lag);
+            } catch (...) {
+                throw std::invalid_argument("Invalid FFN lag token: " + token);
+            }
         }
-        if (!featureLags.empty()) lags.push_back(std::move(featureLags));
+        if (featureLags.empty()) throw std::invalid_argument("FFN lag groups cannot be empty.");
+        lags.push_back(std::move(featureLags));
     }
-    if (lags.empty()) lags.push_back({1});
+    if (lags.size() > static_cast<std::size_t>(featureCount)) {
+        throw std::invalid_argument("FFN lag configuration has more groups than input features.");
+    }
     while (lags.size() < static_cast<std::size_t>(featureCount)) lags.push_back(lags.front());
-    lags.resize(static_cast<std::size_t>(featureCount));
     return lags;
 }
 

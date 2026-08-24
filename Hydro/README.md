@@ -89,7 +89,8 @@ features while the residual keeps a direct mass-balance interpretation.
      malformed quoting, partial numeric values, and non-finite numeric values
      instead of silently rewriting or truncating them.
      FFN training and inference also share lag parsing, feature-column mapping,
-     tensor expansion, and leading-row alignment.
+     tensor expansion, and leading-row alignment. Invalid, duplicate, empty, or
+     excess lag groups are rejected instead of being silently shifted or dropped.
      Artifact CSV manifests accept both Unix LF and Windows CRLF line endings.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
