@@ -302,6 +302,13 @@ int main() {
         assert(rejectsConfigText(malformedBoolean, "malformed_boolean.json"));
     }
     {
+        std::string duplicateEpochs = configText;
+        const auto closingBrace = duplicateEpochs.rfind('}');
+        assert(closingBrace != std::string::npos);
+        duplicateEpochs.insert(closingBrace, ",\n  \"epochs\": 25\n");
+        assert(rejectsConfigText(duplicateEpochs, "duplicate_epochs.json"));
+    }
+    {
         std::string unicodeConfig = configText;
         const std::string marker = "\"hydro_catchment_id\": \"";
         const auto valueStart = unicodeConfig.find(marker);

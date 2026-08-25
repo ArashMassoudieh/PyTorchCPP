@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cmath>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <regex>
 #include <stdexcept>
@@ -48,7 +49,15 @@ void appendUtf8(std::string& decoded, const std::uint32_t codePoint, const std::
     } else throw std::runtime_error("Experiment configuration has an invalid Unicode code point in: " + key);
 }
 
+void rejectDuplicateField(const std::string& json, const std::string& key) {
+    const std::regex fieldPattern("\\\"" + key + "\\\"\\s*:");
+    const auto begin = std::sregex_iterator(json.begin(), json.end(), fieldPattern);
+    const auto count = std::distance(begin, std::sregex_iterator());
+    if (count > 1) throw std::runtime_error("Experiment configuration contains duplicate field: " + key);
+}
+
 std::string stringValue(const std::string& json, const std::string& key) {
+    rejectDuplicateField(json, key);
     std::smatch match;
     const std::regex pattern("\\\"" + key + "\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"])*)\\\"\\s*[,}]");
     if (!std::regex_search(json, match, pattern)) throw std::runtime_error("Experiment configuration is missing string: " + key);
@@ -98,6 +107,7 @@ std::string stringValue(const std::string& json, const std::string& key) {
 }
 
 double numberValue(const std::string& json, const std::string& key) {
+    rejectDuplicateField(json, key);
     std::smatch match;
     const std::regex pattern("\\\"" + key +
                              "\\\"\\s*:\\s*(-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\\s*[,}]");
@@ -112,6 +122,7 @@ double numberValue(const std::string& json, const std::string& key) {
 }
 
 int integerValue(const std::string& json, const std::string& key) {
+    rejectDuplicateField(json, key);
     std::smatch match;
     const std::regex pattern("\\\"" + key + "\\\"\\s*:\\s*(-?(?:0|[1-9][0-9]*))\\s*[,}]");
     if (!std::regex_search(json, match, pattern)) {
@@ -129,6 +140,7 @@ int integerValue(const std::string& json, const std::string& key) {
 }
 
 bool boolValue(const std::string& json, const std::string& key) {
+    rejectDuplicateField(json, key);
     std::smatch match;
     const std::regex pattern("\\\"" + key + "\\\"\\s*:\\s*(true|false)\\s*[,}]");
     if (!std::regex_search(json, match, pattern)) throw std::runtime_error("Experiment configuration is missing boolean: " + key);
