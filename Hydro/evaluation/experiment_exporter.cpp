@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <limits>
 #include <stdexcept>
+#include <system_error>
 #include <utility>
 
 namespace {
@@ -35,12 +36,33 @@ void finalizeStream(std::ofstream& stream, const std::filesystem::path& path) {
 class StagedExperimentDirectory {
 public:
     explicit StagedExperimentDirectory(std::filesystem::path destination)
-        : destination_(std::move(destination)), staging_(destination_.string() + ".tmp") {
+        : destination_(std::move(destination)) {
+        std::filesystem::create_directories(destination_.parent_path());
+        lock_ = destination_.string() + ".lock";
+        std::error_code lockError;
+        if (!std::filesystem::create_directory(lock_, lockError)) {
+            throw std::runtime_error("Experiment export destination is locked: " + destination_.string());
+        }
         if (std::filesystem::exists(destination_)) {
+            std::filesystem::remove(lock_);
             throw std::runtime_error("Experiment export destination already exists: " + destination_.string());
         }
-        std::filesystem::remove_all(staging_);
-        std::filesystem::create_directories(staging_);
+        for (std::size_t attempt = 0; attempt < 1000; ++attempt) {
+            const auto candidate = std::filesystem::path(destination_.string() + ".tmp." + std::to_string(attempt));
+            std::error_code error;
+            if (std::filesystem::create_directory(candidate, error)) {
+                staging_ = candidate;
+                return;
+            }
+            if (error && error != std::errc::file_exists) {
+                std::filesystem::remove(lock_);
+                throw std::filesystem::filesystem_error("Unable to create experiment staging directory",
+                                                        candidate, error);
+            }
+        }
+        std::filesystem::remove(lock_);
+        throw std::runtime_error("Unable to reserve a unique experiment staging directory for: " +
+                                 destination_.string());
     }
 
     ~StagedExperimentDirectory() {
@@ -48,6 +70,8 @@ public:
             std::error_code ignored;
             std::filesystem::remove_all(staging_, ignored);
         }
+        std::error_code ignored;
+        std::filesystem::remove(lock_, ignored);
     }
 
     const std::filesystem::path& path() const { return staging_; }
@@ -60,6 +84,7 @@ public:
 private:
     std::filesystem::path destination_;
     std::filesystem::path staging_;
+    std::filesystem::path lock_;
     bool committed_ = false;
 };
 
