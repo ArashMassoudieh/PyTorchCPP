@@ -67,6 +67,16 @@ int main() {
     loadHydroCsvTensors(csvConfig, csvInputs, csvTargets, csvPlot);
     assert(csvInputs.size(0) == 10 && csvInputs.size(1) == 1);
     assert(csvTargets[9].item<float>() == 18.0f);
+    {
+        std::ofstream csv(csvPath, std::ios::binary | std::ios::trunc);
+        csv << "time,target\n0,not-a-number\n";
+    }
+    bool rejectedInvalidCsv = false;
+    try { loadHydroCsvTensors(csvConfig, csvInputs, csvTargets, csvPlot); }
+    catch (const std::runtime_error& error) {
+        rejectedInvalidCsv = std::string(error.what()).find("CSV row 2") != std::string::npos;
+    }
+    assert(rejectedInvalidCsv);
     assert(parseHydroCsvRow("\"a,b\",\"c\"\"d\"") == std::vector<std::string>({"a,b", "c\"d"}));
     bool rejectedMalformedCsv = false;
     try { (void)parseHydroCsvRow("1\"2,3"); }

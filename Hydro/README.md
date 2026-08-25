@@ -45,7 +45,9 @@ features while the residual keeps a direct mass-balance interpretation.
 1. **Data tab**
    - Start with `watershed_balance`, then use `rainfall_runoff` as the smaller event-scale comparison case.
    - Switch to CSV when running observed hydrology data.
-   - Use zero-based x/y column controls for CSV files.
+   - Use zero-based x/y column controls for CSV files. Malformed rows, missing
+     configured columns, and invalid or out-of-range numbers are reported with
+     their source line rather than being silently discarded.
    - Export generated synthetic data when a comparison should be reproducible.
 2. **Hydro Workflow tab**
    - Review the in-app recommended run order and forward path.
@@ -116,13 +118,20 @@ features while the residual keeps a direct mass-balance interpretation.
      Export now performs the same structural preflight before creating a run
      directory, so misaligned series, bad partitions, missing checkpoints,
      incompatible formats, and incomplete scalers cannot produce partial bundles.
+     Experiment identifiers must be single filenames; absolute paths, parent
+     traversal, and nested path components are rejected before any lock or
+     staging directory is created.
      Exported scientific summaries are recomputed from held-out predictions and
      residual samples, preventing stale in-memory metrics from being serialized.
      Files are written into a sibling staging directory and atomically renamed
      only after every stream closes successfully; existing run directories are
      never overwritten and failed exports clean up their staging data. A lock
      directory and uniquely reserved staging name prevent concurrent exporters
-     from deleting or publishing over one another.
+     from deleting or publishing over one another. Lock cleanup is exception-safe,
+     including failures encountered while reserving a staging directory. On
+     POSIX systems the lock records its owning process, allowing a later export
+     to recover a lock left behind by a process that no longer exists while
+     preserving locks owned by live or unverifiable processes.
      `artifact_manifest.csv` records the size and SHA-256 digest of every file in
      the completed bundle; inference reload rejects modified, missing, or
      unlisted files before parsing any artifact content. Its explicit schema

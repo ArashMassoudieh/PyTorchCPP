@@ -51,6 +51,19 @@ int main() {
     populateHydroMetrics(result, {2.0}, {1.5});
     populateHydroPeakMetrics(result);
     populateHydroPhysicsResidualMetrics(result);
+    for (const std::string invalidId : {"../escaped", "nested/run", "nested\\run", ".", ".."}) {
+        bool rejectedUnsafeId = false;
+        try { HydroExperimentExporter().exportRun(output.string(), invalidId, config, {{"ffn", result}}); }
+        catch (const std::invalid_argument&) { rejectedUnsafeId = true; }
+        assert(rejectedUnsafeId);
+    }
+    assert(!std::filesystem::exists(output.parent_path() / "escaped"));
+    assert(!std::filesystem::exists(output / "nested"));
+    std::filesystem::create_directories(output / "run_001.lock");
+    {
+        std::ofstream owner(output / "run_001.lock" / "owner.pid");
+        owner << "99999999\n";
+    }
     std::filesystem::create_directories(output / "run_001.tmp.0");
     {
         std::ofstream sentinel(output / "run_001.tmp.0" / "sentinel");
@@ -65,6 +78,7 @@ int main() {
     try { HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}}); }
     catch (const std::runtime_error&) { rejectedExistingDestination = true; }
     assert(rejectedExistingDestination);
+    assert(!std::filesystem::exists(output / "run_001.lock"));
     assert(std::filesystem::file_size(output / "run_001" / "models" / "ffn.pt") == 3);
     {
         HydroRunResult invalid = result;

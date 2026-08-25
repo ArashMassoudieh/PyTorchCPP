@@ -12,6 +12,11 @@
 #include <stdexcept>
 #include <system_error>
 #include <utility>
+#ifndef _WIN32
+#include <cerrno>
+#include <csignal>
+#include <unistd.h>
+#endif
 
 namespace {
 std::string escapeJson(const std::string& value) {
@@ -41,28 +46,35 @@ public:
         lock_ = destination_.string() + ".lock";
         std::error_code lockError;
         if (!std::filesystem::create_directory(lock_, lockError)) {
-            throw std::runtime_error("Experiment export destination is locked: " + destination_.string());
-        }
-        if (std::filesystem::exists(destination_)) {
-            std::filesystem::remove(lock_);
-            throw std::runtime_error("Experiment export destination already exists: " + destination_.string());
-        }
-        for (std::size_t attempt = 0; attempt < 1000; ++attempt) {
-            const auto candidate = std::filesystem::path(destination_.string() + ".tmp." + std::to_string(attempt));
-            std::error_code error;
-            if (std::filesystem::create_directory(candidate, error)) {
-                staging_ = candidate;
-                return;
-            }
-            if (error && error != std::errc::file_exists) {
-                std::filesystem::remove(lock_);
-                throw std::filesystem::filesystem_error("Unable to create experiment staging directory",
-                                                        candidate, error);
+            lockError.clear();
+            if (!recoverStaleLock() || !std::filesystem::create_directory(lock_, lockError)) {
+                throw std::runtime_error("Experiment export destination is locked: " + destination_.string());
             }
         }
-        std::filesystem::remove(lock_);
-        throw std::runtime_error("Unable to reserve a unique experiment staging directory for: " +
-                                 destination_.string());
+        try {
+            writeLockOwner();
+            if (std::filesystem::exists(destination_)) {
+                throw std::runtime_error("Experiment export destination already exists: " + destination_.string());
+            }
+            for (std::size_t attempt = 0; attempt < 1000; ++attempt) {
+                const auto candidate = std::filesystem::path(destination_.string() + ".tmp." + std::to_string(attempt));
+                std::error_code error;
+                if (std::filesystem::create_directory(candidate, error)) {
+                    staging_ = candidate;
+                    return;
+                }
+                if (error && error != std::errc::file_exists) {
+                    throw std::filesystem::filesystem_error("Unable to create experiment staging directory",
+                                                            candidate, error);
+                }
+            }
+            throw std::runtime_error("Unable to reserve a unique experiment staging directory for: " +
+                                     destination_.string());
+        } catch (...) {
+            std::error_code ignored;
+            std::filesystem::remove_all(lock_, ignored);
+            throw;
+        }
     }
 
     ~StagedExperimentDirectory() {
@@ -71,7 +83,7 @@ public:
             std::filesystem::remove_all(staging_, ignored);
         }
         std::error_code ignored;
-        std::filesystem::remove(lock_, ignored);
+        std::filesystem::remove_all(lock_, ignored);
     }
 
     const std::filesystem::path& path() const { return staging_; }
@@ -82,6 +94,34 @@ public:
     }
 
 private:
+    void writeLockOwner() const {
+        std::ofstream owner(lock_ / "owner.pid");
+        if (!owner) throw std::runtime_error("Unable to record experiment export lock owner.");
+#ifdef _WIN32
+        owner << 0 << '\n';
+#else
+        owner << static_cast<long long>(::getpid()) << '\n';
+#endif
+        owner.close();
+        if (!owner) throw std::runtime_error("Unable to finalize experiment export lock owner.");
+    }
+
+    bool recoverStaleLock() const {
+#ifdef _WIN32
+        return false;
+#else
+        std::ifstream owner(lock_ / "owner.pid");
+        long long processId = 0;
+        if (!(owner >> processId) || processId <= 0 ||
+            static_cast<unsigned long long>(processId) >
+                static_cast<unsigned long long>(std::numeric_limits<pid_t>::max())) return false;
+        errno = 0;
+        if (::kill(static_cast<pid_t>(processId), 0) == 0 || errno != ESRCH) return false;
+        std::error_code error;
+        return std::filesystem::remove_all(lock_, error) > 0 && !error;
+#endif
+    }
+
     std::filesystem::path destination_;
     std::filesystem::path staging_;
     std::filesystem::path lock_;
@@ -163,6 +203,12 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
                                         const HydroRunConfig& config,
                                         const std::map<std::string, HydroRunResult>& results) const {
     if (experimentId.empty()) throw std::invalid_argument("Experiment ID cannot be empty.");
+    const std::filesystem::path experimentName(experimentId);
+    if (experimentId == "." || experimentId == ".." || experimentName.is_absolute() ||
+        experimentName.has_parent_path() || experimentId.find('/') != std::string::npos ||
+        experimentId.find('\\') != std::string::npos || experimentId.find('\0') != std::string::npos) {
+        throw std::invalid_argument("Experiment ID must be a single filename without path components.");
+    }
     if (results.empty()) throw std::invalid_argument("Hydro experiment export requires at least one result.");
     for (const auto& entry : results) validateExportResult(entry.first, entry.second);
     auto exportResults = results;
