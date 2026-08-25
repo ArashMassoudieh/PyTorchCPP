@@ -88,6 +88,10 @@ int main() {
     assert(inferenceArtifacts.experiment.experiment_id == "run_001");
     assert(inferenceArtifacts.models.count("ffn") == 1);
     assert(inferenceArtifacts.scalers.count("ffn") == 1);
+    assert(inferenceArtifacts.results.count("ffn") == 1);
+    assert(inferenceArtifacts.results.at("ffn").y_pred == result.y_pred);
+    assert(inferenceArtifacts.results.at("ffn").physics_residual == result.physics_residual);
+    assert(inferenceArtifacts.results.at("ffn").physics_residual_mean == result.physics_residual_mean);
     const auto storedResults = HydroArtifactLoader().loadPredictions(root.string());
     assert(storedResults.at("ffn").success);
     assert(storedResults.at("ffn").split == std::vector<std::string>({"train", "test"}));

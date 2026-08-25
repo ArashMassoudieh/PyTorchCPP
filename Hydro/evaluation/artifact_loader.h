@@ -30,6 +30,7 @@ struct HydroInferenceArtifacts {
     LoadedHydroExperiment experiment;
     std::map<std::string, HydroModelArtifact> models;
     std::map<std::string, HydroArtifactScalers> scalers;
+    std::map<std::string, HydroRunResult> results;
 };
 
 class HydroArtifactLoader {

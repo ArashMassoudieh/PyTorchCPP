@@ -396,11 +396,17 @@ HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
         if (model == artifacts.models.end() || metric == metrics.end()) {
             throw std::runtime_error("Inference summary artifacts have no matching model for approach: " + entry.first);
         }
+        if (!metric->second.success) {
+            throw std::runtime_error("Inference checkpoint has an unsuccessful metrics row for approach: " + entry.first);
+        }
         if (!equivalentMetric(entry.second.mse, metric->second.mse) ||
             !equivalentMetric(entry.second.rmse, metric->second.rmse) ||
             !equivalentMetric(entry.second.mae, metric->second.mae)) {
             throw std::runtime_error("Inference metrics do not match predictions for approach: " + entry.first);
         }
+        entry.second.final_loss = metric->second.final_loss;
+        entry.second.validation_mse = metric->second.validation_mse;
+        entry.second.physics_loss = metric->second.physics_loss;
     }
     for (const auto& entry : residuals) {
         const auto prediction = predictions.find(entry.first);
@@ -424,5 +430,6 @@ HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
             throw std::runtime_error("Inference residual summaries do not match residual samples for approach: " + entry.first);
         }
     }
+    artifacts.results = std::move(predictions);
     return artifacts;
 }
