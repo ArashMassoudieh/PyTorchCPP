@@ -1,5 +1,6 @@
 #include "experiment_loader.h"
 
+#include <cstdint>
 #include <fstream>
 #include <regex>
 #include <stdexcept>
@@ -11,6 +12,40 @@ std::string readConfig(const std::string& path) {
     return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
 }
 
+std::uint16_t hexCodeUnit(const std::string& encoded, const std::size_t offset,
+                          const std::string& key) {
+    if (offset + 4 > encoded.size()) {
+        throw std::runtime_error("Experiment configuration has a truncated Unicode escape in: " + key);
+    }
+    std::uint16_t value = 0;
+    for (std::size_t i = offset; i < offset + 4; ++i) {
+        const char digit = encoded[i];
+        value = static_cast<std::uint16_t>(value << 4);
+        if (digit >= '0' && digit <= '9') value |= static_cast<std::uint16_t>(digit - '0');
+        else if (digit >= 'a' && digit <= 'f') value |= static_cast<std::uint16_t>(digit - 'a' + 10);
+        else if (digit >= 'A' && digit <= 'F') value |= static_cast<std::uint16_t>(digit - 'A' + 10);
+        else throw std::runtime_error("Experiment configuration has an invalid Unicode escape in: " + key);
+    }
+    return value;
+}
+
+void appendUtf8(std::string& decoded, const std::uint32_t codePoint, const std::string& key) {
+    if (codePoint <= 0x7f) decoded.push_back(static_cast<char>(codePoint));
+    else if (codePoint <= 0x7ff) {
+        decoded.push_back(static_cast<char>(0xc0 | (codePoint >> 6)));
+        decoded.push_back(static_cast<char>(0x80 | (codePoint & 0x3f)));
+    } else if (codePoint <= 0xffff) {
+        decoded.push_back(static_cast<char>(0xe0 | (codePoint >> 12)));
+        decoded.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3f)));
+        decoded.push_back(static_cast<char>(0x80 | (codePoint & 0x3f)));
+    } else if (codePoint <= 0x10ffff) {
+        decoded.push_back(static_cast<char>(0xf0 | (codePoint >> 18)));
+        decoded.push_back(static_cast<char>(0x80 | ((codePoint >> 12) & 0x3f)));
+        decoded.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3f)));
+        decoded.push_back(static_cast<char>(0x80 | (codePoint & 0x3f)));
+    } else throw std::runtime_error("Experiment configuration has an invalid Unicode code point in: " + key);
+}
+
 std::string stringValue(const std::string& json, const std::string& key) {
     std::smatch match;
     const std::regex pattern("\\\"" + key + "\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"])*)\\\"");
@@ -19,13 +54,43 @@ std::string stringValue(const std::string& json, const std::string& key) {
     std::string decoded;
     for (std::size_t i = 0; i < encoded.size(); ++i) {
         if (encoded[i] != '\\') {
+            if (static_cast<unsigned char>(encoded[i]) < 0x20) {
+                throw std::runtime_error("Experiment configuration has an unescaped control character in: " + key);
+            }
             decoded.push_back(encoded[i]);
             continue;
         }
         if (++i >= encoded.size()) throw std::runtime_error("Experiment configuration has an invalid escape in: " + key);
-        if (encoded[i] == 'n') decoded.push_back('\n');
-        else if (encoded[i] == '\\' || encoded[i] == '"') decoded.push_back(encoded[i]);
-        else throw std::runtime_error("Experiment configuration has an unsupported escape in: " + key);
+        switch (encoded[i]) {
+        case '"': case '\\': case '/': decoded.push_back(encoded[i]); break;
+        case 'b': decoded.push_back('\b'); break;
+        case 'f': decoded.push_back('\f'); break;
+        case 'n': decoded.push_back('\n'); break;
+        case 'r': decoded.push_back('\r'); break;
+        case 't': decoded.push_back('\t'); break;
+        case 'u': {
+            const std::uint16_t first = hexCodeUnit(encoded, i + 1, key);
+            i += 4;
+            std::uint32_t codePoint = first;
+            if (first >= 0xd800 && first <= 0xdbff) {
+                if (i + 6 >= encoded.size() || encoded[i + 1] != '\\' || encoded[i + 2] != 'u') {
+                    throw std::runtime_error("Experiment configuration has an incomplete Unicode surrogate pair in: " + key);
+                }
+                const std::uint16_t second = hexCodeUnit(encoded, i + 3, key);
+                if (second < 0xdc00 || second > 0xdfff) {
+                    throw std::runtime_error("Experiment configuration has an invalid Unicode surrogate pair in: " + key);
+                }
+                codePoint = 0x10000u + ((static_cast<std::uint32_t>(first) - 0xd800u) << 10) +
+                            (static_cast<std::uint32_t>(second) - 0xdc00u);
+                i += 6;
+            } else if (first >= 0xdc00 && first <= 0xdfff) {
+                throw std::runtime_error("Experiment configuration has an unpaired Unicode surrogate in: " + key);
+            }
+            appendUtf8(decoded, codePoint, key);
+            break;
+        }
+        default: throw std::runtime_error("Experiment configuration has an unsupported escape in: " + key);
+        }
     }
     return decoded;
 }
