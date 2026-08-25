@@ -72,19 +72,28 @@ inline bool hydroMetricsAreFinite(const HydroRunResult& result) {
 }
 
 inline void populateHydroPeakMetrics(HydroRunResult& result) {
-    const size_t n = std::min(result.x.size(), std::min(result.y_true.size(), result.y_pred.size()));
-    if (n == 0) return;
+    if (result.x.empty()) throw std::invalid_argument("Hydro peak metrics require at least one sample.");
+    if (result.x.size() != result.y_true.size() || result.x.size() != result.y_pred.size() ||
+        result.x.size() != result.split.size()) {
+        throw std::invalid_argument("Hydro peak metric series and split labels must have matching lengths.");
+    }
+    const size_t n = result.x.size();
     std::vector<size_t> testIndices;
     testIndices.reserve(n);
     size_t observedPeak = n;
     size_t predictedPeak = n;
     for (size_t i = 0; i < n; ++i) {
-        if (i < result.split.size() && result.split[i] != "test") continue;
+        if (result.split[i] != "test") continue;
+        if (!std::isfinite(result.x[i]) || !std::isfinite(result.y_true[i]) || !std::isfinite(result.y_pred[i])) {
+            throw std::invalid_argument("Hydro peak metrics require finite test samples.");
+        }
         testIndices.push_back(i);
         if (observedPeak == n || result.y_true[i] > result.y_true[observedPeak]) observedPeak = i;
         if (predictedPeak == n || result.y_pred[i] > result.y_pred[predictedPeak]) predictedPeak = i;
     }
-    if (observedPeak == n || predictedPeak == n) return;
+    if (observedPeak == n || predictedPeak == n) {
+        throw std::invalid_argument("Hydro peak metrics require at least one test sample.");
+    }
     result.peak_timing_error = result.x[predictedPeak] - result.x[observedPeak];
     const double observedMagnitude = result.y_true[observedPeak];
     if (std::abs(observedMagnitude) > 0.0) {

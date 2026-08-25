@@ -98,6 +98,8 @@ features while the residual keeps a direct mass-balance interpretation.
      without replacing a previously fitted, valid scaler state.
      Metric evaluation requires aligned, non-empty, finite observation and
      prediction vectors rather than silently truncating mismatched series.
+     Peak diagnostics additionally require aligned timestamps and split labels
+     with at least one finite held-out test sample.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
    - Reloaded experiments restore exported physics-residual series as well as
