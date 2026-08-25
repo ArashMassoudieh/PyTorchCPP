@@ -148,6 +148,7 @@ SOURCES += \
     Hydro/evaluation/experiment_exporter.cpp \
     Hydro/evaluation/experiment_loader.cpp \
     Hydro/evaluation/artifact_loader.cpp \
+    Hydro/evaluation/inference_runner.cpp \
     Hydro/models/pinn_wrapper.cpp \
     Hydro/physics/physics_config.cpp \
     Hydro/physics/rr_physics.cpp \
@@ -189,7 +190,9 @@ HEADERS += \
     Hydro/dataset/hydro_units.h \
     Hydro/dataset/forecast_alignment.h \
     Hydro/dataset/hydro_tensor_builder.h \
+    Hydro/dataset/csv_tensor_builder.h \
     Hydro/dataset/lag_builder.h \
+    Hydro/dataset/lagged_tensor_builder.h \
     Hydro/dataset/sequence_builder.h \
     Hydro/dataset/chronological_split.h \
     Hydro/dataset/tensor_scaler.h \
@@ -197,10 +200,12 @@ HEADERS += \
     Hydro/evaluation/experiment_exporter.h \
     Hydro/evaluation/experiment_loader.h \
     Hydro/evaluation/artifact_loader.h \
+    Hydro/evaluation/inference_runner.h \
     Hydro/evaluation/model_checkpoint.h \
     Hydro/physics/physics_config.h \
     Hydro/physics/rr_physics.h \
     Hydro/models/hydro_run_types.h \
+    Hydro/models/hydro_lstm_module.h \
     Hydro/models/ffn_wrapper.h \
     Hydro/models/ffn_pinn_wrapper.h \
     Hydro/models/pinn_wrapper.h \
