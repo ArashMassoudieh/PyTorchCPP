@@ -119,6 +119,19 @@ inline void populateHydroPeakMetrics(HydroRunResult& result) {
 }
 
 inline void populateHydroPhysicsResidualMetrics(HydroRunResult& result) {
+    if (result.physics_residual.empty()) {
+        throw std::invalid_argument("Physics residual metrics require at least one residual.");
+    }
+    if (!result.x.empty() && result.x.size() != result.physics_residual.size()) {
+        throw std::invalid_argument("Physics residuals and timestamps must have matching lengths.");
+    }
+    if (!result.x.empty()) {
+        for (size_t i = 0; i < result.x.size(); ++i) {
+            if (!std::isfinite(result.x[i]) || (i > 0 && result.x[i] <= result.x[i - 1])) {
+                throw std::invalid_argument("Physics residual timestamps must be finite and strictly increasing.");
+            }
+        }
+    }
     double sum = 0.0;
     double squared = 0.0;
     double cumulative = 0.0;
@@ -129,7 +142,7 @@ inline void populateHydroPhysicsResidualMetrics(HydroRunResult& result) {
         sum += residual;
         squared += residual * residual;
         ++count;
-        if (i > 0 && i < result.x.size() && std::isfinite(result.x[i]) && std::isfinite(result.x[i - 1])) {
+        if (i > 0 && !result.x.empty()) {
             cumulative += residual * (result.x[i] - result.x[i - 1]);
         } else if (result.x.empty()) {
             cumulative += residual;

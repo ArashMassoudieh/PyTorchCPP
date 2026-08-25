@@ -85,5 +85,19 @@ int main() {
     assert(physics.physics_residual_mean == 0.5);
     assert(std::abs(physics.physics_residual_rmse - std::sqrt(2.5)) < 1.0e-12);
     assert(physics.cumulative_physics_residual == 0.0);
+    bool misalignedResidualsRejected = false;
+    try {
+        HydroRunResult misalignedPhysics = physics;
+        misalignedPhysics.x.pop_back();
+        populateHydroPhysicsResidualMetrics(misalignedPhysics);
+    } catch (const std::invalid_argument&) { misalignedResidualsRejected = true; }
+    assert(misalignedResidualsRejected);
+    bool unorderedResidualTimesRejected = false;
+    try {
+        HydroRunResult unorderedPhysics = physics;
+        unorderedPhysics.x = {0.0, 2.0, 1.0};
+        populateHydroPhysicsResidualMetrics(unorderedPhysics);
+    } catch (const std::invalid_argument&) { unorderedResidualTimesRejected = true; }
+    assert(unorderedResidualTimesRejected);
     return 0;
 }
