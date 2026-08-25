@@ -1616,46 +1616,8 @@ void HydroPINNWindow::loadInferenceArtifacts() {
                 approach, std::make_unique<HydroInferenceSession>(artifacts, entry.first));
         }
         const QString experimentId = QString::fromStdString(artifacts.experiment.experiment_id);
-        auto storedResults = HydroArtifactLoader().loadPredictions(directory.toStdString());
-        const auto storedMetrics = HydroArtifactLoader().loadMetrics(directory.toStdString());
-        for (auto& entry : storedResults) {
-            const auto metric = storedMetrics.find(entry.first);
-            if (metric == storedMetrics.end()) throw std::runtime_error("Exported metrics are missing approach: " + entry.first);
-            const auto consistent = [](const double recomputed, const double exported) {
-                return !std::isfinite(exported) ||
-                       (std::isfinite(recomputed) &&
-                        std::abs(recomputed - exported) <= 1.0e-10 * std::max({1.0, std::abs(recomputed), std::abs(exported)}));
-            };
-            if (!consistent(entry.second.mse, metric->second.mse) || !consistent(entry.second.rmse, metric->second.rmse) ||
-                !consistent(entry.second.mae, metric->second.mae)) {
-                throw std::runtime_error("Exported summary metrics do not match predictions for: " + entry.first);
-            }
-            entry.second.final_loss = metric->second.final_loss;
-            entry.second.validation_mse = metric->second.validation_mse;
-            entry.second.physics_loss = metric->second.physics_loss;
-        }
-        if (storedMetrics.size() != storedResults.size()) throw std::runtime_error("Exported metrics and predictions have different approach sets.");
-        const auto storedResiduals = HydroArtifactLoader().loadPhysicsResiduals(directory.toStdString());
-        for (const auto& entry : storedResiduals) {
-            const auto result = storedResults.find(entry.first);
-            if (result == storedResults.end() || entry.second.values.size() != result->second.x.size() ||
-                entry.second.split != result->second.split) {
-                throw std::runtime_error("Exported physics residuals do not align with predictions for: " + entry.first);
-            }
-            for (std::size_t i = 0; i < entry.second.x.size(); ++i) {
-                const double tolerance = 1.0e-10 * std::max({1.0, std::abs(entry.second.x[i]), std::abs(result->second.x[i])});
-                if (std::abs(entry.second.x[i] - result->second.x[i]) > tolerance) {
-                    throw std::runtime_error("Exported physics residual timestamps do not match predictions for: " + entry.first);
-                }
-            }
-            result->second.physics_residual = entry.second.values;
-            populateHydroPhysicsResidualMetrics(result->second);
-        }
         std::map<QString, HydroRunResult> restoredResults;
-        for (const auto& entry : storedResults) {
-            if (artifacts.models.find(entry.first) == artifacts.models.end()) {
-                throw std::runtime_error("Exported predictions have no matching checkpoint: " + entry.first);
-            }
+        for (const auto& entry : artifacts.results) {
             restoredResults.emplace(QString::fromStdString(entry.first), entry.second);
         }
         lastModeResults_ = std::move(restoredResults);

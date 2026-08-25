@@ -46,6 +46,14 @@ int main() {
     assert(std::isnan(constant.nse));
     assert(std::isnan(constant.pbias));
     assert(hydroMetricsAreFinite(constant));
+    bool mismatchedMetricsRejected = false;
+    try { populateHydroMetrics(constant, {1.0, 2.0}, {1.0}); }
+    catch (const std::invalid_argument&) { mismatchedMetricsRejected = true; }
+    assert(mismatchedMetricsRejected);
+    bool nonFiniteMetricsRejected = false;
+    try { populateHydroMetrics(constant, {1.0}, {std::numeric_limits<double>::infinity()}); }
+    catch (const std::invalid_argument&) { nonFiniteMetricsRejected = true; }
+    assert(nonFiniteMetricsRejected);
     HydroRunResult flows;
     flows.x = {0.0, 1.0, 2.0, 3.0};
     flows.y_true = {1.0, 2.0, 3.0, 10.0};
@@ -56,6 +64,20 @@ int main() {
     assert(std::abs(flows.peak_magnitude_error_percent + 20.0) < 1.0e-12);
     assert(flows.low_flow_rmse == 1.0);
     assert(flows.high_flow_rmse == 2.0);
+    bool misalignedPeakSeriesRejected = false;
+    try {
+        HydroRunResult misaligned = flows;
+        misaligned.split.pop_back();
+        populateHydroPeakMetrics(misaligned);
+    } catch (const std::invalid_argument&) { misalignedPeakSeriesRejected = true; }
+    assert(misalignedPeakSeriesRejected);
+    bool missingTestPartitionRejected = false;
+    try {
+        HydroRunResult trainingOnly = flows;
+        trainingOnly.split.assign(trainingOnly.split.size(), "train");
+        populateHydroPeakMetrics(trainingOnly);
+    } catch (const std::invalid_argument&) { missingTestPartitionRejected = true; }
+    assert(missingTestPartitionRejected);
     HydroRunResult physics;
     physics.x = {0.0, 1.0, 3.0};
     physics.physics_residual = {std::numeric_limits<double>::quiet_NaN(), 2.0, -1.0};
@@ -63,5 +85,19 @@ int main() {
     assert(physics.physics_residual_mean == 0.5);
     assert(std::abs(physics.physics_residual_rmse - std::sqrt(2.5)) < 1.0e-12);
     assert(physics.cumulative_physics_residual == 0.0);
+    bool misalignedResidualsRejected = false;
+    try {
+        HydroRunResult misalignedPhysics = physics;
+        misalignedPhysics.x.pop_back();
+        populateHydroPhysicsResidualMetrics(misalignedPhysics);
+    } catch (const std::invalid_argument&) { misalignedResidualsRejected = true; }
+    assert(misalignedResidualsRejected);
+    bool unorderedResidualTimesRejected = false;
+    try {
+        HydroRunResult unorderedPhysics = physics;
+        unorderedPhysics.x = {0.0, 2.0, 1.0};
+        populateHydroPhysicsResidualMetrics(unorderedPhysics);
+    } catch (const std::invalid_argument&) { unorderedResidualTimesRejected = true; }
+    assert(unorderedResidualTimesRejected);
     return 0;
 }

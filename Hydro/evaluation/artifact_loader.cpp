@@ -83,6 +83,12 @@ double parseMetricDouble(const std::string& value, const std::size_t row) {
     if (value == "nan" || value == "NaN") return std::numeric_limits<double>::quiet_NaN();
     return parseFiniteDouble(value, "metric", row);
 }
+
+bool equivalentMetric(const double left, const double right) {
+    if (std::isnan(left) && std::isnan(right)) return true;
+    if (!std::isfinite(left) || !std::isfinite(right)) return false;
+    return std::abs(left - right) <= 1.0e-10 * std::max({1.0, std::abs(left), std::abs(right)});
+}
 }
 
 std::map<std::string, HydroModelArtifact> HydroArtifactLoader::loadModels(
@@ -295,6 +301,17 @@ std::map<std::string, HydroRunResult> HydroArtifactLoader::loadMetrics(
                             &result.low_flow_rmse, &result.physics_residual_mean, &result.physics_residual_rmse,
                             &result.cumulative_physics_residual, &result.physics_loss};
         for (std::size_t i = 0; i < 18; ++i) *values[i] = parseMetricDouble(fields[i + 2], row);
+        if (result.success) {
+            if (!std::isfinite(result.mse) || !std::isfinite(result.rmse) || !std::isfinite(result.mae) ||
+                result.mse < 0.0 || result.rmse < 0.0 || result.mae < 0.0) {
+                throw std::runtime_error("Successful metrics row has invalid error metrics in row " + std::to_string(row) + ".");
+            }
+            const double expectedRmse = std::sqrt(result.mse);
+            const double tolerance = 1.0e-10 * std::max({1.0, expectedRmse, result.rmse});
+            if (std::abs(result.rmse - expectedRmse) > tolerance) {
+                throw std::runtime_error("Metrics RMSE is inconsistent with MSE in row " + std::to_string(row) + ".");
+            }
+        }
         if (!metrics.emplace(fields[0], result).second) throw std::runtime_error("Duplicate approach in metrics.csv: " + fields[0]);
     }
     if (metrics.empty()) throw std::runtime_error("metrics.csv contains no approach rows.");
@@ -346,6 +363,9 @@ HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
     artifacts.experiment = HydroExperimentLoader().loadConfig((root / "experiment_config.json").string());
     artifacts.models = loadModels(experimentDirectory);
     artifacts.scalers = loadScalers(experimentDirectory);
+    auto predictions = loadPredictions(experimentDirectory);
+    const auto metrics = loadMetrics(experimentDirectory);
+    const auto residuals = loadPhysicsResiduals(experimentDirectory);
 
     for (const auto& entry : artifacts.models) {
         const auto scaler = artifacts.scalers.find(entry.first);
@@ -367,5 +387,49 @@ HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
             throw std::runtime_error("Scaler state has no matching model for approach: " + entry.first);
         }
     }
+    if (predictions.size() != artifacts.models.size() || metrics.size() != artifacts.models.size()) {
+        throw std::runtime_error("Inference models, predictions, and metrics have different approach sets.");
+    }
+    for (auto& entry : predictions) {
+        const auto model = artifacts.models.find(entry.first);
+        const auto metric = metrics.find(entry.first);
+        if (model == artifacts.models.end() || metric == metrics.end()) {
+            throw std::runtime_error("Inference summary artifacts have no matching model for approach: " + entry.first);
+        }
+        if (!metric->second.success) {
+            throw std::runtime_error("Inference checkpoint has an unsuccessful metrics row for approach: " + entry.first);
+        }
+        if (!equivalentMetric(entry.second.mse, metric->second.mse) ||
+            !equivalentMetric(entry.second.rmse, metric->second.rmse) ||
+            !equivalentMetric(entry.second.mae, metric->second.mae)) {
+            throw std::runtime_error("Inference metrics do not match predictions for approach: " + entry.first);
+        }
+        entry.second.final_loss = metric->second.final_loss;
+        entry.second.validation_mse = metric->second.validation_mse;
+        entry.second.physics_loss = metric->second.physics_loss;
+    }
+    for (const auto& entry : residuals) {
+        const auto prediction = predictions.find(entry.first);
+        const auto metric = metrics.find(entry.first);
+        if (prediction == predictions.end() || metric == metrics.end() ||
+            entry.second.x.size() != prediction->second.x.size() ||
+            entry.second.split != prediction->second.split) {
+            throw std::runtime_error("Inference physics residuals do not align for approach: " + entry.first);
+        }
+        for (std::size_t i = 0; i < entry.second.x.size(); ++i) {
+            if (!equivalentMetric(entry.second.x[i], prediction->second.x[i])) {
+                throw std::runtime_error("Inference residual timestamps do not match predictions for approach: " + entry.first);
+            }
+        }
+        prediction->second.physics_residual = entry.second.values;
+        populateHydroPhysicsResidualMetrics(prediction->second);
+        if (!equivalentMetric(prediction->second.physics_residual_mean, metric->second.physics_residual_mean) ||
+            !equivalentMetric(prediction->second.physics_residual_rmse, metric->second.physics_residual_rmse) ||
+            !equivalentMetric(prediction->second.cumulative_physics_residual,
+                              metric->second.cumulative_physics_residual)) {
+            throw std::runtime_error("Inference residual summaries do not match residual samples for approach: " + entry.first);
+        }
+    }
+    artifacts.results = std::move(predictions);
     return artifacts;
 }

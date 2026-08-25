@@ -5,15 +5,24 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 #include <vector>
 
 inline void populateHydroMetrics(HydroRunResult& result,
                                  const std::vector<double>& observed,
                                  const std::vector<double>& predicted) {
-    const size_t n = std::min(observed.size(), predicted.size());
-    if (n == 0) return;
+    if (observed.empty()) throw std::invalid_argument("Hydro metrics require at least one observation.");
+    if (observed.size() != predicted.size()) {
+        throw std::invalid_argument("Hydro metric vectors must have matching lengths.");
+    }
+    const size_t n = observed.size();
     double mean = 0.0;
-    for (size_t i = 0; i < n; ++i) mean += observed[i];
+    for (size_t i = 0; i < n; ++i) {
+        if (!std::isfinite(observed[i]) || !std::isfinite(predicted[i])) {
+            throw std::invalid_argument("Hydro metrics require finite observed and predicted values.");
+        }
+        mean += observed[i];
+    }
     mean /= static_cast<double>(n);
     double predictedMean = 0.0;
     for (size_t i = 0; i < n; ++i) predictedMean += predicted[i];
@@ -63,19 +72,28 @@ inline bool hydroMetricsAreFinite(const HydroRunResult& result) {
 }
 
 inline void populateHydroPeakMetrics(HydroRunResult& result) {
-    const size_t n = std::min(result.x.size(), std::min(result.y_true.size(), result.y_pred.size()));
-    if (n == 0) return;
+    if (result.x.empty()) throw std::invalid_argument("Hydro peak metrics require at least one sample.");
+    if (result.x.size() != result.y_true.size() || result.x.size() != result.y_pred.size() ||
+        result.x.size() != result.split.size()) {
+        throw std::invalid_argument("Hydro peak metric series and split labels must have matching lengths.");
+    }
+    const size_t n = result.x.size();
     std::vector<size_t> testIndices;
     testIndices.reserve(n);
     size_t observedPeak = n;
     size_t predictedPeak = n;
     for (size_t i = 0; i < n; ++i) {
-        if (i < result.split.size() && result.split[i] != "test") continue;
+        if (result.split[i] != "test") continue;
+        if (!std::isfinite(result.x[i]) || !std::isfinite(result.y_true[i]) || !std::isfinite(result.y_pred[i])) {
+            throw std::invalid_argument("Hydro peak metrics require finite test samples.");
+        }
         testIndices.push_back(i);
         if (observedPeak == n || result.y_true[i] > result.y_true[observedPeak]) observedPeak = i;
         if (predictedPeak == n || result.y_pred[i] > result.y_pred[predictedPeak]) predictedPeak = i;
     }
-    if (observedPeak == n || predictedPeak == n) return;
+    if (observedPeak == n || predictedPeak == n) {
+        throw std::invalid_argument("Hydro peak metrics require at least one test sample.");
+    }
     result.peak_timing_error = result.x[predictedPeak] - result.x[observedPeak];
     const double observedMagnitude = result.y_true[observedPeak];
     if (std::abs(observedMagnitude) > 0.0) {
@@ -101,6 +119,19 @@ inline void populateHydroPeakMetrics(HydroRunResult& result) {
 }
 
 inline void populateHydroPhysicsResidualMetrics(HydroRunResult& result) {
+    if (result.physics_residual.empty()) {
+        throw std::invalid_argument("Physics residual metrics require at least one residual.");
+    }
+    if (!result.x.empty() && result.x.size() != result.physics_residual.size()) {
+        throw std::invalid_argument("Physics residuals and timestamps must have matching lengths.");
+    }
+    if (!result.x.empty()) {
+        for (size_t i = 0; i < result.x.size(); ++i) {
+            if (!std::isfinite(result.x[i]) || (i > 0 && result.x[i] <= result.x[i - 1])) {
+                throw std::invalid_argument("Physics residual timestamps must be finite and strictly increasing.");
+            }
+        }
+    }
     double sum = 0.0;
     double squared = 0.0;
     double cumulative = 0.0;
@@ -111,7 +142,7 @@ inline void populateHydroPhysicsResidualMetrics(HydroRunResult& result) {
         sum += residual;
         squared += residual * residual;
         ++count;
-        if (i > 0 && i < result.x.size() && std::isfinite(result.x[i]) && std::isfinite(result.x[i - 1])) {
+        if (i > 0 && !result.x.empty()) {
             cumulative += residual * (result.x[i] - result.x[i - 1]);
         } else if (result.x.empty()) {
             cumulative += residual;
