@@ -127,7 +127,9 @@ features while the residual keeps a direct mass-balance interpretation.
      escaping and decoded on reload, preserving paths and identifiers without
      producing malformed configuration documents. Reload also supports standard
      Unicode escapes and surrogate pairs while rejecting malformed or unpaired
-     sequences.
+     sequences. Numeric, integer, Boolean, and string values must terminate at a
+     JSON member boundary; fractional integers, overflow, and token suffixes are
+     rejected rather than partially parsed.
      Exported scientific summaries are recomputed from held-out predictions and
      residual samples, preventing stale in-memory metrics from being serialized.
      Files are written into a sibling staging directory and atomically renamed

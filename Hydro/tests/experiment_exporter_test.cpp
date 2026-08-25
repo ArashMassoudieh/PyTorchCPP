@@ -271,6 +271,36 @@ int main() {
     assert(loaded.config.hydro_forecast_lead_hours == 6.0);
     assert(loaded.config.hydro_forecast_ensemble_member == "m01");
     assert(loaded.config.hydro_catchment_id == config.hydro_catchment_id);
+    const auto rejectsConfigText = [&](const std::string& contents, const std::string& name) {
+        const auto path = output / name;
+        {
+            std::ofstream invalidOutput(path);
+            invalidOutput << contents;
+        }
+        bool rejected = false;
+        try { (void)HydroExperimentLoader().loadConfig(path.string()); }
+        catch (const std::runtime_error&) { rejected = true; }
+        std::filesystem::remove(path);
+        return rejected;
+    };
+    {
+        std::string fractionalEpochs = configText;
+        const std::string marker = "\"epochs\": ";
+        const auto epochs = fractionalEpochs.find(marker);
+        assert(epochs != std::string::npos);
+        const auto epochsEnd = fractionalEpochs.find(',', epochs);
+        assert(epochsEnd != std::string::npos);
+        fractionalEpochs.replace(epochs, epochsEnd - epochs, "\"epochs\": 1.5");
+        assert(rejectsConfigText(fractionalEpochs, "fractional_epochs.json"));
+    }
+    {
+        std::string malformedBoolean = configText;
+        const auto shuffle = malformedBoolean.find("\"shuffle_training\": false");
+        assert(shuffle != std::string::npos);
+        malformedBoolean.replace(shuffle, std::string("\"shuffle_training\": false").size(),
+                                 "\"shuffle_training\": falsejunk");
+        assert(rejectsConfigText(malformedBoolean, "malformed_boolean.json"));
+    }
     {
         std::string unicodeConfig = configText;
         const std::string marker = "\"hydro_catchment_id\": \"";
