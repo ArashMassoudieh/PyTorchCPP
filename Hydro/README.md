@@ -123,6 +123,11 @@ features while the residual keeps a direct mass-balance interpretation.
      never overwritten and failed exports clean up their staging data. A lock
      directory and uniquely reserved staging name prevent concurrent exporters
      from deleting or publishing over one another.
+     `artifact_manifest.csv` records the size and SHA-256 digest of every file in
+     the completed bundle; inference reload rejects modified, missing, or
+     unlisted files before parsing any artifact content. Its explicit schema
+     version is checked before parsing, so incompatible future formats fail
+     clearly instead of being interpreted as the current layout.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
      CI jobs can set `HYDRO_REQUIRE_LIBTORCH_TESTS=1` so a missing LibTorch

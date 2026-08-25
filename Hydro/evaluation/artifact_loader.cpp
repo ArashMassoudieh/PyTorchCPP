@@ -10,6 +10,7 @@
 #include <fstream>
 #include <limits>
 #include <regex>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 
@@ -121,6 +122,53 @@ std::int64_t jsonPositiveInteger(const std::string& json, const std::string& key
         throw std::runtime_error(std::string(artifact) + " has an invalid integer field: " + key);
     }
 }
+}
+
+void HydroArtifactLoader::validateBundleManifest(const std::string& experimentDirectory) const {
+    const std::filesystem::path root(experimentDirectory);
+    const auto canonicalRoot = std::filesystem::weakly_canonical(root);
+    std::ifstream input(root / "artifact_manifest.csv");
+    if (!input) throw std::runtime_error("Experiment is missing artifact_manifest.csv.");
+    std::string line;
+    if (!readCsvLine(input, line) || line != "artifact_schema_version,1") {
+        throw std::runtime_error("artifact_manifest.csv has an unsupported schema version.");
+    }
+    if (!readCsvLine(input, line) || line != "file,size_bytes,sha256") {
+        throw std::runtime_error("artifact_manifest.csv has an incompatible header.");
+    }
+    std::set<std::string> listed;
+    std::size_t row = 2;
+    while (readCsvLine(input, line)) {
+        ++row;
+        if (line.empty()) continue;
+        const auto fields = splitCsv(line);
+        if (fields.size() != 3 || !safeRelativePath(fields[0]) || fields[0] == "artifact_manifest.csv" ||
+            !listed.insert(fields[0]).second) {
+            throw std::runtime_error("Invalid artifact_manifest.csv row " + std::to_string(row) + ".");
+        }
+        std::uintmax_t expectedSize = 0;
+        try {
+            std::size_t consumed = 0;
+            expectedSize = std::stoull(fields[1], &consumed);
+            if (consumed != fields[1].size()) throw std::invalid_argument("invalid size");
+        } catch (...) {
+            throw std::runtime_error("Invalid artifact size in row " + std::to_string(row) + ".");
+        }
+        const auto path = std::filesystem::weakly_canonical(root / fields[0]);
+        const auto relative = path.lexically_relative(canonicalRoot);
+        if (relative.empty() || *relative.begin() == ".." || !std::filesystem::is_regular_file(path) ||
+            std::filesystem::file_size(path) != expectedSize || sha256File(path.string()) != fields[2]) {
+            throw std::runtime_error("Artifact bundle integrity check failed: " + fields[0]);
+        }
+    }
+    std::set<std::string> actual;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(root)) {
+        if (!entry.is_regular_file() || entry.path().filename() == "artifact_manifest.csv") continue;
+        actual.insert(std::filesystem::relative(entry.path(), root).generic_string());
+    }
+    if (listed.empty() || listed != actual) {
+        throw std::runtime_error("Artifact manifest does not enumerate the complete experiment bundle.");
+    }
 }
 
 std::map<std::string, HydroModelArtifact> HydroArtifactLoader::loadModels(
@@ -465,6 +513,7 @@ HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
     const std::string& experimentDirectory) const {
     const std::filesystem::path root(experimentDirectory);
     HydroInferenceArtifacts artifacts;
+    validateBundleManifest(experimentDirectory);
     artifacts.experiment = HydroExperimentLoader().loadConfig((root / "experiment_config.json").string());
     artifacts.models = loadModels(experimentDirectory);
     artifacts.scalers = loadScalers(experimentDirectory);

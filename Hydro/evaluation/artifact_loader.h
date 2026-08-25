@@ -56,6 +56,7 @@ struct HydroInferenceArtifacts {
 
 class HydroArtifactLoader {
 public:
+    void validateBundleManifest(const std::string& experimentDirectory) const;
     std::map<std::string, HydroModelArtifact> loadModels(const std::string& experimentDirectory) const;
     std::map<std::string, HydroArtifactScalers> loadScalers(const std::string& experimentDirectory) const;
     std::map<std::string, HydroRunResult> loadPredictions(const std::string& experimentDirectory) const;

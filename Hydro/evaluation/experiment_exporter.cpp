@@ -359,5 +359,24 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     finalizeStream(physics, physicsPath);
     finalizeStream(predictions, predictionsPath);
     finalizeStream(history, historyPath);
+
+    std::vector<std::filesystem::path> artifactPaths;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(root)) {
+        if (entry.is_regular_file()) artifactPaths.push_back(entry.path());
+    }
+    std::sort(artifactPaths.begin(), artifactPaths.end(), [&](const auto& left, const auto& right) {
+        return std::filesystem::relative(left, root).generic_string() <
+               std::filesystem::relative(right, root).generic_string();
+    });
+    const auto bundleManifestPath = root / "artifact_manifest.csv";
+    std::ofstream bundleManifest(bundleManifestPath);
+    requireStream(bundleManifest, bundleManifestPath);
+    bundleManifest << "artifact_schema_version,1\n"
+                   << "file,size_bytes,sha256\n";
+    for (const auto& path : artifactPaths) {
+        bundleManifest << std::filesystem::relative(path, root).generic_string() << ','
+                       << std::filesystem::file_size(path) << ',' << sha256File(path.string()) << '\n';
+    }
+    finalizeStream(bundleManifest, bundleManifestPath);
     staged.commit();
 }

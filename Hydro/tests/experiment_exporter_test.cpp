@@ -97,6 +97,7 @@ int main() {
     assert(std::filesystem::is_regular_file(root / "physics_residuals.csv"));
     assert(std::filesystem::is_regular_file(root / "scalers.csv"));
     assert(std::filesystem::is_regular_file(root / "models.csv"));
+    assert(std::filesystem::is_regular_file(root / "artifact_manifest.csv"));
     {
         std::ifstream metrics(root / "metrics.csv");
         const std::string metricsText((std::istreambuf_iterator<char>(metrics)), std::istreambuf_iterator<char>());
@@ -128,6 +129,35 @@ int main() {
     assert(!inferenceArtifacts.environment.compiler.empty());
     assert(inferenceArtifacts.provenance.fingerprint_algorithm == "sha256");
     assert(inferenceArtifacts.provenance.dataset_manifest_sha256.size() == 64);
+    {
+        std::ofstream unexpected(root / "unexpected.txt");
+        unexpected << "not listed";
+        unexpected.close();
+        bool rejectedUnexpectedArtifact = false;
+        try { HydroArtifactLoader().validateBundleManifest(root.string()); }
+        catch (const std::runtime_error&) { rejectedUnexpectedArtifact = true; }
+        assert(rejectedUnexpectedArtifact);
+        std::filesystem::remove(root / "unexpected.txt");
+    }
+    {
+        const auto manifestPath = root / "artifact_manifest.csv";
+        std::ifstream manifestInput(manifestPath);
+        const std::string validManifest((std::istreambuf_iterator<char>(manifestInput)), std::istreambuf_iterator<char>());
+        std::string incompatibleManifest = validManifest;
+        const auto version = incompatibleManifest.find("artifact_schema_version,1");
+        assert(version != std::string::npos);
+        incompatibleManifest[version + std::string("artifact_schema_version,").size()] = '2';
+        {
+            std::ofstream manifestOutput(manifestPath, std::ios::trunc);
+            manifestOutput << incompatibleManifest;
+        }
+        bool rejectedSchemaVersion = false;
+        try { HydroArtifactLoader().validateBundleManifest(root.string()); }
+        catch (const std::runtime_error&) { rejectedSchemaVersion = true; }
+        assert(rejectedSchemaVersion);
+        std::ofstream restoredManifest(manifestPath, std::ios::trunc);
+        restoredManifest << validManifest;
+    }
     const auto storedResults = HydroArtifactLoader().loadPredictions(root.string());
     assert(storedResults.at("ffn").success);
     assert(storedResults.at("ffn").split == std::vector<std::string>({"train", "test"}));
@@ -236,7 +266,7 @@ int main() {
                        << "ffn,2,0.5,0.4,1\n";
         invalidHistory.close();
         bool rejectedHistory = false;
-        try { (void)HydroArtifactLoader().loadForInference(root.string()); }
+        try { (void)HydroArtifactLoader().loadTrainingHistory(root.string()); }
         catch (const std::runtime_error&) { rejectedHistory = true; }
         assert(rejectedHistory);
         std::ofstream restoredHistory(historyPath, std::ios::trunc);
@@ -251,7 +281,7 @@ int main() {
             corruptManifest << '\n';
         }
         bool rejectedProvenance = false;
-        try { (void)HydroArtifactLoader().loadForInference(root.string()); }
+        try { (void)HydroArtifactLoader().loadProvenance(root.string()); }
         catch (const std::runtime_error&) { rejectedProvenance = true; }
         assert(rejectedProvenance);
         std::ofstream restoredManifest(manifestPath, std::ios::binary | std::ios::trunc);
