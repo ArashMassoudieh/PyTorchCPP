@@ -1622,9 +1622,9 @@ void HydroPINNWindow::loadInferenceArtifacts() {
             const auto metric = storedMetrics.find(entry.first);
             if (metric == storedMetrics.end()) throw std::runtime_error("Exported metrics are missing approach: " + entry.first);
             const auto consistent = [](const double recomputed, const double exported) {
-                return !std::isfinite(exported) ||
-                       (std::isfinite(recomputed) &&
-                        std::abs(recomputed - exported) <= 1.0e-10 * std::max({1.0, std::abs(recomputed), std::abs(exported)}));
+                return std::isfinite(recomputed) && std::isfinite(exported) &&
+                       std::abs(recomputed - exported) <=
+                           1.0e-10 * std::max({1.0, std::abs(recomputed), std::abs(exported)});
             };
             if (!consistent(entry.second.mse, metric->second.mse) || !consistent(entry.second.rmse, metric->second.rmse) ||
                 !consistent(entry.second.mae, metric->second.mae)) {

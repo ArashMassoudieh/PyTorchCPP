@@ -33,6 +33,7 @@ int main() {
     result.success = true;
     result.mse = 0.25;
     result.rmse = 0.5;
+    result.mae = 0.5;
     result.x = {0.0, 1.0};
     result.y_true = {1.0, 2.0};
     result.y_pred = {1.5, 1.5};
@@ -94,6 +95,7 @@ int main() {
     assert(storedResults.at("ffn").rmse == 0.5);
     const auto storedMetrics = HydroArtifactLoader().loadMetrics(root.string());
     assert(storedMetrics.at("ffn").mse == result.mse);
+    assert(storedMetrics.at("ffn").mae == result.mae);
     assert(storedMetrics.at("ffn").peak_timing_error == result.peak_timing_error);
     {
         const auto metricsPath = root / "metrics.csv";
@@ -120,6 +122,21 @@ int main() {
     assert(storedResiduals.at("ffn").values == result.physics_residual);
     assert(storedResiduals.at("ffn").x == result.x);
     assert(storedResiduals.at("ffn").split == result.split);
+    {
+        const auto metricsPath = root / "metrics.csv";
+        std::ifstream metricsInput(metricsPath);
+        const std::string validMetrics((std::istreambuf_iterator<char>(metricsInput)), std::istreambuf_iterator<char>());
+        std::ofstream invalidMetrics(metricsPath, std::ios::trunc);
+        invalidMetrics << "approach,success,final_loss,validation_mse,test_mse,rmse,mae,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual,physics_loss\n"
+                       << "ffn,1,nan,nan,0.25,0.75,0.5,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan\n";
+        invalidMetrics.close();
+        bool rejectedInconsistentMetrics = false;
+        try { (void)HydroArtifactLoader().loadMetrics(root.string()); }
+        catch (const std::runtime_error&) { rejectedInconsistentMetrics = true; }
+        assert(rejectedInconsistentMetrics);
+        std::ofstream restoredMetrics(metricsPath, std::ios::trunc);
+        restoredMetrics << validMetrics;
+    }
     std::ifstream predictions(root / "predictions.csv");
     const std::string text((std::istreambuf_iterator<char>(predictions)), std::istreambuf_iterator<char>());
     assert(text.find("ffn,0,train,0,1,1.5,0.5") != std::string::npos);

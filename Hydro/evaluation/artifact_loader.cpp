@@ -295,6 +295,17 @@ std::map<std::string, HydroRunResult> HydroArtifactLoader::loadMetrics(
                             &result.low_flow_rmse, &result.physics_residual_mean, &result.physics_residual_rmse,
                             &result.cumulative_physics_residual, &result.physics_loss};
         for (std::size_t i = 0; i < 18; ++i) *values[i] = parseMetricDouble(fields[i + 2], row);
+        if (result.success) {
+            if (!std::isfinite(result.mse) || !std::isfinite(result.rmse) || !std::isfinite(result.mae) ||
+                result.mse < 0.0 || result.rmse < 0.0 || result.mae < 0.0) {
+                throw std::runtime_error("Successful metrics row has invalid error metrics in row " + std::to_string(row) + ".");
+            }
+            const double expectedRmse = std::sqrt(result.mse);
+            const double tolerance = 1.0e-10 * std::max({1.0, expectedRmse, result.rmse});
+            if (std::abs(result.rmse - expectedRmse) > tolerance) {
+                throw std::runtime_error("Metrics RMSE is inconsistent with MSE in row " + std::to_string(row) + ".");
+            }
+        }
         if (!metrics.emplace(fields[0], result).second) throw std::runtime_error("Duplicate approach in metrics.csv: " + fields[0]);
     }
     if (metrics.empty()) throw std::runtime_error("metrics.csv contains no approach rows.");
