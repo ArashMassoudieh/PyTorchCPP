@@ -3,6 +3,7 @@
 #include "../evaluation/artifact_loader.h"
 
 #include <cassert>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -50,9 +51,9 @@ int main() {
     result.peak_magnitude_error_percent = -5.0;
     result.high_flow_rmse = 0.25;
     result.low_flow_rmse = 0.125;
-    result.physics_residual_mean = -0.5;
-    result.physics_residual_rmse = 0.25;
-    result.cumulative_physics_residual = -0.25;
+    result.physics_residual_mean = -0.05;
+    result.physics_residual_rmse = std::sqrt(0.025);
+    result.cumulative_physics_residual = -0.2;
     HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}});
     const auto root = output / "run_001";
     assert(std::filesystem::is_regular_file(root / "experiment_config.json"));
@@ -69,7 +70,7 @@ int main() {
         std::ifstream metrics(root / "metrics.csv");
         const std::string metricsText((std::istreambuf_iterator<char>(metrics)), std::istreambuf_iterator<char>());
         assert(metricsText.find("peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse") != std::string::npos);
-        assert(metricsText.find(",1,-5,0.25,0.125,-0.5,0.25,-0.25,") != std::string::npos);
+        assert(metricsText.find(",1,-5,0.25,0.125,") != std::string::npos);
     }
     assert(std::filesystem::file_size(root / "models" / "ffn.pt") == 3);
     const auto models = HydroArtifactLoader().loadModels(root.string());
@@ -134,6 +135,21 @@ int main() {
         try { (void)HydroArtifactLoader().loadMetrics(root.string()); }
         catch (const std::runtime_error&) { rejectedInconsistentMetrics = true; }
         assert(rejectedInconsistentMetrics);
+        std::ofstream restoredMetrics(metricsPath, std::ios::trunc);
+        restoredMetrics << validMetrics;
+    }
+    {
+        const auto metricsPath = root / "metrics.csv";
+        std::ifstream metricsInput(metricsPath);
+        const std::string validMetrics((std::istreambuf_iterator<char>(metricsInput)), std::istreambuf_iterator<char>());
+        std::ofstream invalidSummary(metricsPath, std::ios::trunc);
+        invalidSummary << "approach,success,final_loss,validation_mse,test_mse,rmse,mae,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual,physics_loss\n"
+                       << "ffn,1,nan,nan,0.25,0.5,0.5,nan,nan,nan,nan,nan,1,-5,0.25,0.125,99,0.15811388300841897,-0.2,nan\n";
+        invalidSummary.close();
+        bool rejectedResidualSummary = false;
+        try { (void)HydroArtifactLoader().loadForInference(root.string()); }
+        catch (const std::runtime_error&) { rejectedResidualSummary = true; }
+        assert(rejectedResidualSummary);
         std::ofstream restoredMetrics(metricsPath, std::ios::trunc);
         restoredMetrics << validMetrics;
     }

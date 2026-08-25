@@ -104,6 +104,8 @@ features while the residual keeps a direct mass-balance interpretation.
      increasing timestamps so cumulative drift cannot reverse or skip intervals.
      Successful metric rows must contain finite, non-negative MSE, RMSE, and MAE,
      and the exported RMSE must agree with the square root of MSE.
+     `loadForInference` cross-checks the complete approach sets and recomputes
+     prediction and residual summaries before accepting a bundle.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
    - Reloaded experiments restore exported physics-residual series as well as
