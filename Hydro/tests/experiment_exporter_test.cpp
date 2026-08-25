@@ -52,6 +52,26 @@ int main() {
     populateHydroPeakMetrics(result);
     populateHydroPhysicsResidualMetrics(result);
     HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}});
+    {
+        HydroRunResult invalid = result;
+        invalid.split.pop_back();
+        bool rejectedInvalidExport = false;
+        try { HydroExperimentExporter().exportRun(output.string(), "invalid_run", config, {{"ffn", invalid}}); }
+        catch (const std::invalid_argument&) { rejectedInvalidExport = true; }
+        assert(rejectedInvalidExport);
+        assert(!std::filesystem::exists(output / "invalid_run"));
+    }
+    {
+        HydroRunResult staleMetrics = result;
+        staleMetrics.mse = 999.0;
+        staleMetrics.rmse = 999.0;
+        staleMetrics.mae = 999.0;
+        HydroExperimentExporter().exportRun(output.string(), "normalized_run", config, {{"ffn", staleMetrics}});
+        const auto normalized = HydroArtifactLoader().loadForInference((output / "normalized_run").string());
+        assert(normalized.results.at("ffn").mse == 0.25);
+        assert(normalized.results.at("ffn").rmse == 0.5);
+        std::filesystem::remove_all(output / "normalized_run");
+    }
     const auto root = output / "run_001";
     assert(std::filesystem::is_regular_file(root / "experiment_config.json"));
     assert(std::filesystem::is_regular_file(root / "environment.json"));

@@ -113,6 +113,11 @@ features while the residual keeps a direct mass-balance interpretation.
      match the SHA-256 fingerprint recorded in `provenance.json`.
      All recomputable prediction, peak-flow, and residual metrics are compared
      with `metrics.csv`, not only the three primary error measures.
+     Export now performs the same structural preflight before creating a run
+     directory, so misaligned series, bad partitions, missing checkpoints,
+     incompatible formats, and incomplete scalers cannot produce partial bundles.
+     Exported scientific summaries are recomputed from held-out predictions and
+     residual samples, preventing stale in-memory metrics from being serialized.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
      CI jobs can set `HYDRO_REQUIRE_LIBTORCH_TESTS=1` so a missing LibTorch
