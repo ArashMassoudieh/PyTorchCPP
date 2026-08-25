@@ -51,7 +51,21 @@ int main() {
     populateHydroMetrics(result, {2.0}, {1.5});
     populateHydroPeakMetrics(result);
     populateHydroPhysicsResidualMetrics(result);
+    std::filesystem::create_directories(output / "run_001.tmp.0");
+    {
+        std::ofstream sentinel(output / "run_001.tmp.0" / "sentinel");
+        sentinel << "another exporter";
+    }
     HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}});
+    assert(std::filesystem::is_regular_file(output / "run_001.tmp.0" / "sentinel"));
+    assert(!std::filesystem::exists(output / "run_001.tmp.1"));
+    assert(!std::filesystem::exists(output / "run_001.lock"));
+    std::filesystem::remove_all(output / "run_001.tmp.0");
+    bool rejectedExistingDestination = false;
+    try { HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}}); }
+    catch (const std::runtime_error&) { rejectedExistingDestination = true; }
+    assert(rejectedExistingDestination);
+    assert(std::filesystem::file_size(output / "run_001" / "models" / "ffn.pt") == 3);
     {
         HydroRunResult invalid = result;
         invalid.split.pop_back();

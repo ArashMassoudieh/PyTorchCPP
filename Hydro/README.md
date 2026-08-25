@@ -118,6 +118,11 @@ features while the residual keeps a direct mass-balance interpretation.
      incompatible formats, and incomplete scalers cannot produce partial bundles.
      Exported scientific summaries are recomputed from held-out predictions and
      residual samples, preventing stale in-memory metrics from being serialized.
+     Files are written into a sibling staging directory and atomically renamed
+     only after every stream closes successfully; existing run directories are
+     never overwritten and failed exports clean up their staging data. A lock
+     directory and uniquely reserved staging name prevent concurrent exporters
+     from deleting or publishing over one another.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
      CI jobs can set `HYDRO_REQUIRE_LIBTORCH_TESTS=1` so a missing LibTorch

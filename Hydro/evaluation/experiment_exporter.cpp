@@ -10,6 +10,8 @@
 #include <iomanip>
 #include <limits>
 #include <stdexcept>
+#include <system_error>
+#include <utility>
 
 namespace {
 std::string escapeJson(const std::string& value) {
@@ -25,6 +27,66 @@ std::string escapeJson(const std::string& value) {
 void requireStream(const std::ofstream& stream, const std::filesystem::path& path) {
     if (!stream) throw std::runtime_error("Unable to write experiment artifact: " + path.string());
 }
+
+void finalizeStream(std::ofstream& stream, const std::filesystem::path& path) {
+    stream.close();
+    if (!stream) throw std::runtime_error("Unable to finalize experiment artifact: " + path.string());
+}
+
+class StagedExperimentDirectory {
+public:
+    explicit StagedExperimentDirectory(std::filesystem::path destination)
+        : destination_(std::move(destination)) {
+        std::filesystem::create_directories(destination_.parent_path());
+        lock_ = destination_.string() + ".lock";
+        std::error_code lockError;
+        if (!std::filesystem::create_directory(lock_, lockError)) {
+            throw std::runtime_error("Experiment export destination is locked: " + destination_.string());
+        }
+        if (std::filesystem::exists(destination_)) {
+            std::filesystem::remove(lock_);
+            throw std::runtime_error("Experiment export destination already exists: " + destination_.string());
+        }
+        for (std::size_t attempt = 0; attempt < 1000; ++attempt) {
+            const auto candidate = std::filesystem::path(destination_.string() + ".tmp." + std::to_string(attempt));
+            std::error_code error;
+            if (std::filesystem::create_directory(candidate, error)) {
+                staging_ = candidate;
+                return;
+            }
+            if (error && error != std::errc::file_exists) {
+                std::filesystem::remove(lock_);
+                throw std::filesystem::filesystem_error("Unable to create experiment staging directory",
+                                                        candidate, error);
+            }
+        }
+        std::filesystem::remove(lock_);
+        throw std::runtime_error("Unable to reserve a unique experiment staging directory for: " +
+                                 destination_.string());
+    }
+
+    ~StagedExperimentDirectory() {
+        if (!committed_) {
+            std::error_code ignored;
+            std::filesystem::remove_all(staging_, ignored);
+        }
+        std::error_code ignored;
+        std::filesystem::remove(lock_, ignored);
+    }
+
+    const std::filesystem::path& path() const { return staging_; }
+
+    void commit() {
+        std::filesystem::rename(staging_, destination_);
+        committed_ = true;
+    }
+
+private:
+    std::filesystem::path destination_;
+    std::filesystem::path staging_;
+    std::filesystem::path lock_;
+    bool committed_ = false;
+};
 
 std::string safeFileStem(const std::string& value) {
     std::string stem;
@@ -117,8 +179,8 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
         populateHydroPeakMetrics(entry.second);
         if (!entry.second.physics_residual.empty()) populateHydroPhysicsResidualMetrics(entry.second);
     }
-    const std::filesystem::path root = std::filesystem::path(outputDirectory) / experimentId;
-    std::filesystem::create_directories(root);
+    StagedExperimentDirectory staged(std::filesystem::path(outputDirectory) / experimentId);
+    const std::filesystem::path& root = staged.path();
 
     const auto configPath = root / "experiment_config.json";
     std::ofstream configOut(configPath);
@@ -226,7 +288,7 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
         requireStream(modelFile, modelPath);
         modelFile.write(reinterpret_cast<const char*>(entry.second.model_checkpoint.data()),
                         static_cast<std::streamsize>(entry.second.model_checkpoint.size()));
-        modelFile.close();
+        finalizeStream(modelFile, modelPath);
         modelManifest << entry.first << ",models/" << filename << ',' << entry.second.model_checkpoint_format << ','
                       << entry.second.model_checkpoint.size() << ',' << sha256File(modelPath.string()) << '\n';
     }
@@ -289,4 +351,13 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
                     << validationLoss << ',' << (entry.second.best_epoch == static_cast<int>(epoch + 1) ? 1 : 0) << '\n';
         }
     }
+    finalizeStream(configOut, configPath);
+    finalizeStream(environment, environmentPath);
+    finalizeStream(metrics, metricsPath);
+    finalizeStream(modelManifest, modelManifestPath);
+    finalizeStream(scalers, scalersPath);
+    finalizeStream(physics, physicsPath);
+    finalizeStream(predictions, predictionsPath);
+    finalizeStream(history, historyPath);
+    staged.commit();
 }
