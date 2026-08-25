@@ -1,6 +1,7 @@
 #include "../evaluation/inference_runner.h"
 #include "../evaluation/model_checkpoint.h"
 #include "../evaluation/experiment_exporter.h"
+#include "../evaluation/hydro_metrics.h"
 #include "../dataset/lagged_tensor_builder.h"
 #include "../dataset/csv_tensor_builder.h"
 #include "../models/hydro_lstm_module.h"
@@ -119,6 +120,8 @@ int main() {
     feedForwardResult.y_true = {0.0, 0.0};
     feedForwardResult.y_pred = {0.0, 0.0};
     feedForwardResult.split = {"test", "test"};
+    populateHydroMetrics(feedForwardResult, feedForwardResult.y_true, feedForwardResult.y_pred);
+    populateHydroPeakMetrics(feedForwardResult);
     feedForwardResult.input_scaler = artifacts.scalers.at("ffn").input;
     feedForwardResult.target_scaler = artifacts.scalers.at("ffn").target;
     feedForwardResult.model_checkpoint_format = artifacts.models.at("ffn").format;

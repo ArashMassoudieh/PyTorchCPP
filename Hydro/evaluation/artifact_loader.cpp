@@ -4,10 +4,12 @@
 #include "hydro_metrics.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <regex>
 #include <sstream>
 #include <stdexcept>
 
@@ -88,6 +90,36 @@ bool equivalentMetric(const double left, const double right) {
     if (std::isnan(left) && std::isnan(right)) return true;
     if (!std::isfinite(left) || !std::isfinite(right)) return false;
     return std::abs(left - right) <= 1.0e-10 * std::max({1.0, std::abs(left), std::abs(right)});
+}
+
+std::string readArtifactText(const std::filesystem::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) throw std::runtime_error("Experiment is missing " + path.filename().string() + ".");
+    return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+}
+
+std::string jsonString(const std::string& json, const std::string& key, const char* artifact) {
+    std::smatch match;
+    const std::regex pattern("\\\"" + key + "\\\"\\s*:\\s*\\\"([^\\\"]*)\\\"");
+    if (!std::regex_search(json, match, pattern)) {
+        throw std::runtime_error(std::string(artifact) + " is missing string field: " + key);
+    }
+    return match[1].str();
+}
+
+std::int64_t jsonPositiveInteger(const std::string& json, const std::string& key, const char* artifact) {
+    std::smatch match;
+    const std::regex pattern("\\\"" + key + "\\\"\\s*:\\s*([0-9]+)");
+    if (!std::regex_search(json, match, pattern)) {
+        throw std::runtime_error(std::string(artifact) + " is missing integer field: " + key);
+    }
+    try {
+        const auto value = std::stoll(match[1].str());
+        if (value <= 0) throw std::invalid_argument("non-positive");
+        return value;
+    } catch (...) {
+        throw std::runtime_error(std::string(artifact) + " has an invalid integer field: " + key);
+    }
 }
 }
 
@@ -356,6 +388,79 @@ std::map<std::string, HydroPhysicsResidualArtifact> HydroArtifactLoader::loadPhy
     return residuals;
 }
 
+std::map<std::string, HydroTrainingHistoryArtifact> HydroArtifactLoader::loadTrainingHistory(
+    const std::string& experimentDirectory) const {
+    std::ifstream input(std::filesystem::path(experimentDirectory) / "training_history.csv");
+    if (!input) throw std::runtime_error("Experiment is missing training_history.csv.");
+    std::string line;
+    if (!readCsvLine(input, line) ||
+        line != "approach,epoch,training_loss,validation_loss,selected_checkpoint") {
+        throw std::runtime_error("training_history.csv has an incompatible header.");
+    }
+    std::map<std::string, HydroTrainingHistoryArtifact> histories;
+    std::size_t row = 1;
+    while (readCsvLine(input, line)) {
+        ++row;
+        if (line.empty()) continue;
+        const auto fields = splitCsv(line);
+        if (fields.size() != 5 || fields[0].empty() || (fields[4] != "0" && fields[4] != "1")) {
+            throw std::runtime_error("Invalid training_history.csv row " + std::to_string(row) + ".");
+        }
+        auto& history = histories[fields[0]];
+        std::size_t epoch = 0;
+        try {
+            std::size_t consumed = 0;
+            epoch = std::stoull(fields[1], &consumed);
+            if (consumed != fields[1].size() || epoch != history.training_loss.size() + 1) {
+                throw std::invalid_argument("non-contiguous epoch");
+            }
+        } catch (...) {
+            throw std::runtime_error("Training history epochs are not contiguous in row " + std::to_string(row) + ".");
+        }
+        history.training_loss.push_back(parseFiniteDouble(fields[2], "training loss", row));
+        history.validation_loss.push_back(parseMetricDouble(fields[3], row));
+        if (fields[4] == "1") {
+            if (history.best_epoch != -1) {
+                throw std::runtime_error("Training history selects multiple checkpoints for approach: " + fields[0]);
+            }
+            history.best_epoch = static_cast<int>(epoch);
+        }
+    }
+    return histories;
+}
+
+HydroEnvironmentArtifact HydroArtifactLoader::loadEnvironment(const std::string& experimentDirectory) const {
+    const auto text = readArtifactText(std::filesystem::path(experimentDirectory) / "environment.json");
+    HydroEnvironmentArtifact environment;
+    environment.compiler = jsonString(text, "compiler", "environment.json");
+    environment.cplusplus = jsonPositiveInteger(text, "cplusplus", "environment.json");
+    environment.build_date = jsonString(text, "build_date", "environment.json");
+    environment.build_time = jsonString(text, "build_time", "environment.json");
+    if (environment.compiler.empty() || environment.build_date.empty() || environment.build_time.empty()) {
+        throw std::runtime_error("environment.json contains empty build metadata.");
+    }
+    return environment;
+}
+
+HydroProvenanceArtifact HydroArtifactLoader::loadProvenance(const std::string& experimentDirectory) const {
+    const std::filesystem::path root(experimentDirectory);
+    const auto text = readArtifactText(root / "provenance.json");
+    HydroProvenanceArtifact provenance;
+    provenance.fingerprint_algorithm = jsonString(text, "fingerprint_algorithm", "provenance.json");
+    provenance.dataset_manifest_sha256 = jsonString(text, "dataset_manifest_sha256", "provenance.json");
+    if (provenance.fingerprint_algorithm != "sha256" || provenance.dataset_manifest_sha256.size() != 64 ||
+        !std::all_of(provenance.dataset_manifest_sha256.begin(), provenance.dataset_manifest_sha256.end(),
+                     [](const unsigned char value) { return std::isxdigit(value) && !std::isupper(value); })) {
+        throw std::runtime_error("provenance.json contains unsupported or malformed fingerprint metadata.");
+    }
+    const auto manifest = root / "dataset_manifest.json";
+    if (!std::filesystem::is_regular_file(manifest) ||
+        sha256File(manifest.string()) != provenance.dataset_manifest_sha256) {
+        throw std::runtime_error("Exported dataset manifest does not match provenance.json.");
+    }
+    return provenance;
+}
+
 HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
     const std::string& experimentDirectory) const {
     const std::filesystem::path root(experimentDirectory);
@@ -363,6 +468,9 @@ HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
     artifacts.experiment = HydroExperimentLoader().loadConfig((root / "experiment_config.json").string());
     artifacts.models = loadModels(experimentDirectory);
     artifacts.scalers = loadScalers(experimentDirectory);
+    artifacts.training_history = loadTrainingHistory(experimentDirectory);
+    artifacts.environment = loadEnvironment(experimentDirectory);
+    if (artifacts.experiment.config.use_hydro_package) artifacts.provenance = loadProvenance(experimentDirectory);
     auto predictions = loadPredictions(experimentDirectory);
     const auto metrics = loadMetrics(experimentDirectory);
     const auto residuals = loadPhysicsResiduals(experimentDirectory);
@@ -401,7 +509,17 @@ HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
         }
         if (!equivalentMetric(entry.second.mse, metric->second.mse) ||
             !equivalentMetric(entry.second.rmse, metric->second.rmse) ||
-            !equivalentMetric(entry.second.mae, metric->second.mae)) {
+            !equivalentMetric(entry.second.mae, metric->second.mae) ||
+            !equivalentMetric(entry.second.nse, metric->second.nse) ||
+            !equivalentMetric(entry.second.kge, metric->second.kge) ||
+            !equivalentMetric(entry.second.correlation, metric->second.correlation) ||
+            !equivalentMetric(entry.second.pbias, metric->second.pbias) ||
+            !equivalentMetric(entry.second.volume_error_percent, metric->second.volume_error_percent) ||
+            !equivalentMetric(entry.second.peak_timing_error, metric->second.peak_timing_error) ||
+            !equivalentMetric(entry.second.peak_magnitude_error_percent,
+                              metric->second.peak_magnitude_error_percent) ||
+            !equivalentMetric(entry.second.high_flow_rmse, metric->second.high_flow_rmse) ||
+            !equivalentMetric(entry.second.low_flow_rmse, metric->second.low_flow_rmse)) {
             throw std::runtime_error("Inference metrics do not match predictions for approach: " + entry.first);
         }
         entry.second.final_loss = metric->second.final_loss;
@@ -429,6 +547,18 @@ HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
                               metric->second.cumulative_physics_residual)) {
             throw std::runtime_error("Inference residual summaries do not match residual samples for approach: " + entry.first);
         }
+    }
+    for (const auto& entry : artifacts.training_history) {
+        const auto result = predictions.find(entry.first);
+        if (result == predictions.end()) {
+            throw std::runtime_error("Training history has no matching inference approach: " + entry.first);
+        }
+        if (!entry.second.training_loss.empty() && entry.second.best_epoch < 1) {
+            throw std::runtime_error("Training history has no selected checkpoint for approach: " + entry.first);
+        }
+        result->second.training_loss_history = entry.second.training_loss;
+        result->second.validation_loss_history = entry.second.validation_loss;
+        result->second.best_epoch = entry.second.best_epoch;
     }
     artifacts.results = std::move(predictions);
     return artifacts;

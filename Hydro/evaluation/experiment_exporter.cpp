@@ -1,8 +1,10 @@
 #include "experiment_exporter.h"
 #include "../dataset/hydro_checksum.h"
+#include "hydro_metrics.h"
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -30,6 +32,68 @@ std::string safeFileStem(const std::string& value) {
     if (stem.empty()) throw std::runtime_error("Approach name cannot produce an empty checkpoint filename.");
     return stem;
 }
+
+bool supportedApproach(const std::string& approach) {
+    return approach == "ffn" || approach == "ffn_pinn" || approach == "pinn" ||
+           approach == "lstm" || approach == "lstm_pinn";
+}
+
+void validateExportResult(const std::string& approach, const HydroRunResult& result) {
+    if (!supportedApproach(approach)) throw std::invalid_argument("Unsupported Hydro export approach: " + approach);
+    if (!result.success) throw std::invalid_argument("Cannot export unsuccessful Hydro result: " + approach);
+    if (result.x.empty() || result.x.size() != result.y_true.size() || result.x.size() != result.y_pred.size() ||
+        result.x.size() != result.split.size()) {
+        throw std::invalid_argument("Hydro export prediction series are empty or misaligned for: " + approach);
+    }
+    for (std::size_t i = 0; i < result.x.size(); ++i) {
+        if (!std::isfinite(result.x[i]) || !std::isfinite(result.y_true[i]) || !std::isfinite(result.y_pred[i]) ||
+            (result.split[i] != "train" && result.split[i] != "validation" && result.split[i] != "test")) {
+            throw std::invalid_argument("Hydro export contains invalid prediction data for: " + approach);
+        }
+    }
+    if (!result.physics_residual.empty() && result.physics_residual.size() != result.x.size()) {
+        throw std::invalid_argument("Hydro export physics residuals do not align for: " + approach);
+    }
+    if (result.model_checkpoint.empty() ||
+        (result.model_checkpoint_format != "neuralnetworkwrapper-v1" &&
+         result.model_checkpoint_format != "torch-module-v1")) {
+        throw std::invalid_argument("Hydro export checkpoint is missing or has an unsupported format for: " + approach);
+    }
+    const bool recurrent = approach == "lstm" || approach == "lstm_pinn";
+    const std::string expectedFormat = recurrent ? "torch-module-v1" : "neuralnetworkwrapper-v1";
+    if (result.model_checkpoint_format != expectedFormat) {
+        throw std::invalid_argument("Hydro export checkpoint format does not match approach: " + approach);
+    }
+    const auto validateScaler = [&](const HydroScalerState& state, const char* kind) {
+        if (state.offset.empty() || state.offset.size() != state.scale.size() || state.shape.empty()) {
+            throw std::invalid_argument("Hydro export has incomplete " + std::string(kind) + " scaler for: " + approach);
+        }
+        if (state.method != "none" && state.method != "standardize" && state.method != "minmax") {
+            throw std::invalid_argument("Hydro export has unsupported scaler method for: " + approach);
+        }
+        std::size_t expected = 1;
+        for (const auto extent : state.shape) {
+            if (extent <= 0 || expected > std::numeric_limits<std::size_t>::max() / static_cast<std::size_t>(extent)) {
+                throw std::invalid_argument("Hydro export scaler shape is invalid for: " + approach);
+            }
+            expected *= static_cast<std::size_t>(extent);
+        }
+        if (expected != state.offset.size()) {
+            throw std::invalid_argument("Hydro export scaler shape does not match values for: " + approach);
+        }
+        for (std::size_t i = 0; i < state.offset.size(); ++i) {
+            if (!std::isfinite(state.offset[i]) || !std::isfinite(state.scale[i]) || state.scale[i] == 0.0) {
+                throw std::invalid_argument("Hydro export scaler values are invalid for: " + approach);
+            }
+        }
+    };
+    validateScaler(result.input_scaler, "input");
+    validateScaler(result.target_scaler, "target");
+    if (!result.training_loss_history.empty() &&
+        (result.best_epoch < 1 || static_cast<std::size_t>(result.best_epoch) > result.training_loss_history.size())) {
+        throw std::invalid_argument("Hydro export best epoch is outside training history for: " + approach);
+    }
+}
 }
 
 void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
@@ -37,6 +101,22 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
                                         const HydroRunConfig& config,
                                         const std::map<std::string, HydroRunResult>& results) const {
     if (experimentId.empty()) throw std::invalid_argument("Experiment ID cannot be empty.");
+    if (results.empty()) throw std::invalid_argument("Hydro experiment export requires at least one result.");
+    for (const auto& entry : results) validateExportResult(entry.first, entry.second);
+    auto exportResults = results;
+    for (auto& entry : exportResults) {
+        std::vector<double> observedTest;
+        std::vector<double> predictedTest;
+        for (std::size_t i = 0; i < entry.second.split.size(); ++i) {
+            if (entry.second.split[i] != "test") continue;
+            observedTest.push_back(entry.second.y_true[i]);
+            predictedTest.push_back(entry.second.y_pred[i]);
+        }
+        if (observedTest.empty()) throw std::invalid_argument("Hydro export requires held-out test samples for: " + entry.first);
+        populateHydroMetrics(entry.second, observedTest, predictedTest);
+        populateHydroPeakMetrics(entry.second);
+        if (!entry.second.physics_residual.empty()) populateHydroPhysicsResidualMetrics(entry.second);
+    }
     const std::filesystem::path root = std::filesystem::path(outputDirectory) / experimentId;
     std::filesystem::create_directories(root);
 
@@ -122,7 +202,7 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     requireStream(metrics, metricsPath);
     metrics << "approach,success,final_loss,validation_mse,test_mse,rmse,mae,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual,physics_loss\n";
     metrics << std::setprecision(17);
-    for (const auto& entry : results) {
+    for (const auto& entry : exportResults) {
         const auto& r = entry.second;
         metrics << entry.first << ',' << (r.success ? 1 : 0) << ',' << r.final_loss << ',' << r.validation_mse << ','
                 << r.mse << ',' << r.rmse << ',' << r.mae << ',' << r.nse << ',' << r.kge << ',' << r.correlation << ','
@@ -138,7 +218,7 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     std::ofstream modelManifest(modelManifestPath);
     requireStream(modelManifest, modelManifestPath);
     modelManifest << "approach,file,format,size_bytes,sha256\n";
-    for (const auto& entry : results) {
+    for (const auto& entry : exportResults) {
         if (entry.second.model_checkpoint.empty()) continue;
         const std::string filename = safeFileStem(entry.first) + ".pt";
         const auto modelPath = modelsDirectory / filename;
@@ -155,7 +235,7 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     std::ofstream scalers(scalersPath);
     requireStream(scalers, scalersPath);
     scalers << "approach,kind,index,method,shape,offset,scale\n" << std::setprecision(17);
-    for (const auto& entry : results) {
+    for (const auto& entry : exportResults) {
         const auto writeState = [&](const char* kind, const HydroScalerState& state) {
             for (std::size_t i = 0; i < state.offset.size(); ++i) {
                 scalers << entry.first << ',' << kind << ',' << i << ',' << state.method << ",\"";
@@ -174,7 +254,7 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     std::ofstream physics(physicsPath);
     requireStream(physics, physicsPath);
     physics << "approach,index,split,x,physics_residual\n" << std::setprecision(17);
-    for (const auto& entry : results) {
+    for (const auto& entry : exportResults) {
         const auto& r = entry.second;
         const size_t n = std::min(r.x.size(), r.physics_residual.size());
         for (size_t i = 0; i < n; ++i) {
@@ -187,7 +267,7 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     std::ofstream predictions(predictionsPath);
     requireStream(predictions, predictionsPath);
     predictions << "approach,index,split,x,observed,predicted,residual\n" << std::setprecision(17);
-    for (const auto& entry : results) {
+    for (const auto& entry : exportResults) {
         const auto& r = entry.second;
         const size_t n = std::min(r.x.size(), std::min(r.y_true.size(), r.y_pred.size()));
         for (size_t i = 0; i < n; ++i) {
@@ -201,7 +281,7 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     std::ofstream history(historyPath);
     requireStream(history, historyPath);
     history << "approach,epoch,training_loss,validation_loss,selected_checkpoint\n" << std::setprecision(17);
-    for (const auto& entry : results) {
+    for (const auto& entry : exportResults) {
         for (size_t epoch = 0; epoch < entry.second.training_loss_history.size(); ++epoch) {
             const double validationLoss = epoch < entry.second.validation_loss_history.size()
                 ? entry.second.validation_loss_history[epoch] : std::numeric_limits<double>::quiet_NaN();

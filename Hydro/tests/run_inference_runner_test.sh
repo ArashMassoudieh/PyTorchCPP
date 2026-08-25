@@ -4,6 +4,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 libtorch="${LIBTORCH_PATH:-/usr/local/libtorch}"
 if [[ ! -f "$libtorch/include/torch/csrc/api/include/torch/torch.h" ]]; then
   echo "SKIP: LibTorch headers not found; set LIBTORCH_PATH to run inference_runner_test."
+  if [[ "${HYDRO_REQUIRE_LIBTORCH_TESTS:-0}" == "1" ]]; then exit 1; fi
   exit 0
 fi
 binary="${TMPDIR:-/tmp}/hydro_inference_runner_test"

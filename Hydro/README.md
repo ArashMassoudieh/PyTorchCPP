@@ -108,8 +108,20 @@ features while the residual keeps a direct mass-balance interpretation.
      prediction and residual summaries before accepting a bundle. The returned
      `HydroInferenceArtifacts` includes those merged, validated run results, so
      callers do not need to reopen and reconcile the summary CSV files.
+     It also restores training histories and build-environment metadata. For
+     package-backed runs, the copied dataset manifest is hashed again and must
+     match the SHA-256 fingerprint recorded in `provenance.json`.
+     All recomputable prediction, peak-flow, and residual metrics are compared
+     with `metrics.csv`, not only the three primary error measures.
+     Export now performs the same structural preflight before creating a run
+     directory, so misaligned series, bad partitions, missing checkpoints,
+     incompatible formats, and incomplete scalers cannot produce partial bundles.
+     Exported scientific summaries are recomputed from held-out predictions and
+     residual samples, preventing stale in-memory metrics from being serialized.
    - Run `tests/run_inference_runner_test.sh` with `LIBTORCH_PATH` configured to
      verify export/reload/checkpoint round trips across all five approaches.
+     CI jobs can set `HYDRO_REQUIRE_LIBTORCH_TESTS=1` so a missing LibTorch
+     installation fails instead of silently skipping the runtime tests.
    - Reloaded experiments restore exported physics-residual series as well as
      predictions, so residual and cumulative-drift plots remain available.
      Residual timestamps and partition labels must match prediction artifacts.

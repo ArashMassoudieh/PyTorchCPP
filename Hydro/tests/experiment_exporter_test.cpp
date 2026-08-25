@@ -1,6 +1,7 @@
 #include "../evaluation/experiment_exporter.h"
 #include "../evaluation/experiment_loader.h"
 #include "../evaluation/artifact_loader.h"
+#include "../evaluation/hydro_metrics.h"
 
 #include <cassert>
 #include <cmath>
@@ -47,14 +48,30 @@ int main() {
     result.model_checkpoint_format = "neuralnetworkwrapper-v1";
     result.model_checkpoint = {0x01, 0x02, 0x03};
     result.physics_residual = {0.1, -0.2};
-    result.peak_timing_error = 1.0;
-    result.peak_magnitude_error_percent = -5.0;
-    result.high_flow_rmse = 0.25;
-    result.low_flow_rmse = 0.125;
-    result.physics_residual_mean = -0.05;
-    result.physics_residual_rmse = std::sqrt(0.025);
-    result.cumulative_physics_residual = -0.2;
+    populateHydroMetrics(result, {2.0}, {1.5});
+    populateHydroPeakMetrics(result);
+    populateHydroPhysicsResidualMetrics(result);
     HydroExperimentExporter().exportRun(output.string(), "run_001", config, {{"ffn", result}});
+    {
+        HydroRunResult invalid = result;
+        invalid.split.pop_back();
+        bool rejectedInvalidExport = false;
+        try { HydroExperimentExporter().exportRun(output.string(), "invalid_run", config, {{"ffn", invalid}}); }
+        catch (const std::invalid_argument&) { rejectedInvalidExport = true; }
+        assert(rejectedInvalidExport);
+        assert(!std::filesystem::exists(output / "invalid_run"));
+    }
+    {
+        HydroRunResult staleMetrics = result;
+        staleMetrics.mse = 999.0;
+        staleMetrics.rmse = 999.0;
+        staleMetrics.mae = 999.0;
+        HydroExperimentExporter().exportRun(output.string(), "normalized_run", config, {{"ffn", staleMetrics}});
+        const auto normalized = HydroArtifactLoader().loadForInference((output / "normalized_run").string());
+        assert(normalized.results.at("ffn").mse == 0.25);
+        assert(normalized.results.at("ffn").rmse == 0.5);
+        std::filesystem::remove_all(output / "normalized_run");
+    }
     const auto root = output / "run_001";
     assert(std::filesystem::is_regular_file(root / "experiment_config.json"));
     assert(std::filesystem::is_regular_file(root / "environment.json"));
@@ -70,7 +87,7 @@ int main() {
         std::ifstream metrics(root / "metrics.csv");
         const std::string metricsText((std::istreambuf_iterator<char>(metrics)), std::istreambuf_iterator<char>());
         assert(metricsText.find("peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse") != std::string::npos);
-        assert(metricsText.find(",1,-5,0.25,0.125,") != std::string::npos);
+        assert(metricsText.find(",0,-25,0.5,0.5,") != std::string::npos);
     }
     assert(std::filesystem::file_size(root / "models" / "ffn.pt") == 3);
     const auto models = HydroArtifactLoader().loadModels(root.string());
@@ -92,6 +109,11 @@ int main() {
     assert(inferenceArtifacts.results.at("ffn").y_pred == result.y_pred);
     assert(inferenceArtifacts.results.at("ffn").physics_residual == result.physics_residual);
     assert(inferenceArtifacts.results.at("ffn").physics_residual_mean == result.physics_residual_mean);
+    assert(inferenceArtifacts.training_history.at("ffn").best_epoch == result.best_epoch);
+    assert(inferenceArtifacts.results.at("ffn").training_loss_history == result.training_loss_history);
+    assert(!inferenceArtifacts.environment.compiler.empty());
+    assert(inferenceArtifacts.provenance.fingerprint_algorithm == "sha256");
+    assert(inferenceArtifacts.provenance.dataset_manifest_sha256.size() == 64);
     const auto storedResults = HydroArtifactLoader().loadPredictions(root.string());
     assert(storedResults.at("ffn").success);
     assert(storedResults.at("ffn").split == std::vector<std::string>({"train", "test"}));
@@ -148,7 +170,7 @@ int main() {
         const std::string validMetrics((std::istreambuf_iterator<char>(metricsInput)), std::istreambuf_iterator<char>());
         std::ofstream invalidSummary(metricsPath, std::ios::trunc);
         invalidSummary << "approach,success,final_loss,validation_mse,test_mse,rmse,mae,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual,physics_loss\n"
-                       << "ffn,1,nan,nan,0.25,0.5,0.5,nan,nan,nan,nan,nan,1,-5,0.25,0.125,99,0.15811388300841897,-0.2,nan\n";
+                       << "ffn,1,nan,nan,0.25,0.5,0.5,nan,nan,nan,-25,-25,0,-25,0.5,0.5,99,0.15811388300841897,-0.2,nan\n";
         invalidSummary.close();
         bool rejectedResidualSummary = false;
         try { (void)HydroArtifactLoader().loadForInference(root.string()); }
@@ -191,6 +213,36 @@ int main() {
     assert(loaded.config.hydro_forecast_lead_hours == 6.0);
     assert(loaded.config.hydro_forecast_ensemble_member == "m01");
     assert(loaded.config.hydro_catchment_id == "watershed_\"a");
+    {
+        const auto historyPath = root / "training_history.csv";
+        std::ifstream historyInput(historyPath);
+        const std::string validHistory((std::istreambuf_iterator<char>(historyInput)), std::istreambuf_iterator<char>());
+        std::ofstream invalidHistory(historyPath, std::ios::trunc);
+        invalidHistory << "approach,epoch,training_loss,validation_loss,selected_checkpoint\n"
+                       << "ffn,2,0.5,0.4,1\n";
+        invalidHistory.close();
+        bool rejectedHistory = false;
+        try { (void)HydroArtifactLoader().loadForInference(root.string()); }
+        catch (const std::runtime_error&) { rejectedHistory = true; }
+        assert(rejectedHistory);
+        std::ofstream restoredHistory(historyPath, std::ios::trunc);
+        restoredHistory << validHistory;
+    }
+    {
+        const auto manifestPath = root / "dataset_manifest.json";
+        std::ifstream manifestInput(manifestPath, std::ios::binary);
+        const std::string validManifest((std::istreambuf_iterator<char>(manifestInput)), std::istreambuf_iterator<char>());
+        {
+            std::ofstream corruptManifest(manifestPath, std::ios::binary | std::ios::app);
+            corruptManifest << '\n';
+        }
+        bool rejectedProvenance = false;
+        try { (void)HydroArtifactLoader().loadForInference(root.string()); }
+        catch (const std::runtime_error&) { rejectedProvenance = true; }
+        assert(rejectedProvenance);
+        std::ofstream restoredManifest(manifestPath, std::ios::binary | std::ios::trunc);
+        restoredManifest << validManifest;
+    }
     {
         std::ofstream incompatibleModels(root / "models.csv", std::ios::trunc);
         incompatibleModels << "approach,file,format,size_bytes,sha256\n"
