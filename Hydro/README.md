@@ -87,6 +87,8 @@ features while the residual keeps a direct mass-balance interpretation.
      aligns observations and timestamps after the maximum lag automatically.
      Training and inference share the same CSV tensor builder, preventing parser
      or feature-order drift between checkpoint creation and later execution.
+     Recurrent replay also applies the trainer's minimum two-sample sequence
+     window, preventing undersized saved settings from changing input shapes.
      The builder accepts quoted numeric fields and LF or CRLF records, and rejects
      malformed quoting, partial numeric values, and non-finite numeric values
      instead of silently rewriting or truncating them.
@@ -121,6 +123,14 @@ features while the residual keeps a direct mass-balance interpretation.
      Experiment identifiers must be single filenames; absolute paths, parent
      traversal, and nested path components are rejected before any lock or
      staging directory is created.
+     Configuration strings are emitted with complete JSON control-character
+     escaping and decoded on reload, preserving paths and identifiers without
+     producing malformed configuration documents. Reload also supports standard
+     Unicode escapes and surrogate pairs while rejecting malformed or unpaired
+     sequences. Numeric, integer, Boolean, and string values must terminate at a
+     JSON member boundary; fractional integers, overflow, and token suffixes are
+     rejected rather than partially parsed. The flat experiment schema also
+     rejects duplicate fields instead of silently choosing one occurrence.
      Exported scientific summaries are recomputed from held-out predictions and
      residual samples, preventing stale in-memory metrics from being serialized.
      Files are written into a sibling staging directory and atomically renamed

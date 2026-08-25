@@ -4,6 +4,7 @@
 #include "../models/hydro_lstm_module.h"
 #include "../../neuralnetworkwrapper.h"
 
+#include <algorithm>
 #include <istream>
 #include <memory>
 #include <sstream>
@@ -89,7 +90,9 @@ HydroInferenceSession::HydroInferenceSession(const HydroInferenceArtifacts& arti
         if (modelArtifact->second.format != "torch-module-v1") {
             throw std::runtime_error("Recurrent inference requires torch-module-v1.");
         }
-        impl_->sequenceLength = artifacts.experiment.config.lstm_sequence_length;
+        // Match the effective window used by the trainer rather than trusting
+        // an undersized raw configuration value from the exported metadata.
+        impl_->sequenceLength = std::max(2, artifacts.experiment.config.lstm_sequence_length);
         impl_->recurrent = HydroLSTM(impl_->featureCount, hiddenLayers.front(), 1,
                                      static_cast<int64_t>(hiddenLayers.size()));
         CheckpointMemoryStream archiveStream(modelArtifact->second.bytes);

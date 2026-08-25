@@ -98,6 +98,9 @@ int main() {
     artifacts.models["lstm"] = {"models/lstm.pt", "torch-module-v1", "", readHydroCheckpoint(recurrentPath)};
     std::filesystem::remove(recurrentPath);
     artifacts.scalers["lstm"] = {identityScaler({1, 1, 2}, 2), identityScaler({1, 1}, 1)};
+    // Training clamps an undersized setting to a two-sample window; replay must
+    // reconstruct that effective value from the exported configuration.
+    artifacts.experiment.config.lstm_sequence_length = 1;
     const auto actualRecurrent = HydroInferenceRunner().predictRecurrent(artifacts, "lstm", recurrentInputs);
     assert(torch::allclose(actualRecurrent, expectedRecurrent));
     HydroInferenceSession recurrentSession(artifacts, "lstm");

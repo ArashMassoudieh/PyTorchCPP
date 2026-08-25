@@ -26,7 +26,7 @@ int main() {
     }
     config.use_hydro_package = true;
     config.hydro_package_path = package.string();
-    config.hydro_catchment_id = "watershed_\"a";
+    config.hydro_catchment_id = std::string("watershed_\"a\n\t\r\b") + static_cast<char>(0x01);
     config.use_hydro_forecast_feature = true;
     config.hydro_forecast_variable = "precipitation";
     config.hydro_forecast_lead_hours = 6.0;
@@ -270,7 +270,106 @@ int main() {
     assert(loaded.config.use_hydro_forecast_feature);
     assert(loaded.config.hydro_forecast_lead_hours == 6.0);
     assert(loaded.config.hydro_forecast_ensemble_member == "m01");
-    assert(loaded.config.hydro_catchment_id == "watershed_\"a");
+    assert(loaded.config.hydro_catchment_id == config.hydro_catchment_id);
+    const auto rejectsConfigText = [&](const std::string& contents, const std::string& name) {
+        const auto path = output / name;
+        {
+            std::ofstream invalidOutput(path);
+            invalidOutput << contents;
+        }
+        bool rejected = false;
+        try { (void)HydroExperimentLoader().loadConfig(path.string()); }
+        catch (const std::runtime_error&) { rejected = true; }
+        std::filesystem::remove(path);
+        return rejected;
+    };
+    {
+        std::string fractionalEpochs = configText;
+        const std::string marker = "\"epochs\": ";
+        const auto epochs = fractionalEpochs.find(marker);
+        assert(epochs != std::string::npos);
+        const auto epochsEnd = fractionalEpochs.find(',', epochs);
+        assert(epochsEnd != std::string::npos);
+        fractionalEpochs.replace(epochs, epochsEnd - epochs, "\"epochs\": 1.5");
+        assert(rejectsConfigText(fractionalEpochs, "fractional_epochs.json"));
+    }
+    {
+        std::string malformedBoolean = configText;
+        const auto shuffle = malformedBoolean.find("\"shuffle_training\": false");
+        assert(shuffle != std::string::npos);
+        malformedBoolean.replace(shuffle, std::string("\"shuffle_training\": false").size(),
+                                 "\"shuffle_training\": falsejunk");
+        assert(rejectsConfigText(malformedBoolean, "malformed_boolean.json"));
+    }
+    {
+        std::string duplicateEpochs = configText;
+        const auto closingBrace = duplicateEpochs.rfind('}');
+        assert(closingBrace != std::string::npos);
+        duplicateEpochs.insert(closingBrace, ",\n  \"epochs\": 25\n");
+        assert(rejectsConfigText(duplicateEpochs, "duplicate_epochs.json"));
+    }
+    {
+        std::string unicodeConfig = configText;
+        const std::string marker = "\"hydro_catchment_id\": \"";
+        const auto valueStart = unicodeConfig.find(marker);
+        assert(valueStart != std::string::npos);
+        const auto contentStart = valueStart + marker.size();
+        const auto contentEnd = unicodeConfig.find("\",", contentStart);
+        assert(contentEnd != std::string::npos);
+        unicodeConfig.replace(contentStart, contentEnd - contentStart, "watershed_\\u03b1\\ud83d\\ude00");
+        const auto unicodePath = output / "unicode_config.json";
+        {
+            std::ofstream unicodeOutput(unicodePath);
+            unicodeOutput << unicodeConfig;
+        }
+        const auto unicodeLoaded = HydroExperimentLoader().loadConfig(unicodePath.string());
+        assert(unicodeLoaded.config.hydro_catchment_id == u8"watershed_α😀");
+        std::filesystem::remove(unicodePath);
+    }
+    {
+        const auto historyPath = root / "training_history.csv";
+        std::ifstream historyInput(historyPath);
+        const std::string validHistory((std::istreambuf_iterator<char>(historyInput)), std::istreambuf_iterator<char>());
+        std::ofstream invalidHistory(historyPath, std::ios::trunc);
+        invalidHistory << "approach,epoch,training_loss,validation_loss,selected_checkpoint\n"
+                       << "ffn,2,0.5,0.4,1\n";
+        invalidHistory.close();
+        bool rejectedHistory = false;
+        try { (void)HydroArtifactLoader().loadTrainingHistory(root.string()); }
+        catch (const std::runtime_error&) { rejectedHistory = true; }
+        assert(rejectedHistory);
+        std::ofstream restoredHistory(historyPath, std::ios::trunc);
+        restoredHistory << validHistory;
+    }
+    {
+        const auto manifestPath = root / "dataset_manifest.json";
+        std::ifstream manifestInput(manifestPath, std::ios::binary);
+        const std::string validManifest((std::istreambuf_iterator<char>(manifestInput)), std::istreambuf_iterator<char>());
+        {
+            std::ofstream corruptManifest(manifestPath, std::ios::binary | std::ios::app);
+            corruptManifest << '\n';
+        }
+        bool rejectedProvenance = false;
+        try { (void)HydroArtifactLoader().loadProvenance(root.string()); }
+        catch (const std::runtime_error&) { rejectedProvenance = true; }
+        assert(rejectedProvenance);
+        std::ofstream restoredManifest(manifestPath, std::ios::binary | std::ios::trunc);
+        restoredManifest << validManifest;
+    }
+    {
+        std::ofstream incompatibleModels(root / "models.csv", std::ios::trunc);
+        incompatibleModels << "approach,file,format,size_bytes,sha256\n"
+                           << "ffn,models/ffn.pt,torch-module-v1,3," << models.at("ffn").sha256 << '\n';
+    }
+    bool rejectedInferenceBundle = false;
+    try { (void)HydroArtifactLoader().loadForInference(root.string()); }
+    catch (const std::runtime_error&) { rejectedInferenceBundle = true; }
+    assert(rejectedInferenceBundle);
+    {
+        std::ofstream compatibleModels(root / "models.csv", std::ios::trunc);
+        compatibleModels << "approach,file,format,size_bytes,sha256\n"
+                         << "ffn,models/ffn.pt,neuralnetworkwrapper-v1,3," << models.at("ffn").sha256 << '\n';
+    }
     {
         const auto historyPath = root / "training_history.csv";
         std::ifstream historyInput(historyPath);
