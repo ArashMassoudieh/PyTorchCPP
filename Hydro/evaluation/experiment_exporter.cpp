@@ -203,6 +203,12 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
                                         const HydroRunConfig& config,
                                         const std::map<std::string, HydroRunResult>& results) const {
     if (experimentId.empty()) throw std::invalid_argument("Experiment ID cannot be empty.");
+    const std::filesystem::path experimentName(experimentId);
+    if (experimentId == "." || experimentId == ".." || experimentName.is_absolute() ||
+        experimentName.has_parent_path() || experimentId.find('/') != std::string::npos ||
+        experimentId.find('\\') != std::string::npos || experimentId.find('\0') != std::string::npos) {
+        throw std::invalid_argument("Experiment ID must be a single filename without path components.");
+    }
     if (results.empty()) throw std::invalid_argument("Hydro experiment export requires at least one result.");
     for (const auto& entry : results) validateExportResult(entry.first, entry.second);
     auto exportResults = results;

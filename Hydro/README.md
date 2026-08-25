@@ -116,6 +116,9 @@ features while the residual keeps a direct mass-balance interpretation.
      Export now performs the same structural preflight before creating a run
      directory, so misaligned series, bad partitions, missing checkpoints,
      incompatible formats, and incomplete scalers cannot produce partial bundles.
+     Experiment identifiers must be single filenames; absolute paths, parent
+     traversal, and nested path components are rejected before any lock or
+     staging directory is created.
      Exported scientific summaries are recomputed from held-out predictions and
      residual samples, preventing stale in-memory metrics from being serialized.
      Files are written into a sibling staging directory and atomically renamed
