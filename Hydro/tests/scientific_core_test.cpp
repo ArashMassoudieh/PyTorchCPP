@@ -46,5 +46,30 @@ int main() {
     assert(std::isnan(constant.nse));
     assert(std::isnan(constant.pbias));
     assert(hydroMetricsAreFinite(constant));
+    bool mismatchedMetricsRejected = false;
+    try { populateHydroMetrics(constant, {1.0, 2.0}, {1.0}); }
+    catch (const std::invalid_argument&) { mismatchedMetricsRejected = true; }
+    assert(mismatchedMetricsRejected);
+    bool nonFiniteMetricsRejected = false;
+    try { populateHydroMetrics(constant, {1.0}, {std::numeric_limits<double>::infinity()}); }
+    catch (const std::invalid_argument&) { nonFiniteMetricsRejected = true; }
+    assert(nonFiniteMetricsRejected);
+    HydroRunResult flows;
+    flows.x = {0.0, 1.0, 2.0, 3.0};
+    flows.y_true = {1.0, 2.0, 3.0, 10.0};
+    flows.y_pred = {2.0, 2.0, 3.0, 8.0};
+    flows.split = {"test", "test", "test", "test"};
+    populateHydroPeakMetrics(flows);
+    assert(flows.peak_timing_error == 0.0);
+    assert(std::abs(flows.peak_magnitude_error_percent + 20.0) < 1.0e-12);
+    assert(flows.low_flow_rmse == 1.0);
+    assert(flows.high_flow_rmse == 2.0);
+    HydroRunResult physics;
+    physics.x = {0.0, 1.0, 3.0};
+    physics.physics_residual = {std::numeric_limits<double>::quiet_NaN(), 2.0, -1.0};
+    populateHydroPhysicsResidualMetrics(physics);
+    assert(physics.physics_residual_mean == 0.5);
+    assert(std::abs(physics.physics_residual_rmse - std::sqrt(2.5)) < 1.0e-12);
+    assert(physics.cumulative_physics_residual == 0.0);
     return 0;
 }
