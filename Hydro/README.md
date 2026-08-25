@@ -123,7 +123,10 @@ features while the residual keeps a direct mass-balance interpretation.
      never overwritten and failed exports clean up their staging data. A lock
      directory and uniquely reserved staging name prevent concurrent exporters
      from deleting or publishing over one another. Lock cleanup is exception-safe,
-     including failures encountered while reserving a staging directory.
+     including failures encountered while reserving a staging directory. On
+     POSIX systems the lock records its owning process, allowing a later export
+     to recover a lock left behind by a process that no longer exists while
+     preserving locks owned by live or unverifiable processes.
      `artifact_manifest.csv` records the size and SHA-256 digest of every file in
      the completed bundle; inference reload rejects modified, missing, or
      unlisted files before parsing any artifact content. Its explicit schema

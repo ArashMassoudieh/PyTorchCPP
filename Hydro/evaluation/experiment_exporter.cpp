@@ -12,6 +12,11 @@
 #include <stdexcept>
 #include <system_error>
 #include <utility>
+#ifndef _WIN32
+#include <cerrno>
+#include <csignal>
+#include <unistd.h>
+#endif
 
 namespace {
 std::string escapeJson(const std::string& value) {
@@ -41,9 +46,13 @@ public:
         lock_ = destination_.string() + ".lock";
         std::error_code lockError;
         if (!std::filesystem::create_directory(lock_, lockError)) {
-            throw std::runtime_error("Experiment export destination is locked: " + destination_.string());
+            lockError.clear();
+            if (!recoverStaleLock() || !std::filesystem::create_directory(lock_, lockError)) {
+                throw std::runtime_error("Experiment export destination is locked: " + destination_.string());
+            }
         }
         try {
+            writeLockOwner();
             if (std::filesystem::exists(destination_)) {
                 throw std::runtime_error("Experiment export destination already exists: " + destination_.string());
             }
@@ -63,7 +72,7 @@ public:
                                      destination_.string());
         } catch (...) {
             std::error_code ignored;
-            std::filesystem::remove(lock_, ignored);
+            std::filesystem::remove_all(lock_, ignored);
             throw;
         }
     }
@@ -74,7 +83,7 @@ public:
             std::filesystem::remove_all(staging_, ignored);
         }
         std::error_code ignored;
-        std::filesystem::remove(lock_, ignored);
+        std::filesystem::remove_all(lock_, ignored);
     }
 
     const std::filesystem::path& path() const { return staging_; }
@@ -85,6 +94,34 @@ public:
     }
 
 private:
+    void writeLockOwner() const {
+        std::ofstream owner(lock_ / "owner.pid");
+        if (!owner) throw std::runtime_error("Unable to record experiment export lock owner.");
+#ifdef _WIN32
+        owner << 0 << '\n';
+#else
+        owner << static_cast<long long>(::getpid()) << '\n';
+#endif
+        owner.close();
+        if (!owner) throw std::runtime_error("Unable to finalize experiment export lock owner.");
+    }
+
+    bool recoverStaleLock() const {
+#ifdef _WIN32
+        return false;
+#else
+        std::ifstream owner(lock_ / "owner.pid");
+        long long processId = 0;
+        if (!(owner >> processId) || processId <= 0 ||
+            static_cast<unsigned long long>(processId) >
+                static_cast<unsigned long long>(std::numeric_limits<pid_t>::max())) return false;
+        errno = 0;
+        if (::kill(static_cast<pid_t>(processId), 0) == 0 || errno != ESRCH) return false;
+        std::error_code error;
+        return std::filesystem::remove_all(lock_, error) > 0 && !error;
+#endif
+    }
+
     std::filesystem::path destination_;
     std::filesystem::path staging_;
     std::filesystem::path lock_;

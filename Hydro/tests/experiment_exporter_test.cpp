@@ -51,6 +51,11 @@ int main() {
     populateHydroMetrics(result, {2.0}, {1.5});
     populateHydroPeakMetrics(result);
     populateHydroPhysicsResidualMetrics(result);
+    std::filesystem::create_directories(output / "run_001.lock");
+    {
+        std::ofstream owner(output / "run_001.lock" / "owner.pid");
+        owner << "99999999\n";
+    }
     std::filesystem::create_directories(output / "run_001.tmp.0");
     {
         std::ofstream sentinel(output / "run_001.tmp.0" / "sentinel");
