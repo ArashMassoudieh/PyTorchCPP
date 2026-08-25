@@ -71,12 +71,20 @@ inline void loadHydroCsvTensors(const HydroRunConfig& config,
     std::string line;
     bool firstLine = true;
     const int requiredColumn = std::max(config.csv_x_column, config.csv_y_column);
+    if (config.csv_x_column < 0 || config.csv_y_column < 0) {
+        throw std::invalid_argument("CSV column indices must be non-negative.");
+    }
+    std::size_t lineNumber = 0;
     while (std::getline(file, line)) {
+        ++lineNumber;
         if (line.empty()) continue;
         if (firstLine && config.csv_has_header) { firstLine = false; continue; }
         firstLine = false;
         const auto columns = parseHydroCsvRow(line);
-        if (requiredColumn < 0 || static_cast<int>(columns.size()) <= requiredColumn) continue;
+        if (static_cast<int>(columns.size()) <= requiredColumn) {
+            throw std::runtime_error("CSV row " + std::to_string(lineNumber) +
+                                     " does not contain the configured columns.");
+        }
         try {
             std::vector<float> rowInputs;
             float rowPlot = 0.0f;
@@ -84,7 +92,7 @@ inline void loadHydroCsvTensors(const HydroRunConfig& config,
                 for (int column = 0; column < static_cast<int>(columns.size()); ++column) {
                     if (column != config.csv_y_column) rowInputs.push_back(parseHydroCsvNumber(columns[column]));
                 }
-                if (rowInputs.empty()) continue;
+                if (rowInputs.empty()) throw std::runtime_error("CSV configuration leaves no input features.");
                 rowPlot = config.csv_x_column != config.csv_y_column
                               ? parseHydroCsvNumber(columns[config.csv_x_column])
                               : rowInputs.front();
@@ -98,12 +106,15 @@ inline void loadHydroCsvTensors(const HydroRunConfig& config,
             flatInputs.insert(flatInputs.end(), rowInputs.begin(), rowInputs.end());
             targetValues.push_back(target);
             plotValues.push_back(rowPlot);
-        } catch (const std::invalid_argument&) {
-            continue;
-        } catch (const std::out_of_range&) {
-            continue;
+        } catch (const std::invalid_argument& error) {
+            throw std::runtime_error("CSV row " + std::to_string(lineNumber) +
+                                     " contains an invalid number: " + error.what());
+        } catch (const std::out_of_range& error) {
+            throw std::runtime_error("CSV row " + std::to_string(lineNumber) +
+                                     " contains an out-of-range number: " + error.what());
         }
     }
+    if (file.bad()) throw std::runtime_error("Unable to read CSV file: " + config.csv_path);
     if (targetValues.size() < 10 || featureCount == 0) {
         throw std::runtime_error("CSV parsing yielded too few numeric samples (<10).");
     }

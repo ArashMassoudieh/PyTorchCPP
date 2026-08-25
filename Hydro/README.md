@@ -45,7 +45,9 @@ features while the residual keeps a direct mass-balance interpretation.
 1. **Data tab**
    - Start with `watershed_balance`, then use `rainfall_runoff` as the smaller event-scale comparison case.
    - Switch to CSV when running observed hydrology data.
-   - Use zero-based x/y column controls for CSV files.
+   - Use zero-based x/y column controls for CSV files. Malformed rows, missing
+     configured columns, and invalid or out-of-range numbers are reported with
+     their source line rather than being silently discarded.
    - Export generated synthetic data when a comparison should be reproducible.
 2. **Hydro Workflow tab**
    - Review the in-app recommended run order and forward path.
