@@ -605,6 +605,16 @@ torch::Tensor NeuralNetworkWrapper::forward(DataType data_type) {
     return x;
 }
 
+torch::Tensor NeuralNetworkWrapper::forwardTensor(const torch::Tensor& input) {
+    if (!is_initialized_ || layers_.empty()) {
+        throw std::runtime_error("Network must be initialized before forward pass.");
+    }
+    if (!input.defined() || input.dim() != 2 || input.size(1) != input_size_) {
+        throw std::invalid_argument("Direct forward input must have shape [batch, configured features].");
+    }
+    return forward_internal(input);
+}
+
 std::vector<double> NeuralNetworkWrapper::train(int num_epochs,
                                                 int batch_size,
                                                 double learning_rate,
@@ -1166,6 +1176,28 @@ void NeuralNetworkWrapper::loadModel(const std::string& filepath) {
         }
     } catch (const std::exception& e) {
         throw std::runtime_error("Failed to load model from " + filepath + ": " + e.what());
+    }
+}
+
+void NeuralNetworkWrapper::loadModel(std::istream& input) {
+    if (!is_initialized_) {
+        throw std::runtime_error("Cannot load into uninitialized network. Call initializeNetwork() first.");
+    }
+
+    try {
+        torch::serialize::InputArchive archive;
+        archive.load_from(input);
+        torch::NoGradGuard no_grad;
+        for (size_t i = 0; i < layers_.size(); ++i) {
+            torch::Tensor weight_tensor;
+            torch::Tensor bias_tensor;
+            archive.read("layer_" + std::to_string(i) + ".weight", weight_tensor);
+            archive.read("layer_" + std::to_string(i) + ".bias", bias_tensor);
+            layers_[i]->weight.copy_(weight_tensor);
+            layers_[i]->bias.copy_(bias_tensor);
+        }
+    } catch (const std::exception& error) {
+        throw std::runtime_error("Failed to load model from memory: " + std::string(error.what()));
     }
 }
 
