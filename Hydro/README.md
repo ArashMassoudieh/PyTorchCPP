@@ -45,7 +45,9 @@ features while the residual keeps a direct mass-balance interpretation.
 The native-resolution GIStoOHQ temporal export requires hourly harmonization, unit conversion, and explicit validity masks before training. The versioned consumer decisions and the storage-profile compatibility blocker are documented in [`GISTOOHQ_HOURLY_HANDOFF.md`](GISTOOHQ_HOURLY_HANDOFF.md).
 The pure C++ hourly harmonizer is available in
 `dataset/gistohq_hourly_harmonizer.{h,cpp}`; direct package parsing and GUI
-selection still require representative producer-schema fixtures.
+selection still require representative producer-schema fixtures. Wide and long
+native temporal CSV assets can already be read with
+`dataset/gistohq_temporal_csv.{h,cpp}`.
 
 ## GUI workflow
 

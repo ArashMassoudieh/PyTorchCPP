@@ -138,12 +138,14 @@ Before returning tensors, the future temporal-package adapter must verify:
 The pure C++ hourly harmonizer and its unit/conversion/gap tests are now
 implemented in `dataset/gistohq_hourly_harmonizer.{h,cpp}`. It accepts validated
 native series, produces mask-bearing hourly rows, and intentionally remains
-independent of LibTorch. Package-schema parsing and GUI/model integration remain
-separate steps because representative producer fixtures are not present in this
-repository yet.
+independent of LibTorch. `dataset/gistohq_temporal_csv.{h,cpp}` now reads strict
+wide or long temporal CSV assets, preserves empty values as missing, validates
+canonical UTC timestamps, and rejects duplicate variable/timestamp identities
+across files. Manifest/`variables.json` parsing and GUI/model integration remain
+separate steps because representative producer metadata fixtures are not present
+in this repository yet.
 
-1. Add fixtures copied from the producer schema (manifest, variable metadata,
-   and small representative temporal CSVs).
+1. Add manifest and variable-metadata fixtures copied from the producer schema.
 2. Implement manifest/variable parsing and checksum/path validation without
    LibTorch.
 3. Extend the hourly harmonizer tests with the full leap-year producer fixture.
