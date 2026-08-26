@@ -17,7 +17,6 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
                                     torch::Tensor& plotX) {
     if (!config.use_hydro_package) return false;
     if (config.hydro_package_path.empty()) throw std::runtime_error("Hydro package path is empty.");
-    if (config.hydro_catchment_id.empty()) throw std::runtime_error("Hydro package catchment ID is empty.");
     const bool waterBalance = config.hydro_package_profile == "water-balance";
     if (!waterBalance && config.hydro_package_profile != "rainfall-runoff") {
         throw std::runtime_error("Unknown Hydro package profile: " + config.hydro_package_profile);
@@ -26,10 +25,8 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
     const auto dataset = loader.loadPackageDirectory(
         config.hydro_package_path,
         waterBalance ? HydroDatasetContract::waterBalanceV1() : HydroDatasetContract::rainfallRunoffV1());
-    const auto found = dataset.observations_by_catchment.find(config.hydro_catchment_id);
-    if (found == dataset.observations_by_catchment.end()) {
-        throw std::runtime_error("Catchment not found in Hydro package: " + config.hydro_catchment_id);
-    }
+    const std::string catchmentId = resolveHydroCatchmentId(dataset, config.hydro_catchment_id);
+    const auto found = dataset.observations_by_catchment.find(catchmentId);
     const auto& rows = found->second;
     std::optional<AlignedForecastFeature> forecastFeature;
     if (config.use_hydro_forecast_feature) {
@@ -40,7 +37,7 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         for (const auto& row : rows) validTimes.push_back(row.timestamp);
         const auto forecasts = loader.loadForecasts(config.hydro_package_path + "/" + manifest.forecast_file, {});
         forecastFeature = buildAlignedForecastFeature(
-            forecasts, validTimes, config.hydro_catchment_id, config.hydro_forecast_variable,
+            forecasts, validTimes, catchmentId, config.hydro_forecast_variable,
             config.hydro_forecast_lead_hours, config.hydro_forecast_ensemble_member);
     }
     const int64_t featureCount = config.use_hydro_forecast_feature ? 6 : 5;

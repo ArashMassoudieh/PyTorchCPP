@@ -7,6 +7,10 @@
 #include "models/lstm_pinn_wrapper.h"
 #include "evaluation/experiment_exporter.h"
 #include "evaluation/experiment_loader.h"
+#include "evaluation/hydro_metrics.h"
+#include "dataset/hydro_tensor_builder.h"
+#include "dataset/lagged_tensor_builder.h"
+#include "dataset/csv_tensor_builder.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -52,6 +56,7 @@
 #include <cstdlib>
 #include <exception>
 #include <fstream>
+#include <functional>
 #include <limits>
 #include <random>
 #include <set>
@@ -70,6 +75,20 @@ QString modeDisplayName(const QString& mode) {
     if (mode == "lstm") return "LSTM";
     if (mode == "lstm_pinn") return "LSTM + PINN";
     return mode;
+}
+
+std::string resolveConfiguredPackageCatchment(const HydroRunConfig& config) {
+    if (!config.use_hydro_package) return config.hydro_catchment_id;
+    if (config.hydro_package_path.empty()) throw std::runtime_error("Hydro package path is empty.");
+    const bool waterBalance = config.hydro_package_profile == "water-balance";
+    if (!waterBalance && config.hydro_package_profile != "rainfall-runoff") {
+        throw std::runtime_error("Unknown Hydro package profile: " + config.hydro_package_profile);
+    }
+    DDRRLoader loader;
+    const auto dataset = loader.loadPackageDirectory(
+        config.hydro_package_path,
+        waterBalance ? HydroDatasetContract::waterBalanceV1() : HydroDatasetContract::rainfallRunoffV1());
+    return resolveHydroCatchmentId(dataset, config.hydro_catchment_id);
 }
 }
 
@@ -108,7 +127,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       runPredictionFFNButton_(new QPushButton("Run FFN", this)), runPredictionFFNPINNButton_(new QPushButton("Run FFN + PINN", this)),
       runPredictionPINNButton_(new QPushButton("Run PINN", this)),
       runPredictionLSTMButton_(new QPushButton("Run LSTM", this)), runPredictionLSTMPINNButton_(new QPushButton("Run LSTM + PINN", this)),
-      predictionUseCurrentDataCheck_(new QCheckBox("Prediction uses current Data tab settings (re-run mode)", this)),
+      loadInferenceArtifactsButton_(new QPushButton("Load Inference Artifacts...", this)),
+      predictionUseCurrentDataCheck_(new QCheckBox("Run loaded checkpoint on current Data source", this)),
       runTrainingButton_(new QPushButton("Train Selected", this)), runAllTrainingButton_(new QPushButton("Train All", this)),
       runTrainingFFNButton_(new QPushButton("Train FFN", this)), runTrainingFFNPINNButton_(new QPushButton("Train FFN + PINN", this)),
       runTrainingPINNButton_(new QPushButton("Train PINN", this)),
@@ -125,7 +145,9 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
       plotTaylorButton_(new QPushButton("Taylor Diagram (All)", this)),
       plotSubplotsButton_(new QPushButton("Show Approach Subplots (Same Plot)", this)),
       plotResidualsButton_(new QPushButton("Residuals vs t (All)", this)),
-      plotErrorCdfButton_(new QPushButton("|Error| CDF (All)", this)) {
+      plotErrorCdfButton_(new QPushButton("|Error| CDF (All)", this)),
+      plotFlowDurationButton_(new QPushButton("Flow Duration (All)", this)),
+      plotCumulativeResidualButton_(new QPushButton("Cumulative Physics Residual", this)) {
     setWindowTitle("HydroPINN - Experiment Runner");
     resize(1024, 700);
 
@@ -417,6 +439,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     runPredictionLSTMButton_->setText("Show LSTM");
     runPredictionLSTMPINNButton_->setText("Show LSTM + PINN");
     predictionUseCurrentDataCheck_->setChecked(false);
+    predictionLayout->addWidget(loadInferenceArtifactsButton_);
     predictionLayout->addWidget(predictionUseCurrentDataCheck_);
     predictionLayout->addWidget(predictionButtons);
     predictionLayout->addStretch(1);
@@ -468,10 +491,12 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     plotButtonsLayout->addWidget(plotResidualsButton_, 1, 0);
     plotButtonsLayout->addWidget(plotErrorCdfButton_, 1, 1);
     plotButtonsLayout->addWidget(plotTaylorButton_, 1, 2);
+    plotButtonsLayout->addWidget(plotFlowDurationButton_, 1, 3);
     plotButtonsLayout->addWidget(zoomInPlotButton_, 2, 0);
     plotButtonsLayout->addWidget(zoomOutPlotButton_, 2, 1);
     plotButtonsLayout->addWidget(fitPlotButton_, 2, 2);
     plotButtonsLayout->addWidget(clearPlotButton_, 2, 3);
+    plotButtonsLayout->addWidget(plotCumulativeResidualButton_, 3, 0, 1, 2);
     for (int col = 0; col < 4; ++col) {
         plotButtonsLayout->setColumnStretch(col, 1);
     }
@@ -551,6 +576,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(runPredictionPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("pinn"); });
     connect(runPredictionLSTMButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm"); });
     connect(runPredictionLSTMPINNButton_, &QPushButton::clicked, this, [this]() { showPredictionForMode("lstm_pinn"); });
+    connect(loadInferenceArtifactsButton_, &QPushButton::clicked, this, &HydroPINNWindow::loadInferenceArtifacts);
     connect(useNeuroforgeCsvPresetButton_, &QPushButton::clicked, this, &HydroPINNWindow::applyNeuroforgeCsvPreset);
     connect(modeCombo_, &QComboBox::currentTextChanged, this, [this](const QString&) {
         updateFfnLagUiState();
@@ -615,6 +641,8 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     connect(plotSubplotsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showModeSubplots);
     connect(plotResidualsButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotResidualsAllModes);
     connect(plotErrorCdfButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotErrorCdfAllModes);
+    connect(plotFlowDurationButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotFlowDurationAllModes);
+    connect(plotCumulativeResidualButton_, &QPushButton::clicked, this, &HydroPINNWindow::plotCumulativeResidualAllModes);
     connect(zoomInPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::zoomInPlot);
     connect(zoomOutPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::zoomOutPlot);
     connect(fitPlotButton_, &QPushButton::clicked, this, &HydroPINNWindow::fitPlotAxes);
@@ -702,6 +730,7 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     runPredictionPINNButton_->setEnabled(!running);
     runPredictionLSTMButton_->setEnabled(!running);
     runPredictionLSTMPINNButton_->setEnabled(!running);
+    loadInferenceArtifactsButton_->setEnabled(!running);
     predictionUseCurrentDataCheck_->setEnabled(!running);
     useTimeLaggedFFNCheck_->setEnabled(!running && (selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn"));
     inputLagsEdit_->setEnabled(!running && (selectedModeKey() == "ffn" || selectedModeKey() == "ffn_pinn") && useTimeLaggedFFNCheck_->isChecked());
@@ -720,6 +749,8 @@ void HydroPINNWindow::setRunningUiState(bool running) {
     plotSubplotsButton_->setEnabled(!running);
     plotResidualsButton_->setEnabled(!running);
     plotErrorCdfButton_->setEnabled(!running);
+    plotFlowDurationButton_->setEnabled(!running);
+    plotCumulativeResidualButton_->setEnabled(!running);
     useNeuroforgeCsvPresetButton_->setEnabled(!running && dataSourceCombo_->currentText() == "CSV File");
 }
 
@@ -1174,6 +1205,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         return;
     }
 
+    gaStopRequested_ = false;
     appendLog(QString("Starting GA-style lag optimization for %1.").arg(modeDisplayName(mode)));
     startGAButton_->setEnabled(false);
     stopGAButton_->setEnabled(true);
@@ -1181,6 +1213,22 @@ void HydroPINNWindow::runLagOptimizationSearch() {
     QCoreApplication::processEvents();
 
     HydroRunConfig baseCfg = currentConfig();
+    if (baseCfg.use_hydro_package) {
+        try {
+            baseCfg.hydro_catchment_id = resolveConfiguredPackageCatchment(baseCfg);
+            hydroCatchmentIdEdit_->setText(QString::fromStdString(baseCfg.hydro_catchment_id));
+            appendLog(QString("GA package preflight selected catchment '%1'.")
+                          .arg(QString::fromStdString(baseCfg.hydro_catchment_id)));
+        } catch (const std::exception& error) {
+            appendLog(QString("GA lag optimization aborted before candidate evaluation: %1").arg(error.what()));
+            statusLabel_->setText("GA lag optimization preflight failed.");
+            stopGAButton_->setEnabled(false);
+            startGAButton_->setEnabled(true);
+            updateFfnLagUiState();
+            QMessageBox::warning(this, "HydroPINN GA", QString("Package preflight failed: %1").arg(error.what()));
+            return;
+        }
+    }
     baseCfg.use_time_lagged_ffn = true;
     baseCfg.epochs = std::max(1, std::min(baseCfg.epochs, epochsPerWindowSpin_->value()));
 
@@ -1282,7 +1330,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
     int evaluated = 0;
     int attempts = 0;
     const int maxAttempts = std::max(candidateCount * 20, candidateCount + 10);
-    while (evaluated < candidateCount && attempts < maxAttempts) {
+    while (evaluated < candidateCount && attempts < maxAttempts && !gaStopRequested_) {
         ++attempts;
         HydroRunConfig trialCfg = baseCfg;
         QString candidateSpec;
@@ -1347,6 +1395,15 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         QCoreApplication::processEvents();
     }
 
+    if (gaStopRequested_) {
+        appendLog(QString("GA lag optimization cancelled after %1 evaluated candidate(s).").arg(evaluated));
+        statusLabel_->setText("GA lag optimization cancelled.");
+        stopGAButton_->setEnabled(false);
+        startGAButton_->setEnabled(true);
+        updateFfnLagUiState();
+        return;
+    }
+
     if (evaluated < candidateCount) {
         appendLog(QString("GA lag optimization evaluated %1/%2 unique candidates; search space was exhausted or duplicate-heavy.")
                       .arg(evaluated)
@@ -1372,7 +1429,7 @@ void HydroPINNWindow::runLagOptimizationSearch() {
         appendLog(QString("GA lag optimization confirming top %1 candidate(s) with full epoch count=%2.")
                       .arg(confirmCount)
                       .arg(confirmBaseCfg.epochs));
-        for (int i = 0; i < confirmCount; ++i) {
+        for (int i = 0; i < confirmCount && !gaStopRequested_; ++i) {
             HydroRunConfig confirmCfg = confirmBaseCfg;
             confirmCfg.input_lags_csv = successfulCandidates[static_cast<size_t>(i)].spec.toStdString();
             try {
@@ -1406,6 +1463,15 @@ void HydroPINNWindow::runLagOptimizationSearch() {
             QCoreApplication::processEvents();
         }
 
+        if (gaStopRequested_) {
+            appendLog("GA lag optimization cancelled during full-epoch candidate confirmation.");
+            statusLabel_->setText("GA lag optimization cancelled.");
+            stopGAButton_->setEnabled(false);
+            startGAButton_->setEnabled(true);
+            updateFfnLagUiState();
+            return;
+        }
+
         if (std::isfinite(confirmedScore)) {
             bestSpec = confirmedSpec;
             bestMse = confirmedScore;
@@ -1431,10 +1497,10 @@ void HydroPINNWindow::runLagOptimizationSearch() {
 }
 
 void HydroPINNWindow::stopGAPlaceholder() {
-    appendLog("GA stop requested (placeholder).");
-    startGAButton_->setEnabled(true);
+    gaStopRequested_ = true;
+    appendLog("GA stop requested; cancellation will occur after the active training trial finishes.");
+    statusLabel_->setText("Stopping GA lag optimization...");
     stopGAButton_->setEnabled(false);
-    updateStatus();
 }
 
 void HydroPINNWindow::refreshPerformanceAssessment() {
@@ -1511,7 +1577,7 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.success ? "success" : "failed")
                        .arg(r.final_loss, 0, 'g', 8);
 
-        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, physics_loss=%10")
+        summary += QString(", validation_mse=%1, test_mse=%2, rmse=%3, mae=%4, nse=%5, kge=%6, r=%7, pbias=%8, volume_error=%9, peak_timing_error=%10, peak_magnitude_error_percent=%11, high_flow_rmse=%12, low_flow_rmse=%13, physics_residual_mean=%14, physics_residual_rmse=%15, cumulative_physics_residual=%16, physics_loss=%17")
                        .arg(r.validation_mse, 0, 'g', 8)
                        .arg(r.mse, 0, 'g', 8)
                        .arg(r.rmse, 0, 'g', 8)
@@ -1521,6 +1587,13 @@ void HydroPINNWindow::refreshPerformanceAssessment() {
                        .arg(r.correlation, 0, 'g', 8)
                        .arg(r.pbias, 0, 'g', 8)
                        .arg(r.volume_error_percent, 0, 'g', 8)
+                       .arg(r.peak_timing_error, 0, 'g', 8)
+                       .arg(r.peak_magnitude_error_percent, 0, 'g', 8)
+                       .arg(r.high_flow_rmse, 0, 'g', 8)
+                       .arg(r.low_flow_rmse, 0, 'g', 8)
+                       .arg(r.physics_residual_mean, 0, 'g', 8)
+                       .arg(r.physics_residual_rmse, 0, 'g', 8)
+                       .arg(r.cumulative_physics_residual, 0, 'g', 8)
                        .arg(r.physics_loss, 0, 'g', 8);
 
         if (!r.message.empty()) {
@@ -1554,6 +1627,44 @@ void HydroPINNWindow::exportExperimentArtifacts() {
     } catch (const std::exception& error) {
         appendLog(QString("Experiment export failed: %1").arg(error.what()));
         QMessageBox::critical(this, "HydroPINN Export", QString::fromUtf8(error.what()));
+    }
+}
+
+void HydroPINNWindow::loadInferenceArtifacts() {
+    const QString directory = QFileDialog::getExistingDirectory(
+        this, "Load Hydro inference artifact directory");
+    if (directory.isEmpty()) return;
+
+    try {
+        auto artifacts = HydroArtifactLoader().loadForInference(directory.toStdString());
+        QStringList approaches;
+        std::map<QString, std::unique_ptr<HydroInferenceSession>> preparedSessions;
+        for (const auto& entry : artifacts.models) {
+            const QString approach = QString::fromStdString(entry.first);
+            approaches.push_back(approach);
+            preparedSessions.emplace(
+                approach, std::make_unique<HydroInferenceSession>(artifacts, entry.first));
+        }
+        const QString experimentId = QString::fromStdString(artifacts.experiment.experiment_id);
+        std::map<QString, HydroRunResult> restoredResults;
+        for (const auto& entry : artifacts.results) {
+            restoredResults.emplace(QString::fromStdString(entry.first), entry.second);
+        }
+        lastModeResults_ = std::move(restoredResults);
+        inferenceSessions_ = std::move(preparedSessions);
+        loadedInferenceArtifacts_ = std::make_unique<HydroInferenceArtifacts>(std::move(artifacts));
+        appendLog(QString("Loaded and prepared inference artifacts for experiment '%1': %2.")
+                      .arg(experimentId, approaches.join(", ")));
+        QMessageBox::information(
+            this, "HydroPINN Inference Artifacts",
+            QString("Loaded experiment '%1'.\nAvailable checkpoints: %2")
+                .arg(experimentId, approaches.join(", ")));
+        refreshPerformanceAssessment();
+    } catch (const std::exception& error) {
+        loadedInferenceArtifacts_.reset();
+        inferenceSessions_.clear();
+        appendLog(QString("Inference artifact load failed: %1").arg(error.what()));
+        QMessageBox::critical(this, "HydroPINN Inference Artifacts", QString::fromUtf8(error.what()));
     }
 }
 
@@ -1778,10 +1889,10 @@ void HydroPINNWindow::runAllModes() {
 
 void HydroPINNWindow::showPredictionForMode(const QString& mode) {
     if (predictionUseCurrentDataCheck_->isChecked()) {
-        appendLog(QString("Prediction is set to current data settings; re-running approach '%1'.").arg(modeDisplayName(mode)));
-        runMode(mode);
-        predictionUseCurrentDataCheck_->setChecked(false);
-        appendLog("Prediction re-run mode auto-disabled after one execution to prevent repeated retraining loops.");
+        if (!runLoadedInferenceForMode(mode)) {
+            QMessageBox::warning(this, "HydroPINN Inference",
+                                 "Loaded checkpoint inference failed. Review the Logs tab for details.");
+        }
         return;
     }
 
@@ -1797,16 +1908,98 @@ void HydroPINNWindow::showPredictionForMode(const QString& mode) {
     appendLog(QString("Displayed stored target vs prediction for approach '%1'.").arg(modeDisplayName(mode)));
 }
 
+bool HydroPINNWindow::runLoadedInferenceForMode(const QString& mode) {
+    const auto session = inferenceSessions_.find(mode);
+    if (session == inferenceSessions_.end()) {
+        appendLog(QString("No loaded checkpoint session is available for '%1'.").arg(modeDisplayName(mode)));
+        return false;
+    }
+    const HydroRunConfig current = currentConfig();
+    if (!current.use_hydro_package && !current.use_csv_data) {
+        appendLog("Loaded checkpoint inference currently requires Hydro Package or CSV as the Data tab source.");
+        return false;
+    }
+    if (!loadedInferenceArtifacts_) {
+        appendLog("Loaded checkpoint inference has no active experiment configuration.");
+        return false;
+    }
+    try {
+        const HydroRunConfig& exported = loadedInferenceArtifacts_->experiment.config;
+        if (current.use_hydro_package != exported.use_hydro_package ||
+            current.use_csv_data != exported.use_csv_data) {
+            throw std::runtime_error("Current data-source type does not match the loaded experiment.");
+        }
+        if (current.use_hydro_package && (current.hydro_package_profile != exported.hydro_package_profile ||
+            current.use_hydro_forecast_feature != exported.use_hydro_forecast_feature ||
+            (exported.use_hydro_forecast_feature &&
+             (current.hydro_forecast_variable != exported.hydro_forecast_variable ||
+              std::abs(current.hydro_forecast_lead_hours - exported.hydro_forecast_lead_hours) > 1.0e-9 ||
+              current.hydro_forecast_ensemble_member != exported.hydro_forecast_ensemble_member)))) {
+            throw std::runtime_error(
+                "Current Hydro Package feature settings do not match the loaded experiment configuration.");
+        }
+        if (current.use_csv_data &&
+            (current.csv_x_column != exported.csv_x_column || current.csv_y_column != exported.csv_y_column ||
+             current.csv_has_header != exported.csv_has_header || current.synthetic_profile != exported.synthetic_profile)) {
+            throw std::runtime_error("Current CSV column/profile settings do not match the loaded experiment.");
+        }
+        HydroRunConfig config = exported;
+        config.hydro_package_path = current.hydro_package_path;
+        config.hydro_catchment_id = current.hydro_catchment_id;
+        config.csv_path = current.csv_path;
+        torch::Tensor inputs;
+        torch::Tensor targets;
+        torch::Tensor plotX;
+        if (config.use_hydro_package) {
+            if (!loadHydroPackageTensors(config, inputs, targets, plotX))
+                throw std::runtime_error("Unable to build tensors from the selected Hydro package.");
+        } else loadHydroCsvTensors(config, inputs, targets, plotX);
+        if ((mode == "ffn" || mode == "ffn_pinn") && exported.use_time_lagged_ffn) {
+            const auto lagged = buildHydroLaggedTensor(inputs, exported.input_lags_csv);
+            inputs = lagged.inputs;
+            targets = targets.slice(0, lagged.leading_rows, targets.size(0)).contiguous();
+            plotX = plotX.slice(0, lagged.leading_rows, plotX.size(0)).contiguous();
+        }
+        const torch::Tensor predictions = session->second->predictSeries(inputs).to(torch::kCPU).contiguous();
+        const int64_t offset = inputs.size(0) - predictions.size(0);
+        if (offset < 0 || offset + predictions.size(0) > targets.size(0)) {
+            throw std::runtime_error("Inference predictions do not align with the selected package.");
+        }
+        const auto alignedTargets = targets.slice(0, offset, offset + predictions.size(0)).to(torch::kCPU).contiguous();
+        const auto alignedX = plotX.slice(0, offset, offset + predictions.size(0)).to(torch::kCPU).contiguous();
+        HydroRunResult result;
+        result.success = true;
+        result.message = "Loaded checkpoint inference on current Hydro package.";
+        result.x.reserve(static_cast<std::size_t>(predictions.size(0)));
+        result.y_true.reserve(result.x.capacity());
+        result.y_pred.reserve(result.x.capacity());
+        result.split.assign(static_cast<std::size_t>(predictions.size(0)), "test");
+        for (int64_t i = 0; i < predictions.size(0); ++i) {
+            result.x.push_back(alignedX[i].item<double>());
+            result.y_true.push_back(alignedTargets[i].item<double>());
+            result.y_pred.push_back(predictions[i].item<double>());
+        }
+        populateHydroMetrics(result, result.y_true, result.y_pred);
+        populateHydroPeakMetrics(result);
+        lastModeResults_[mode] = std::move(result);
+        updatePlot(mode, lastModeResults_.at(mode));
+        appendLog(QString("Ran loaded '%1' checkpoint on %2 current package samples.")
+                      .arg(modeDisplayName(mode)).arg(predictions.size(0)));
+        return true;
+    } catch (const std::exception& error) {
+        appendLog(QString("Loaded checkpoint inference failed for '%1': %2")
+                      .arg(modeDisplayName(mode), QString::fromUtf8(error.what())));
+        return false;
+    }
+}
+
 void HydroPINNWindow::showSelectedPrediction() {
     showPredictionForMode(selectedModeKey());
 }
 
 void HydroPINNWindow::showAllPredictions() {
     if (predictionUseCurrentDataCheck_->isChecked()) {
-        appendLog("Prediction is set to current data settings; re-running all approaches.");
-        runAllModes();
-        predictionUseCurrentDataCheck_->setChecked(false);
-        appendLog("Prediction re-run mode auto-disabled after one execution to prevent repeated retraining loops.");
+        for (const auto& entry : inferenceSessions_) runLoadedInferenceForMode(entry.first);
         return;
     }
 
@@ -2455,6 +2648,122 @@ void HydroPINNWindow::plotErrorCdfAllModes() {
     appendLog("Displayed |error| CDF plot for all stored approaches.");
 }
 
+void HydroPINNWindow::plotFlowDurationAllModes() {
+    const QStringList modes = {"ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn"};
+    const QList<QColor> colors = {QColor(0, 114, 178), QColor(213, 94, 0), QColor(86, 180, 233),
+                                  QColor(0, 158, 115), QColor(204, 121, 167)};
+    auto* chart = chartView_->chart();
+    chart->removeAllSeries();
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) { chart->removeAxis(axis); delete axis; }
+    bool addedAny = false;
+    int colorIndex = 0;
+    for (const QString& mode : modes) {
+        const auto found = lastModeResults_.find(mode);
+        if (found == lastModeResults_.end()) continue;
+        const auto& result = found->second;
+        const size_t n = std::min(result.y_true.size(), result.y_pred.size());
+        std::vector<double> observed;
+        std::vector<double> predicted;
+        for (size_t i = 0; i < n; ++i) {
+            if (i < result.split.size() && result.split[i] != "test") continue;
+            observed.push_back(result.y_true[i]);
+            predicted.push_back(result.y_pred[i]);
+        }
+        if (observed.empty()) continue;
+        std::sort(observed.begin(), observed.end(), std::greater<double>());
+        std::sort(predicted.begin(), predicted.end(), std::greater<double>());
+        auto* observedSeries = new QLineSeries(chart);
+        auto* predictedSeries = new QLineSeries(chart);
+        observedSeries->setName(QString("Observed FDC (%1)").arg(modeDisplayName(mode)));
+        predictedSeries->setName(QString("Predicted FDC (%1)").arg(modeDisplayName(mode)));
+        QPen observedPen(colors[colorIndex % colors.size()]);
+        observedPen.setWidth(2);
+        QPen predictedPen = observedPen;
+        predictedPen.setStyle(Qt::DashLine);
+        observedSeries->setPen(observedPen);
+        predictedSeries->setPen(predictedPen);
+        for (size_t rank = 0; rank < observed.size(); ++rank) {
+            const double exceedance = 100.0 * static_cast<double>(rank + 1) /
+                                      static_cast<double>(observed.size() + 1);
+            observedSeries->append(exceedance, observed[rank]);
+            predictedSeries->append(exceedance, predicted[rank]);
+        }
+        chart->addSeries(observedSeries);
+        chart->addSeries(predictedSeries);
+        addedAny = true;
+        ++colorIndex;
+    }
+    if (!addedAny) {
+        appendLog("No held-out test results are available for a flow-duration plot.");
+        return;
+    }
+    auto* axisX = new QValueAxis(chart);
+    axisX->setTitleText("Exceedance probability (%)");
+    axisX->setRange(0.0, 100.0);
+    auto* axisY = new QValueAxis(chart);
+    axisY->setTitleText("Runoff / discharge");
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    for (auto* series : chart->series()) { series->attachAxis(axisX); series->attachAxis(axisY); }
+    chart->setTitle("Flow-Duration Curves (Held-Out Test Data)");
+    chart->legend()->setVisible(true);
+    fitPlotAxesInternal(false);
+    appendLog("Displayed observed and predicted flow-duration curves for held-out test data.");
+}
+
+void HydroPINNWindow::plotCumulativeResidualAllModes() {
+    const QStringList modes = {"ffn_pinn", "lstm_pinn", "pinn"};
+    const QList<QColor> colors = {QColor(213, 94, 0), QColor(0, 158, 115), QColor(204, 121, 167)};
+    auto* chart = chartView_->chart();
+    chart->removeAllSeries();
+    const auto existingAxes = chart->axes();
+    for (QAbstractAxis* axis : existingAxes) { chart->removeAxis(axis); delete axis; }
+    bool addedAny = false;
+    int colorIndex = 0;
+    for (const QString& mode : modes) {
+        const auto found = lastModeResults_.find(mode);
+        if (found == lastModeResults_.end()) continue;
+        const auto& result = found->second;
+        const size_t n = std::min(result.x.size(), result.physics_residual.size());
+        if (n < 2) continue;
+        auto* series = new QLineSeries(chart);
+        series->setName(QString("Cumulative residual (%1)").arg(modeDisplayName(mode)));
+        QPen pen(colors[colorIndex % colors.size()]);
+        pen.setWidth(2);
+        series->setPen(pen);
+        double cumulative = 0.0;
+        bool hasFiniteResidual = false;
+        for (size_t i = 1; i < n; ++i) {
+            const double residual = result.physics_residual[i];
+            const double dt = result.x[i] - result.x[i - 1];
+            if (!std::isfinite(residual) || !std::isfinite(dt) || dt <= 0.0) continue;
+            cumulative += residual * dt;
+            series->append(result.x[i], cumulative);
+            hasFiniteResidual = true;
+        }
+        if (!hasFiniteResidual) { delete series; continue; }
+        chart->addSeries(series);
+        addedAny = true;
+        ++colorIndex;
+    }
+    if (!addedAny) {
+        appendLog("No finite PINN physics residuals are available for cumulative plotting.");
+        return;
+    }
+    auto* axisX = new QValueAxis(chart);
+    axisX->setTitleText("Time");
+    auto* axisY = new QValueAxis(chart);
+    axisY->setTitleText("Integrated signed physics residual");
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    for (auto* series : chart->series()) { series->attachAxis(axisX); series->attachAxis(axisY); }
+    chart->setTitle("Cumulative Physics Residual (PINN Approaches)");
+    chart->legend()->setVisible(true);
+    fitPlotAxesInternal(false);
+    appendLog("Displayed timestep-integrated cumulative physics residuals for PINN approaches.");
+}
+
 void HydroPINNWindow::runMode(const QString& mode) {
     appendLog(QString("Starting approach: %1").arg(modeDisplayName(mode)));
     static bool modeImplementationNoteLogged = false;
@@ -2467,6 +2776,19 @@ void HydroPINNWindow::runMode(const QString& mode) {
     appendLog("Dispatch started.");
 
     HydroRunConfig cfg = currentConfig();
+    if (cfg.use_hydro_package) {
+        try {
+            cfg.hydro_catchment_id = resolveConfiguredPackageCatchment(cfg);
+            hydroCatchmentIdEdit_->setText(QString::fromStdString(cfg.hydro_catchment_id));
+        } catch (const std::exception& error) {
+            const QString details = QString("Package preflight failed: %1").arg(error.what());
+            appendLog(details);
+            statusLabel_->setText(QString("Approach failed: %1").arg(modeDisplayName(mode)));
+            setRunningUiState(false);
+            QMessageBox::warning(this, "HydroPINN", details);
+            return;
+        }
+    }
     const std::vector<QString> layerActs = configuredLayerActivations();
     if (!layerActs.empty()) {
         bool mixedActivations = false;

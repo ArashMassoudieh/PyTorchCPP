@@ -164,6 +164,24 @@ std::map<std::string, std::string> loadVariableUnits(const std::filesystem::path
 }
 }
 
+std::string resolveHydroCatchmentId(const HydroObservationDataset& dataset,
+                                    const std::string& requestedCatchmentId) {
+    if (!requestedCatchmentId.empty()) {
+        if (dataset.observations_by_catchment.find(requestedCatchmentId) ==
+            dataset.observations_by_catchment.end()) {
+            throw std::runtime_error("Catchment not found in Hydro package: " + requestedCatchmentId);
+        }
+        return requestedCatchmentId;
+    }
+    if (dataset.observations_by_catchment.size() == 1) {
+        return dataset.observations_by_catchment.begin()->first;
+    }
+    if (dataset.observations_by_catchment.empty()) {
+        throw std::runtime_error("Hydro package contains no catchments.");
+    }
+    throw std::runtime_error("Hydro package contains multiple catchments; select a Package catchment ID.");
+}
+
 bool DDRRLoader::load(const std::string& path) {
     return HydroDatasetValidator().validateCsv(path, HydroDatasetContract::rainfallRunoffV1()).valid;
 }
