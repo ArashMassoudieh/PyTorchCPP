@@ -236,8 +236,10 @@ struct SequenceData {
 SequenceData makeSequences(const torch::Tensor& x,
                            const torch::Tensor& y,
                            const torch::Tensor& plotX,
-                           int sequenceLength) {
-    if (!x.defined() || !y.defined() || x.dim() != 2 || y.dim() != 2) {
+                           int sequenceLength,
+                           const bool enforceRegularTime) {
+    if (!x.defined() || !y.defined() || !plotX.defined() || x.dim() != 2 || y.dim() != 2 ||
+        plotX.numel() != x.size(0) || y.size(0) != x.size(0)) {
         throw std::runtime_error("LSTM sequence builder expects 2-D x/y tensors.");
     }
     sequenceLength = std::max(2, sequenceLength);
@@ -246,16 +248,33 @@ SequenceData makeSequences(const torch::Tensor& x,
     const int64_t m = n - sequenceLength + 1;
     if (m < 4) throw std::runtime_error("Too few samples for requested LSTM sequence length.");
 
-    std::vector<torch::Tensor> windows;
+    std::vector<torch::Tensor> windows, targets, endpoints;
     windows.reserve(static_cast<size_t>(m));
-    for (int64_t i = 0; i < m; ++i) {
-        windows.push_back(x.slice(0, i, i + sequenceLength).unsqueeze(0));
+    double expectedDt = 0.0;
+    if (enforceRegularTime) {
+        const auto flatTime = plotX.reshape({-1});
+        auto intervals = flatTime.slice(0, 1, n) - flatTime.slice(0, 0, n - 1);
+        const auto positive = intervals.index({intervals > 0});
+        if (positive.numel() == 0) throw std::runtime_error("LSTM package timestamps are not increasing.");
+        expectedDt = positive.min().item<double>();
     }
+    for (int64_t i = 0; i < m; ++i) {
+        if (enforceRegularTime) {
+            const auto time = plotX.slice(0, i, i + sequenceLength).reshape({-1});
+            const auto intervals = time.slice(0, 1, sequenceLength) - time.slice(0, 0, sequenceLength - 1);
+            const double tolerance = std::max(1.0e-12, std::abs(expectedDt) * 1.0e-6);
+            if ((torch::abs(intervals - expectedDt) > tolerance).any().item<bool>()) continue;
+        }
+        windows.push_back(x.slice(0, i, i + sequenceLength).unsqueeze(0));
+        targets.push_back(y.slice(0, i + sequenceLength - 1, i + sequenceLength));
+        endpoints.push_back(plotX.slice(0, i + sequenceLength - 1, i + sequenceLength));
+    }
+    if (windows.size() < 4) throw std::runtime_error("Too few contiguous samples for requested LSTM sequence length.");
 
     SequenceData seq;
-    seq.xSeq = torch::cat(windows, 0).contiguous().view({m, sequenceLength, inputDim});
-    seq.ySeq = y.slice(0, sequenceLength - 1, n).contiguous();
-    seq.plotSeq = plotX.slice(0, sequenceLength - 1, plotX.size(0)).contiguous();
+    seq.xSeq = torch::cat(windows, 0).contiguous().view({static_cast<int64_t>(windows.size()), sequenceLength, inputDim});
+    seq.ySeq = torch::cat(targets, 0).contiguous();
+    seq.plotSeq = torch::cat(endpoints, 0).contiguous();
     return seq;
 }
 
@@ -327,7 +346,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     const int64_t numLayers = static_cast<int64_t>(std::max<size_t>(1, hiddenLayers.size()));
     const int sequenceLength = std::max(2, config.lstm_sequence_length);
 
-    SequenceData seq = makeSequences(x, y, plotX, sequenceLength);
+    SequenceData seq = makeSequences(x, y, plotX, sequenceLength, config.use_hydro_package);
     const int64_t totalSeq = seq.xSeq.size(0);
     const ChronologicalSplit split = makeChronologicalSplit(totalSeq,
                                                             config.train_split_ratio,
@@ -365,9 +384,12 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     const int64_t trainN = xTrain.size(0);
     const int batchSize = std::max(1, config.batch_size);
     const double lambda = config.lambda_decay;
-    const double dt = config.use_hydro_package ? regularPhysicalTimeStep(x) : ((config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff"))
-                          ? 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1)
-                          : std::max(1.0e-8, config.physics_dt);
+    const double dt = physicsInformed
+        ? (config.use_hydro_package ? regularPhysicalTimeStepFromTime(plotX)
+           : ((config.synthetic_profile == "watershed_balance" || config.synthetic_profile == "rainfall_runoff")
+              ? 1.0 / static_cast<double>(std::max<int64_t>(2, x.size(0)) - 1)
+              : std::max(1.0e-8, config.physics_dt)))
+        : std::max(1.0e-8, config.physics_dt);
 
     auto physicsResidualLoss = [&]() {
         torch::Tensor p = model->forward(xTrain);
@@ -520,7 +542,9 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         }
         result.physics_loss = torch::mean(residual * residual).item<double>();
     }
-    populateHydroPhysicsResidualMetrics(result);
+    if (physicsInformed && !result.physics_residual.empty()) {
+        populateHydroPhysicsResidualMetrics(result);
+    }
     result.success = true;
     result.message = physicsInformed
         ? (config.use_hydro_package ? "LSTM-PINN run completed with Hydro package input." : (config.use_csv_data ? "LSTM-PINN run completed with CSV input." : "LSTM-PINN run completed with synthetic input."))
