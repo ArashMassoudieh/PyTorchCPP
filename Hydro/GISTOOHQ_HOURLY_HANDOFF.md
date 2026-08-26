@@ -146,16 +146,27 @@ stable six-feature order and records segment boundaries whenever forcing or
 required-target validity is interrupted. `dataset/gistohq_tensor_builder.h`
 converts those rows into feature, target, timestamp, validity, and segment tensors
 and constructs LSTM windows and FFN lag expansions independently inside each
-segment. Manifest/
-`variables.json` parsing and GUI/model integration remain separate steps because
-representative producer metadata fixtures are not present in this repository yet.
+segment. `dataset/gistohq_package_adapter.{h,cpp}` now validates the seven-variable
+full package or six-variable weather-only contract, checks declared native units,
+discovers temporal assets, and runs CSV loading, harmonization, and model-row
+selection as one operation. Study bounds and catchment area remain explicit
+adapter inputs because they must not be guessed from observations. The GUI now
+detects `schema_name=HydroPINNExport`, reads those authoritative manifest values,
+and routes supervised FFN/LSTM runs through this adapter instead of `DDRRLoader`.
+Storage-dependent PINN modes are rejected before dispatch.
 
-1. Add manifest and variable-metadata fixtures copied from the producer schema.
-2. Implement manifest/variable parsing and checksum/path validation without
-   LibTorch.
-3. Extend the hourly harmonizer tests with the full leap-year producer fixture.
-4. Verify unit conversion, discharge gaps, daily PET, and coverage against that
+HydroPINN requires producer schema `1.2` or newer. In that schema,
+`study_start` is the first included UTC hour and `study_end` is the final included
+UTC hour; the adapter converts the latter to its internal half-open grid boundary.
+Older `1.1` exports are rejected with instructions to regenerate them rather than
+inferring bounds from temporal CSV coverage.
+
+1. Add a full manifest fixture copied from the producer schema and finish mapping
+   its asset paths, checksums, profile, and QC status into the adapter.
+2. Extend the hourly harmonizer tests with the full leap-year producer fixture.
+3. Verify unit conversion, discharge gaps, daily PET, and coverage against that
    fixture in addition to the existing focused unit tests.
-5. Integrate the new source type into the GUI and the five model workflows.
-6. Enable rainfall-runoff approaches first; enable water-balance physics only
+4. Preserve mask/segment identities through the existing FFN and LSTM split,
+   scaling, lag, and sequence paths rather than only filtering invalid rows.
+5. Enable water-balance physics only
    after the storage compatibility blocker is resolved.

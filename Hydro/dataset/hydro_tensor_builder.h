@@ -2,6 +2,7 @@
 
 #include "ddrr_loader.h"
 #include "forecast_alignment.h"
+#include "gistohq_package_adapter.h"
 #include "../models/hydro_run_types.h"
 
 #include <torch/torch.h>
@@ -22,20 +23,42 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         throw std::runtime_error("Unknown Hydro package profile: " + config.hydro_package_profile);
     }
     DDRRLoader loader;
+    const auto packageRoot = resolveHydroPackageDirectory(config.hydro_package_path);
+    if (isGisToOhqHydroPinnExport(packageRoot)) {
+        if (config.use_hydro_forecast_feature) {
+            throw std::runtime_error("GIStoOHQ temporal exports do not contain forecast assets.");
+        }
+        const auto prepared = prepareGisToOhqPackage(packageRoot, true);
+        std::vector<float> features, targets, times;
+        features.reserve(prepared.model_rows.size() * 6);
+        targets.reserve(prepared.model_rows.size());
+        times.reserve(prepared.model_rows.size());
+        for (const auto& row : prepared.model_rows) {
+            for (const auto value : row.features) features.push_back(static_cast<float>(value));
+            targets.push_back(static_cast<float>(row.target_runoff_mm_per_hour));
+            times.push_back(static_cast<float>(row.elapsed_hours));
+        }
+        if (targets.empty()) throw std::runtime_error("GIStoOHQ package contains no supervised hourly rows.");
+        const auto n = static_cast<int64_t>(targets.size());
+        x = torch::from_blob(features.data(), {n, 6}, torch::kFloat32).clone();
+        y = torch::from_blob(targets.data(), {n, 1}, torch::kFloat32).clone();
+        plotX = torch::from_blob(times.data(), {n, 1}, torch::kFloat32).clone();
+        return true;
+    }
     const auto dataset = loader.loadPackageDirectory(
-        config.hydro_package_path,
+        packageRoot,
         waterBalance ? HydroDatasetContract::waterBalanceV1() : HydroDatasetContract::rainfallRunoffV1());
     const std::string catchmentId = resolveHydroCatchmentId(dataset, config.hydro_catchment_id);
     const auto found = dataset.observations_by_catchment.find(catchmentId);
     const auto& rows = found->second;
     std::optional<AlignedForecastFeature> forecastFeature;
     if (config.use_hydro_forecast_feature) {
-        const auto manifest = loader.loadManifest(config.hydro_package_path + "/manifest.json");
+        const auto manifest = loader.loadManifest(packageRoot + "/manifest.json");
         if (manifest.forecast_file.empty()) throw std::runtime_error("Hydro package has no forecast_file for the requested forecast feature.");
         std::vector<std::string> validTimes;
         validTimes.reserve(rows.size());
         for (const auto& row : rows) validTimes.push_back(row.timestamp);
-        const auto forecasts = loader.loadForecasts(config.hydro_package_path + "/" + manifest.forecast_file, {});
+        const auto forecasts = loader.loadForecasts(packageRoot + "/" + manifest.forecast_file, {});
         forecastFeature = buildAlignedForecastFeature(
             forecasts, validTimes, catchmentId, config.hydro_forecast_variable,
             config.hydro_forecast_lead_hours, config.hydro_forecast_ensemble_member);
