@@ -511,18 +511,35 @@ HydroProvenanceArtifact HydroArtifactLoader::loadProvenance(const std::string& e
 
 HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
     const std::string& experimentDirectory) const {
-    const std::filesystem::path root(experimentDirectory);
+    std::filesystem::path root(experimentDirectory);
+    if (!std::filesystem::is_directory(root)) {
+        throw std::runtime_error("Experiment directory does not exist: " + experimentDirectory);
+    }
+    if (!std::filesystem::is_regular_file(root / "artifact_manifest.csv")) {
+        std::vector<std::filesystem::path> candidates;
+        for (const auto& entry : std::filesystem::directory_iterator(root)) {
+            if (entry.is_directory() && std::filesystem::is_regular_file(entry.path() / "artifact_manifest.csv")) {
+                candidates.push_back(entry.path());
+            }
+        }
+        if (candidates.size() == 1) root = candidates.front();
+    }
+    if (!std::filesystem::is_regular_file(root / "artifact_manifest.csv")) {
+        throw std::runtime_error("Selected experiment directory '" + experimentDirectory +
+                                 "' is missing artifact_manifest.csv (or a single immediate child experiment containing it).");
+    }
+    const std::string resolvedDirectory = root.string();
     HydroInferenceArtifacts artifacts;
-    validateBundleManifest(experimentDirectory);
+    validateBundleManifest(resolvedDirectory);
     artifacts.experiment = HydroExperimentLoader().loadConfig((root / "experiment_config.json").string());
-    artifacts.models = loadModels(experimentDirectory);
-    artifacts.scalers = loadScalers(experimentDirectory);
-    artifacts.training_history = loadTrainingHistory(experimentDirectory);
-    artifacts.environment = loadEnvironment(experimentDirectory);
-    if (artifacts.experiment.config.use_hydro_package) artifacts.provenance = loadProvenance(experimentDirectory);
-    auto predictions = loadPredictions(experimentDirectory);
-    const auto metrics = loadMetrics(experimentDirectory);
-    const auto residuals = loadPhysicsResiduals(experimentDirectory);
+    artifacts.models = loadModels(resolvedDirectory);
+    artifacts.scalers = loadScalers(resolvedDirectory);
+    artifacts.training_history = loadTrainingHistory(resolvedDirectory);
+    artifacts.environment = loadEnvironment(resolvedDirectory);
+    if (artifacts.experiment.config.use_hydro_package) artifacts.provenance = loadProvenance(resolvedDirectory);
+    auto predictions = loadPredictions(resolvedDirectory);
+    const auto metrics = loadMetrics(resolvedDirectory);
+    const auto residuals = loadPhysicsResiduals(resolvedDirectory);
 
     for (const auto& entry : artifacts.models) {
         const auto scaler = artifacts.scalers.find(entry.first);
