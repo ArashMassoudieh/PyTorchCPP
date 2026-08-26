@@ -45,9 +45,9 @@ features while the residual keeps a direct mass-balance interpretation.
 The native-resolution GIStoOHQ temporal export requires hourly harmonization, unit conversion, and explicit validity masks before training. The versioned consumer decisions and the storage-profile compatibility blocker are documented in [`GISTOOHQ_HOURLY_HANDOFF.md`](GISTOOHQ_HOURLY_HANDOFF.md).
 The pure C++ hourly harmonizer is available in
 `dataset/gistohq_hourly_harmonizer.{h,cpp}`. The package adapter validates the
-full-data and weather-only variable/unit contracts and prepares hourly model rows;
-automatic manifest metadata mapping and GUI selection still require a representative
-producer-schema fixture. Wide and long
+full-data and weather-only variable/unit contracts and prepares hourly model rows.
+The GUI detects `HydroPINNExport` packages and routes FFN/LSTM training through
+that adapter; storage-dependent PINN modes remain disabled. Wide and long
 native temporal CSV assets can already be read with
 `dataset/gistohq_temporal_csv.{h,cpp}`.
 Mask-aware model rows and contiguous segment identities are produced by

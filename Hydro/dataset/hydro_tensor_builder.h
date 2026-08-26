@@ -2,6 +2,7 @@
 
 #include "ddrr_loader.h"
 #include "forecast_alignment.h"
+#include "gistohq_package_adapter.h"
 #include "../models/hydro_run_types.h"
 
 #include <torch/torch.h>
@@ -23,6 +24,27 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
     }
     DDRRLoader loader;
     const auto packageRoot = resolveHydroPackageDirectory(config.hydro_package_path);
+    if (isGisToOhqHydroPinnExport(packageRoot)) {
+        if (config.use_hydro_forecast_feature) {
+            throw std::runtime_error("GIStoOHQ temporal exports do not contain forecast assets.");
+        }
+        const auto prepared = prepareGisToOhqPackage(packageRoot, true);
+        std::vector<float> features, targets, times;
+        features.reserve(prepared.model_rows.size() * 6);
+        targets.reserve(prepared.model_rows.size());
+        times.reserve(prepared.model_rows.size());
+        for (const auto& row : prepared.model_rows) {
+            for (const auto value : row.features) features.push_back(static_cast<float>(value));
+            targets.push_back(static_cast<float>(row.target_runoff_mm_per_hour));
+            times.push_back(static_cast<float>(row.elapsed_hours));
+        }
+        if (targets.empty()) throw std::runtime_error("GIStoOHQ package contains no supervised hourly rows.");
+        const auto n = static_cast<int64_t>(targets.size());
+        x = torch::from_blob(features.data(), {n, 6}, torch::kFloat32).clone();
+        y = torch::from_blob(targets.data(), {n, 1}, torch::kFloat32).clone();
+        plotX = torch::from_blob(times.data(), {n, 1}, torch::kFloat32).clone();
+        return true;
+    }
     const auto dataset = loader.loadPackageDirectory(
         packageRoot,
         waterBalance ? HydroDatasetContract::waterBalanceV1() : HydroDatasetContract::rainfallRunoffV1());

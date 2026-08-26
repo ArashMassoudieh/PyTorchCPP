@@ -150,14 +150,17 @@ segment. `dataset/gistohq_package_adapter.{h,cpp}` now validates the seven-varia
 full package or six-variable weather-only contract, checks declared native units,
 discovers temporal assets, and runs CSV loading, harmonization, and model-row
 selection as one operation. Study bounds and catchment area remain explicit
-adapter inputs because they must not be guessed from observations. Automatic
-manifest metadata mapping and GUI/model dispatch remain separate steps.
+adapter inputs because they must not be guessed from observations. The GUI now
+detects `schema_name=HydroPINNExport`, reads those authoritative manifest values,
+and routes supervised FFN/LSTM runs through this adapter instead of `DDRRLoader`.
+Storage-dependent PINN modes are rejected before dispatch.
 
-1. Add a full manifest fixture copied from the producer schema and map its study
-   bounds, catchment area, asset paths, checksums, profile, and QC status into the adapter.
+1. Add a full manifest fixture copied from the producer schema and finish mapping
+   its asset paths, checksums, profile, and QC status into the adapter.
 2. Extend the hourly harmonizer tests with the full leap-year producer fixture.
 3. Verify unit conversion, discharge gaps, daily PET, and coverage against that
    fixture in addition to the existing focused unit tests.
-4. Integrate the new source type into the GUI and the five model workflows.
-5. Enable rainfall-runoff approaches first; enable water-balance physics only
+4. Preserve mask/segment identities through the existing FFN and LSTM split,
+   scaling, lag, and sequence paths rather than only filtering invalid rows.
+5. Enable water-balance physics only
    after the storage compatibility blocker is resolved.

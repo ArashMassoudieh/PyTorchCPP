@@ -25,3 +25,11 @@ struct GisToOhqPreparedPackage {
 GisToOhqPreparedPackage prepareGisToOhqPackage(
     const std::string& package_directory,
     const GisToOhqPackageConfig& config);
+
+/** Returns true when manifest.json declares schema_name=HydroPINNExport. */
+bool isGisToOhqHydroPinnExport(const std::string& package_directory);
+
+/** Reads study bounds and catchment area from the producer manifest and prepares the package. */
+GisToOhqPreparedPackage prepareGisToOhqPackage(
+    const std::string& package_directory,
+    bool require_observed_discharge);

@@ -9,7 +9,10 @@ int main() {
     const std::filesystem::path root = "/tmp/gistohq_package_adapter";
     std::filesystem::remove_all(root);
     std::filesystem::create_directories(root / "observations");
-    { std::ofstream(root / "manifest.json") << R"({"profile":"water-balance-v1"})"; }
+    { std::ofstream(root / "manifest.json") << R"({
+"schema_name":"HydroPINNExport","schema_version":"1.1","profile":"water-balance-v1",
+"site_id":"sligocreekdemo","start_date":"2024-01-01","end_date":"2024-01-01",
+"catchment_area_m2":1000000})"; }
     {
         std::ofstream variables(root / "variables.json");
         variables << R"([
@@ -42,6 +45,9 @@ int main() {
     assert(prepared.hourly_rows.size() == 2 && prepared.model_rows.size() == 2);
     assert(prepared.hourly_rows[0].precipitation_mm_per_hour == 1.0);
     assert(std::abs(prepared.hourly_rows[0].pet_mm_per_hour - 1.0) < 1.0e-12);
+    assert(isGisToOhqHydroPinnExport(root.string()));
+    const auto preparedFromManifest = prepareGisToOhqPackage(root.string(), true);
+    assert(preparedFromManifest.model_rows.size() == 2);
 
     std::filesystem::remove(root / "observations/temporal_3.csv");
     auto variables = std::ifstream(root / "variables.json");
