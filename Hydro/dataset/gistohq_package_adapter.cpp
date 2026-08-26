@@ -27,7 +27,8 @@ std::string jsonString(const std::string& json, const std::vector<std::string>& 
         std::smatch match;
         if (std::regex_search(json, match, field)) return match[1].str();
     }
-    throw std::runtime_error(std::string("GIStoOHQ manifest is missing ") + description + ".");
+    throw std::runtime_error(std::string("GIStoOHQ manifest is missing required ") + description +
+                             "; regenerate the producer export with HydroPINNExport schema 1.2 or newer.");
 }
 
 double jsonNumber(const std::string& json, const std::vector<std::string>& keys, const char* description) {
@@ -55,7 +56,15 @@ std::int64_t utcEpoch(std::string value, const bool inclusiveEnd) {
     stream >> std::get_time(&parsed, "%Y-%m-%dT%H:%M:%SZ");
     if (stream.fail()) throw std::runtime_error("GIStoOHQ manifest has invalid UTC study bound: " + value);
     const auto epoch = static_cast<std::int64_t>(timegm(&parsed));
-    return epoch + (dateOnly && inclusiveEnd ? 86400 : 0);
+    // Producer study_end identifies the final included day/hour, while the
+    // harmonizer uses a half-open interval [start, end).
+    return epoch + (inclusiveEnd ? (dateOnly ? 86400 : 3600) : 0);
+}
+
+bool supportedExportSchema(const std::string& version) {
+    std::smatch match;
+    if (!std::regex_match(version, match, std::regex(R"(^([0-9]+)\.([0-9]+)(?:\.[0-9]+)?$)"))) return false;
+    return std::stoi(match[1].str()) == 1 && std::stoi(match[2].str()) >= 2;
 }
 
 std::map<std::string, std::string> variableUnits(const std::string& json) {
@@ -90,8 +99,9 @@ GisToOhqPreparedPackage prepareGisToOhqPackageFromManifest(
         throw std::runtime_error("Package is not a GIStoOHQ HydroPINNExport.");
     }
     const auto schemaVersion = jsonString(manifest, {"schema_version"}, "schema_version");
-    if (schemaVersion.empty() || schemaVersion.front() != '1') {
-        throw std::runtime_error("Unsupported GIStoOHQ HydroPINNExport schema version: " + schemaVersion);
+    if (!supportedExportSchema(schemaVersion)) {
+        throw std::runtime_error("Unsupported GIStoOHQ HydroPINNExport schema version " + schemaVersion +
+                                 "; schema 1.2 or newer is required for authoritative study bounds.");
     }
     const auto profile = jsonString(manifest, {"profile"}, "profile");
     if (profile != "water-balance-v1") {

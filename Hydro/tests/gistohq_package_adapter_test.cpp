@@ -10,8 +10,9 @@ int main() {
     std::filesystem::remove_all(root);
     std::filesystem::create_directories(root / "observations");
     { std::ofstream(root / "manifest.json") << R"({
-"schema_name":"HydroPINNExport","schema_version":"1.1","profile":"water-balance-v1",
-"site_id":"sligocreekdemo","start_date":"2024-01-01","end_date":"2024-01-01",
+"schema_name":"HydroPINNExport","schema_version":"1.2","profile":"water-balance-v1",
+"site_id":"sligocreekdemo","study_start":"2024-01-01T00:00:00Z",
+"study_end":"2024-01-01T01:00:00Z",
 "catchment_area_m2":1000000})"; }
     {
         std::ofstream variables(root / "variables.json");
@@ -47,7 +48,22 @@ int main() {
     assert(std::abs(prepared.hourly_rows[0].pet_mm_per_hour - 1.0) < 1.0e-12);
     assert(isGisToOhqHydroPinnExport(root.string()));
     const auto preparedFromManifest = prepareGisToOhqPackage(root.string(), true);
+    assert(preparedFromManifest.hourly_rows.size() == 2);
     assert(preparedFromManifest.model_rows.size() == 2);
+    {
+        std::ifstream manifestInput(root / "manifest.json");
+        std::string manifest((std::istreambuf_iterator<char>(manifestInput)), {});
+        const auto version = manifest.find("\"schema_version\":\"1.2\"");
+        assert(version != std::string::npos);
+        manifest[version + std::string("\"schema_version\":\"1.").size()] = '1';
+        std::ofstream(root / "manifest.json", std::ios::trunc) << manifest;
+        bool rejectedLegacySchema = false;
+        try { (void)prepareGisToOhqPackage(root.string(), true); }
+        catch (const std::runtime_error&) { rejectedLegacySchema = true; }
+        assert(rejectedLegacySchema);
+        manifest[version + std::string("\"schema_version\":\"1.").size()] = '2';
+        std::ofstream(root / "manifest.json", std::ios::trunc) << manifest;
+    }
 
     std::filesystem::remove(root / "observations/temporal_3.csv");
     auto variables = std::ifstream(root / "variables.json");

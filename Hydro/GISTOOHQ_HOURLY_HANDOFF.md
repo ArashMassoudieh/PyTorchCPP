@@ -155,6 +155,12 @@ detects `schema_name=HydroPINNExport`, reads those authoritative manifest values
 and routes supervised FFN/LSTM runs through this adapter instead of `DDRRLoader`.
 Storage-dependent PINN modes are rejected before dispatch.
 
+HydroPINN requires producer schema `1.2` or newer. In that schema,
+`study_start` is the first included UTC hour and `study_end` is the final included
+UTC hour; the adapter converts the latter to its internal half-open grid boundary.
+Older `1.1` exports are rejected with instructions to regenerate them rather than
+inferring bounds from temporal CSV coverage.
+
 1. Add a full manifest fixture copied from the producer schema and finish mapping
    its asset paths, checksums, profile, and QC status into the adapter.
 2. Extend the hourly harmonizer tests with the full leap-year producer fixture.
