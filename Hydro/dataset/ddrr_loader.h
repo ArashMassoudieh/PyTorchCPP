@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hydro_dataset_contract.h"
+#include "hydro_package_directory.h"
 
 #include <map>
 #include <optional>
