@@ -146,16 +146,18 @@ stable six-feature order and records segment boundaries whenever forcing or
 required-target validity is interrupted. `dataset/gistohq_tensor_builder.h`
 converts those rows into feature, target, timestamp, validity, and segment tensors
 and constructs LSTM windows and FFN lag expansions independently inside each
-segment. Manifest/
-`variables.json` parsing and GUI/model integration remain separate steps because
-representative producer metadata fixtures are not present in this repository yet.
+segment. `dataset/gistohq_package_adapter.{h,cpp}` now validates the seven-variable
+full package or six-variable weather-only contract, checks declared native units,
+discovers temporal assets, and runs CSV loading, harmonization, and model-row
+selection as one operation. Study bounds and catchment area remain explicit
+adapter inputs because they must not be guessed from observations. Automatic
+manifest metadata mapping and GUI/model dispatch remain separate steps.
 
-1. Add manifest and variable-metadata fixtures copied from the producer schema.
-2. Implement manifest/variable parsing and checksum/path validation without
-   LibTorch.
-3. Extend the hourly harmonizer tests with the full leap-year producer fixture.
-4. Verify unit conversion, discharge gaps, daily PET, and coverage against that
+1. Add a full manifest fixture copied from the producer schema and map its study
+   bounds, catchment area, asset paths, checksums, profile, and QC status into the adapter.
+2. Extend the hourly harmonizer tests with the full leap-year producer fixture.
+3. Verify unit conversion, discharge gaps, daily PET, and coverage against that
    fixture in addition to the existing focused unit tests.
-5. Integrate the new source type into the GUI and the five model workflows.
-6. Enable rainfall-runoff approaches first; enable water-balance physics only
+4. Integrate the new source type into the GUI and the five model workflows.
+5. Enable rainfall-runoff approaches first; enable water-balance physics only
    after the storage compatibility blocker is resolved.

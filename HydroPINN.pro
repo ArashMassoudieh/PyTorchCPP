@@ -142,6 +142,7 @@ SOURCES += \
     Utilities/Vector_arma.cpp \
     Hydro/dataset/ddrr_loader.cpp \
     Hydro/dataset/gistohq_hourly_harmonizer.cpp \
+    Hydro/dataset/gistohq_package_adapter.cpp \
     Hydro/dataset/gistohq_model_rows.cpp \
     Hydro/dataset/gistohq_temporal_csv.cpp \
     Hydro/dataset/hydro_checksum.cpp \
@@ -189,6 +190,7 @@ HEADERS += \
     Hydro/hydropinnwindow.h \
     Hydro/dataset/ddrr_loader.h \
     Hydro/dataset/gistohq_hourly_harmonizer.h \
+    Hydro/dataset/gistohq_package_adapter.h \
     Hydro/dataset/gistohq_model_rows.h \
     Hydro/dataset/gistohq_tensor_builder.h \
     Hydro/dataset/gistohq_temporal_csv.h \
