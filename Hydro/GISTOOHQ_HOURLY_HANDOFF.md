@@ -160,6 +160,9 @@ HydroPINN requires producer schema `1.2` or newer. In that schema,
 UTC hour; the adapter converts the latter to its internal half-open grid boundary.
 Older `1.1` exports are rejected with instructions to regenerate them rather than
 inferring bounds from temporal CSV coverage.
+Producer variable metadata may declare its single native unit either as a JSON
+string or as the one-element `units` array emitted by `HydroPINNVariables`.
+Multiple declared units remain invalid because the conversion would be ambiguous.
 
 1. Add a full manifest fixture copied from the producer schema and finish mapping
    its asset paths, checksums, profile, and QC status into the adapter.

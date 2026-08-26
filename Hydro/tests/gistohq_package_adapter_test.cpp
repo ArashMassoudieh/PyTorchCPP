@@ -17,10 +17,10 @@ int main() {
     {
         std::ofstream variables(root / "variables.json");
         variables << R"([
-{"name":"PRECTOTCORR","unit":"mm/day"},{"name":"T2M","unit":"degC"},
-{"name":"RH2M","unit":"%"},{"name":"WS2M","unit":"m/s"},
-{"name":"ALLSKY_SFC_SW_DWN","unit":"MJ/m2/h"},
-{"name":"EVPTRNS","unit":"MJ/m2/day"},{"name":"00060","unit":"ft3/s"}])";
+{"name":"PRECTOTCORR","units":["mm/day"]},{"name":"T2M","units":["C"]},
+{"name":"RH2M","units":["%"]},{"name":"WS2M","units":["m/s"]},
+{"name":"ALLSKY_SFC_SW_DWN","units":["MJ/hr"]},
+{"name":"EVPTRNS","units":["MJ/m^2/day"]},{"name":"00060","units":["ft3/s"]}])";
     }
     {
         std::ofstream weather(root / "observations/temporal_1.csv");

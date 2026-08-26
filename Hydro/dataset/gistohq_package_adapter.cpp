@@ -71,11 +71,15 @@ std::map<std::string, std::string> variableUnits(const std::string& json) {
     std::map<std::string, std::string> units;
     const std::regex object(R"(\{[^{}]*\})");
     const std::regex name(R"json("(?:name|variable|variable_id)"\s*:\s*"([^"]+)")json");
-    const std::regex unit(R"json("(?:unit|units|native_unit)"\s*:\s*"([^"]+)")json");
+    const std::regex scalarUnit(R"json("(?:unit|units|native_unit)"\s*:\s*"([^"]+)")json");
+    const std::regex arrayUnit(R"json("units"\s*:\s*\[\s*"([^"]+)"\s*\])json");
     for (auto it = std::sregex_iterator(json.begin(), json.end(), object); it != std::sregex_iterator(); ++it) {
-        std::smatch nameMatch, unitMatch;
+        std::smatch nameMatch;
         const std::string value = it->str();
-        if (std::regex_search(value, nameMatch, name) && std::regex_search(value, unitMatch, unit)) {
+        if (!std::regex_search(value, nameMatch, name)) continue;
+        std::smatch unitMatch;
+        if (std::regex_search(value, unitMatch, scalarUnit) ||
+            std::regex_search(value, unitMatch, arrayUnit)) {
             units.emplace(nameMatch[1].str(), unitMatch[1].str());
         }
     }
@@ -122,8 +126,9 @@ bool acceptedUnit(const std::string& variable, const std::string& unit) {
     static const std::map<std::string, std::set<std::string>> accepted = {
         {"PRECTOTCORR", {"mm/day", "mm/d"}}, {"T2M", {"degC", "°C", "C"}},
         {"RH2M", {"%", "percent"}}, {"WS2M", {"m/s"}},
-        {"ALLSKY_SFC_SW_DWN", {"MJ/m2/h", "MJ/m²/h", "MJ/hr"}},
-        {"EVPTRNS", {"MJ/m2/day", "MJ/m²/day"}}, {"00060", {"ft3/s", "ft³/s", "cfs"}}
+        {"ALLSKY_SFC_SW_DWN", {"MJ/m2/h", "MJ/m²/h", "MJ/m^2/h", "MJ/hr"}},
+        {"EVPTRNS", {"MJ/m2/day", "MJ/m²/day", "MJ/m^2/day"}},
+        {"00060", {"ft3/s", "ft³/s", "cfs"}}
     };
     const auto found = accepted.find(variable);
     return found != accepted.end() && found->second.count(unit) != 0;
