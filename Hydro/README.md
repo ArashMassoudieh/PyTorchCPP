@@ -48,6 +48,9 @@ The pure C++ hourly harmonizer is available in
 selection still require representative producer-schema fixtures. Wide and long
 native temporal CSV assets can already be read with
 `dataset/gistohq_temporal_csv.{h,cpp}`.
+Mask-aware model rows and contiguous segment identities are produced by
+`dataset/gistohq_model_rows.{h,cpp}` so later lag and sequence builders cannot
+silently cross data gaps.
 
 ## GUI workflow
 

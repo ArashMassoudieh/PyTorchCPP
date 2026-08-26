@@ -141,9 +141,11 @@ native series, produces mask-bearing hourly rows, and intentionally remains
 independent of LibTorch. `dataset/gistohq_temporal_csv.{h,cpp}` now reads strict
 wide or long temporal CSV assets, preserves empty values as missing, validates
 canonical UTC timestamps, and rejects duplicate variable/timestamp identities
-across files. Manifest/`variables.json` parsing and GUI/model integration remain
-separate steps because representative producer metadata fixtures are not present
-in this repository yet.
+across files. `dataset/gistohq_model_rows.{h,cpp}` selects model-ready rows in a
+stable six-feature order and records segment boundaries whenever forcing or
+required-target validity is interrupted. Manifest/`variables.json` parsing,
+Torch tensor conversion, and GUI/model integration remain separate steps because
+representative producer metadata fixtures are not present in this repository yet.
 
 1. Add manifest and variable-metadata fixtures copied from the producer schema.
 2. Implement manifest/variable parsing and checksum/path validation without
@@ -151,7 +153,7 @@ in this repository yet.
 3. Extend the hourly harmonizer tests with the full leap-year producer fixture.
 4. Verify unit conversion, discharge gaps, daily PET, and coverage against that
    fixture in addition to the existing focused unit tests.
-5. Add a Torch tensor adapter that preserves masks and segment boundaries.
+5. Add a Torch tensor adapter that consumes the preserved segment boundaries.
 6. Integrate the new source type into the GUI and the five model workflows.
 7. Enable rainfall-runoff approaches first; enable water-balance physics only
    after the storage compatibility blocker is resolved.
