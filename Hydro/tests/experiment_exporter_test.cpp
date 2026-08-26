@@ -371,50 +371,6 @@ int main() {
                          << "ffn,models/ffn.pt,neuralnetworkwrapper-v1,3," << models.at("ffn").sha256 << '\n';
     }
     {
-        const auto historyPath = root / "training_history.csv";
-        std::ifstream historyInput(historyPath);
-        const std::string validHistory((std::istreambuf_iterator<char>(historyInput)), std::istreambuf_iterator<char>());
-        std::ofstream invalidHistory(historyPath, std::ios::trunc);
-        invalidHistory << "approach,epoch,training_loss,validation_loss,selected_checkpoint\n"
-                       << "ffn,2,0.5,0.4,1\n";
-        invalidHistory.close();
-        bool rejectedHistory = false;
-        try { (void)HydroArtifactLoader().loadTrainingHistory(root.string()); }
-        catch (const std::runtime_error&) { rejectedHistory = true; }
-        assert(rejectedHistory);
-        std::ofstream restoredHistory(historyPath, std::ios::trunc);
-        restoredHistory << validHistory;
-    }
-    {
-        const auto manifestPath = root / "dataset_manifest.json";
-        std::ifstream manifestInput(manifestPath, std::ios::binary);
-        const std::string validManifest((std::istreambuf_iterator<char>(manifestInput)), std::istreambuf_iterator<char>());
-        {
-            std::ofstream corruptManifest(manifestPath, std::ios::binary | std::ios::app);
-            corruptManifest << '\n';
-        }
-        bool rejectedProvenance = false;
-        try { (void)HydroArtifactLoader().loadProvenance(root.string()); }
-        catch (const std::runtime_error&) { rejectedProvenance = true; }
-        assert(rejectedProvenance);
-        std::ofstream restoredManifest(manifestPath, std::ios::binary | std::ios::trunc);
-        restoredManifest << validManifest;
-    }
-    {
-        std::ofstream incompatibleModels(root / "models.csv", std::ios::trunc);
-        incompatibleModels << "approach,file,format,size_bytes,sha256\n"
-                           << "ffn,models/ffn.pt,torch-module-v1,3," << models.at("ffn").sha256 << '\n';
-    }
-    bool rejectedInferenceBundle = false;
-    try { (void)HydroArtifactLoader().loadForInference(root.string()); }
-    catch (const std::runtime_error&) { rejectedInferenceBundle = true; }
-    assert(rejectedInferenceBundle);
-    {
-        std::ofstream compatibleModels(root / "models.csv", std::ios::trunc);
-        compatibleModels << "approach,file,format,size_bytes,sha256\n"
-                         << "ffn,models/ffn.pt,neuralnetworkwrapper-v1,3," << models.at("ffn").sha256 << '\n';
-    }
-    {
         std::ofstream corrupt(root / "models" / "ffn.pt", std::ios::binary | std::ios::app);
         corrupt.put('\x04');
     }

@@ -40,6 +40,21 @@ total watershed storage, ...]` and applies a residual of the form `P - ET - Q - 
 Extra watershed columns remain available to the supervised model as explanatory
 features while the residual keeps a direct mass-balance interpretation.
 
+## GIStoOHQ temporal handoff
+
+The native-resolution GIStoOHQ temporal export requires hourly harmonization, unit conversion, and explicit validity masks before training. The versioned consumer decisions and the storage-profile compatibility blocker are documented in [`GISTOOHQ_HOURLY_HANDOFF.md`](GISTOOHQ_HOURLY_HANDOFF.md).
+The pure C++ hourly harmonizer is available in
+`dataset/gistohq_hourly_harmonizer.{h,cpp}`; direct package parsing and GUI
+selection still require representative producer-schema fixtures. Wide and long
+native temporal CSV assets can already be read with
+`dataset/gistohq_temporal_csv.{h,cpp}`.
+Mask-aware model rows and contiguous segment identities are produced by
+`dataset/gistohq_model_rows.{h,cpp}` so later lag and sequence builders cannot
+silently cross data gaps.
+`dataset/gistohq_tensor_builder.h` preserves timestamps, target masks, and
+segment IDs in tensors and creates recurrent windows and FFN lag expansions
+within segment boundaries.
+
 ## GUI workflow
 
 1. **Data tab**
