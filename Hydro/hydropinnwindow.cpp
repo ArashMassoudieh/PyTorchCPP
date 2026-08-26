@@ -80,13 +80,18 @@ QString modeDisplayName(const QString& mode) {
 std::string resolveConfiguredPackageCatchment(const HydroRunConfig& config) {
     if (!config.use_hydro_package) return config.hydro_catchment_id;
     if (config.hydro_package_path.empty()) throw std::runtime_error("Hydro package path is empty.");
+    const auto packageRoot = resolveHydroPackageDirectory(config.hydro_package_path);
+    if (isGisToOhqHydroPinnExport(packageRoot)) {
+        (void)prepareGisToOhqPackage(packageRoot, true);
+        return config.hydro_catchment_id.empty() ? "GIStoOHQ" : config.hydro_catchment_id;
+    }
     const bool waterBalance = config.hydro_package_profile == "water-balance";
     if (!waterBalance && config.hydro_package_profile != "rainfall-runoff") {
         throw std::runtime_error("Unknown Hydro package profile: " + config.hydro_package_profile);
     }
     DDRRLoader loader;
     const auto dataset = loader.loadPackageDirectory(
-        config.hydro_package_path,
+        packageRoot,
         waterBalance ? HydroDatasetContract::waterBalanceV1() : HydroDatasetContract::rainfallRunoffV1());
     return resolveHydroCatchmentId(dataset, config.hydro_catchment_id);
 }
@@ -2778,6 +2783,15 @@ void HydroPINNWindow::runMode(const QString& mode) {
     HydroRunConfig cfg = currentConfig();
     if (cfg.use_hydro_package) {
         try {
+            const auto packageRoot = resolveHydroPackageDirectory(cfg.hydro_package_path);
+            if (isGisToOhqHydroPinnExport(packageRoot) && mode != "ffn" && mode != "lstm") {
+                throw std::runtime_error(
+                    "GIStoOHQ HydroPINNExport has no observed storage; only FFN and LSTM are enabled. "
+                    "PINN approaches require a separately versioned rainfall-runoff physics profile.");
+            }
+            if (isGisToOhqHydroPinnExport(packageRoot)) {
+                appendLog("Detected GIStoOHQ HydroPINNExport; routing native temporal assets through hourly harmonization.");
+            }
             cfg.hydro_catchment_id = resolveConfiguredPackageCatchment(cfg);
             hydroCatchmentIdEdit_->setText(QString::fromStdString(cfg.hydro_catchment_id));
         } catch (const std::exception& error) {
