@@ -169,6 +169,9 @@ LSTM package windows use the separate elapsed-time tensor to reject windows that
 cross masked hourly gaps; forcing column zero remains precipitation and is never
 treated as a timestamp. Physical timestep inference likewise accepts the explicit
 time tensor rather than assuming time is part of the model features.
+Plain LSTM evaluation leaves physics-residual summaries unset; the strict physics
+metric calculator is invoked only for physics-informed runs that actually produced
+residual samples.
 
 1. Add a full manifest fixture copied from the producer schema and finish mapping
    its asset paths, checksums, profile, and QC status into the adapter.
