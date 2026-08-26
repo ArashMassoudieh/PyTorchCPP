@@ -91,12 +91,12 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
     return true;
 }
 
-inline double regularPhysicalTimeStep(const torch::Tensor& inputs,
-                                      double relativeTolerance = 1.0e-6) {
-    if (!inputs.defined() || inputs.dim() != 2 || inputs.size(0) < 2 || inputs.size(1) < 1) {
-        throw std::runtime_error("Physical timestep inference requires inputs [N,F] with N >= 2.");
+inline double regularPhysicalTimeStepFromTime(const torch::Tensor& physicalTime,
+                                              double relativeTolerance = 1.0e-6) {
+    if (!physicalTime.defined() || physicalTime.numel() < 2) {
+        throw std::runtime_error("Physical timestep inference requires at least two timestamps.");
     }
-    auto time = inputs.slice(1, 0, 1).reshape({-1});
+    auto time = physicalTime.reshape({-1});
     auto intervals = time.slice(0, 1, time.size(0)) - time.slice(0, 0, time.size(0) - 1);
     if ((intervals <= 0).any().item<bool>()) throw std::runtime_error("Physical timestamps must be strictly increasing.");
     const double dt = intervals[0].item<double>();
@@ -105,4 +105,12 @@ inline double regularPhysicalTimeStep(const torch::Tensor& inputs,
         throw std::runtime_error("Current PINN backends require a regular package timestep; irregular timestamps need interval-aware training.");
     }
     return dt;
+}
+
+inline double regularPhysicalTimeStep(const torch::Tensor& inputs,
+                                      double relativeTolerance = 1.0e-6) {
+    if (!inputs.defined() || inputs.dim() != 2 || inputs.size(1) < 1) {
+        throw std::runtime_error("Physical timestep inference requires inputs [N,F] with N >= 2.");
+    }
+    return regularPhysicalTimeStepFromTime(inputs.slice(1, 0, 1), relativeTolerance);
 }

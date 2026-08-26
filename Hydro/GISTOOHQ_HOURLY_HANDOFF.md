@@ -165,13 +165,17 @@ string or as the one-element `units` array emitted by `HydroPINNVariables`.
 Multiple declared units remain invalid because the conversion would be ambiguous.
 Long-form temporal assets use the producer's explicit `timestamp_utc` column;
 the reader retains `timestamp` as a compatibility alias for older fixtures.
+LSTM package windows use the separate elapsed-time tensor to reject windows that
+cross masked hourly gaps; forcing column zero remains precipitation and is never
+treated as a timestamp. Physical timestep inference likewise accepts the explicit
+time tensor rather than assuming time is part of the model features.
 
 1. Add a full manifest fixture copied from the producer schema and finish mapping
    its asset paths, checksums, profile, and QC status into the adapter.
 2. Extend the hourly harmonizer tests with the full leap-year producer fixture.
 3. Verify unit conversion, discharge gaps, daily PET, and coverage against that
    fixture in addition to the existing focused unit tests.
-4. Preserve mask/segment identities through the existing FFN and LSTM split,
-   scaling, lag, and sequence paths rather than only filtering invalid rows.
+4. Preserve segment identities through the existing FFN lag path rather than
+   only filtering invalid rows.
 5. Enable water-balance physics only
    after the storage compatibility blocker is resolved.
