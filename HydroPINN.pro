@@ -190,6 +190,7 @@ HEADERS += \
     Hydro/dataset/ddrr_loader.h \
     Hydro/dataset/gistohq_hourly_harmonizer.h \
     Hydro/dataset/gistohq_model_rows.h \
+    Hydro/dataset/gistohq_tensor_builder.h \
     Hydro/dataset/gistohq_temporal_csv.h \
     Hydro/dataset/hydro_checksum.h \
     Hydro/dataset/hydro_dataset_contract.h \

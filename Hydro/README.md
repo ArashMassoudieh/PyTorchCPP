@@ -51,6 +51,8 @@ native temporal CSV assets can already be read with
 Mask-aware model rows and contiguous segment identities are produced by
 `dataset/gistohq_model_rows.{h,cpp}` so later lag and sequence builders cannot
 silently cross data gaps.
+`dataset/gistohq_tensor_builder.h` preserves timestamps, target masks, and
+segment IDs in tensors and creates recurrent windows within segment boundaries.
 
 ## GUI workflow
 
