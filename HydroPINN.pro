@@ -141,6 +141,7 @@ SOURCES += \
     Utilities/Vector.cpp \
     Utilities/Vector_arma.cpp \
     Hydro/dataset/ddrr_loader.cpp \
+    Hydro/dataset/gistohq_hourly_harmonizer.cpp \
     Hydro/dataset/hydro_checksum.cpp \
     Hydro/dataset/hydro_dataset_contract.cpp \
     Hydro/dataset/lag_builder.cpp \
@@ -185,6 +186,7 @@ HEADERS += \
     Utilities/Vector_arma.h \
     Hydro/hydropinnwindow.h \
     Hydro/dataset/ddrr_loader.h \
+    Hydro/dataset/gistohq_hourly_harmonizer.h \
     Hydro/dataset/hydro_checksum.h \
     Hydro/dataset/hydro_dataset_contract.h \
     Hydro/dataset/hydro_units.h \

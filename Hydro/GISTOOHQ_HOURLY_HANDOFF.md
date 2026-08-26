@@ -135,12 +135,20 @@ Before returning tensors, the future temporal-package adapter must verify:
 
 ## Implementation sequence
 
+The pure C++ hourly harmonizer and its unit/conversion/gap tests are now
+implemented in `dataset/gistohq_hourly_harmonizer.{h,cpp}`. It accepts validated
+native series, produces mask-bearing hourly rows, and intentionally remains
+independent of LibTorch. Package-schema parsing and GUI/model integration remain
+separate steps because representative producer fixtures are not present in this
+repository yet.
+
 1. Add fixtures copied from the producer schema (manifest, variable metadata,
    and small representative temporal CSVs).
 2. Implement manifest/variable parsing and checksum/path validation without
    LibTorch.
-3. Implement the hourly harmonizer and mask table as a pure C++ dataset module.
-4. Add leap-year, unit-conversion, discharge-gap, daily-PET, and coverage tests.
+3. Extend the hourly harmonizer tests with the full leap-year producer fixture.
+4. Verify unit conversion, discharge gaps, daily PET, and coverage against that
+   fixture in addition to the existing focused unit tests.
 5. Add a Torch tensor adapter that preserves masks and segment boundaries.
 6. Integrate the new source type into the GUI and the five model workflows.
 7. Enable rainfall-runoff approaches first; enable water-balance physics only
