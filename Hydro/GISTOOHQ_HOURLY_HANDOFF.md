@@ -145,7 +145,8 @@ across files. `dataset/gistohq_model_rows.{h,cpp}` selects model-ready rows in a
 stable six-feature order and records segment boundaries whenever forcing or
 required-target validity is interrupted. `dataset/gistohq_tensor_builder.h`
 converts those rows into feature, target, timestamp, validity, and segment tensors
-and constructs LSTM windows independently inside each segment. Manifest/
+and constructs LSTM windows and FFN lag expansions independently inside each
+segment. Manifest/
 `variables.json` parsing and GUI/model integration remain separate steps because
 representative producer metadata fixtures are not present in this repository yet.
 
@@ -155,7 +156,6 @@ representative producer metadata fixtures are not present in this repository yet
 3. Extend the hourly harmonizer tests with the full leap-year producer fixture.
 4. Verify unit conversion, discharge gaps, daily PET, and coverage against that
    fixture in addition to the existing focused unit tests.
-5. Add segment-aware FFN lag expansion to the Torch adapter.
-6. Integrate the new source type into the GUI and the five model workflows.
-7. Enable rainfall-runoff approaches first; enable water-balance physics only
+5. Integrate the new source type into the GUI and the five model workflows.
+6. Enable rainfall-runoff approaches first; enable water-balance physics only
    after the storage compatibility blocker is resolved.

@@ -38,5 +38,20 @@ int main() {
     assert(supervised.epoch_seconds[0].item<std::int64_t>() == 3600);
     assert(supervised.epoch_seconds[1].item<std::int64_t>() == 14400);
     assert(supervised.target_valid.all().item<bool>());
+
+    const std::string lags = "1;1;1;1;1;1";
+    const auto laggedInference = buildGisToOhqLaggedTensors(table, lags, false);
+    assert(laggedInference.features.sizes() == torch::IntArrayRef({3, 12}));
+    assert(laggedInference.epoch_seconds[0].item<std::int64_t>() == 3600);
+    assert(laggedInference.epoch_seconds[1].item<std::int64_t>() == 7200);
+    assert(laggedInference.epoch_seconds[2].item<std::int64_t>() == 14400);
+    assert(laggedInference.segment_ids[1].item<std::int64_t>() == 0);
+    assert(laggedInference.segment_ids[2].item<std::int64_t>() == 1);
+    assert(!laggedInference.target_valid[1].item<bool>());
+    const auto laggedSupervised = buildGisToOhqLaggedTensors(table, lags, true);
+    assert(laggedSupervised.features.sizes() == torch::IntArrayRef({2, 12}));
+    assert(laggedSupervised.epoch_seconds[0].item<std::int64_t>() == 3600);
+    assert(laggedSupervised.epoch_seconds[1].item<std::int64_t>() == 14400);
+    assert(laggedSupervised.target_valid.all().item<bool>());
     return 0;
 }

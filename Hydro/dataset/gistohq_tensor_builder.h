@@ -1,11 +1,14 @@
 #pragma once
 
 #include "gistohq_model_rows.h"
+#include "lagged_tensor_builder.h"
 
 #include <torch/torch.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 struct GisToOhqTensorTable {
@@ -23,6 +26,14 @@ struct GisToOhqSequenceTensors {
     torch::Tensor target_valid;  // [windows], bool
     torch::Tensor epoch_seconds; // endpoint timestamps
     torch::Tensor segment_ids;   // [windows], int64
+};
+
+struct GisToOhqLaggedTensors {
+    torch::Tensor features;      // [rows, expanded_features]
+    torch::Tensor targets;       // [rows, 1]
+    torch::Tensor target_valid;  // [rows], bool
+    torch::Tensor epoch_seconds; // aligned timestamps
+    torch::Tensor segment_ids;   // [rows], int64
 };
 
 inline GisToOhqTensorTable buildGisToOhqTensorTable(const std::vector<GisToOhqModelRow>& rows) {
@@ -103,5 +114,49 @@ inline GisToOhqSequenceTensors buildGisToOhqSequenceTensors(
     }
     if (featureWindows.empty()) throw std::runtime_error("GIStoOHQ segments contain no eligible sequence windows.");
     return {torch::cat(featureWindows), torch::cat(targetChunks), torch::cat(validChunks),
+            torch::cat(timestampChunks), torch::cat(segmentChunks)};
+}
+
+inline GisToOhqLaggedTensors buildGisToOhqLaggedTensors(
+    const GisToOhqTensorTable& table, const std::string& lagSpecification,
+    const bool requireObservedTarget) {
+    if (!table.features.defined() || table.features.dim() != 2 || table.features.size(1) != 6 ||
+        !table.targets.defined() || table.targets.dim() != 2 || table.targets.size(0) != table.features.size(0) ||
+        table.targets.size(1) != 1 || !table.target_valid.defined() || table.target_valid.dim() != 1 ||
+        table.target_valid.size(0) != table.features.size(0) || !table.epoch_seconds.defined() ||
+        table.epoch_seconds.dim() != 1 || table.epoch_seconds.size(0) != table.features.size(0) ||
+        !table.segment_ids.defined() || table.segment_ids.dim() != 1 ||
+        table.segment_ids.size(0) != table.features.size(0)) {
+        throw std::invalid_argument("GIStoOHQ tensor table has inconsistent shapes.");
+    }
+    const auto lags = parseHydroLagSpecification(lagSpecification, 6);
+    std::int64_t maximumLag = 0;
+    for (const auto& feature : lags) for (const int lag : feature) maximumLag = std::max(maximumLag, std::int64_t(lag));
+    std::vector<torch::Tensor> featureChunks, targetChunks, validChunks, timestampChunks, segmentChunks;
+    std::int64_t begin = 0;
+    while (begin < table.features.size(0)) {
+        const auto segment = table.segment_ids[begin].item<std::int64_t>();
+        std::int64_t end = begin + 1;
+        while (end < table.features.size(0) && table.segment_ids[end].item<std::int64_t>() == segment) ++end;
+        if (end - begin > maximumLag) {
+            auto expanded = buildHydroLaggedTensor(table.features.slice(0, begin, end), lagSpecification);
+            auto endpoints = torch::arange(begin + expanded.leading_rows, end, torch::kInt64);
+            if (requireObservedTarget) {
+                const auto keep = table.target_valid.index_select(0, endpoints);
+                expanded.inputs = expanded.inputs.index({keep});
+                endpoints = endpoints.index({keep});
+            }
+            if (endpoints.numel() > 0) {
+                featureChunks.push_back(expanded.inputs);
+                targetChunks.push_back(table.targets.index_select(0, endpoints));
+                validChunks.push_back(table.target_valid.index_select(0, endpoints));
+                timestampChunks.push_back(table.epoch_seconds.index_select(0, endpoints));
+                segmentChunks.push_back(table.segment_ids.index_select(0, endpoints));
+            }
+        }
+        begin = end;
+    }
+    if (featureChunks.empty()) throw std::runtime_error("GIStoOHQ segments contain no eligible lagged rows.");
+    return {torch::cat(featureChunks), torch::cat(targetChunks), torch::cat(validChunks),
             torch::cat(timestampChunks), torch::cat(segmentChunks)};
 }
