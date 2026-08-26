@@ -118,6 +118,15 @@ int main() {
     assert(packaged.catchment_area_m2.at("a") == 1.0e6);
     assert(packaged.variable_units.at("observed_discharge") == "m3/s");
     assert(packaged.observations_by_catchment.at("b").size() == 3);
+    const std::filesystem::path packageParent = "/tmp/hydro_loader_package_parent";
+    std::filesystem::remove_all(packageParent);
+    std::filesystem::create_directories(packageParent);
+    std::filesystem::rename(package, packageParent / "release_001");
+    const auto packagedFromParent = loader.loadPackageDirectory(
+        packageParent.string(), HydroDatasetContract::waterBalanceV1());
+    assert(packagedFromParent.dataset_id == "two-catchment-test");
+    std::filesystem::rename(packageParent / "release_001", package);
+    std::filesystem::remove_all(packageParent);
     assert(resolveHydroCatchmentId(packaged, "a") == "a");
     bool rejectedAmbiguousCatchment = false;
     try { (void)resolveHydroCatchmentId(packaged, ""); }

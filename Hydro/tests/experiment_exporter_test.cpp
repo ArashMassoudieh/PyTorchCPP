@@ -143,6 +143,8 @@ int main() {
     assert(!inferenceArtifacts.environment.compiler.empty());
     assert(inferenceArtifacts.provenance.fingerprint_algorithm == "sha256");
     assert(inferenceArtifacts.provenance.dataset_manifest_sha256.size() == 64);
+    const auto inferenceArtifactsFromParent = HydroArtifactLoader().loadForInference(output.string());
+    assert(inferenceArtifactsFromParent.experiment.experiment_id == "run_001");
     {
         std::ofstream unexpected(root / "unexpected.txt");
         unexpected << "not listed";
