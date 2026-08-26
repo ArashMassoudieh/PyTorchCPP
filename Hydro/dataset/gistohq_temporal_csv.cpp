@@ -112,8 +112,11 @@ GisToOhqHourlyInputs loadGisToOhqTemporalCsvFiles(const std::vector<std::string>
         for (std::size_t i = 0; i < header.size(); ++i) {
             if (!columns.emplace(header[i], i).second) throw std::runtime_error("Temporal CSV has a duplicate column: " + header[i]);
         }
-        const auto timestamp = columns.find("timestamp");
-        if (timestamp == columns.end()) throw std::runtime_error("Temporal CSV requires a timestamp column.");
+        auto timestamp = columns.find("timestamp_utc");
+        if (timestamp == columns.end()) timestamp = columns.find("timestamp");
+        if (timestamp == columns.end()) {
+            throw std::runtime_error("Temporal CSV requires a timestamp_utc or timestamp column.");
+        }
         const bool longForm = columns.count("variable") && columns.count("value");
         std::vector<std::pair<std::string, std::size_t>> wideVariables;
         if (!longForm) {

@@ -163,6 +163,8 @@ inferring bounds from temporal CSV coverage.
 Producer variable metadata may declare its single native unit either as a JSON
 string or as the one-element `units` array emitted by `HydroPINNVariables`.
 Multiple declared units remain invalid because the conversion would be ambiguous.
+Long-form temporal assets use the producer's explicit `timestamp_utc` column;
+the reader retains `timestamp` as a compatibility alias for older fixtures.
 
 1. Add a full manifest fixture copied from the producer schema and finish mapping
    its asset paths, checksums, profile, and QC status into the adapter.
