@@ -5,6 +5,11 @@ GIStoOHQ and downstream hydrology applications. Producers acquire, cache,
 harmonize, quality-control, and document data. Consumers such as HydroPINN own
 their experimental splits, scaling, training, and evaluation.
 
+GIStoOHQ exports that retain separate native-resolution temporal assets are an
+upstream handoff format, not this canonical observation table. Their proposed
+hourly conversion, validity-mask rules, and storage compatibility constraint are
+defined in [`GISTOOHQ_HOURLY_HANDOFF.md`](GISTOOHQ_HOURLY_HANDOFF.md).
+
 ## Package layout
 
 ```text
