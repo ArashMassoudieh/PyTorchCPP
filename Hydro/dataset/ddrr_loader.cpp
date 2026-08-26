@@ -238,14 +238,8 @@ HydroObservationDataset DDRRLoader::loadObservations(
 HydroObservationDataset DDRRLoader::loadPackageDirectory(
     const std::string& packageDirectory,
     const HydroDatasetContract& contract) const {
-    const std::filesystem::path root(packageDirectory);
-    if (!std::filesystem::is_directory(root)) {
-        throw std::runtime_error("Hydro package directory does not exist: " + packageDirectory);
-    }
+    const std::filesystem::path root(resolveHydroPackageDirectory(packageDirectory));
     const auto manifestPath = root / "manifest.json";
-    if (!std::filesystem::is_regular_file(manifestPath)) {
-        throw std::runtime_error("Hydro package is missing manifest.json.");
-    }
     const HydroPackageManifest manifest = loadManifest(manifestPath.string());
     if (manifest.schema_name != contract.schema_name) throw std::runtime_error("Package schema_name is incompatible with the selected contract.");
     if (semanticMajor(manifest.schema_version) != semanticMajor(contract.schema_version)) {

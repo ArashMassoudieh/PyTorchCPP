@@ -22,20 +22,21 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         throw std::runtime_error("Unknown Hydro package profile: " + config.hydro_package_profile);
     }
     DDRRLoader loader;
+    const auto packageRoot = resolveHydroPackageDirectory(config.hydro_package_path);
     const auto dataset = loader.loadPackageDirectory(
-        config.hydro_package_path,
+        packageRoot,
         waterBalance ? HydroDatasetContract::waterBalanceV1() : HydroDatasetContract::rainfallRunoffV1());
     const std::string catchmentId = resolveHydroCatchmentId(dataset, config.hydro_catchment_id);
     const auto found = dataset.observations_by_catchment.find(catchmentId);
     const auto& rows = found->second;
     std::optional<AlignedForecastFeature> forecastFeature;
     if (config.use_hydro_forecast_feature) {
-        const auto manifest = loader.loadManifest(config.hydro_package_path + "/manifest.json");
+        const auto manifest = loader.loadManifest(packageRoot + "/manifest.json");
         if (manifest.forecast_file.empty()) throw std::runtime_error("Hydro package has no forecast_file for the requested forecast feature.");
         std::vector<std::string> validTimes;
         validTimes.reserve(rows.size());
         for (const auto& row : rows) validTimes.push_back(row.timestamp);
-        const auto forecasts = loader.loadForecasts(config.hydro_package_path + "/" + manifest.forecast_file, {});
+        const auto forecasts = loader.loadForecasts(packageRoot + "/" + manifest.forecast_file, {});
         forecastFeature = buildAlignedForecastFeature(
             forecasts, validTimes, catchmentId, config.hydro_forecast_variable,
             config.hydro_forecast_lead_hours, config.hydro_forecast_ensemble_member);
