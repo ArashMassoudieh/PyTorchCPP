@@ -194,6 +194,7 @@ HEADERS += \
     Hydro/dataset/gistohq_temporal_csv.h \
     Hydro/dataset/hydro_checksum.h \
     Hydro/dataset/hydro_dataset_contract.h \
+    Hydro/dataset/hydro_package_directory.h \
     Hydro/dataset/hydro_units.h \
     Hydro/dataset/forecast_alignment.h \
     Hydro/dataset/hydro_tensor_builder.h \

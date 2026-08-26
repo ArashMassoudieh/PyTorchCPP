@@ -19,9 +19,10 @@ int main() {
     config.optimizer = "rmsprop";
     config.shuffle_training = false;
     const auto package = output / "source_package";
-    std::filesystem::create_directories(package);
+    const auto packageRoot = package / "release_001";
+    std::filesystem::create_directories(packageRoot);
     {
-        std::ofstream manifest(package / "manifest.json");
+        std::ofstream manifest(packageRoot / "manifest.json");
         manifest << R"({"schema_name":"hydro-observations","dataset_id":"fixture"})";
     }
     config.use_hydro_package = true;

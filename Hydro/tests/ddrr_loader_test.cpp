@@ -125,6 +125,14 @@ int main() {
     const auto packagedFromParent = loader.loadPackageDirectory(
         packageParent.string(), HydroDatasetContract::waterBalanceV1());
     assert(packagedFromParent.dataset_id == "two-catchment-test");
+    std::filesystem::create_directories(packageParent / "release_002");
+    std::filesystem::copy_file(packageParent / "release_001" / "manifest.json",
+                               packageParent / "release_002" / "manifest.json");
+    bool rejectedAmbiguousPackageParent = false;
+    try { (void)resolveHydroPackageDirectory(packageParent.string()); }
+    catch (const std::runtime_error&) { rejectedAmbiguousPackageParent = true; }
+    assert(rejectedAmbiguousPackageParent);
+    std::filesystem::remove_all(packageParent / "release_002");
     std::filesystem::rename(packageParent / "release_001", package);
     std::filesystem::remove_all(packageParent);
     assert(resolveHydroCatchmentId(packaged, "a") == "a");

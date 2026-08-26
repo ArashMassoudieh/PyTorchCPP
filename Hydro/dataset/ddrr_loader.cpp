@@ -238,27 +238,8 @@ HydroObservationDataset DDRRLoader::loadObservations(
 HydroObservationDataset DDRRLoader::loadPackageDirectory(
     const std::string& packageDirectory,
     const HydroDatasetContract& contract) const {
-    std::filesystem::path root(packageDirectory);
-    if (!std::filesystem::is_directory(root)) {
-        throw std::runtime_error("Hydro package directory does not exist: " + packageDirectory);
-    }
-    auto manifestPath = root / "manifest.json";
-    if (!std::filesystem::is_regular_file(manifestPath)) {
-        std::vector<std::filesystem::path> candidates;
-        for (const auto& entry : std::filesystem::directory_iterator(root)) {
-            if (entry.is_directory() && std::filesystem::is_regular_file(entry.path() / "manifest.json")) {
-                candidates.push_back(entry.path());
-            }
-        }
-        if (candidates.size() == 1) {
-            root = candidates.front();
-            manifestPath = root / "manifest.json";
-        }
-    }
-    if (!std::filesystem::is_regular_file(manifestPath)) {
-        throw std::runtime_error("Selected Hydro package directory '" + packageDirectory +
-                                 "' is missing manifest.json (or a single immediate child package containing it).");
-    }
+    const std::filesystem::path root(resolveHydroPackageDirectory(packageDirectory));
+    const auto manifestPath = root / "manifest.json";
     const HydroPackageManifest manifest = loadManifest(manifestPath.string());
     if (manifest.schema_name != contract.schema_name) throw std::runtime_error("Package schema_name is incompatible with the selected contract.");
     if (semanticMajor(manifest.schema_version) != semanticMajor(contract.schema_version)) {

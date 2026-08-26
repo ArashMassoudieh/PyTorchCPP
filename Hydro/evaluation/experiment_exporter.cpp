@@ -1,4 +1,5 @@
 #include "experiment_exporter.h"
+#include "../dataset/hydro_package_directory.h"
 #include "../dataset/hydro_checksum.h"
 #include "hydro_metrics.h"
 
@@ -305,10 +306,8 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
                 << "}\n";
 
     if (config.use_hydro_package && !config.hydro_package_path.empty()) {
-        const auto sourceManifest = std::filesystem::path(config.hydro_package_path) / "manifest.json";
-        if (!std::filesystem::is_regular_file(sourceManifest)) {
-            throw std::runtime_error("Cannot export package-backed experiment without source manifest.json.");
-        }
+        const auto sourceManifest = std::filesystem::path(
+            resolveHydroPackageDirectory(config.hydro_package_path)) / "manifest.json";
         std::filesystem::copy_file(sourceManifest, root / "dataset_manifest.json",
                                    std::filesystem::copy_options::overwrite_existing);
         const auto provenancePath = root / "provenance.json";
