@@ -76,6 +76,20 @@ QString modeDisplayName(const QString& mode) {
     if (mode == "lstm_pinn") return "LSTM + PINN";
     return mode;
 }
+
+std::string resolveConfiguredPackageCatchment(const HydroRunConfig& config) {
+    if (!config.use_hydro_package) return config.hydro_catchment_id;
+    if (config.hydro_package_path.empty()) throw std::runtime_error("Hydro package path is empty.");
+    const bool waterBalance = config.hydro_package_profile == "water-balance";
+    if (!waterBalance && config.hydro_package_profile != "rainfall-runoff") {
+        throw std::runtime_error("Unknown Hydro package profile: " + config.hydro_package_profile);
+    }
+    DDRRLoader loader;
+    const auto dataset = loader.loadPackageDirectory(
+        config.hydro_package_path,
+        waterBalance ? HydroDatasetContract::waterBalanceV1() : HydroDatasetContract::rainfallRunoffV1());
+    return resolveHydroCatchmentId(dataset, config.hydro_catchment_id);
+}
 }
 
 HydroPINNWindow::HydroPINNWindow(QWidget* parent)
@@ -1199,6 +1213,22 @@ void HydroPINNWindow::runLagOptimizationSearch() {
     QCoreApplication::processEvents();
 
     HydroRunConfig baseCfg = currentConfig();
+    if (baseCfg.use_hydro_package) {
+        try {
+            baseCfg.hydro_catchment_id = resolveConfiguredPackageCatchment(baseCfg);
+            hydroCatchmentIdEdit_->setText(QString::fromStdString(baseCfg.hydro_catchment_id));
+            appendLog(QString("GA package preflight selected catchment '%1'.")
+                          .arg(QString::fromStdString(baseCfg.hydro_catchment_id)));
+        } catch (const std::exception& error) {
+            appendLog(QString("GA lag optimization aborted before candidate evaluation: %1").arg(error.what()));
+            statusLabel_->setText("GA lag optimization preflight failed.");
+            stopGAButton_->setEnabled(false);
+            startGAButton_->setEnabled(true);
+            updateFfnLagUiState();
+            QMessageBox::warning(this, "HydroPINN GA", QString("Package preflight failed: %1").arg(error.what()));
+            return;
+        }
+    }
     baseCfg.use_time_lagged_ffn = true;
     baseCfg.epochs = std::max(1, std::min(baseCfg.epochs, epochsPerWindowSpin_->value()));
 
@@ -2746,6 +2776,19 @@ void HydroPINNWindow::runMode(const QString& mode) {
     appendLog("Dispatch started.");
 
     HydroRunConfig cfg = currentConfig();
+    if (cfg.use_hydro_package) {
+        try {
+            cfg.hydro_catchment_id = resolveConfiguredPackageCatchment(cfg);
+            hydroCatchmentIdEdit_->setText(QString::fromStdString(cfg.hydro_catchment_id));
+        } catch (const std::exception& error) {
+            const QString details = QString("Package preflight failed: %1").arg(error.what());
+            appendLog(details);
+            statusLabel_->setText(QString("Approach failed: %1").arg(modeDisplayName(mode)));
+            setRunningUiState(false);
+            QMessageBox::warning(this, "HydroPINN", details);
+            return;
+        }
+    }
     const std::vector<QString> layerActs = configuredLayerActivations();
     if (!layerActs.empty()) {
         bool mixedActivations = false;

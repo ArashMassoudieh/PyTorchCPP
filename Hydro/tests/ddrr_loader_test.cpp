@@ -118,6 +118,14 @@ int main() {
     assert(packaged.catchment_area_m2.at("a") == 1.0e6);
     assert(packaged.variable_units.at("observed_discharge") == "m3/s");
     assert(packaged.observations_by_catchment.at("b").size() == 3);
+    assert(resolveHydroCatchmentId(packaged, "a") == "a");
+    bool rejectedAmbiguousCatchment = false;
+    try { (void)resolveHydroCatchmentId(packaged, ""); }
+    catch (const std::runtime_error&) { rejectedAmbiguousCatchment = true; }
+    assert(rejectedAmbiguousCatchment);
+    auto singleCatchment = packaged;
+    singleCatchment.observations_by_catchment.erase("b");
+    assert(resolveHydroCatchmentId(singleCatchment, "") == "a");
 
     {
         std::ofstream out(package / "variables.json");

@@ -56,6 +56,10 @@ struct HydroPackageManifest {
     std::string forecast_sha256;
 };
 
+/** Resolves an explicit catchment or selects the package's sole catchment. */
+std::string resolveHydroCatchmentId(const HydroObservationDataset& dataset,
+                                    const std::string& requestedCatchmentId);
+
 /** Loads validated generic hydro-observation CSV exports. */
 class DDRRLoader {
 public:

@@ -260,7 +260,11 @@ work.
 All four trainable wrapper families accept the same package/catchment
 configuration and build named physical tensors through the shared package
 loader. The Data tab exposes **Hydro Package** directory, catchment ID, and
-profile controls.
+profile controls. A blank catchment ID is resolved automatically only when a
+canonical package contains exactly one catchment; multi-catchment packages
+require an explicit selection. GA performs this package preflight once before
+candidate evaluation, preventing the same configuration error from repeating
+for every lag candidate.
 
 Package-backed PINN runs infer their physical timestep from the elapsed-hour
 column instead of trusting a manually entered `physics_dt`. Current training
