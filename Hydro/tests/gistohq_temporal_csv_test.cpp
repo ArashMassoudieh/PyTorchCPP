@@ -19,14 +19,14 @@ int main() {
     }
     {
         std::ofstream out(pet);
-        out << "timestamp,variable,value,unit\n"
-            << "2024-01-01T00:00:00Z,EVPTRNS,58.8,MJ/m2/day\n";
+        out << "timestamp_utc,variable,value,native_unit,provider_qualifiers\n"
+            << "2024-01-01T00:00:00Z,EVPTRNS,58.8,MJ/m^2/day,\n";
     }
     {
         std::ofstream out(discharge);
-        out << "timestamp,variable,value\n"
-            << "2024-01-01T01:00:00Z,00060,100\n"
-            << "2024-01-01T01:05:00Z,00060,101\n";
+        out << "timestamp_utc,variable,value,native_unit,provider_qualifiers\n"
+            << "2024-01-01T01:00:00Z,00060,100,ft3/s,A\n"
+            << "2024-01-01T01:05:00Z,00060,101,ft3/s,A\n";
     }
     const auto inputs = loadGisToOhqTemporalCsvFiles(
         {discharge.string(), weather.string(), pet.string()});

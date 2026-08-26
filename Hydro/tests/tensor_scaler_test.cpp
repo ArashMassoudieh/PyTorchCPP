@@ -47,6 +47,8 @@ int main() {
 
     auto regular = torch::tensor({{0.0f, 1.0f}, {0.5f, 2.0f}, {1.0f, 3.0f}});
     assert(regularPhysicalTimeStep(regular) == 0.5);
+    auto physicalTime = torch::tensor({{0.0f}, {0.5f}, {1.0f}});
+    assert(regularPhysicalTimeStepFromTime(physicalTime) == 0.5);
     bool irregularRejected = false;
     try {
         (void)regularPhysicalTimeStep(torch::tensor({{0.0f}, {0.5f}, {1.1f}}));
