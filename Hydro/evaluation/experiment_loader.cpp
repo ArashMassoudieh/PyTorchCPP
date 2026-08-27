@@ -40,7 +40,7 @@ void appendUtf8(std::string& decoded, const std::uint32_t codePoint, const std::
     } else if (codePoint <= 0xffff) {
         decoded.push_back(static_cast<char>(0xe0 | (codePoint >> 12)));
         decoded.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3f)));
-        decoded.push_back(static_cast<char>(0x80 | (codePoint & 0x3f));
+        decoded.push_back(static_cast<char>(0x80 | (codePoint & 0x3f)));
     } else if (codePoint <= 0x10ffff) {
         decoded.push_back(static_cast<char>(0xf0 | (codePoint >> 18)));
         decoded.push_back(static_cast<char>(0x80 | ((codePoint >> 12) & 0x3f)));
