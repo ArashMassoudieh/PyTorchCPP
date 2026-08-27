@@ -60,6 +60,21 @@ From the PyTorchCPP repository root, launch HydroPINN, choose **Load Experiment 
 
 If PyTorchCPP and GIStoOHQ are not sibling directories, edit `hydro_package_path` in the JSON files.
 
+### GUI batch run
+
+The GUI also exposes **Run Config Batch...** in a Batch toolbar and Batch menu. It accepts the same `.batch` files as the command-line runner, asks for an output directory, launches `HydroBatch`, and streams the batch output into a modeless progress dialog. The main HydroPINN window remains responsive while the external batch process is active.
+
+The GUI searches for the `HydroBatch` executable beside the HydroPINN executable and in common `build-hydrobatch` locations. If it cannot find it, it prompts for the executable. The dialog provides **Stop Batch** and **Close** actions and reports the final `batch_summary.csv` location.
+
+Build `HydroBatch` at least once before using the GUI batch action:
+
+```bash
+mkdir -p build-hydrobatch
+cd build-hydrobatch
+qmake ../HydroBatch.pro CONFIG+=PowerEdge
+make -j4
+```
+
 ## Batch run
 
 A headless batch runner is available for repeated configuration sweeps. Build it separately from the GUI:
