@@ -1,0 +1,11 @@
+experiment_id,approach,normalization,memory_hours,validation_mse,test_mse,rmse,mae,nse,kge,pbias,correlation,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,best_epoch,notes
+sligo_ffn_none_basic1,FFN,none,1,0.00025160777,0.0023148554,0.048112944,0.023749184,-0.74230916,,-109.21215,,,,,,,verified integration baseline
+sligo_lstm_none_seq6,LSTM,none,6,0.00039053135,0.0010477584,0.032369097,0.020267447,0.21346491,,25.261933,,,,,,,verified integration baseline
+sligo_lstm_standardize_seq6,LSTM,standardize,6,,,,,,,,,,,,,,,
+sligo_lstm_standardize_seq12,LSTM,standardize,12,,,,,,,,,,,,,,,
+sligo_lstm_standardize_seq24,LSTM,standardize,24,,,,,,,,,,,,,,,
+sligo_lstm_standardize_seq48,LSTM,standardize,48,,,,,,,,,,,,,,,
+sligo_ffn_standardize_lag6,FFN,standardize,6,,,,,,,,,,,,,,,
+sligo_ffn_standardize_lag12,FFN,standardize,12,,,,,,,,,,,,,,,
+sligo_ffn_standardize_lag24,FFN,standardize,24,,,,,,,,,,,,,,,
+sligo_ffn_standardize_lag48,FFN,standardize,48,,,,,,,,,,,,,,,
