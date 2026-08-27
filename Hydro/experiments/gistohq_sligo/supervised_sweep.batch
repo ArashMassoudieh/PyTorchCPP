@@ -1,0 +1,11 @@
+# FFN memory sweep
+ffn ffn_standardize_lag6.json
+ffn ffn_standardize_lag12.json
+ffn ffn_standardize_lag24.json
+ffn ffn_standardize_lag48.json
+
+# LSTM sequence sweep
+lstm lstm_standardize_seq6.json
+lstm lstm_standardize_seq12.json
+lstm lstm_standardize_seq24.json
+lstm lstm_standardize_seq48.json
