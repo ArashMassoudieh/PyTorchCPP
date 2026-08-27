@@ -1,0 +1,5 @@
+# mode  config-json (relative to this batch file)
+lstm lstm_standardize_seq6.json
+lstm lstm_standardize_seq12.json
+lstm lstm_standardize_seq24.json
+lstm lstm_standardize_seq48.json
