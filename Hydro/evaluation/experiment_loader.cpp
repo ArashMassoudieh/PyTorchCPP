@@ -174,7 +174,6 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     if (c.lstm_sequence_length < 1) {
         throw std::runtime_error("Experiment configuration contains invalid LSTM sequence length.");
     }
-    hydroLstmSequenceLengthRuntimeDefault() = c.lstm_sequence_length;
     c.pinn_physics_profile = stringValue(json, "physics_profile");
     c.data_weight = numberValue(json, "data_weight");
     c.physics_weight = numberValue(json, "physics_weight");
@@ -206,5 +205,6 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
         c.train_split_ratio + c.validation_split_ratio >= 1.0) {
         throw std::runtime_error("Experiment configuration contains invalid training or split settings.");
     }
+    hydroLstmSequenceLengthRuntimeDefault() = c.lstm_sequence_length;
     return loaded;
 }
