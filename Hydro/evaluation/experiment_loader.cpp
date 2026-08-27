@@ -40,7 +40,7 @@ void appendUtf8(std::string& decoded, const std::uint32_t codePoint, const std::
     } else if (codePoint <= 0xffff) {
         decoded.push_back(static_cast<char>(0xe0 | (codePoint >> 12)));
         decoded.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3f)));
-        decoded.push_back(static_cast<char>(0x80 | (codePoint & 0x3f)));
+        decoded.push_back(static_cast<char>(0x80 | (codePoint & 0x3f));
     } else if (codePoint <= 0x10ffff) {
         decoded.push_back(static_cast<char>(0xf0 | (codePoint >> 18)));
         decoded.push_back(static_cast<char>(0x80 | ((codePoint >> 12) & 0x3f)));
@@ -171,6 +171,10 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.activation = stringValue(json, "activation");
     c.use_time_lagged_ffn = boolValue(json, "use_time_lagged_ffn");
     c.lstm_sequence_length = integerValue(json, "lstm_sequence_length");
+    if (c.lstm_sequence_length < 1) {
+        throw std::runtime_error("Experiment configuration contains invalid LSTM sequence length.");
+    }
+    hydroLstmSequenceLengthRuntimeDefault() = c.lstm_sequence_length;
     c.pinn_physics_profile = stringValue(json, "physics_profile");
     c.data_weight = numberValue(json, "data_weight");
     c.physics_weight = numberValue(json, "physics_weight");
