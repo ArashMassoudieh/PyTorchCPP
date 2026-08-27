@@ -39,6 +39,14 @@ FFN forcing histories:
 
 For the FFN configurations a single lag group applies the listed lags to every forcing feature. The LSTM keeps sequence memory internally and does not use the FFN lag builder.
 
+The experiment loader now propagates `lstm_sequence_length` into subsequent GUI-created run configurations. After loading a sequence configuration, verify the run log reports the requested value, for example:
+
+```text
+LSTM sequence length=24
+```
+
+A repeated `6` after loading the 12/24/48 h configurations indicates an out-of-date build rather than a valid sweep result.
+
 ## How to run
 
 From the PyTorchCPP repository root, launch HydroPINN, choose **Load Experiment Config...**, load one JSON file from this directory, then run the intended plain supervised approach (FFN or LSTM). Export the completed experiment after each run so predictions, split labels, scalers, losses, checkpoints, and hydrologic metrics are retained.
@@ -50,6 +58,15 @@ If PyTorchCPP and GIStoOHQ are not sibling directories, edit `hydro_package_path
 Use validation metrics for selecting memory/normalization settings. Report held-out test metrics only after choosing the configuration. Do not choose a configuration from test NSE or PBIAS.
 
 For hydrologic comparison, prioritize NSE/KGE, PBIAS, peak timing/magnitude error, high-flow RMSE, low-flow RMSE, and hydrograph/flow-duration plots in addition to MSE.
+
+## Plot-button applicability
+
+The general comparison plots work with stored supervised FFN/LSTM results: target vs predicted, 1:1 scatter, approach subplots, residuals, absolute-error CDF, Taylor diagram, and flow-duration curves.
+
+Two plot actions are intentionally context-specific:
+
+- **Synthetic Inputs + Output** is available only when the Data source is `Synthetic`; the GUI disables it for CSV and Hydro Package inputs instead of presenting a button that silently has no applicable data.
+- **Cumulative Physics Residual (PINN only)** requires a successful physics-informed run containing stored physics residuals. Plain FFN/LSTM results do not define that quantity.
 
 ## PINN scope
 
