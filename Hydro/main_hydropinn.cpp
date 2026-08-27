@@ -5,6 +5,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialog>
+#include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -16,6 +17,7 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QSurfaceFormat>
+#include <QTextCursor>
 #include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
