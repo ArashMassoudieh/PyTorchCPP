@@ -30,6 +30,23 @@ std::string trim(const std::string& value) {
     return value.substr(begin, end - begin + 1);
 }
 
+std::string normalizeBatchLine(std::string line, std::size_t line_number) {
+    // Tolerate editors that save .batch files with a UTF-8 BOM. A BOM on
+    // line 1 would otherwise hide a leading '#' and turn a comment into
+    // three parser tokens (e.g. "# FFN memory sweep").
+    if (line_number == 1 && line.size() >= 3 &&
+        static_cast<unsigned char>(line[0]) == 0xEF &&
+        static_cast<unsigned char>(line[1]) == 0xBB &&
+        static_cast<unsigned char>(line[2]) == 0xBF) {
+        line.erase(0, 3);
+    }
+
+    // Allow trailing comments after a valid job as well as whole-line comments.
+    const auto comment = line.find('#');
+    if (comment != std::string::npos) line.erase(comment);
+    return trim(line);
+}
+
 std::vector<BatchJob> readBatchFile(const fs::path& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Unable to open Hydro batch file: " + path.string());
@@ -39,20 +56,20 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
     std::size_t line_number = 0;
     while (std::getline(input, line)) {
         ++line_number;
-        const std::string stripped = trim(line);
-        if (stripped.empty() || stripped.front() == '#') continue;
+        const std::string stripped = normalizeBatchLine(line, line_number);
+        if (stripped.empty()) continue;
 
         std::istringstream parser(stripped);
         std::string mode;
         std::string config;
         if (!(parser >> mode >> config)) {
             throw std::runtime_error("Invalid Hydro batch entry at line " + std::to_string(line_number) +
-                                     "; expected: <ffn|lstm> <config.json>");
+                                     "; expected: <ffn|lstm> <config.json>; content='" + stripped + "'");
         }
         std::string extra;
         if (parser >> extra) {
             throw std::runtime_error("Unexpected extra token in Hydro batch entry at line " +
-                                     std::to_string(line_number));
+                                     std::to_string(line_number) + "; content='" + stripped + "'");
         }
         if (mode != "ffn" && mode != "lstm") {
             throw std::runtime_error("Unsupported supervised Hydro batch mode at line " +
@@ -61,6 +78,10 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
 
         fs::path config_path(config);
         if (config_path.is_relative()) config_path = path.parent_path() / config_path;
+        if (!fs::exists(config_path)) {
+            throw std::runtime_error("Hydro batch config does not exist at line " +
+                                     std::to_string(line_number) + ": " + config_path.string());
+        }
         jobs.push_back({mode, fs::weakly_canonical(config_path)});
     }
 
