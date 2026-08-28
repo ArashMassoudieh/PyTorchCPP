@@ -2,13 +2,18 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QCoreApplication>
 #include <QDialog>
 #include <QDir>
+#include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFormLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -16,6 +21,7 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QSpinBox>
 #include <QSurfaceFormat>
 #include <QTextCursor>
 #include <QTextEdit>
@@ -111,6 +117,21 @@ QString locateHydroBatchExecutable(QWidget* parent)
     }
     return QFileDialog::getOpenFileName(parent, "Select HydroBatch executable", QDir::currentPath(),
                                         "HydroBatch executable (HydroBatch);;All files (*)");
+}
+
+QString locateRepositoryRoot()
+{
+    QStringList starts = {QDir::currentPath(), QCoreApplication::applicationDirPath()};
+    for (const QString& start : starts) {
+        QDir dir(start);
+        for (int depth = 0; depth < 8; ++depth) {
+            if (QFileInfo::exists(dir.filePath("HydroPINN.pro")) || QFileInfo::exists(dir.filePath("HydroBatch.pro"))) {
+                return dir.absolutePath();
+            }
+            if (!dir.cdUp()) break;
+        }
+    }
+    return QString();
 }
 
 void runConfigBatchFromGui(HydroPINNWindow& window, QAction* action)
@@ -209,16 +230,194 @@ void runConfigBatchFromGui(HydroPINNWindow& window, QAction* action)
     process->start(executable, {batchPath, outputDirectory});
 }
 
+void createTuningSweepFromGui(HydroPINNWindow& window)
+{
+    const QString repoRoot = locateRepositoryRoot();
+    if (repoRoot.isEmpty()) {
+        QMessageBox::critical(&window, "Tuning Sweep", "Unable to locate the PyTorchCPP repository root.");
+        return;
+    }
+    const QString experimentDir = repoRoot + "/Hydro/experiments/gistohq_sligo";
+    const QString generator = experimentDir + "/generate_hyperparameter_sweep.py";
+    if (!QFileInfo::exists(generator)) {
+        QMessageBox::critical(&window, "Tuning Sweep", "Sweep generator not found:\n" + generator);
+        return;
+    }
+
+    QDialog dialog(&window);
+    dialog.setWindowTitle("Sligo Creek Tuning Sweep");
+    dialog.resize(650, 520);
+    auto* root = new QVBoxLayout(&dialog);
+
+    auto* intro = new QLabel(
+        "Select the supervised hyperparameter combinations to generate. "
+        "FFN activation is configurable; LSTM uses its native internal nonlinearities, so activation switching is intentionally disabled for LSTM.",
+        &dialog);
+    intro->setWordWrap(true);
+    root->addWidget(intro);
+
+    auto* familyBox = new QGroupBox("Model families", &dialog);
+    auto* familyLayout = new QHBoxLayout(familyBox);
+    auto* ffnCheck = new QCheckBox("FFN", familyBox);
+    auto* lstmCheck = new QCheckBox("LSTM", familyBox);
+    ffnCheck->setChecked(true);
+    lstmCheck->setChecked(true);
+    familyLayout->addWidget(ffnCheck);
+    familyLayout->addWidget(lstmCheck);
+    familyLayout->addStretch(1);
+    root->addWidget(familyBox);
+
+    auto* selectionBox = new QGroupBox("Search space", &dialog);
+    auto* form = new QFormLayout(selectionBox);
+
+    auto* ffnArchitectures = new QLineEdit("16;24;32;48;16,16;24,24;32,16;32,32;48,24", selectionBox);
+    ffnArchitectures->setToolTip("Semicolon-separated hidden-layer architectures. Commas separate layers within one architecture.");
+    form->addRow("FFN hidden layers", ffnArchitectures);
+
+    auto* activationRow = new QWidget(selectionBox);
+    auto* activationLayout = new QHBoxLayout(activationRow);
+    activationLayout->setContentsMargins(0, 0, 0, 0);
+    auto* tanhCheck = new QCheckBox("tanh", activationRow);
+    auto* reluCheck = new QCheckBox("ReLU", activationRow);
+    auto* sigmoidCheck = new QCheckBox("sigmoid", activationRow);
+    tanhCheck->setChecked(true);
+    reluCheck->setChecked(true);
+    sigmoidCheck->setChecked(false);
+    activationLayout->addWidget(tanhCheck);
+    activationLayout->addWidget(reluCheck);
+    activationLayout->addWidget(sigmoidCheck);
+    activationLayout->addStretch(1);
+    form->addRow("FFN activations", activationRow);
+
+    auto* lstmArchitectures = new QLineEdit("16;24;32;48;24,24;32,32", selectionBox);
+    form->addRow("LSTM hidden layers", lstmArchitectures);
+    auto* lstmSequences = new QLineEdit("12,24", selectionBox);
+    form->addRow("LSTM sequence lengths (h)", lstmSequences);
+
+    auto* epochsSpin = new QSpinBox(selectionBox);
+    epochsSpin->setRange(1, 100000);
+    epochsSpin->setValue(150);
+    form->addRow("Epochs", epochsSpin);
+
+    auto* lrSpin = new QDoubleSpinBox(selectionBox);
+    lrSpin->setDecimals(6);
+    lrSpin->setRange(0.000001, 1.0);
+    lrSpin->setSingleStep(0.001);
+    lrSpin->setValue(0.003);
+    form->addRow("Learning rate", lrSpin);
+
+    auto* batchSpin = new QSpinBox(selectionBox);
+    batchSpin->setRange(1, 100000);
+    batchSpin->setValue(32);
+    form->addRow("Batch size", batchSpin);
+
+    auto* seedSpin = new QSpinBox(selectionBox);
+    seedSpin->setRange(0, 2147483647);
+    seedSpin->setValue(42);
+    form->addRow("Random seed", seedSpin);
+    root->addWidget(selectionBox);
+
+    auto updateEnabled = [=]() {
+        ffnArchitectures->setEnabled(ffnCheck->isChecked());
+        activationRow->setEnabled(ffnCheck->isChecked());
+        lstmArchitectures->setEnabled(lstmCheck->isChecked());
+        lstmSequences->setEnabled(lstmCheck->isChecked());
+    };
+    QObject::connect(ffnCheck, &QCheckBox::toggled, &dialog, updateEnabled);
+    QObject::connect(lstmCheck, &QCheckBox::toggled, &dialog, updateEnabled);
+    updateEnabled();
+
+    auto* note = new QLabel(
+        "Tip: to run only the missing sigmoid FFN cases, turn LSTM off, turn tanh/ReLU off, and turn sigmoid on.", &dialog);
+    note->setWordWrap(true);
+    root->addWidget(note);
+
+    auto* buttons = new QHBoxLayout();
+    auto* cancelButton = new QPushButton("Cancel", &dialog);
+    auto* generateButton = new QPushButton("Generate Sweep", &dialog);
+    buttons->addStretch(1);
+    buttons->addWidget(cancelButton);
+    buttons->addWidget(generateButton);
+    root->addLayout(buttons);
+
+    QObject::connect(cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
+    QObject::connect(generateButton, &QPushButton::clicked, &dialog, [&]() {
+        if (!ffnCheck->isChecked() && !lstmCheck->isChecked()) {
+            QMessageBox::warning(&dialog, "Tuning Sweep", "Select at least one model family.");
+            return;
+        }
+
+        QStringList activations;
+        if (tanhCheck->isChecked()) activations << "tanh";
+        if (reluCheck->isChecked()) activations << "relu";
+        if (sigmoidCheck->isChecked()) activations << "sigmoid";
+        if (ffnCheck->isChecked() && activations.isEmpty()) {
+            QMessageBox::warning(&dialog, "Tuning Sweep", "Select at least one FFN activation.");
+            return;
+        }
+
+        QStringList args;
+        args << generator;
+        if (ffnCheck->isChecked() && !lstmCheck->isChecked()) args << "--ffn-only";
+        if (lstmCheck->isChecked() && !ffnCheck->isChecked()) args << "--lstm-only";
+        if (ffnCheck->isChecked()) {
+            args << "--ffn-architectures" << ffnArchitectures->text().trimmed();
+            args << "--activations" << activations.join(',');
+        }
+        if (lstmCheck->isChecked()) {
+            args << "--lstm-architectures" << lstmArchitectures->text().trimmed();
+            args << "--lstm-sequences" << lstmSequences->text().trimmed();
+        }
+        args << "--epochs" << QString::number(epochsSpin->value());
+        args << "--learning-rate" << QString::number(lrSpin->value(), 'g', 12);
+        args << "--batch-size" << QString::number(batchSpin->value());
+        args << "--seed" << QString::number(seedSpin->value());
+
+        QProcess process;
+        process.setWorkingDirectory(experimentDir);
+        process.setProcessChannelMode(QProcess::MergedChannels);
+        process.start("python3", args);
+        if (!process.waitForStarted(5000)) {
+            QMessageBox::critical(&dialog, "Tuning Sweep", "Unable to start python3 sweep generator.");
+            return;
+        }
+        process.waitForFinished(-1);
+        const QString output = QString::fromLocal8Bit(process.readAll());
+        if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
+            QMessageBox::critical(&dialog, "Tuning Sweep", "Sweep generation failed:\n\n" + output);
+            return;
+        }
+
+        dialog.accept();
+        QMessageBox::information(
+            &window, "Tuning Sweep Generated",
+            output + "\nUse Batch > Run Config Batch... and select:\n" + experimentDir + "/hyperparameter_stage1.batch");
+    });
+
+    dialog.exec();
+}
+
 void configureBatchGui(HydroPINNWindow& window)
 {
     auto* batchToolBar = window.addToolBar("Batch");
     batchToolBar->setObjectName("HydroBatchToolBar");
+
+    QAction* tuningAction = batchToolBar->addAction("Tuning Sweep...");
+    tuningAction->setToolTip(
+        "Choose FFN/LSTM families, architectures, FFN activation (including sigmoid), "
+        "LSTM sequence lengths, learning rate, batch size, epochs, and seed, then generate the batch configuration.");
+
     QAction* runBatchAction = batchToolBar->addAction("Run Config Batch...");
     runBatchAction->setToolTip(
         "Run an FFN/LSTM experiment .batch file sequentially with HydroBatch, "
         "stream progress in the GUI, and write per-run artifacts plus batch_summary.csv.");
+
     QMenu* batchMenu = window.menuBar()->addMenu("Batch");
+    batchMenu->addAction(tuningAction);
     batchMenu->addAction(runBatchAction);
+
+    QObject::connect(tuningAction, &QAction::triggered, &window,
+                     [&window]() { createTuningSweepFromGui(window); });
     QObject::connect(runBatchAction, &QAction::triggered, &window,
                      [&window, runBatchAction]() { runConfigBatchFromGui(window, runBatchAction); });
 }
