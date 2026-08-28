@@ -15,8 +15,10 @@
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QSurfaceFormat>
 #include <QTextCursor>
+#include <QTextEdit>
 #include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
@@ -62,6 +64,39 @@ void configureContextSpecificPlotButtons(HydroPINNWindow& window)
     }
 }
 
+void installR2LogEnhancer(HydroPINNWindow& window)
+{
+    QTextEdit* runLog = nullptr;
+    const auto edits = window.findChildren<QTextEdit*>();
+    for (QTextEdit* edit : edits) {
+        if (edit->isReadOnly()) {
+            runLog = edit;
+            break;
+        }
+    }
+    if (!runLog) return;
+
+    QObject::connect(runLog, &QTextEdit::textChanged, runLog, [runLog]() {
+        if (runLog->property("hydro_r2_rewrite").toBool()) return;
+        QTextCursor cursor(runLog->document());
+        cursor.movePosition(QTextCursor::End);
+        cursor.select(QTextCursor::BlockUnderCursor);
+        QString line = cursor.selectedText();
+        if (!line.contains("final_loss=") || !line.contains("nse=") || line.contains("r2=")) return;
+
+        const QRegularExpression rx(QStringLiteral("nse=([^,\\s]+)"));
+        const auto match = rx.match(line);
+        if (!match.hasMatch()) return;
+        const QString nseValue = match.captured(1);
+        line.replace(match.capturedStart(0), match.capturedLength(0),
+                     QString("r2=%1, nse=%1").arg(nseValue));
+
+        runLog->setProperty("hydro_r2_rewrite", true);
+        cursor.insertText(line);
+        runLog->setProperty("hydro_r2_rewrite", false);
+    });
+}
+
 QString locateHydroBatchExecutable(QWidget* parent)
 {
     const QStringList candidates = {
@@ -74,35 +109,25 @@ QString locateHydroBatchExecutable(QWidget* parent)
         const QFileInfo info(candidate);
         if (info.exists() && info.isFile() && info.isExecutable()) return info.absoluteFilePath();
     }
-
-    return QFileDialog::getOpenFileName(
-        parent,
-        "Select HydroBatch executable",
-        QDir::currentPath(),
-        "HydroBatch executable (HydroBatch);;All files (*)");
+    return QFileDialog::getOpenFileName(parent, "Select HydroBatch executable", QDir::currentPath(),
+                                        "HydroBatch executable (HydroBatch);;All files (*)");
 }
 
 void runConfigBatchFromGui(HydroPINNWindow& window, QAction* action)
 {
     const QString batchPath = QFileDialog::getOpenFileName(
-        &window,
-        "Select Hydro config batch",
-        QDir::currentPath() + "/Hydro/experiments",
+        &window, "Select Hydro config batch", QDir::currentPath() + "/Hydro/experiments",
         "Hydro batch files (*.batch);;All files (*)");
     if (batchPath.isEmpty()) return;
 
     const QString outputDirectory = QFileDialog::getExistingDirectory(
-        &window,
-        "Select batch output directory",
-        QFileInfo(batchPath).absolutePath());
+        &window, "Select batch output directory", QFileInfo(batchPath).absolutePath());
     if (outputDirectory.isEmpty()) return;
 
     const QString executable = locateHydroBatchExecutable(&window);
     if (executable.isEmpty()) {
-        QMessageBox::information(
-            &window,
-            "HydroPINN Batch",
-            "HydroBatch was not selected. Build it with HydroBatch.pro, then retry.");
+        QMessageBox::information(&window, "HydroPINN Batch",
+                                 "HydroBatch was not selected. Build it with HydroBatch.pro, then retry.");
         return;
     }
 
@@ -112,8 +137,7 @@ void runConfigBatchFromGui(HydroPINNWindow& window, QAction* action)
     dialog->resize(900, 520);
 
     auto* layout = new QVBoxLayout(dialog);
-    auto* status = new QLabel(
-        QString("Running batch:\n%1\n\nOutput:\n%2").arg(batchPath, outputDirectory), dialog);
+    auto* status = new QLabel(QString("Running batch:\n%1\n\nOutput:\n%2").arg(batchPath, outputDirectory), dialog);
     status->setWordWrap(true);
     layout->addWidget(status);
 
@@ -156,19 +180,16 @@ void runConfigBatchFromGui(HydroPINNWindow& window, QAction* action)
     });
     QObject::connect(closeButton, &QPushButton::clicked, dialog, &QDialog::close);
     QObject::connect(process,
-                     static_cast<void (QProcess::*)(int, QProcess::ExitStatus)>(&QProcess::finished),
-                     dialog,
+                     static_cast<void (QProcess::*)(int, QProcess::ExitStatus)>(&QProcess::finished), dialog,
                      [action, status, stopButton, closeButton, outputDirectory](int exitCode, QProcess::ExitStatus exitStatus) {
                          action->setEnabled(true);
                          stopButton->setEnabled(false);
                          closeButton->setEnabled(true);
                          const bool ok = exitStatus == QProcess::NormalExit && exitCode == 0;
-                         status->setText(
-                             ok
-                                 ? QString("Batch completed successfully.\nSummary: %1/batch_summary.csv").arg(outputDirectory)
-                                 : QString("Batch finished with errors (exit code %1). Review the log below.\nSummary/output: %2")
-                                       .arg(exitCode)
-                                       .arg(outputDirectory));
+                         status->setText(ok
+                             ? QString("Batch completed successfully.\nSummary: %1/batch_summary.csv").arg(outputDirectory)
+                             : QString("Batch finished with errors (exit code %1). Review the log below.\nSummary/output: %2")
+                                   .arg(exitCode).arg(outputDirectory));
                      });
     QObject::connect(process, &QProcess::errorOccurred, dialog,
                      [action, status, stopButton, closeButton](QProcess::ProcessError error) {
@@ -181,9 +202,7 @@ void runConfigBatchFromGui(HydroPINNWindow& window, QAction* action)
                      });
     QObject::connect(dialog, &QObject::destroyed, &window, [action, process]() {
         action->setEnabled(true);
-        if (process->state() != QProcess::NotRunning) {
-            process->terminate();
-        }
+        if (process->state() != QProcess::NotRunning) process->terminate();
     });
 
     dialog->show();
@@ -198,10 +217,8 @@ void configureBatchGui(HydroPINNWindow& window)
     runBatchAction->setToolTip(
         "Run an FFN/LSTM experiment .batch file sequentially with HydroBatch, "
         "stream progress in the GUI, and write per-run artifacts plus batch_summary.csv.");
-
     QMenu* batchMenu = window.menuBar()->addMenu("Batch");
     batchMenu->addAction(runBatchAction);
-
     QObject::connect(runBatchAction, &QAction::triggered, &window,
                      [&window, runBatchAction]() { runConfigBatchFromGui(window, runBatchAction); });
 }
@@ -213,13 +230,10 @@ int main(int argc, char *argv[])
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
-
     try {
         torch::set_num_threads(1);
         torch::set_num_interop_threads(1);
-
         QApplication app(argc, argv);
-
         QCoreApplication::setApplicationName("HydroPINN");
         QCoreApplication::setApplicationVersion("0.1");
         QCoreApplication::setOrganizationName("EnviroInformatics LLC");
@@ -227,9 +241,9 @@ int main(int argc, char *argv[])
 
         HydroPINNWindow window;
         configureContextSpecificPlotButtons(window);
+        installR2LogEnhancer(window);
         configureBatchGui(window);
         window.show();
-
         return app.exec();
     }
     catch (const c10::Error &e) {
