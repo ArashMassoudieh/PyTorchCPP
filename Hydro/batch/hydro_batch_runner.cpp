@@ -35,6 +35,19 @@ std::string stripUtf8Bom(std::string value) {
     return value;
 }
 
+std::string csvCell(const std::string& value) {
+    if (value.find_first_of(",\"\n\r") == std::string::npos) return value;
+    std::string escaped;
+    escaped.reserve(value.size() + 2);
+    escaped.push_back('"');
+    for (char c : value) {
+        if (c == '"') escaped.push_back('"');
+        escaped.push_back(c);
+    }
+    escaped.push_back('"');
+    return escaped;
+}
+
 fs::path findRepositoryRoot(const fs::path& start) {
     fs::path current = fs::absolute(start);
     if (!fs::is_directory(current)) current = current.parent_path();
@@ -107,19 +120,28 @@ HydroRunResult runJob(const std::string& mode, const HydroRunConfig& config) {
     throw std::runtime_error("Unsupported Hydro batch mode: " + mode);
 }
 
+void printHyperparameters(const std::string& mode, const HydroRunConfig& config) {
+    if (mode == "lstm") {
+        std::cout << " sequence_length=" << config.lstm_sequence_length;
+    } else if (mode == "ffn") {
+        std::cout << " input_lags=" << config.input_lags_csv;
+    }
+    std::cout << " hidden_layers=" << config.hidden_layers_csv
+              << " activation=" << config.activation
+              << " learning_rate=" << config.learning_rate
+              << " batch_size=" << config.batch_size
+              << " seed=" << config.random_seed
+              << " normalization=" << config.normalization;
+}
+
 void printMetrics(const std::string& experiment_id, const std::string& mode,
                   const HydroRunConfig& config, const HydroRunResult& result) {
     std::cout << std::setprecision(9)
               << "[batch] experiment=" << experiment_id
               << " mode=" << mode
               << " success=" << (result.success ? "yes" : "no");
-    if (mode == "lstm") {
-        std::cout << " sequence_length=" << config.lstm_sequence_length;
-    } else if (mode == "ffn") {
-        std::cout << " input_lags=" << config.input_lags_csv;
-    }
-    std::cout << " normalization=" << config.normalization
-              << " test_mse=" << result.mse
+    printHyperparameters(mode, config);
+    std::cout << " test_mse=" << result.mse
               << " rmse=" << result.rmse
               << " mae=" << result.mae
               << " r2=" << result.r2
@@ -129,7 +151,7 @@ void printMetrics(const std::string& experiment_id, const std::string& mode,
 }
 
 const char* summaryHeader() {
-    return "experiment_id,mode,lstm_sequence_length,normalization,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse";
+    return "experiment_id,mode,lstm_sequence_length,input_lags,hidden_layers,activation,learning_rate,batch_size,random_seed,normalization,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse";
 }
 
 void prepareSummaryFile(const fs::path& summary_path) {
@@ -137,11 +159,12 @@ void prepareSummaryFile(const fs::path& summary_path) {
         std::ifstream in(summary_path);
         std::string header;
         std::getline(in, header);
-        if (header.find(",r2,") == std::string::npos) {
-            fs::path backup = summary_path.parent_path() / "batch_summary.pre_r2.csv";
+        const std::string expected = summaryHeader();
+        if (header != expected) {
+            fs::path backup = summary_path.parent_path() / "batch_summary.pre_hyperparams.csv";
             for (int suffix = 1; fs::exists(backup); ++suffix) {
                 backup = summary_path.parent_path() /
-                         ("batch_summary.pre_r2." + std::to_string(suffix) + ".csv");
+                         ("batch_summary.pre_hyperparams." + std::to_string(suffix) + ".csv");
             }
             fs::rename(summary_path, backup);
             std::cout << "[batch] archived legacy summary=" << backup << '\n';
@@ -157,10 +180,21 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
                    const std::string& mode, const HydroRunConfig& config, const HydroRunResult& r) {
     std::ofstream out(summary_path, std::ios::app);
     out << std::setprecision(12)
-        << experiment_id << ',' << mode << ',' << config.lstm_sequence_length << ',' << config.normalization << ','
-        << (r.success ? "true" : "false") << ',' << r.final_loss << ',' << r.validation_mse << ',' << r.mse << ','
-        << r.rmse << ',' << r.mae << ',' << r.r2 << ',' << r.nse << ',' << r.kge << ',' << r.correlation << ',' << r.pbias << ','
-        << r.volume_error_percent << ',' << r.peak_timing_error << ',' << r.peak_magnitude_error_percent << ','
+        << csvCell(experiment_id) << ','
+        << csvCell(mode) << ','
+        << config.lstm_sequence_length << ','
+        << csvCell(config.input_lags_csv) << ','
+        << csvCell(config.hidden_layers_csv) << ','
+        << csvCell(config.activation) << ','
+        << config.learning_rate << ','
+        << config.batch_size << ','
+        << config.random_seed << ','
+        << csvCell(config.normalization) << ','
+        << (r.success ? "true" : "false") << ','
+        << r.final_loss << ',' << r.validation_mse << ',' << r.mse << ','
+        << r.rmse << ',' << r.mae << ',' << r.r2 << ',' << r.nse << ',' << r.kge << ','
+        << r.correlation << ',' << r.pbias << ',' << r.volume_error_percent << ','
+        << r.peak_timing_error << ',' << r.peak_magnitude_error_percent << ','
         << r.high_flow_rmse << ',' << r.low_flow_rmse << '\n';
 }
 
@@ -206,12 +240,8 @@ int main(int argc, char** argv) {
                 resolveConfigPaths(config, repository_root);
                 std::cout << "[batch] starting experiment=" << loaded.experiment_id
                           << " mode=" << job.mode;
-                if (job.mode == "lstm") {
-                    std::cout << " sequence_length=" << config.lstm_sequence_length;
-                } else if (job.mode == "ffn") {
-                    std::cout << " input_lags=" << config.input_lags_csv;
-                }
-                std::cout << " normalization=" << config.normalization << '\n';
+                printHyperparameters(job.mode, config);
+                std::cout << '\n';
                 if (config.use_hydro_package) std::cout << "[batch] hydro_package_path=" << config.hydro_package_path << '\n';
 
                 HydroRunResult result = runJob(job.mode, config);
