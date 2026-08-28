@@ -1,7 +1,10 @@
 #include "../evaluation/experiment_exporter.h"
 #include "../evaluation/experiment_loader.h"
 #include "../models/ffn_wrapper.h"
+#include "../models/ffn_pinn_wrapper.h"
+#include "../models/pinn_wrapper.h"
 #include "../models/lstm_wrapper.h"
+#include "../models/lstm_pinn_wrapper.h"
 
 #include <torch/torch.h>
 
@@ -48,6 +51,10 @@ std::string csvCell(const std::string& value) {
     return escaped;
 }
 
+bool isPhysicsMode(const std::string& mode) {
+    return mode == "ffn_pinn" || mode == "lstm_pinn" || mode == "pinn";
+}
+
 fs::path findRepositoryRoot(const fs::path& start) {
     fs::path current = fs::absolute(start);
     if (!fs::is_directory(current)) current = current.parent_path();
@@ -90,15 +97,16 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
         std::string mode, config;
         if (!(parser >> mode >> config)) {
             throw std::runtime_error("Invalid Hydro batch entry at line " + std::to_string(line_number) +
-                                     "; expected: <ffn|lstm> <config.json>; line='" + stripped + "'");
+                                     "; expected: <ffn|ffn_pinn|lstm|lstm_pinn|pinn> <config.json>; line='" + stripped + "'");
         }
         std::string extra;
         if (parser >> extra) {
             throw std::runtime_error("Unexpected extra token in Hydro batch entry at line " +
                                      std::to_string(line_number) + "; line='" + stripped + "'");
         }
-        if (mode != "ffn" && mode != "lstm") {
-            throw std::runtime_error("Unsupported supervised Hydro batch mode at line " +
+        if (mode != "ffn" && mode != "ffn_pinn" && mode != "lstm" &&
+            mode != "lstm_pinn" && mode != "pinn") {
+            throw std::runtime_error("Unsupported Hydro batch mode at line " +
                                      std::to_string(line_number) + ": " + mode);
         }
         fs::path config_path(config);
@@ -116,14 +124,17 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
 
 HydroRunResult runJob(const std::string& mode, const HydroRunConfig& config) {
     if (mode == "ffn") { FFNWrapper runner; return runner.train(config); }
+    if (mode == "ffn_pinn") { FFNPINNWrapper runner; return runner.train(config); }
     if (mode == "lstm") { LSTMWrapper runner; return runner.train(config); }
+    if (mode == "lstm_pinn") { LSTMPINNWrapper runner; return runner.train(config); }
+    if (mode == "pinn") { PINNWrapper runner; return runner.train(config); }
     throw std::runtime_error("Unsupported Hydro batch mode: " + mode);
 }
 
 void printHyperparameters(const std::string& mode, const HydroRunConfig& config) {
-    if (mode == "lstm") {
+    if (mode == "lstm" || mode == "lstm_pinn") {
         std::cout << " sequence_length=" << config.lstm_sequence_length;
-    } else if (mode == "ffn") {
+    } else if (mode == "ffn" || mode == "ffn_pinn") {
         std::cout << " input_lags=" << config.input_lags_csv;
     }
     std::cout << " hidden_layers=" << config.hidden_layers_csv
@@ -132,6 +143,13 @@ void printHyperparameters(const std::string& mode, const HydroRunConfig& config)
               << " batch_size=" << config.batch_size
               << " seed=" << config.random_seed
               << " normalization=" << config.normalization;
+    if (isPhysicsMode(mode)) {
+        std::cout << " physics_profile=" << config.pinn_physics_profile
+                  << " data_weight=" << config.data_weight
+                  << " physics_weight=" << config.physics_weight
+                  << " latent_storage=" << (config.use_latent_storage_physics ? "yes" : "no")
+                  << " latent_recession_per_hour=" << config.latent_storage_recession_per_hour;
+    }
 }
 
 void printMetrics(const std::string& experiment_id, const std::string& mode,
@@ -147,11 +165,13 @@ void printMetrics(const std::string& experiment_id, const std::string& mode,
               << " r2=" << result.r2
               << " nse=" << result.nse
               << " kge=" << result.kge
-              << " pbias=" << result.pbias << '\n';
+              << " pbias=" << result.pbias
+              << " physics_loss=" << result.physics_loss
+              << " physics_residual_rmse=" << result.physics_residual_rmse << '\n';
 }
 
 const char* summaryHeader() {
-    return "experiment_id,mode,lstm_sequence_length,input_lags,hidden_layers,activation,learning_rate,batch_size,random_seed,normalization,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse";
+    return "experiment_id,mode,lstm_sequence_length,input_lags,hidden_layers,activation,learning_rate,batch_size,random_seed,normalization,physics_profile,data_weight,physics_weight,latent_storage,latent_recession_per_hour,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_loss,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual";
 }
 
 void prepareSummaryFile(const fs::path& summary_path) {
@@ -161,10 +181,10 @@ void prepareSummaryFile(const fs::path& summary_path) {
         std::getline(in, header);
         const std::string expected = summaryHeader();
         if (header != expected) {
-            fs::path backup = summary_path.parent_path() / "batch_summary.pre_hyperparams.csv";
+            fs::path backup = summary_path.parent_path() / "batch_summary.pre_physics.csv";
             for (int suffix = 1; fs::exists(backup); ++suffix) {
                 backup = summary_path.parent_path() /
-                         ("batch_summary.pre_hyperparams." + std::to_string(suffix) + ".csv");
+                         ("batch_summary.pre_physics." + std::to_string(suffix) + ".csv");
             }
             fs::rename(summary_path, backup);
             std::cout << "[batch] archived legacy summary=" << backup << '\n';
@@ -190,12 +210,19 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
         << config.batch_size << ','
         << config.random_seed << ','
         << csvCell(config.normalization) << ','
+        << csvCell(config.pinn_physics_profile) << ','
+        << config.data_weight << ','
+        << config.physics_weight << ','
+        << (config.use_latent_storage_physics ? "true" : "false") << ','
+        << config.latent_storage_recession_per_hour << ','
         << (r.success ? "true" : "false") << ','
         << r.final_loss << ',' << r.validation_mse << ',' << r.mse << ','
         << r.rmse << ',' << r.mae << ',' << r.r2 << ',' << r.nse << ',' << r.kge << ','
         << r.correlation << ',' << r.pbias << ',' << r.volume_error_percent << ','
         << r.peak_timing_error << ',' << r.peak_magnitude_error_percent << ','
-        << r.high_flow_rmse << ',' << r.low_flow_rmse << '\n';
+        << r.high_flow_rmse << ',' << r.low_flow_rmse << ','
+        << r.physics_loss << ',' << r.physics_residual_mean << ',' << r.physics_residual_rmse << ','
+        << r.cumulative_physics_residual << '\n';
 }
 
 fs::path archiveExistingExperiment(const fs::path& output_root, const std::string& experiment_id) {
@@ -215,7 +242,7 @@ int main(int argc, char** argv) {
     try {
         if (argc != 3) {
             std::cerr << "Usage: HydroBatch <batch-file> <output-directory>\n"
-                      << "Batch format: one '<ffn|lstm> <config.json>' entry per line.\n";
+                      << "Batch format: one '<ffn|ffn_pinn|lstm|lstm_pinn|pinn> <config.json>' entry per line.\n";
             return 2;
         }
         torch::set_num_threads(1);
@@ -238,6 +265,16 @@ int main(int argc, char** argv) {
                 const auto loaded = HydroExperimentLoader().loadConfig(job.config_path.string());
                 HydroRunConfig config = loaded.config;
                 resolveConfigPaths(config, repository_root);
+                if (isPhysicsMode(job.mode)) {
+                    config.use_latent_storage_physics = true;
+                    config.pinn_physics_profile = "water_balance";
+                    if (config.normalization != "none") {
+                        std::cout << "[batch] physics mode requires physical-unit residuals; overriding normalization="
+                                  << config.normalization << " -> none\n";
+                        config.normalization = "none";
+                    }
+                    if (job.mode == "ffn_pinn") config.use_time_lagged_ffn = false;
+                }
                 std::cout << "[batch] starting experiment=" << loaded.experiment_id
                           << " mode=" << job.mode;
                 printHyperparameters(job.mode, config);
