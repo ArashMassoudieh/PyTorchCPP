@@ -124,10 +124,29 @@ void printMetrics(const std::string& experiment_id, const std::string& mode,
               << " pbias=" << result.pbias << '\n';
 }
 
-void appendSummaryHeaderIfNeeded(const fs::path& summary_path) {
-    if (fs::exists(summary_path) && fs::file_size(summary_path) > 0) return;
-    std::ofstream out(summary_path, std::ios::app);
-    out << "experiment_id,mode,lstm_sequence_length,normalization,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse\n";
+const char* summaryHeader() {
+    return "experiment_id,mode,lstm_sequence_length,normalization,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse";
+}
+
+void prepareSummaryFile(const fs::path& summary_path) {
+    if (fs::exists(summary_path) && fs::file_size(summary_path) > 0) {
+        std::ifstream in(summary_path);
+        std::string header;
+        std::getline(in, header);
+        if (header.find(",r2,") == std::string::npos) {
+            fs::path backup = summary_path.parent_path() / "batch_summary.pre_r2.csv";
+            for (int suffix = 1; fs::exists(backup); ++suffix) {
+                backup = summary_path.parent_path() /
+                         ("batch_summary.pre_r2." + std::to_string(suffix) + ".csv");
+            }
+            fs::rename(summary_path, backup);
+            std::cout << "[batch] archived legacy summary=" << backup << '\n';
+        } else {
+            return;
+        }
+    }
+    std::ofstream out(summary_path, std::ios::trunc);
+    out << summaryHeader() << '\n';
 }
 
 void appendSummary(const fs::path& summary_path, const std::string& experiment_id,
@@ -156,7 +175,7 @@ int main(int argc, char** argv) {
         const fs::path output_root = fs::absolute(fs::path(argv[2]));
         fs::create_directories(output_root);
         const fs::path summary_path = output_root / "batch_summary.csv";
-        appendSummaryHeaderIfNeeded(summary_path);
+        prepareSummaryFile(summary_path);
         const auto jobs = readBatchFile(batch_path);
         std::cout << "[batch] loaded " << jobs.size() << " job(s) from " << batch_path << '\n';
         std::cout << "[batch] repository_root=" << repository_root << '\n';
