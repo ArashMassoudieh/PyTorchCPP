@@ -75,6 +75,7 @@ SOURCES += \
     Hydro/hydropinnwindow.cpp \
     Hydro/input_output_plot.cpp \
     Hydro/tuning_preset_actions.cpp \
+    Hydro/stage23_sweep_dialogs.cpp \
     neuralnetworkwrapper.cpp \
     neuralnetworkfactory.cpp \
     hyperparameters.cpp \
