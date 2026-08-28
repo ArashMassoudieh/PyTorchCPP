@@ -8,6 +8,7 @@
 #include <QAbstractAxis>
 #include <QChart>
 #include <QChartView>
+#include <QComboBox>
 #include <QFileInfo>
 #include <QLineSeries>
 #include <QMessageBox>
