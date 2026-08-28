@@ -1,21 +1,13 @@
 #!/usr/bin/env python3
-"""Generate controlled Stage-1 FFN/LSTM hyperparameter sweeps for Sligo Creek.
+"""Generate controlled FFN/LSTM hyperparameter sweeps for Sligo Creek.
 
-The generated files are intentionally derived from the verified supervised
-baselines in this directory so dataset, split, normalization, optimizer, and
-physics-related metadata stay synchronized with the working experiment setup.
+The generated files are derived from the verified supervised baselines in this
+directory so dataset, split, normalization, optimizer, and data-source metadata
+stay synchronized with the working experiment setup.
 
-Important backend detail: HydroLSTM uses the native LibTorch LSTM gates plus a
-linear output head; HydroRunConfig.activation is not consumed by that backend.
-Therefore activation is swept only for FFN. LSTM configs retain tanh in metadata
-for compatibility but do not pretend that tanh/relu are distinct experiments.
-
-Default Stage 1:
-  * FFN: lag-6 only, 9 architectures x 2 activations = 18 runs
-  * LSTM: sequence 12/24 h, 6 architectures = 12 runs
-  * Total: 30 runs
-
-Use --include-sigmoid to add sigmoid to the FFN diagnostic sweep (39 total).
+The command-line interface is intentionally explicit so HydroPINN's GUI can
+select model families, architectures, activations, sequence lengths, and basic
+training settings without hand-editing JSON files.
 """
 
 from __future__ import annotations
@@ -33,10 +25,13 @@ MANIFEST_PATH = GENERATED / "stage1_manifest.csv"
 FFN_BASE = HERE / "ffn_standardize_lag6.json"
 LSTM_BASE = HERE / "lstm_standardize_seq12.json"
 
-FFN_ARCHITECTURES = ["16", "24", "32", "48", "16,16", "24,24", "32,16", "32,32", "48,24"]
-LSTM_ARCHITECTURES = ["16", "24", "32", "48", "24,24", "32,32"]
-LSTM_SEQUENCES = [12, 24]
-DEFAULT_FFN_ACTIVATIONS = ["tanh", "relu"]
+DEFAULT_FFN_ARCHITECTURES = [
+    "16", "24", "32", "48", "16,16", "24,24", "32,16", "32,32", "48,24"
+]
+DEFAULT_LSTM_ARCHITECTURES = ["16", "24", "32", "48", "24,24", "32,32"]
+DEFAULT_LSTM_SEQUENCES = [12, 24]
+DEFAULT_ACTIVATIONS = ["tanh", "relu"]
+VALID_ACTIVATIONS = {"tanh", "relu", "sigmoid"}
 
 
 def load_json(path: Path) -> dict:
@@ -48,6 +43,19 @@ def architecture_slug(value: str) -> str:
     return "x".join(part.strip() for part in value.split(","))
 
 
+def parse_csv_strings(value: str) -> list[str]:
+    return [item.strip() for item in value.split(";") if item.strip()]
+
+
+def parse_csv_ints(value: str) -> list[int]:
+    values = []
+    for item in value.replace(";", ",").split(","):
+        item = item.strip()
+        if item:
+            values.append(int(item))
+    return values
+
+
 def write_config(path: Path, config: dict) -> None:
     with path.open("w", encoding="utf-8") as handle:
         json.dump(config, handle, indent=2)
@@ -56,16 +64,53 @@ def write_config(path: Path, config: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--include-sigmoid", action="store_true", help="Add sigmoid to the FFN tanh/relu diagnostic sweep.")
+    parser.add_argument("--include-sigmoid", action="store_true",
+                        help="Append sigmoid to the default FFN activation list.")
+    parser.add_argument("--activations", default="",
+                        help="Comma-separated FFN activations, e.g. sigmoid or tanh,relu,sigmoid.")
+    parser.add_argument("--ffn-architectures", default="",
+                        help="Semicolon-separated FFN architectures, e.g. '16,16;24,24;32'.")
+    parser.add_argument("--lstm-architectures", default="",
+                        help="Semicolon-separated LSTM architectures, e.g. '32;24,24'.")
+    parser.add_argument("--lstm-sequences", default="",
+                        help="Comma-separated LSTM sequence lengths in hours, e.g. '12,24'.")
+    parser.add_argument("--ffn-only", action="store_true")
+    parser.add_argument("--lstm-only", action="store_true")
     parser.add_argument("--epochs", type=int, default=150)
     parser.add_argument("--learning-rate", type=float, default=0.003)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    ffn_activations = list(DEFAULT_FFN_ACTIVATIONS)
-    if args.include_sigmoid:
-        ffn_activations.append("sigmoid")
+    if args.ffn_only and args.lstm_only:
+        parser.error("--ffn-only and --lstm-only cannot be used together")
+
+    run_ffn = not args.lstm_only
+    run_lstm = not args.ffn_only
+
+    if args.activations:
+        activations = [v.strip().lower() for v in args.activations.split(",") if v.strip()]
+    else:
+        activations = list(DEFAULT_ACTIVATIONS)
+        if args.include_sigmoid:
+            activations.append("sigmoid")
+    invalid = [v for v in activations if v not in VALID_ACTIVATIONS]
+    if invalid:
+        parser.error("unsupported activation(s): " + ", ".join(invalid))
+    if run_ffn and not activations:
+        parser.error("at least one FFN activation is required")
+
+    ffn_architectures = (parse_csv_strings(args.ffn_architectures)
+                         if args.ffn_architectures else list(DEFAULT_FFN_ARCHITECTURES))
+    lstm_architectures = (parse_csv_strings(args.lstm_architectures)
+                          if args.lstm_architectures else list(DEFAULT_LSTM_ARCHITECTURES))
+    lstm_sequences = (parse_csv_ints(args.lstm_sequences)
+                      if args.lstm_sequences else list(DEFAULT_LSTM_SEQUENCES))
+
+    if run_ffn and not ffn_architectures:
+        parser.error("at least one FFN architecture is required")
+    if run_lstm and (not lstm_architectures or not lstm_sequences):
+        parser.error("LSTM architecture and sequence selections cannot be empty")
 
     ffn_base = load_json(FFN_BASE)
     lstm_base = load_json(LSTM_BASE)
@@ -75,51 +120,84 @@ def main() -> int:
         old.unlink()
 
     batch_lines = [
-        "# Sligo Creek supervised hyperparameter Stage 1",
+        "# Sligo Creek supervised hyperparameter sweep",
         "# Generated by generate_hyperparameter_sweep.py",
-        "# FFN: lag-6 architecture + activation; LSTM: architecture + 12/24 h memory",
         "",
-        "# FFN architecture + activation sweep",
     ]
     manifest_rows = []
 
-    for hidden in FFN_ARCHITECTURES:
-        hslug = architecture_slug(hidden)
-        for activation in ffn_activations:
-            experiment_id = f"sligo_ffn_lag6_h{hslug}_{activation}"
-            filename = f"stage1_{experiment_id}.json"
-            config = dict(ffn_base)
-            config.update({"experiment_id": experiment_id, "epochs": args.epochs, "batch_size": args.batch_size,
-                           "learning_rate": args.learning_rate, "random_seed": args.seed, "hidden_layers": hidden,
-                           "activation": activation, "input_lags": "1,2,3,4,5,6", "use_time_lagged_ffn": True})
-            write_config(GENERATED / filename, config)
-            batch_lines.append(f"ffn generated_sweep/{filename}")
-            manifest_rows.append([experiment_id, "ffn", 6, "", hidden, activation, args.learning_rate, args.batch_size, args.seed])
-
-    batch_lines.extend(["", "# LSTM architecture + memory sweep (activation is not a HydroLSTM hyperparameter)"])
-    lstm_activation_metadata = "tanh"
-    for sequence in LSTM_SEQUENCES:
-        for hidden in LSTM_ARCHITECTURES:
+    if run_ffn:
+        batch_lines.append("# FFN architecture + activation sweep")
+        for hidden in ffn_architectures:
             hslug = architecture_slug(hidden)
-            experiment_id = f"sligo_lstm_seq{sequence}_h{hslug}"
-            filename = f"stage1_{experiment_id}.json"
-            config = dict(lstm_base)
-            config.update({"experiment_id": experiment_id, "epochs": args.epochs, "batch_size": args.batch_size,
-                           "learning_rate": args.learning_rate, "random_seed": args.seed, "hidden_layers": hidden,
-                           "activation": lstm_activation_metadata, "input_lags": "1", "use_time_lagged_ffn": False,
-                           "lstm_sequence_length": sequence})
-            write_config(GENERATED / filename, config)
-            batch_lines.append(f"lstm generated_sweep/{filename}")
-            manifest_rows.append([experiment_id, "lstm", "", sequence, hidden, "n/a", args.learning_rate, args.batch_size, args.seed])
+            for activation in activations:
+                experiment_id = f"sligo_ffn_lag6_h{hslug}_{activation}"
+                filename = f"stage1_{experiment_id}.json"
+                config = dict(ffn_base)
+                config.update({
+                    "experiment_id": experiment_id,
+                    "epochs": args.epochs,
+                    "batch_size": args.batch_size,
+                    "learning_rate": args.learning_rate,
+                    "random_seed": args.seed,
+                    "hidden_layers": hidden,
+                    "activation": activation,
+                    "input_lags": "1,2,3,4,5,6",
+                    "use_time_lagged_ffn": True,
+                })
+                write_config(GENERATED / filename, config)
+                batch_lines.append(f"ffn generated_sweep/{filename}")
+                manifest_rows.append([
+                    experiment_id, "ffn", 6, "", hidden, activation,
+                    args.learning_rate, args.batch_size, args.seed,
+                ])
+        batch_lines.append("")
+
+    if run_lstm:
+        batch_lines.append("# LSTM architecture + memory sweep")
+        for sequence in lstm_sequences:
+            for hidden in lstm_architectures:
+                hslug = architecture_slug(hidden)
+                # Current HydroLSTM uses native LSTM nonlinearities internally and does
+                # not consume config.activation. Use one canonical metadata value and
+                # never duplicate LSTM jobs by FFN activation choice.
+                activation = "lstm_native"
+                experiment_id = f"sligo_lstm_seq{sequence}_h{hslug}"
+                filename = f"stage1_{experiment_id}.json"
+                config = dict(lstm_base)
+                config.update({
+                    "experiment_id": experiment_id,
+                    "epochs": args.epochs,
+                    "batch_size": args.batch_size,
+                    "learning_rate": args.learning_rate,
+                    "random_seed": args.seed,
+                    "hidden_layers": hidden,
+                    "activation": "tanh",
+                    "input_lags": "1",
+                    "use_time_lagged_ffn": False,
+                    "lstm_sequence_length": sequence,
+                })
+                write_config(GENERATED / filename, config)
+                batch_lines.append(f"lstm generated_sweep/{filename}")
+                manifest_rows.append([
+                    experiment_id, "lstm", "", sequence, hidden, activation,
+                    args.learning_rate, args.batch_size, args.seed,
+                ])
+
+    if not manifest_rows:
+        parser.error("the selected sweep contains no experiments")
 
     BATCH_PATH.write_text("\n".join(batch_lines) + "\n", encoding="utf-8")
+
     with MANIFEST_PATH.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["experiment_id", "mode", "ffn_memory_hours", "lstm_sequence_length", "hidden_layers",
-                         "activation", "learning_rate", "batch_size", "random_seed"])
+        writer.writerow([
+            "experiment_id", "mode", "ffn_memory_hours", "lstm_sequence_length",
+            "hidden_layers", "activation", "learning_rate", "batch_size", "random_seed",
+        ])
         writer.writerows(manifest_rows)
 
-    print(f"Generated {len(manifest_rows)} Stage-1 experiments")
+    print(f"Generated {len(manifest_rows)} experiment(s)")
     print(f"Batch: {BATCH_PATH}")
     print(f"Configs: {GENERATED}")
     print(f"Manifest: {MANIFEST_PATH}")
