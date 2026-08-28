@@ -33,11 +33,10 @@ struct HydroRunConfig {
 
     // PINN-specific options
     // Physics profiles:
-    // - water_balance:       watershed mass-balance residual P/precip - ET - Q - dS/dt for watershed_balance and rainfall_runoff;
+    // - water_balance:       watershed mass-balance residual P/precip - ET - Q - dS/dt;
     // - linear_reservoir:    dy/dt + lambda*y - forcing_gain*u = 0
     // - cstr_first_order:    dy/dt + lambda*y - forcing_gain*u = 0 (same residual form, different interpretation)
     // - exp_decay:           dy/dt + lambda*y = 0
-    //                        falls back to forcing-driven training for other profiles without explicit P/ET/S columns.
     double lambda_decay = 0.8;
     double data_weight = 1.0;
     double physics_weight = 0.2;
@@ -47,6 +46,14 @@ struct HydroRunConfig {
     double storage_coeff = 1.0;
     double physics_dt = 1.0;
     int pinn_collocation_points = 0; // 0 => use batch inputs only; >0 => sample extra Raissi-style collocation points per batch
+
+    // GIStoOHQ rainfall-runoff PINN adapter. This flag is deliberately false for
+    // plain FFN/LSTM runs so the verified six-forcing supervised feature contract
+    // is unchanged. Physics-informed modes may enable it to construct a latent
+    // conceptual storage state from precipitation/PET only, avoiding any use of
+    // observed discharge as an input feature.
+    bool use_latent_storage_physics = false;
+    double latent_storage_recession_per_hour = 0.08;
 
     // Data input options
     bool use_csv_data = false;
