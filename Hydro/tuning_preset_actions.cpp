@@ -144,6 +144,21 @@ void installPresetActions()
 
     presets->addSeparator();
 
+    QAction* physicsMethods = presets->addAction("GIStoOHQ Physics Methods");
+    physicsMethods->setToolTip(
+        "Generate FFN + PINN, LSTM + PINN, and standalone PINN experiments using the latent-storage water-balance adapter.");
+    QObject::connect(physicsMethods, &QAction::triggered, window, [window]() {
+        runPythonGenerator(
+            window,
+            "generate_physics_methods.py",
+            {},
+            "GIStoOHQ physics suite: FFN + PINN, LSTM + PINN, and standalone PINN. "
+            "Observed storage is not synthesized; a conceptual storage state is derived only from precipitation and PET.",
+            "gistohq_physics_methods.batch");
+    });
+
+    presets->addSeparator();
+
     QAction* memorySweep = presets->addAction("Existing Supervised Memory Sweep");
     memorySweep->setToolTip("Keep the original supervised_sweep.batch workflow visible and available.");
     QObject::connect(memorySweep, &QAction::triggered, window, [window]() {
