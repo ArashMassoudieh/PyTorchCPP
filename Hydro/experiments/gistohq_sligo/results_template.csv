@@ -1,11 +1,12 @@
-experiment_id,approach,normalization,memory_hours,validation_mse,test_mse,rmse,mae,nse,kge,pbias,correlation,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,best_epoch,notes
-sligo_ffn_none_basic1,FFN,none,1,0.00025160777,0.0023148554,0.048112944,0.023749184,-0.74230916,,-109.21215,,,,,,,verified integration baseline
-sligo_lstm_none_seq6,LSTM,none,6,0.00039053135,0.0010477584,0.032369097,0.020267447,0.21346491,,25.261933,,,,,,,verified integration baseline
-sligo_lstm_standardize_seq6,LSTM,standardize,6,,,,,,,,,,,,,,,
-sligo_lstm_standardize_seq12,LSTM,standardize,12,,,,,,,,,,,,,,,
-sligo_lstm_standardize_seq24,LSTM,standardize,24,,,,,,,,,,,,,,,
-sligo_lstm_standardize_seq48,LSTM,standardize,48,,,,,,,,,,,,,,,
-sligo_ffn_standardize_lag6,FFN,standardize,6,,,,,,,,,,,,,,,
-sligo_ffn_standardize_lag12,FFN,standardize,12,,,,,,,,,,,,,,,
-sligo_ffn_standardize_lag24,FFN,standardize,24,,,,,,,,,,,,,,,
-sligo_ffn_standardize_lag48,FFN,standardize,48,,,,,,,,,,,,,,,
+experiment_id,approach,normalization,memory_hours,validation_mse,test_mse,rmse,mae,r2,nse,kge,pbias,correlation,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,best_epoch,notes
+sligo_ffn_none_basic1,FFN,none,1,0.00025160777,0.0023148554,0.048112944,0.023749184,-0.74230916,-0.74230916,,-109.21215,,,,,,,,verified integration baseline
+sligo_lstm_none_seq6,LSTM,none,6,0.00039053135,0.0010477584,0.032369097,0.020267447,0.21346491,0.21346491,,25.261933,,,,,,,,verified integration baseline
+sligo_ffn_standardize_lag6,FFN,standardize,6,,0.000973655652,0.0312034558,0.0217799884,0.267940182,0.267940182,0.462813556,-3.27148763,,,,,,,,verified GUI batch sweep
+sligo_ffn_standardize_lag12,FFN,standardize,12,,0.00110382663,0.0332238865,0.0266226821,0.170946442,0.170946442,0.00330646379,82.573514,,,,,,,,verified GUI batch sweep
+sligo_ffn_standardize_lag24,FFN,standardize,24,,0.00144605443,0.0380270223,0.0257193087,-0.0849493326,-0.0849493326,-0.150564578,48.5493835,,,,,,,,verified GUI batch sweep
+sligo_ffn_standardize_lag48,FFN,standardize,48,,0.00118982065,0.034493777,0.0264623163,0.109164881,0.109164881,-0.110620324,85.3931166,,,,,,,,verified GUI batch sweep
+sligo_lstm_standardize_seq6,LSTM,standardize,6,,0.000718963046,0.0268134863,0.0179263071,0.460286212,0.460286212,0.447128002,35.8215422,,,,,,,,verified GUI batch sweep
+sligo_lstm_standardize_seq12,LSTM,standardize,12,,0.000632261453,0.0251448097,0.0154926527,0.527066528,0.527066528,0.585263856,25.9602453,,,,,,,,verified GUI batch sweep
+sligo_lstm_standardize_seq18,LSTM,standardize,18,,,,,,,,,,,,,,,,pending
+sligo_lstm_standardize_seq24,LSTM,standardize,24,,0.0007729313,0.027801642,0.0141917982,0.425601919,0.425601919,0.650682273,13.4994049,,,,,,,,verified GUI batch sweep
+sligo_lstm_standardize_seq48,LSTM,standardize,48,,0.00100671622,0.0317287916,0.0169463894,0.260135324,0.260135324,0.469014249,40.7098512,,,,,,,,verified GUI batch sweep
