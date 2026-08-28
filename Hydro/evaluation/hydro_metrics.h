@@ -45,6 +45,10 @@ inline void populateHydroMetrics(HydroRunResult& result,
     result.mae = absolute / static_cast<double>(n);
     result.nse = denominator > 0.0 ? 1.0 - squared / denominator
                                    : std::numeric_limits<double>::quiet_NaN();
+    // ML coefficient of determination on the same held-out series. With this
+    // standard 1-SSE/SST definition it is numerically identical to NSE; both
+    // names are retained because they serve different ML/hydrology audiences.
+    result.r2 = result.nse;
     double observedSum = 0.0;
     for (size_t i = 0; i < n; ++i) observedSum += observed[i];
     result.pbias = std::abs(observedSum) > 0.0 ? 100.0 * signedError / observedSum
