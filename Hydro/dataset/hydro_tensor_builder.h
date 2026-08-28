@@ -30,9 +30,51 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         }
         const auto prepared = prepareGisToOhqPackage(packageRoot, true);
         std::vector<float> features, targets, times;
-        features.reserve(prepared.model_rows.size() * 6);
         targets.reserve(prepared.model_rows.size());
         times.reserve(prepared.model_rows.size());
+
+        // Plain FFN/LSTM preserve the verified six-forcing contract:
+        // [P, T, RH, wind, solar, PET]. For physics-informed GIStoOHQ runs we
+        // instead expose the water-balance layout expected by the existing PINN
+        // backends: [time, P, PET, T, S_latent, RH, wind, solar].
+        // S_latent is a conceptual linear-reservoir state generated ONLY from
+        // precipitation and PET; observed runoff never enters the storage state.
+        if (config.use_latent_storage_physics) {
+            features.reserve(prepared.model_rows.size() * 8);
+            const double recession = std::max(1.0e-6, config.latent_storage_recession_per_hour);
+            double storage = 0.0;
+            double previousTime = prepared.model_rows.empty() ? 0.0 : prepared.model_rows.front().elapsed_hours;
+            bool first = true;
+            for (const auto& row : prepared.model_rows) {
+                const double time = row.elapsed_hours;
+                const double dt = first ? 1.0 : std::max(1.0e-9, time - previousTime);
+                const double precipitation = std::max(0.0, row.features[0]);
+                const double pet = std::max(0.0, row.features[5]);
+                const double effectiveInput = precipitation - pet;
+                storage = std::max(0.0, storage + dt * (effectiveInput - recession * storage));
+
+                features.push_back(static_cast<float>(time));
+                features.push_back(static_cast<float>(precipitation));
+                features.push_back(static_cast<float>(pet));
+                features.push_back(static_cast<float>(row.features[1]));
+                features.push_back(static_cast<float>(storage));
+                features.push_back(static_cast<float>(row.features[2]));
+                features.push_back(static_cast<float>(row.features[3]));
+                features.push_back(static_cast<float>(row.features[4]));
+                targets.push_back(static_cast<float>(row.target_runoff_mm_per_hour));
+                times.push_back(static_cast<float>(time));
+                previousTime = time;
+                first = false;
+            }
+            if (targets.empty()) throw std::runtime_error("GIStoOHQ package contains no supervised hourly rows.");
+            const auto n = static_cast<int64_t>(targets.size());
+            x = torch::from_blob(features.data(), {n, 8}, torch::kFloat32).clone();
+            y = torch::from_blob(targets.data(), {n, 1}, torch::kFloat32).clone();
+            plotX = torch::from_blob(times.data(), {n, 1}, torch::kFloat32).clone();
+            return true;
+        }
+
+        features.reserve(prepared.model_rows.size() * 6);
         for (const auto& row : prepared.model_rows) {
             for (const auto value : row.features) features.push_back(static_cast<float>(value));
             targets.push_back(static_cast<float>(row.target_runoff_mm_per_hour));
