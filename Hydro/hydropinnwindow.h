@@ -30,6 +30,7 @@ class HydroPINNWindow : public QMainWindow {
 
 public:
     explicit HydroPINNWindow(QWidget* parent = nullptr);
+    void showCurrentInputsOutputs();
 
 private:
     QLabel* statusLabel_;
