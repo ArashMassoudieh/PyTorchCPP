@@ -112,9 +112,13 @@ void printMetrics(const std::string& experiment_id, const std::string& mode,
     std::cout << std::setprecision(9)
               << "[batch] experiment=" << experiment_id
               << " mode=" << mode
-              << " success=" << (result.success ? "yes" : "no")
-              << " sequence_length=" << config.lstm_sequence_length
-              << " normalization=" << config.normalization
+              << " success=" << (result.success ? "yes" : "no");
+    if (mode == "lstm") {
+        std::cout << " sequence_length=" << config.lstm_sequence_length;
+    } else if (mode == "ffn") {
+        std::cout << " input_lags=" << config.input_lags_csv;
+    }
+    std::cout << " normalization=" << config.normalization
               << " test_mse=" << result.mse
               << " rmse=" << result.rmse
               << " mae=" << result.mae
@@ -159,6 +163,18 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
         << r.volume_error_percent << ',' << r.peak_timing_error << ',' << r.peak_magnitude_error_percent << ','
         << r.high_flow_rmse << ',' << r.low_flow_rmse << '\n';
 }
+
+fs::path archiveExistingExperiment(const fs::path& output_root, const std::string& experiment_id) {
+    const fs::path current = output_root / experiment_id;
+    if (!fs::exists(current)) return {};
+
+    fs::path archive = output_root / (experiment_id + ".previous");
+    for (int suffix = 2; fs::exists(archive); ++suffix) {
+        archive = output_root / (experiment_id + ".previous." + std::to_string(suffix));
+    }
+    fs::rename(current, archive);
+    return archive;
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -189,16 +205,26 @@ int main(int argc, char** argv) {
                 HydroRunConfig config = loaded.config;
                 resolveConfigPaths(config, repository_root);
                 std::cout << "[batch] starting experiment=" << loaded.experiment_id
-                          << " mode=" << job.mode
-                          << " sequence_length=" << config.lstm_sequence_length
-                          << " normalization=" << config.normalization << '\n';
+                          << " mode=" << job.mode;
+                if (job.mode == "lstm") {
+                    std::cout << " sequence_length=" << config.lstm_sequence_length;
+                } else if (job.mode == "ffn") {
+                    std::cout << " input_lags=" << config.input_lags_csv;
+                }
+                std::cout << " normalization=" << config.normalization << '\n';
                 if (config.use_hydro_package) std::cout << "[batch] hydro_package_path=" << config.hydro_package_path << '\n';
+
                 HydroRunResult result = runJob(job.mode, config);
                 printMetrics(loaded.experiment_id, job.mode, config, result);
-                appendSummary(summary_path, loaded.experiment_id, job.mode, config, result);
+
                 std::map<std::string, HydroRunResult> results;
                 results.emplace(job.mode, result);
+                const fs::path archived = archiveExistingExperiment(output_root, loaded.experiment_id);
+                if (!archived.empty()) {
+                    std::cout << "[batch] archived existing experiment=" << archived << '\n';
+                }
                 HydroExperimentExporter().exportRun(output_root.string(), loaded.experiment_id, config, results);
+                appendSummary(summary_path, loaded.experiment_id, job.mode, config, result);
                 if (!result.success) ++failures;
             } catch (const std::exception& error) {
                 ++failures;
