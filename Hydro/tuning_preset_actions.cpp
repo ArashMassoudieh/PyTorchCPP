@@ -37,7 +37,11 @@ QMenu* findBatchMenu(QMainWindow* window)
     return nullptr;
 }
 
-bool runGenerator(QWidget* parent, const QStringList& generatorArgs, const QString& description)
+bool runPythonGenerator(QWidget* parent,
+                        const QString& scriptName,
+                        const QStringList& generatorArgs,
+                        const QString& description,
+                        const QString& batchFile)
 {
     const QString repoRoot = locateRepositoryRoot();
     if (repoRoot.isEmpty()) {
@@ -45,7 +49,7 @@ bool runGenerator(QWidget* parent, const QStringList& generatorArgs, const QStri
         return false;
     }
     const QString experimentDir = repoRoot + "/Hydro/experiments/gistohq_sligo";
-    const QString generator = experimentDir + "/generate_hyperparameter_sweep.py";
+    const QString generator = experimentDir + "/" + scriptName;
     if (!QFileInfo::exists(generator)) {
         QMessageBox::critical(parent, "Sweep Preset", "Sweep generator not found:\n" + generator);
         return false;
@@ -75,8 +79,14 @@ bool runGenerator(QWidget* parent, const QStringList& generatorArgs, const QStri
         "Sweep Preset Generated",
         description + "\n\n" + output +
             "\nUse Batch > Run Config Batch... and select:\n" +
-            experimentDir + "/hyperparameter_stage1.batch");
+            experimentDir + "/" + batchFile);
     return true;
+}
+
+bool runStage1Generator(QWidget* parent, const QStringList& args, const QString& description)
+{
+    return runPythonGenerator(parent, "generate_hyperparameter_sweep.py", args, description,
+                              "hyperparameter_stage1.batch");
 }
 
 void installPresetActions()
@@ -105,17 +115,31 @@ void installPresetActions()
     QAction* stage1 = presets->addAction("Stage 1 Architecture/Activation");
     stage1->setToolTip("Generate the curated Stage-1 FFN/LSTM tuning sweep with the established defaults.");
     QObject::connect(stage1, &QAction::triggered, window, [window]() {
-        runGenerator(window, {},
-                     "Stage 1 preset restored: FFN 6 h architecture/activation sweep plus LSTM 12/24 h architecture sweep.");
+        runStage1Generator(window, {},
+                           "Stage 1: FFN 6 h architecture/activation sweep plus LSTM 12/24 h architecture sweep.");
     });
 
-    QAction* sigmoid = presets->addAction("Sigmoid-only FFN");
+    QAction* sigmoid = presets->addAction("Stage 1B Sigmoid-only FFN");
     sigmoid->setToolTip("Generate only the nine missing FFN sigmoid architecture cases.");
     QObject::connect(sigmoid, &QAction::triggered, window, [window]() {
-        runGenerator(window,
-                     {"--ffn-only", "--activations", "sigmoid",
-                      "--ffn-architectures", "16;24;32;48;16,16;24,24;32,16;32,32;48,24"},
-                     "Sigmoid-only FFN preset: nine new cases, without repeating tanh/ReLU or LSTM runs.");
+        runStage1Generator(window,
+                           {"--ffn-only", "--activations", "sigmoid",
+                            "--ffn-architectures", "16;24;32;48;16,16;24,24;32,16;32,32;48,24"},
+                           "Stage 1B: nine sigmoid-only FFN cases without repeating tanh/ReLU or LSTM runs.");
+    });
+
+    QAction* stage2 = presets->addAction("Stage 2 Learning Rate / Batch Size");
+    stage2->setToolTip(
+        "Generate the 36-run Stage-2 sweep for the selected FFN/LSTM finalists: "
+        "learning rates 0.001/0.003/0.005 x batch sizes 16/32/64 at seed 42.");
+    QObject::connect(stage2, &QAction::triggered, window, [window]() {
+        runPythonGenerator(
+            window,
+            "generate_stage2_sweep.py",
+            {},
+            "Stage 2: four Stage-1 finalists x three learning rates x three batch sizes = 36 runs. "
+            "Seed remains fixed at 42 for controlled optimizer tuning.",
+            "hyperparameter_stage2.batch");
     });
 
     presets->addSeparator();
