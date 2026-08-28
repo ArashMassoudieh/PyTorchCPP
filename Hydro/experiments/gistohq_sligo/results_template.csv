@@ -7,6 +7,6 @@ sligo_ffn_standardize_lag24,FFN,standardize,24,,0.00144605443,0.0380270223,0.025
 sligo_ffn_standardize_lag48,FFN,standardize,48,,0.00118982065,0.034493777,0.0264623163,0.109164881,0.109164881,-0.110620324,85.3931166,,,,,,,,verified GUI batch sweep
 sligo_lstm_standardize_seq6,LSTM,standardize,6,,0.000718963046,0.0268134863,0.0179263071,0.460286212,0.460286212,0.447128002,35.8215422,,,,,,,,verified GUI batch sweep
 sligo_lstm_standardize_seq12,LSTM,standardize,12,,0.000632261453,0.0251448097,0.0154926527,0.527066528,0.527066528,0.585263856,25.9602453,,,,,,,,verified GUI batch sweep
-sligo_lstm_standardize_seq18,LSTM,standardize,18,,,,,,,,,,,,,,,,pending
+sligo_lstm_standardize_seq18,LSTM,standardize,18,,0.000733259232,0.0270787598,0.0176398572,0.453579709,0.453579709,0.309356149,42.5908868,,,,,,,,verified GUI batch sweep
 sligo_lstm_standardize_seq24,LSTM,standardize,24,,0.0007729313,0.027801642,0.0141917982,0.425601919,0.425601919,0.650682273,13.4994049,,,,,,,,verified GUI batch sweep
 sligo_lstm_standardize_seq48,LSTM,standardize,48,,0.00100671622,0.0317287916,0.0169463894,0.260135324,0.260135324,0.469014249,40.7098512,,,,,,,,verified GUI batch sweep
