@@ -2,7 +2,6 @@
 
 #include <QAction>
 #include <QApplication>
-#include <QComboBox>
 #include <QCoreApplication>
 #include <QDialog>
 #include <QDir>
@@ -27,19 +26,6 @@
 #include <iostream>
 
 namespace {
-QComboBox* findDataSourceCombo(HydroPINNWindow& window)
-{
-    const auto combos = window.findChildren<QComboBox*>();
-    for (QComboBox* combo : combos) {
-        if (combo->findText("Synthetic") >= 0 &&
-            combo->findText("CSV File") >= 0 &&
-            combo->findText("Hydro Package") >= 0) {
-            return combo;
-        }
-    }
-    return nullptr;
-}
-
 QPushButton* findButtonByText(HydroPINNWindow& window, const QString& text)
 {
     const auto buttons = window.findChildren<QPushButton*>();
@@ -51,29 +37,19 @@ QPushButton* findButtonByText(HydroPINNWindow& window, const QString& text)
 
 void configureContextSpecificPlotButtons(HydroPINNWindow& window)
 {
-    QComboBox* dataSource = findDataSourceCombo(window);
     QPushButton* inputsOutput = findButtonByText(window, "Show Inputs + Output");
     QPushButton* cumulativePhysics = findButtonByText(window, "Cumulative Physics Residual");
 
     if (inputsOutput) {
-        inputsOutput->setText("Synthetic Inputs + Output");
+        inputsOutput->setText("Inputs + Output");
         inputsOutput->setToolTip(
-            "Plots the generated synthetic input channels and output. "
-            "This action is intentionally unavailable for CSV and Hydro Package data; "
-            "use target/predicted and hydrologic diagnostic plots for observed packages.");
-
-        auto refreshInputsButton = [dataSource, inputsOutput]() {
-            if (!dataSource) return;
-            const bool synthetic = dataSource->currentText() == "Synthetic";
-            inputsOutput->setEnabled(synthetic);
-        };
-        refreshInputsButton();
-        if (dataSource) {
-            QObject::connect(dataSource, &QComboBox::currentTextChanged,
-                             inputsOutput, [refreshInputsButton](const QString&) {
-                                 refreshInputsButton();
-                             });
-        }
+            "Plot the actual configured input columns together with the output. "
+            "Synthetic uses generated channels; CSV uses configured model columns; "
+            "GIStoOHQ Hydro packages plot precipitation, temperature, RH, wind, solar, PET, and observed runoff.");
+        inputsOutput->setEnabled(true);
+        QObject::disconnect(inputsOutput, nullptr, &window, nullptr);
+        QObject::connect(inputsOutput, &QPushButton::clicked, &window,
+                         [&window]() { window.showCurrentInputsOutputs(); });
     }
 
     if (cumulativePhysics) {
@@ -234,14 +210,11 @@ void configureBatchGui(HydroPINNWindow& window)
 int main(int argc, char *argv[])
 {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-    // Must be set before QApplication is constructed.
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
 
     try {
-        // Keep LibTorch conservative inside a GUI app.
-        // This avoids CPU over-subscription when Qt, OpenMP, and Torch are all active.
         torch::set_num_threads(1);
         torch::set_num_interop_threads(1);
 
