@@ -1,0 +1,7 @@
+# Sligo Creek GIStoOHQ physics-informed comparison
+# HydroBatch automatically enables latent-storage physics for physics modes.
+# The latent storage state is derived from precipitation/PET only; observed runoff is not used as an input.
+
+ffn_pinn ffn_pinn_latent_storage.json
+lstm_pinn lstm_pinn_latent_storage.json
+pinn pinn_latent_storage.json
