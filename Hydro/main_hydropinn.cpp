@@ -69,7 +69,7 @@ void installR2LogEnhancer(HydroPINNWindow& window)
     QTextEdit* runLog = nullptr;
     const auto edits = window.findChildren<QTextEdit*>();
     for (QTextEdit* edit : edits) {
-        if (edit->isReadOnly()) {
+        if (edit->placeholderText().contains("Run logs", Qt::CaseInsensitive)) {
             runLog = edit;
             break;
         }
