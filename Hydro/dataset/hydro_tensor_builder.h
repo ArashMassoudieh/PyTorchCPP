@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <stdexcept>
 #include <vector>
 
@@ -30,8 +31,6 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         }
         const auto prepared = prepareGisToOhqPackage(packageRoot, true);
         std::vector<float> features, targets, times;
-        targets.reserve(prepared.model_rows.size());
-        times.reserve(prepared.model_rows.size());
 
         // Plain FFN/LSTM preserve the verified six-forcing contract:
         // [P, T, RH, wind, solar, PET]. For physics-informed GIStoOHQ runs we
@@ -39,19 +38,40 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         // backends: [time, P, PET, T, S_latent, RH, wind, solar].
         // S_latent is a conceptual linear-reservoir state generated ONLY from
         // precipitation and PET; observed runoff never enters the storage state.
+        //
+        // Physics residuals use finite differences, so they must never bridge a
+        // missing-discharge/forcing gap. The producer adapter already labels each
+        // contiguous hourly block with segment_id; use the longest contiguous
+        // segment for the current PINN implementation.
         if (config.use_latent_storage_physics) {
-            features.reserve(prepared.model_rows.size() * 8);
+            std::map<std::size_t, std::size_t> segmentCounts;
+            for (const auto& row : prepared.model_rows) ++segmentCounts[row.segment_id];
+            if (segmentCounts.empty()) throw std::runtime_error("GIStoOHQ package has no contiguous physics segment.");
+            const auto longest = std::max_element(
+                segmentCounts.begin(), segmentCounts.end(),
+                [](const auto& a, const auto& b) { return a.second < b.second; });
+            const std::size_t selectedSegment = longest->first;
+            const std::size_t selectedCount = longest->second;
+            if (selectedCount < 4) throw std::runtime_error("GIStoOHQ longest contiguous physics segment is too short.");
+
+            features.reserve(selectedCount * 8);
+            targets.reserve(selectedCount);
+            times.reserve(selectedCount);
             const double recession = std::max(1.0e-6, config.latent_storage_recession_per_hour);
             double storage = 0.0;
-            double previousTime = prepared.model_rows.empty() ? 0.0 : prepared.model_rows.front().elapsed_hours;
+            double previousTime = 0.0;
             bool first = true;
             for (const auto& row : prepared.model_rows) {
+                if (row.segment_id != selectedSegment) continue;
                 const double time = row.elapsed_hours;
-                const double dt = first ? 1.0 : std::max(1.0e-9, time - previousTime);
+                const double dt = first ? 1.0 : time - previousTime;
+                if (!first && std::abs(dt - 1.0) > 1.0e-6) {
+                    throw std::runtime_error("Selected GIStoOHQ physics segment is not hourly contiguous.");
+                }
                 const double precipitation = std::max(0.0, row.features[0]);
                 const double pet = std::max(0.0, row.features[5]);
                 const double effectiveInput = precipitation - pet;
-                storage = std::max(0.0, storage + dt * (effectiveInput - recession * storage));
+                storage = std::max(0.0, storage + std::max(1.0e-9, dt) * (effectiveInput - recession * storage));
 
                 features.push_back(static_cast<float>(time));
                 features.push_back(static_cast<float>(precipitation));
@@ -66,7 +86,6 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
                 previousTime = time;
                 first = false;
             }
-            if (targets.empty()) throw std::runtime_error("GIStoOHQ package contains no supervised hourly rows.");
             const auto n = static_cast<int64_t>(targets.size());
             x = torch::from_blob(features.data(), {n, 8}, torch::kFloat32).clone();
             y = torch::from_blob(targets.data(), {n, 1}, torch::kFloat32).clone();
@@ -75,6 +94,8 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         }
 
         features.reserve(prepared.model_rows.size() * 6);
+        targets.reserve(prepared.model_rows.size());
+        times.reserve(prepared.model_rows.size());
         for (const auto& row : prepared.model_rows) {
             for (const auto value : row.features) features.push_back(static_cast<float>(value));
             targets.push_back(static_cast<float>(row.target_runoff_mm_per_hour));
