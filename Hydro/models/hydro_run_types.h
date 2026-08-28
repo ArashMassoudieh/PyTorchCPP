@@ -108,6 +108,7 @@ struct HydroRunResult {
     double rmse = std::numeric_limits<double>::quiet_NaN();
     double mae = std::numeric_limits<double>::quiet_NaN();
     double nse = std::numeric_limits<double>::quiet_NaN();
+    double r2 = std::numeric_limits<double>::quiet_NaN();
     double pbias = std::numeric_limits<double>::quiet_NaN();
     double correlation = std::numeric_limits<double>::quiet_NaN();
     double kge = std::numeric_limits<double>::quiet_NaN();
