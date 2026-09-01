@@ -14,6 +14,9 @@ TARGET = HydroPINN
 # =========================
 # Host profile
 # =========================
+# Pick ONE profile, or pass one from qmake:
+#   qmake HydroPINN.pro CONFIG+=PowerEdge
+# =========================
 isEmpty(HOST_PROFILE) {
     CONFIG += Jason
     DEFINES += Jason
@@ -82,6 +85,7 @@ SOURCES += \
     Hydro/stage23_sweep_dialogs.cpp \
     Hydro/sweep_manager.cpp \
     Hydro/quick_sweep.cpp \
+    Hydro/full_tuning_pipeline.cpp \
     neuralnetworkwrapper.cpp \
     neuralnetworkfactory.cpp \
     hyperparameters.cpp \
