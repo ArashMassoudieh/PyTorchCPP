@@ -81,8 +81,6 @@ SOURCES += \
     Hydro/main_hydropinn.cpp \
     $$GISTOHQ_PINN_WINDOW \
     Hydro/input_output_plot.cpp \
-    Hydro/tuning_preset_actions.cpp \
-    Hydro/stage23_sweep_dialogs.cpp \
     Hydro/sweep_manager.cpp \
     Hydro/quick_sweep.cpp \
     Hydro/full_tuning_pipeline.cpp \
