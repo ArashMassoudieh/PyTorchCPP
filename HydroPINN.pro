@@ -14,9 +14,6 @@ TARGET = HydroPINN
 # =========================
 # Host profile
 # =========================
-# Pick ONE profile, or pass one from qmake:
-#   qmake HydroPINN.pro CONFIG+=PowerEdge
-# =========================
 isEmpty(HOST_PROFILE) {
     CONFIG += Jason
     DEFINES += Jason
@@ -70,10 +67,6 @@ message("Using TORCH_CXX11_ABI=$$TORCH_CXX11_ABI")
 unix:!macx { QMAKE_LFLAGS += -Wl,-rpath,$$LIBTORCH_PATH/lib }
 CONFIG(release, debug|release) { QMAKE_CXXFLAGS += -O3 } else { QMAKE_CXXFLAGS += -O0 -g }
 
-# Generate a build-only GUI translation unit that enables the versioned
-# GIStoOHQ latent-storage PINN path while keeping hydropinnwindow.cpp as the
-# canonical tracked source. The transform fails loudly if the expected old hard
-# block changes, preventing a stale silent patch.
 GISTOHQ_PINN_WINDOW = $$PWD/Hydro/generated/hydropinnwindow_gistohq_pinn.cpp
 GISTOHQ_PINN_GENERATOR = $$PWD/Hydro/generate_gistohq_pinn_window.py
 system(python3 $$GISTOHQ_PINN_GENERATOR)
@@ -88,6 +81,7 @@ SOURCES += \
     Hydro/tuning_preset_actions.cpp \
     Hydro/stage23_sweep_dialogs.cpp \
     Hydro/sweep_manager.cpp \
+    Hydro/quick_sweep.cpp \
     neuralnetworkwrapper.cpp \
     neuralnetworkfactory.cpp \
     hyperparameters.cpp \
