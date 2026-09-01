@@ -268,6 +268,12 @@ int main(int argc, char** argv) {
                 if (isPhysicsMode(job.mode)) {
                     config.use_latent_storage_physics = true;
                     config.pinn_physics_profile = "water_balance";
+                    // Unified physics sweeps store the latent-reservoir recession
+                    // coefficient in the existing serialized storage_coeff field.
+                    // This keeps old experiment JSON compatible while making k
+                    // an actual runtime parameter instead of a label-only sweep.
+                    config.latent_storage_recession_per_hour =
+                        config.storage_coeff > 0.0 ? config.storage_coeff : 0.08;
                     if (config.normalization != "none") {
                         std::cout << "[batch] physics mode requires physical-unit residuals; overriding normalization="
                                   << config.normalization << " -> none\n";
