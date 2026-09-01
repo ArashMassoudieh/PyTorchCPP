@@ -84,6 +84,7 @@ SOURCES += \
     Hydro/sweep_manager.cpp \
     Hydro/quick_sweep.cpp \
     Hydro/full_tuning_pipeline.cpp \
+    Hydro/ui_cleanup.cpp \
     neuralnetworkwrapper.cpp \
     neuralnetworkfactory.cpp \
     hyperparameters.cpp \
