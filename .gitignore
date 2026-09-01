@@ -61,3 +61,8 @@ Hydro/experiments/**/batch_summary*.csv
 Hydro/experiments/**/*_summary.csv
 Hydro/experiments/**/hyperparameter_stage*.batch
 Hydro/experiments/**/gistohq_unified_sweep.batch
+Hydro/experiments/**/unified_sweep.batch
+
+# Directly exported experiment folders and archived reruns
+Hydro/experiments/**/sligo_*/
+Hydro/experiments/**/unified_*/
