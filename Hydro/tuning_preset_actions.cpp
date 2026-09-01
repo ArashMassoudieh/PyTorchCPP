@@ -108,9 +108,12 @@ void installPresetActions()
     }
     if (batchMenu->findChild<QMenu*>("HydroSweepPresetsMenu")) return;
 
-    QMenu* presets = batchMenu->insertMenu(batchMenu->actions().isEmpty() ? nullptr : batchMenu->actions().first(),
-                                           "Sweep Presets");
+    // Qt5 QMenu::insertMenu expects a QMenu*, not a title string. Construct the
+    // submenu explicitly, then insert its menuAction before the first Batch item.
+    QMenu* presets = new QMenu("Sweep Presets", batchMenu);
     presets->setObjectName("HydroSweepPresetsMenu");
+    QAction* before = batchMenu->actions().isEmpty() ? nullptr : batchMenu->actions().first();
+    batchMenu->insertMenu(before, presets);
 
     QAction* stage1 = presets->addAction("Stage 1 Architecture/Activation");
     stage1->setToolTip("Generate the curated Stage-1 FFN/LSTM tuning sweep with the established defaults.");
