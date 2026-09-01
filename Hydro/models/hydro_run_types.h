@@ -17,10 +17,13 @@ inline int& hydroLstmSequenceLengthRuntimeDefault() {
 }
 
 struct HydroScalerState {
+    // Identity is the correct persisted scaler for normalization="none".
+    // A scalar {0}/{1} state broadcasts safely across any input feature count,
+    // while standardized/minmax runs replace it with feature-wise fitted state.
     std::string method = "none";
-    std::vector<double> offset;
-    std::vector<double> scale;
-    std::vector<int64_t> shape;
+    std::vector<double> offset = {0.0};
+    std::vector<double> scale = {1.0};
+    std::vector<int64_t> shape = {1};
 };
 
 /**
