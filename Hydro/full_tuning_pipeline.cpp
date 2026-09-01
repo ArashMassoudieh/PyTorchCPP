@@ -14,6 +14,7 @@
 #include <QMessageBox>
 #include <QProcess>
 #include <QPushButton>
+#include <QTextCursor>
 #include <QTextEdit>
 #include <QTimer>
 #include <QToolBar>
