@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QMainWindow>
+#include <QProcess>
 #include <QSet>
 #include <QTimer>
 
@@ -42,6 +43,19 @@ QMainWindow* mainWindow()
     return nullptr;
 }
 
+bool hydroBatchIsRunning()
+{
+    for (QWidget* widget : QApplication::topLevelWidgets()) {
+        const auto processes = widget->findChildren<QProcess*>();
+        for (QProcess* process : processes) {
+            if (!process || process->state() == QProcess::NotRunning) continue;
+            const QString program = QFileInfo(process->program()).fileName();
+            if (program.compare("HydroBatch", Qt::CaseInsensitive) == 0) return true;
+        }
+    }
+    return false;
+}
+
 void installWatcher()
 {
     QMainWindow* window = mainWindow();
@@ -63,6 +77,10 @@ void installWatcher()
     auto* timer = new QTimer(window);
     timer->setInterval(1500);
     QObject::connect(timer, &QTimer::timeout, window, [window, experimentRoot, seen]() {
+        // HydroBatch appends batch_summary.csv incrementally. Do not surface a
+        // partial table while any GUI-launched HydroBatch process is active.
+        if (hydroBatchIsRunning()) return;
+
         QStringList summaries;
         collectSummaries(experimentRoot, &summaries);
         for (const QString& path : summaries) {
