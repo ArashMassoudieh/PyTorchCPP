@@ -85,6 +85,8 @@ SOURCES += \
     Hydro/quick_sweep.cpp \
     Hydro/full_tuning_pipeline.cpp \
     Hydro/ui_cleanup.cpp \
+    Hydro/batch_results_summary.cpp \
+    Hydro/batch_results_auto_view.cpp \
     neuralnetworkwrapper.cpp \
     neuralnetworkfactory.cpp \
     hyperparameters.cpp \
@@ -124,7 +126,7 @@ HEADERS += \
     Utilities/TimeSeries.h Utilities/TimeSeries.hpp Utilities/TimeSeriesSet.h Utilities/TimeSeriesSet.hpp \
     Utilities/Distribution.h Utilities/Matrix.h Utilities/Matrix_arma.h Utilities/Matrix_arma_sp.h \
     Utilities/QuickSort.h Utilities/Utilities.h Utilities/Vector.h Utilities/Vector_arma.h \
-    Hydro/hydropinnwindow.h \
+    Hydro/hydropinnwindow.h Hydro/batch_results_summary.h \
     Hydro/dataset/ddrr_loader.h Hydro/dataset/gistohq_hourly_harmonizer.h \
     Hydro/dataset/gistohq_package_adapter.h Hydro/dataset/gistohq_model_rows.h \
     Hydro/dataset/gistohq_tensor_builder.h Hydro/dataset/gistohq_temporal_csv.h \
