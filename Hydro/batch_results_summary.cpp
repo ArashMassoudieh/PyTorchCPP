@@ -1,5 +1,6 @@
 #include "batch_results_summary.h"
 
+#include <QAbstractItemView>
 #include <QDialog>
 #include <QFile>
 #include <QFileInfo>
@@ -8,6 +9,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QTableWidget>
+#include <QTableWidgetItem>
 #include <QTextStream>
 #include <QVBoxLayout>
 
@@ -199,10 +201,13 @@ void showHydroBatchResultsSummary(QWidget* parent,
     layout->addWidget(table, 1);
 
     const ResultRow& best = rows.first();
-    auto* bestLabel = new QLabel(
-        QString("Top ranked: %1  |  R²/NSE %2  |  KGE %3  |  PBIAS %4%  |  RMSE %5")
-            .arg(methodLabel(best.mode), fmt(best.r2, 3), fmt(best.kge, 3), fmt(best.pbias, 2), fmt(best.rmse, 5)),
-        dialog);
+    QString bestText = QString("Top ranked: %1  |  R²/NSE %2  |  KGE %3  |  PBIAS %4%  |  RMSE %5")
+        .arg(methodLabel(best.mode))
+        .arg(fmt(best.r2, 3))
+        .arg(fmt(best.kge, 3))
+        .arg(fmt(best.pbias, 2))
+        .arg(fmt(best.rmse, 5));
+    auto* bestLabel = new QLabel(bestText, dialog);
     bestLabel->setWordWrap(true);
     layout->addWidget(bestLabel);
 
