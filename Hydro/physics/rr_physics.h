@@ -48,6 +48,34 @@ public:
                                               const torch::Tensor& timestamps) const;
 
     /**
+     * @brief Reduced linear-reservoir runoff evolution residual.
+     *
+     * Starting with Q = k S and dS/dt = P - ET - Q, storage can be eliminated:
+     *
+     *     dQ/dt = k (P - ET - Q)
+     *
+     * Therefore the residual is
+     *
+     *     r_Q = dQ/dt - k (P - ET - Q).
+     *
+     * Unlike the legacy latent-storage residual, this does not precompute S
+     * using the same constitutive equation that is subsequently enforced.
+     * `recession_per_time` is k in inverse units of the supplied timestep.
+     */
+    torch::Tensor runoffReservoirResidual(const torch::Tensor& rainfall,
+                                          const torch::Tensor& evapotranspiration,
+                                          const torch::Tensor& runoff,
+                                          double recession_per_time,
+                                          const PhysicsConfig& cfg) const;
+
+    /** Reduced runoff-reservoir residual using per-sample physical timestamps. */
+    torch::Tensor runoffReservoirResidualAtTimes(const torch::Tensor& rainfall,
+                                                 const torch::Tensor& evapotranspiration,
+                                                 const torch::Tensor& runoff,
+                                                 double recession_per_time,
+                                                 const torch::Tensor& timestamps) const;
+
+    /**
      * @brief Penalty for negative runoff values: max(0, -Q).
      */
     torch::Tensor nonNegativeRunoffResidual(const torch::Tensor& runoff) const;
