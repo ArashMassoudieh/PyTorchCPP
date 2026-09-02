@@ -14,7 +14,9 @@ This audit evaluates the five Hydro methods **before further hyperparameter swee
 
 ## 1. Supervised baselines
 
-FFN and LSTM remain unchanged. Their data-source-specific input builders continue to define the supervised predictor set, and normalization is fitted only on the training subset.
+FFN and LSTM remain unchanged in training logic. Their data-source-specific input builders continue to define the supervised predictor set, and normalization is fitted only on the training subset.
+
+For the explicit `reduced_reservoir` synthetic validation profile, the supervised wrappers are generated at build time with one additional data-source branch that calls the same shared reduced-reservoir tensor builder used by the physics-informed methods. Therefore all five methods receive the same synthetic realization.
 
 ## 2. Removed circular-storage formulation
 
@@ -66,7 +68,13 @@ This reduced equation is a **conceptual physics regularizer**, not exact watersh
 
 ### Synthetic
 
-Reduced-reservoir physics runs use a dedicated synthetic verification series generated directly from the same forced ODE. This provides a controlled unit-test case in which the governing process is known.
+The GUI now exposes an explicit `reduced_reservoir` profile. Its truth series is generated directly from the same forced ODE and is shared by FFN, FFN+PINN, LSTM, LSTM+PINN, and PINN.
+
+For this controlled test, `lambda_decay` is the single explicit synthetic reservoir coefficient \(k\). This avoids a hidden runtime default causing the supervised methods and physics-informed methods to see different truth trajectories. Physics-mode routing copies the same value into the runtime recession/forcing coefficients.
+
+The preview and CSV export for this profile are generated from the same shared tensor builder. Export columns are:
+
+`time, precipitation, PET, runoff`.
 
 The older `watershed_balance` and `rainfall_runoff` synthetic processes are retained as separate known-state hydrologic test cases. In particular, `physics_profile="water_balance"` can still be used when a synthetic case independently provides storage. These known-state tests are intentionally distinct from the reduced-reservoir formulation.
 
@@ -144,15 +152,15 @@ For real/CSV data, \(Q_0\) is the first observed runoff value. For the controlle
 | Hydro package | yes | yes | yes | yes | yes when storage is independently supplied |
 | GIStoOHQ | yes | yes | yes | yes | not used because observed storage is unavailable |
 
-## 8. What to test next
+## 8. Controlled five-method validation
 
-Do not resume broad sweeps yet. First verify method behavior:
+Use `Synthetic -> reduced_reservoir` and then `Run All`. The run should satisfy these invariants:
 
-1. supervised FFN/LSTM still reproduce established baselines;
-2. the reduced synthetic test is recovered by FFN+PINN, LSTM+PINN, and PINN;
-3. materially different `physics_weight` values now change hybrid fitted models;
-4. CSV physics rejects time+target-only files instead of deriving forcing from runoff;
-5. GIStoOHQ physics results differ from the former circular-storage results;
-6. evaluate NSE/KGE/PBIAS and residual behavior together rather than ranking on RMSE alone.
+1. all five methods use the same `sample_count`, `t_start`, `t_end`, precipitation, PET, effective precipitation, runoff target, and synthetic \(k\);
+2. FFN/LSTM use the shared realization as supervised data only;
+3. FFN+PINN/LSTM+PINN additionally enforce the matching reduced-reservoir residual;
+4. standalone PINN uses the same forcing and only the first synthetic runoff value as its initial-condition anchor;
+5. physics modes automatically switch to `linear_reservoir`, physical-unit normalization, and non-lagged FFN physics input;
+6. the GUI log explicitly reports controlled reduced-reservoir physics instead of `water_balance`.
 
-Only after these checks pass should broad tuning resume.
+Do not resume broad sweeps until this controlled run passes and materially different `physics_weight` values produce different hybrid fits.
