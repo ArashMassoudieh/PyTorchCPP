@@ -17,6 +17,13 @@ contains(CONFIG, SligoCreek) { DEFINES += SligoCreek }
 
 DEFINES += DEBUG_ TORCH_SUPPORT _arma ARMA_USE_OPENMP QT_NO_KEYWORDS
 
+# Embed the source revision used by this binary. __DATE__/__TIME__ are captured
+# by Hydro/build_identity.h during compilation.
+GIT_COMMIT = $$system(git -C $$PWD rev-parse --short HEAD 2>/dev/null)
+isEmpty(GIT_COMMIT) { GIT_COMMIT = unknown }
+DEFINES += HYDRO_GIT_COMMIT=\"$$GIT_COMMIT\"
+message("HydroBatch build commit=$$GIT_COMMIT")
+
 isEmpty(LIBTORCH_PATH) {
     contains(DEFINES, Jason) { LIBTORCH_PATH = /usr/local/libtorch }
     contains(DEFINES, Arash) { LIBTORCH_PATH = /usr/local/libtorch }
@@ -54,6 +61,7 @@ CONFIG(release, debug|release) { QMAKE_CXXFLAGS += -O3 } else { QMAKE_CXXFLAGS +
 
 SOURCES += \
     Hydro/batch/hydro_batch_runner.cpp \
+    Hydro/build_identity_batch.cpp \
     neuralnetworkwrapper.cpp \
     neuralnetworkfactory.cpp \
     hyperparameters.cpp \
@@ -91,6 +99,7 @@ HEADERS += \
     Utilities/TimeSeries.h Utilities/TimeSeries.hpp Utilities/TimeSeriesSet.h Utilities/TimeSeriesSet.hpp \
     Utilities/Distribution.h Utilities/Matrix.h Utilities/Matrix_arma.h Utilities/Matrix_arma_sp.h \
     Utilities/QuickSort.h Utilities/Utilities.h Utilities/Vector.h Utilities/Vector_arma.h \
+    Hydro/build_identity.h \
     Hydro/dataset/ddrr_loader.h Hydro/dataset/gistohq_hourly_harmonizer.h \
     Hydro/dataset/gistohq_package_adapter.h Hydro/dataset/gistohq_model_rows.h \
     Hydro/dataset/gistohq_tensor_builder.h Hydro/dataset/gistohq_temporal_csv.h \
