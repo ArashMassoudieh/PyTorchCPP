@@ -3,7 +3,7 @@
 #include "ffn_pinn_wrapper.h"
 #include "hydro_run_types.h"
 #include "../dataset/chronological_split.h"
-#include "../dataset/hydro_tensor_builder.h"
+#include "../dataset/reservoir_physics_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
 #include "../evaluation/model_checkpoint.h"
 
@@ -77,22 +77,20 @@ inline void fillPlotVectors(HydroRunResult& result,
 } // namespace hydro_ffn_reservoir_detail
 
 /**
- * Corrected GIStoOHQ FFN+PINN implementation.
+ * Reduced-reservoir FFN+PINN implementation shared by Synthetic, CSV, and Hydro
+ * package inputs.  The forcing contract is [time, Peff, ...], with
+ * Peff=max(P-PET,0), and the residual is
  *
- * The legacy FFNPINNWrapper is retained for other datasets/profiles.  For the
- * GIStoOHQ physics-forcing layout this wrapper uses the independent reduced
- * reservoir equation
+ *     dQ/dt = k (Peff - Q).
  *
- *     dQ/dt = k (Peff - Q),  Peff=max(P-PET,0),
- *
- * with finite differences along the observed forcing trajectory.  Data and
- * physics terms participate in the same optimizer update, so physics_weight is
- * an actual tradeoff coefficient.
+ * Known-state synthetic water-balance experiments remain available through the
+ * legacy FFNPINNWrapper by selecting physics_profile="water_balance".  This
+ * wrapper is used for physics_profile="linear_reservoir".
  */
 class FFNReservoirPINNWrapper {
 public:
     HydroRunResult train(const HydroRunConfig& config) {
-        if (!config.use_hydro_package || !config.use_latent_storage_physics) {
+        if (config.pinn_physics_profile != "linear_reservoir") {
             FFNPINNWrapper legacy;
             return legacy.train(config);
         }
@@ -108,8 +106,8 @@ public:
         torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
         torch::Tensor x, y, plotX;
-        if (!loadHydroPackageTensors(config, x, y, plotX)) {
-            throw std::runtime_error("Corrected GIStoOHQ FFN-PINN requires a Hydro package input.");
+        if (!loadReservoirPhysicsTensors(config, x, y, plotX)) {
+            throw std::runtime_error("Unable to construct reduced-reservoir physics tensors.");
         }
         if (x.dim() != 2 || x.size(1) < 2 || y.dim() != 2 || y.size(1) != 1) {
             throw std::runtime_error("FFN-PINN reservoir physics expects [time, Peff, ...] inputs and scalar runoff targets.");
@@ -130,7 +128,9 @@ public:
                                      torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
 
         const double dt = regularPhysicalTimeStepFromTime(plotX);
-        const double k = std::max(1.0e-8, config.latent_storage_recession_per_hour);
+        const double k = std::max(1.0e-8, config.latent_storage_recession_per_hour > 0.0
+                                           ? config.latent_storage_recession_per_hour
+                                           : config.lambda_decay);
         const int64_t trainN = xTrain.size(0);
         const int batchSize = std::max(2, config.batch_size);
         const int warmupEpochs = config.data_weight > 0.0 ? std::max(1, config.epochs / 5) : 0;
@@ -146,8 +146,6 @@ public:
             double epochLoss = 0.0;
             int64_t seen = 0;
 
-            // Sequential mini-batches preserve the total time derivative along
-            // the forcing trajectory.  Shuffling would make dQ/dt meaningless.
             for (int64_t start = 0; start < trainN; start += batchSize) {
                 const int64_t end = std::min<int64_t>(start + batchSize, trainN);
                 if (end - start < 2) continue;
@@ -253,7 +251,11 @@ public:
         populateHydroPhysicsResidualMetrics(result);
 
         result.success = true;
-        result.message = "FFN-PINN completed with joint data/physics optimization and independent runoff-reservoir physics.";
+        result.message = config.use_hydro_package
+            ? "FFN-PINN completed on Hydro package input with joint reduced-reservoir physics."
+            : (config.use_csv_data
+               ? "FFN-PINN completed on CSV input with joint reduced-reservoir physics."
+               : "FFN-PINN completed on synthetic input with joint reduced-reservoir physics.");
         return result;
     }
 };
