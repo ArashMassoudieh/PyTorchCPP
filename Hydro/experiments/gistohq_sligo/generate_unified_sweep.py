@@ -9,10 +9,10 @@ applied only to methods for which they are meaningful:
   LSTM + PINN     : hidden x sequence x physics-weight x recession-k x optimizer grid x seeds
   PINN            : hidden x recession-k x optimizer grid x seeds
 
-For physics modes, storage_coeff carries the conceptual latent-reservoir
-recession coefficient so HydroBatch can map it to the runtime latent-storage
-parameter. Standalone PINN uses data_weight=0 and physics_weight=1; sweeping a
-constant multiplier on a physics-only objective would not change its optimum.
+Physics-informed GIStoOHQ runs use the independent reduced-reservoir equation
+    dQ/dt = k (Peff - Q),  Peff=max(P-PET,0),
+rather than a precomputed latent-storage trajectory.  storage_coeff remains the
+serialized k field for backward compatibility with existing experiment files.
 """
 
 from __future__ import annotations
@@ -81,8 +81,10 @@ def physics_common(cfg: dict, k: float) -> dict:
     cfg = dict(cfg)
     cfg.update({
         "normalization": "none",
-        "physics_profile": "water_balance",
+        "physics_profile": "linear_reservoir",
         "physics_dt": 1.0,
+        "lambda_decay": k,
+        "forcing_gain": k,
         "storage_coeff": k,
         "pinn_collocation_points": 0,
         "hydro_package_profile": "rainfall-runoff",
@@ -137,7 +139,7 @@ def main() -> int:
     if args.epochs < 1 or any(v <= 0 for v in lrs) or any(v < 1 for v in batches + sequences):
         raise SystemExit("epochs/LR/batch/sequence settings must be positive")
     if any(v <= 0 for v in ks):
-        raise SystemExit("latent recession k values must be positive")
+        raise SystemExit("reservoir k values must be positive")
     if any(v < 0 for v in physics_weights):
         raise SystemExit("physics weights cannot be negative")
 
