@@ -51,6 +51,9 @@ NEW_STANDALONE = '''            appendLog(cfg.use_latent_storage_physics
                                  : "Standalone PINN uses the explicit physics-only wrapper."));
 '''
 
+OLD_FFN_INCLUDE = '#include "models/ffn_pinn_wrapper.h"\n'
+NEW_FFN_INCLUDE = '#include "models/ffn_pinn_wrapper.h"\n#include "models/ffn_reservoir_pinn_wrapper.h"\n'
+
 
 def main() -> int:
     text = SOURCE.read_text(encoding="utf-8")
@@ -60,6 +63,10 @@ def main() -> int:
     if OLD_STANDALONE not in text:
         raise SystemExit("Expected standalone PINN log block was not found; update the generator for the current GUI source.")
     text = text.replace(OLD_STANDALONE, NEW_STANDALONE, 1)
+    if OLD_FFN_INCLUDE not in text:
+        raise SystemExit("Expected FFN-PINN include was not found; update the generator for the current GUI source.")
+    text = text.replace(OLD_FFN_INCLUDE, NEW_FFN_INCLUDE, 1)
+    text = text.replace("FFNPINNWrapper runner;", "FFNReservoirPINNWrapper runner;")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(text, encoding="utf-8")
     print(f"Generated {OUTPUT}")
