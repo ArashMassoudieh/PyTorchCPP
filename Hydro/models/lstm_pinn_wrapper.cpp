@@ -3,7 +3,7 @@
 #include "hydro_lstm_module.h"
 
 #include "../dataset/chronological_split.h"
-#include "../dataset/hydro_tensor_builder.h"
+#include "../dataset/reservoir_physics_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
 #include "../evaluation/model_checkpoint.h"
 
@@ -60,8 +60,7 @@ SequenceData makeSequences(const torch::Tensor& x,
         throw std::runtime_error("Too few samples for requested LSTM-PINN sequence length.");
     }
 
-    const double dt = regularPhysicalTimeStepFromTime(time);
-    (void)dt;
+    regularPhysicalTimeStepFromTime(time);
     std::vector<torch::Tensor> sequences;
     sequences.reserve(static_cast<std::size_t>(x.size(0) - sequenceLength + 1));
     for (int64_t end = sequenceLength - 1; end < x.size(0); ++end) {
@@ -95,10 +94,10 @@ void fillPlotVectors(HydroRunResult& result,
 } // namespace
 
 HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
-    // Keep legacy/synthetic backends available.  The corrected formulation is
-    // deliberately scoped to the real GIStoOHQ forcing path selected by the
-    // physics adapter.
-    if (!config.use_hydro_package || !config.use_latent_storage_physics) {
+    // Preserve known-state/legacy PINN profiles.  The corrected reduced-reservoir
+    // implementation is shared across Synthetic, CSV, and Hydro package inputs
+    // when physics_profile="linear_reservoir".
+    if (config.pinn_physics_profile != "linear_reservoir") {
         LSTMNetworkWrapper backend;
         return backend.train(config, true);
     }
@@ -110,8 +109,8 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
     torch::Tensor x, y, plotX;
-    if (!loadHydroPackageTensors(config, x, y, plotX)) {
-        throw std::runtime_error("Corrected GIStoOHQ LSTM-PINN requires a Hydro package input.");
+    if (!loadReservoirPhysicsTensors(config, x, y, plotX)) {
+        throw std::runtime_error("Unable to construct reduced-reservoir LSTM-PINN tensors.");
     }
     if (x.dim() != 2 || x.size(1) < 2) {
         throw std::runtime_error("LSTM-PINN reservoir physics requires [time, Peff, ...] input features.");
@@ -137,7 +136,9 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
                                  torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
 
     const double dt = regularPhysicalTimeStepFromTime(seq.time);
-    const double k = std::max(1.0e-8, config.latent_storage_recession_per_hour);
+    const double k = std::max(1.0e-8, config.latent_storage_recession_per_hour > 0.0
+                                       ? config.latent_storage_recession_per_hour
+                                       : config.lambda_decay);
     const int64_t trainN = xTrain.size(0);
     const int batchSize = std::max(2, config.batch_size);
     const int warmupEpochs = config.data_weight > 0.0 ? std::max(1, config.epochs / 5) : 0;
@@ -153,7 +154,6 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
         double epochLoss = 0.0;
         int64_t seen = 0;
 
-        // Physics uses adjacent times, so batches are intentionally sequential.
         for (int64_t start = 0; start < trainN; start += batchSize) {
             const int64_t end = std::min<int64_t>(start + batchSize, trainN);
             if (end - start < 2) continue;
@@ -163,7 +163,6 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
             optimizer.zero_grad();
             torch::Tensor pred = model->forward(xb);
             torch::Tensor dataLoss = torch::mse_loss(pred, yb);
-
             torch::Tensor lastStep = xb.select(1, xb.size(1) - 1);
             torch::Tensor effectiveRain = lastStep.slice(1, 1, 2);
             torch::Tensor dQdt = (pred.slice(0, 1, pred.size(0)) - pred.slice(0, 0, pred.size(0) - 1)) / dt;
@@ -171,12 +170,11 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
             torch::Tensor peffNow = effectiveRain.slice(0, 1, effectiveRain.size(0));
             torch::Tensor residual = dQdt - k * (peffNow - qNow);
             torch::Tensor physicsLoss = torch::mean(residual * residual);
-            torch::Tensor nonnegativeLoss = torch::mean(torch::relu(-pred) * torch::relu(-pred));
+            torch::Tensor negative = torch::relu(-pred);
+            torch::Tensor nonnegativeLoss = torch::mean(negative * negative);
 
-            const bool warmup = epoch < warmupEpochs;
-            const double dataWeight = config.data_weight;
-            const double physicsWeight = warmup ? 0.0 : config.physics_weight;
-            torch::Tensor totalLoss = dataWeight * dataLoss +
+            const double physicsWeight = epoch < warmupEpochs ? 0.0 : config.physics_weight;
+            torch::Tensor totalLoss = config.data_weight * dataLoss +
                                       physicsWeight * (physicsLoss + 0.05 * nonnegativeLoss);
             totalLoss.backward();
             optimizer.step();
@@ -193,9 +191,7 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
             torch::NoGradGuard noGrad;
             validationMse = torch::mse_loss(model->forward(xValidation), yValidation).item<double>();
         }
-        if (!std::isfinite(validationMse)) {
-            throw std::runtime_error("LSTM-PINN validation produced a non-finite loss.");
-        }
+        if (!std::isfinite(validationMse)) throw std::runtime_error("LSTM-PINN validation produced a non-finite loss.");
         validationLosses.push_back(validationMse);
         if (validationMse < bestValidation) {
             bestValidation = validationMse;
@@ -217,6 +213,8 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     result.best_epoch = bestEpoch;
     result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
     result.validation_mse = bestValidation;
+    result.input_scaler.method = "none";
+    result.target_scaler.method = "none";
 
     {
         const auto checkpoint = temporaryHydroCheckpointPath("hydro_lstm_pinn_reservoir");
@@ -236,9 +234,7 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     }
     if (config.evaluate_metrics) {
         populateHydroMetrics(result, tensorValues(yTest), tensorValues(predTest));
-        if (!hydroMetricsAreFinite(result)) {
-            throw std::runtime_error("LSTM-PINN evaluation produced invalid core hydrology metrics.");
-        }
+        if (!hydroMetricsAreFinite(result)) throw std::runtime_error("LSTM-PINN evaluation produced invalid core hydrology metrics.");
     }
 
     torch::Tensor predFull = model->forward(seq.x);
@@ -253,20 +249,21 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     if (predFull.size(0) >= 2) {
         torch::Tensor lastStep = seq.x.select(1, seq.x.size(1) - 1);
         torch::Tensor peff = lastStep.slice(1, 1, 2);
-        torch::Tensor dQdt = (predFull.slice(0, 1, predFull.size(0)) -
-                              predFull.slice(0, 0, predFull.size(0) - 1)) / dt;
+        torch::Tensor dQdt = (predFull.slice(0, 1, predFull.size(0)) - predFull.slice(0, 0, predFull.size(0) - 1)) / dt;
         torch::Tensor qNow = predFull.slice(0, 1, predFull.size(0));
         torch::Tensor residual = dQdt - k * (peff.slice(0, 1, peff.size(0)) - qNow);
         result.physics_loss = torch::mean(residual * residual).item<double>();
         auto values = residual.detach().to(torch::kCPU).reshape({-1}).contiguous();
         result.physics_residual.assign(result.x.size(), std::numeric_limits<double>::quiet_NaN());
-        for (int64_t i = 0; i < values.size(0); ++i) {
-            result.physics_residual[static_cast<std::size_t>(i + 1)] = values[i].item<double>();
-        }
+        for (int64_t i = 0; i < values.size(0); ++i) result.physics_residual[static_cast<std::size_t>(i + 1)] = values[i].item<double>();
         populateHydroPhysicsResidualMetrics(result);
     }
 
     result.success = true;
-    result.message = "LSTM-PINN completed with joint data/physics optimization and independent runoff-reservoir physics.";
+    result.message = config.use_hydro_package
+        ? "LSTM-PINN completed on Hydro package input with joint reduced-reservoir physics."
+        : (config.use_csv_data
+           ? "LSTM-PINN completed on CSV input with joint reduced-reservoir physics."
+           : "LSTM-PINN completed on synthetic input with joint reduced-reservoir physics.");
     return result;
 }
