@@ -23,7 +23,7 @@
  *   y[:,0] = observed/synthetic runoff used for hybrid data loss or evaluation
  *
  * No storage state is reconstructed from the same equation used by the physics
- * residual.  This prevents the former Q ~= kS algebraic circularity.
+ * residual. This prevents the former Q ~= kS algebraic circularity.
  */
 inline void loadReservoirPhysicsCsvTensors(const HydroRunConfig& config,
                                            torch::Tensor& x,
@@ -97,9 +97,11 @@ inline void buildReducedReservoirSyntheticTensors(const HydroRunConfig& config,
     const double dt = (samples > 1) ? (t1 - t0) / static_cast<double>(samples - 1) : 1.0;
     if (!(dt > 0.0)) throw std::invalid_argument("Synthetic reservoir physics requires t_end > t_start.");
 
-    const double k = std::max(1.0e-8, config.latent_storage_recession_per_hour > 0.0
-                                       ? config.latent_storage_recession_per_hour
-                                       : config.lambda_decay);
+    // Synthetic truth uses lambda_decay as the single explicit k control.  All
+    // five methods receive the same HydroRunConfig from the GUI/batch workflow,
+    // so this avoids a hidden default latent-storage coefficient changing the
+    // supervised truth relative to the physics-informed truth.
+    const double k = std::max(1.0e-8, config.lambda_decay);
     constexpr double pi = 3.14159265358979323846;
     std::vector<float> features;
     std::vector<float> targets;
