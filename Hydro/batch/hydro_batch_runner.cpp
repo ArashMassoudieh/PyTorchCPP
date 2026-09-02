@@ -2,6 +2,7 @@
 #include "../evaluation/experiment_loader.h"
 #include "../models/ffn_wrapper.h"
 #include "../models/ffn_pinn_wrapper.h"
+#include "../models/ffn_reservoir_pinn_wrapper.h"
 #include "../models/pinn_wrapper.h"
 #include "../models/lstm_wrapper.h"
 #include "../models/lstm_pinn_wrapper.h"
@@ -124,7 +125,7 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
 
 HydroRunResult runJob(const std::string& mode, const HydroRunConfig& config) {
     if (mode == "ffn") { FFNWrapper runner; return runner.train(config); }
-    if (mode == "ffn_pinn") { FFNPINNWrapper runner; return runner.train(config); }
+    if (mode == "ffn_pinn") { FFNReservoirPINNWrapper runner; return runner.train(config); }
     if (mode == "lstm") { LSTMWrapper runner; return runner.train(config); }
     if (mode == "lstm_pinn") { LSTMPINNWrapper runner; return runner.train(config); }
     if (mode == "pinn") { PINNWrapper runner; return runner.train(config); }
