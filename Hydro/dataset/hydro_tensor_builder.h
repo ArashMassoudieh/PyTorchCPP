@@ -33,16 +33,19 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         std::vector<float> features, targets, times;
 
         // Plain FFN/LSTM preserve the verified six-forcing contract:
-        // [P, T, RH, wind, solar, PET]. For physics-informed GIStoOHQ runs we
-        // instead expose the water-balance layout expected by the existing PINN
-        // backends: [time, P, PET, T, S_latent, RH, wind, solar].
-        // S_latent is a conceptual linear-reservoir state generated ONLY from
-        // precipitation and PET; observed runoff never enters the storage state.
+        // [P, T, RH, wind, solar, PET].
         //
-        // Physics residuals use finite differences, so they must never bridge a
-        // missing-discharge/forcing gap. The producer adapter already labels each
-        // contiguous hourly block with segment_id; use the longest contiguous
-        // segment for the current PINN implementation.
+        // Physics-informed GIStoOHQ runs use an independent runoff-dynamics
+        // forcing layout instead of a precomputed storage state:
+        // [time, Peff, P, PET, T, RH, wind, solar],
+        // where Peff=max(P-PET,0).  No observed runoff is used to construct an
+        // input state, and no storage trajectory is generated from the same
+        // reservoir equation later imposed as a physics residual.  This avoids
+        // the circular constraint that previously reduced the PINN to Q ~= kS.
+        //
+        // Finite-difference physics residuals must not bridge missing-data gaps.
+        // The producer adapter labels contiguous hourly blocks with segment_id;
+        // use the longest contiguous segment for the current PINN backends.
         if (config.use_latent_storage_physics) {
             std::map<std::size_t, std::size_t> segmentCounts;
             for (const auto& row : prepared.model_rows) ++segmentCounts[row.segment_id];
@@ -57,8 +60,6 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
             features.reserve(selectedCount * 8);
             targets.reserve(selectedCount);
             times.reserve(selectedCount);
-            const double recession = std::max(1.0e-6, config.latent_storage_recession_per_hour);
-            double storage = 0.0;
             double previousTime = 0.0;
             bool first = true;
             for (const auto& row : prepared.model_rows) {
@@ -70,14 +71,13 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
                 }
                 const double precipitation = std::max(0.0, row.features[0]);
                 const double pet = std::max(0.0, row.features[5]);
-                const double effectiveInput = precipitation - pet;
-                storage = std::max(0.0, storage + std::max(1.0e-9, dt) * (effectiveInput - recession * storage));
+                const double effectiveInput = std::max(0.0, precipitation - pet);
 
                 features.push_back(static_cast<float>(time));
+                features.push_back(static_cast<float>(effectiveInput));
                 features.push_back(static_cast<float>(precipitation));
                 features.push_back(static_cast<float>(pet));
                 features.push_back(static_cast<float>(row.features[1]));
-                features.push_back(static_cast<float>(storage));
                 features.push_back(static_cast<float>(row.features[2]));
                 features.push_back(static_cast<float>(row.features[3]));
                 features.push_back(static_cast<float>(row.features[4]));
