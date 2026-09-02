@@ -2,7 +2,7 @@
 
 #include "ffn_pinn_wrapper.h"
 #include "../dataset/chronological_split.h"
-#include "../dataset/hydro_tensor_builder.h"
+#include "../dataset/reservoir_physics_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
 #include "../evaluation/model_checkpoint.h"
 
@@ -76,17 +76,17 @@ void fillPlotVectors(HydroRunResult& result,
 } // namespace
 
 HydroRunResult PINNWrapper::train(const HydroRunConfig& config) {
-    // Preserve the generic legacy PINN for non-GIStoOHQ inputs.  The real
-    // GIStoOHQ formulation below is physics-only except for the single initial
-    // condition required to identify a first-order forced ODE solution.
-    if (!config.use_hydro_package || !config.use_latent_storage_physics) {
+    // Preserve explicit known-state and legacy ODE profiles.  The corrected
+    // reduced-reservoir standalone PINN is shared across Synthetic, CSV, and
+    // Hydro package inputs when physics_profile="linear_reservoir".
+    if (config.pinn_physics_profile != "linear_reservoir") {
         HydroRunConfig physicsOnly = config;
         physicsOnly.use_time_lagged_ffn = false;
         physicsOnly.data_weight = 0.0;
         physicsOnly.physics_weight = std::max(1.0, physicsOnly.physics_weight);
         FFNPINNWrapper backend;
         HydroRunResult result = backend.train(physicsOnly);
-        if (result.success) result.message = "Physics-only PINN run completed (legacy non-GIStoOHQ backend).";
+        if (result.success) result.message = "Physics-only PINN run completed with legacy/known-state physics profile.";
         return result;
     }
     if (config.normalization != "none") {
@@ -97,8 +97,8 @@ HydroRunResult PINNWrapper::train(const HydroRunConfig& config) {
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
     torch::Tensor x, y, plotX;
-    if (!loadHydroPackageTensors(config, x, y, plotX)) {
-        throw std::runtime_error("Standalone GIStoOHQ PINN requires a Hydro package input.");
+    if (!loadReservoirPhysicsTensors(config, x, y, plotX)) {
+        throw std::runtime_error("Unable to construct standalone reduced-reservoir physics tensors.");
     }
     if (x.dim() != 2 || x.size(1) < 2 || y.dim() != 2 || y.size(1) != 1) {
         throw std::runtime_error("Standalone PINN expects [time, Peff, ...] inputs and scalar runoff targets.");
@@ -119,7 +119,9 @@ HydroRunResult PINNWrapper::train(const HydroRunConfig& config) {
                                  torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
 
     const double dt = regularPhysicalTimeStepFromTime(plotX);
-    const double k = std::max(1.0e-8, config.latent_storage_recession_per_hour);
+    const double k = std::max(1.0e-8, config.latent_storage_recession_per_hour > 0.0
+                                       ? config.latent_storage_recession_per_hour
+                                       : config.lambda_decay);
     const double physicsWeight = std::max(1.0e-12, config.physics_weight);
     constexpr double initialConditionWeight = 1.0;
     constexpr double nonnegativeWeight = 0.05;
@@ -128,10 +130,6 @@ HydroRunResult PINNWrapper::train(const HydroRunConfig& config) {
     std::vector<double> losses;
     double bestObjective = std::numeric_limits<double>::infinity();
     int bestEpoch = 0;
-
-    // A first-order forced ODE needs one boundary/initial condition.  Only the
-    // first observed runoff value is used for that purpose; the remaining
-    // training targets do not appear in the optimization objective.
     const torch::Tensor q0Observed = yTrain.slice(0, 0, 1).detach();
 
     for (int epoch = 0; epoch < std::max(1, config.epochs); ++epoch) {
@@ -198,9 +196,7 @@ HydroRunResult PINNWrapper::train(const HydroRunConfig& config) {
     }
     if (config.evaluate_metrics) {
         populateHydroMetrics(result, tensorValues(yTest), tensorValues(predTest));
-        if (!hydroMetricsAreFinite(result)) {
-            throw std::runtime_error("Standalone PINN evaluation produced invalid core hydrology metrics.");
-        }
+        if (!hydroMetricsAreFinite(result)) throw std::runtime_error("Standalone PINN evaluation produced invalid core hydrology metrics.");
     }
 
     torch::Tensor predFull = model->forward(x);
@@ -219,12 +215,14 @@ HydroRunResult PINNWrapper::train(const HydroRunConfig& config) {
     result.physics_loss = torch::mean(residual * residual).item<double>();
     auto residualValues = residual.detach().to(torch::kCPU).reshape({-1}).contiguous();
     result.physics_residual.assign(result.x.size(), std::numeric_limits<double>::quiet_NaN());
-    for (int64_t i = 0; i < residualValues.size(0); ++i) {
-        result.physics_residual[static_cast<std::size_t>(i + 1)] = residualValues[i].item<double>();
-    }
+    for (int64_t i = 0; i < residualValues.size(0); ++i) result.physics_residual[static_cast<std::size_t>(i + 1)] = residualValues[i].item<double>();
     populateHydroPhysicsResidualMetrics(result);
 
     result.success = true;
-    result.message = "Standalone PINN completed with runoff-reservoir physics and one initial-condition observation; no full-series supervised loss was used.";
+    result.message = config.use_hydro_package
+        ? "Standalone PINN completed on Hydro package input with reduced-reservoir physics and one observed initial condition."
+        : (config.use_csv_data
+           ? "Standalone PINN completed on CSV input with reduced-reservoir physics and one observed initial condition."
+           : "Standalone PINN completed on synthetic input with reduced-reservoir physics and one synthetic initial condition.");
     return result;
 }
