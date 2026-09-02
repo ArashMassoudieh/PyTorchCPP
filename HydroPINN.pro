@@ -84,6 +84,13 @@ system(python3 $$GISTOHQ_PINN_GENERATOR)
     error("Failed to generate GIStoOHQ PINN-enabled HydroPINN window source.")
 }
 
+REDUCED_RESERVOIR_GENERATOR = $$PWD/Hydro/generate_reduced_reservoir_supervised_wrappers.py
+GENERATED_FFN_WRAPPER = $$PWD/Hydro/generated/ffn_wrapper_reduced_reservoir.cpp
+GENERATED_LSTM_NETWORK_WRAPPER = $$PWD/Hydro/generated/lstmnetworkwrapper_reduced_reservoir.cpp
+system(python3 $$REDUCED_RESERVOIR_GENERATOR)
+!exists($$GENERATED_FFN_WRAPPER) { error("Failed to generate reduced-reservoir FFN wrapper.") }
+!exists($$GENERATED_LSTM_NETWORK_WRAPPER) { error("Failed to generate reduced-reservoir LSTM wrapper.") }
+
 SOURCES += \
     Hydro/main_hydropinn.cpp \
     $$GISTOHQ_PINN_WINDOW \
@@ -122,11 +129,11 @@ SOURCES += \
     Hydro/models/pinn_wrapper.cpp \
     Hydro/physics/physics_config.cpp \
     Hydro/physics/rr_physics.cpp \
-    Hydro/models/ffn_wrapper.cpp \
+    $$GENERATED_FFN_WRAPPER \
     Hydro/models/ffn_pinn_wrapper.cpp \
     Hydro/models/lstm_wrapper.cpp \
     Hydro/models/lstm_pinn_wrapper.cpp \
-    Hydro/models/lstmnetworkwrapper.cpp
+    $$GENERATED_LSTM_NETWORK_WRAPPER
 
 HEADERS += \
     neuralnetworkwrapper.h neuralnetworkfactory.h commontypes.h Normalization.h TestHyperParameters.h \
@@ -140,14 +147,14 @@ HEADERS += \
     Hydro/dataset/gistohq_tensor_builder.h Hydro/dataset/gistohq_temporal_csv.h \
     Hydro/dataset/hydro_checksum.h Hydro/dataset/hydro_dataset_contract.h \
     Hydro/dataset/hydro_package_directory.h Hydro/dataset/hydro_units.h Hydro/dataset/forecast_alignment.h \
-    Hydro/dataset/hydro_tensor_builder.h Hydro/dataset/csv_tensor_builder.h \
+    Hydro/dataset/hydro_tensor_builder.h Hydro/dataset/csv_tensor_builder.h Hydro/dataset/reservoir_physics_tensor_builder.h \
     Hydro/dataset/lag_builder.h Hydro/dataset/lagged_tensor_builder.h \
     Hydro/dataset/sequence_builder.h Hydro/dataset/chronological_split.h Hydro/dataset/tensor_scaler.h \
     Hydro/evaluation/hydro_metrics.h Hydro/evaluation/experiment_exporter.h Hydro/evaluation/experiment_loader.h \
     Hydro/evaluation/artifact_loader.h Hydro/evaluation/inference_runner.h Hydro/evaluation/model_checkpoint.h \
     Hydro/physics/physics_config.h Hydro/physics/rr_physics.h \
     Hydro/models/hydro_run_types.h Hydro/models/hydro_lstm_module.h \
-    Hydro/models/ffn_wrapper.h Hydro/models/ffn_pinn_wrapper.h Hydro/models/pinn_wrapper.h \
+    Hydro/models/ffn_wrapper.h Hydro/models/ffn_pinn_wrapper.h Hydro/models/ffn_reservoir_pinn_wrapper.h Hydro/models/pinn_wrapper.h \
     Hydro/models/lstm_wrapper.h Hydro/models/lstm_pinn_wrapper.h Hydro/models/lstmnetworkwrapper.h
 
 qnx: target.path = /tmp/$${TARGET}/bin
