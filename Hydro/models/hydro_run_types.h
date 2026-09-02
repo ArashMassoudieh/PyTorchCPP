@@ -34,12 +34,14 @@ struct HydroRunConfig {
     int batch_size = 32;
     double learning_rate = 0.003;
 
-    // PINN-specific options
+    // PINN-specific options.
     // Physics profiles:
-    // - water_balance:       watershed mass-balance residual P/precip - ET - Q - dS/dt;
-    // - linear_reservoir:    dy/dt + lambda*y - forcing_gain*u = 0
-    // - cstr_first_order:    dy/dt + lambda*y - forcing_gain*u = 0 (same residual form, different interpretation)
-    // - exp_decay:           dy/dt + lambda*y = 0
+    // - linear_reservoir: reduced runoff evolution dQ/dt = k(Peff-Q), shared by
+    //   Synthetic, CSV, and Hydro-package physics modes. Peff=max(P-PET,0).
+    // - water_balance: explicit known-state balance P-ET-Q-dS/dt=0; intended for
+    //   controlled synthetic or packages that independently provide storage S.
+    // - cstr_first_order: dy/dt + lambda*y - forcing_gain*u = 0.
+    // - exp_decay: dy/dt + lambda*y = 0.
     double lambda_decay = 0.8;
     double data_weight = 1.0;
     double physics_weight = 0.2;
@@ -48,13 +50,11 @@ struct HydroRunConfig {
     double runoff_coeff = 0.7;
     double storage_coeff = 1.0;
     double physics_dt = 1.0;
-    int pinn_collocation_points = 0; // 0 => use batch inputs only; >0 => sample extra Raissi-style collocation points per batch
+    int pinn_collocation_points = 0;
 
-    // GIStoOHQ rainfall-runoff PINN adapter. This flag is deliberately false for
-    // plain FFN/LSTM runs so the verified six-forcing supervised feature contract
-    // is unchanged. Physics-informed modes may enable it to construct a latent
-    // conceptual storage state from precipitation/PET only, avoiding any use of
-    // observed discharge as an input feature.
+    // Historical flag name retained for experiment compatibility. For GIStoOHQ
+    // reduced-reservoir physics it now selects the contiguous forcing-only layout
+    // [time, Peff, P, PET, T, RH, wind, solar]; no latent storage is generated.
     bool use_latent_storage_physics = false;
     double latent_storage_recession_per_hour = 0.08;
 
@@ -76,30 +76,29 @@ struct HydroRunConfig {
     int sample_count = 220;
     double t_start = 0.0;
     double t_end = 5.0;
+    // Synthetic profiles include known-state hydrologic processes plus generic
+    // signals. Reduced-reservoir PINN modes generate their own exact forced-
+    // reservoir verification series through reservoir_physics_tensor_builder.h.
     std::string synthetic_profile = "watershed_balance"; // watershed_balance | rainfall_runoff | neuroforge_inputs_target | exp_decay | damped_sine | mixed_wave
 
     // Network options
     std::string hidden_layers_csv = "24,24";
-    // Lag groups are separated by ';' and each group contains comma-separated positive integer lags.
-    // Examples: "1" (all features use lag 1), "1,2;1;1,3" (feature-specific lag groups).
     std::string input_lags_csv = "1";
-    bool use_time_lagged_ffn = false; // Applies only to FFN and FFN + PINN; LSTM keeps sequence memory internally.
-    int lstm_sequence_length = hydroLstmSequenceLengthRuntimeDefault(); // Independent of FFN lag-search settings.
-    std::string activation = "tanh"; // single backend activation used across hidden/output layers
+    bool use_time_lagged_ffn = false;
+    int lstm_sequence_length = hydroLstmSequenceLengthRuntimeDefault();
+    std::string activation = "tanh";
 
     bool evaluate_metrics = true;
 
-    // NeuroForge-style extra options (currently informational/plumbing for Hydro UI compatibility)
     double train_split_ratio = 0.8;
-    double validation_split_ratio = 0.1; // chronological fraction reserved for model selection
+    double validation_split_ratio = 0.1;
     bool shuffle_training = true;
     int random_seed = 42;
-    std::string optimizer = "adam";      // adam | sgd | rmsprop
+    std::string optimizer = "adam";
     double weight_decay = 0.0;
     double momentum = 0.9;
-    std::string normalization = "none";  // none | standardize | minmax
+    std::string normalization = "none";
 
-    // Incremental/rolling-window options (future backend compatibility)
     bool use_incremental_training = false;
     double window_size = 1.0;
     double window_step = 0.5;
@@ -133,7 +132,6 @@ struct HydroRunResult {
     double physics_loss = std::numeric_limits<double>::quiet_NaN();
     std::string message;
 
-    // Optional series for plotting
     std::vector<double> x;
     std::vector<double> y_true;
     std::vector<double> y_pred;
