@@ -266,14 +266,16 @@ int main(int argc, char** argv) {
                 HydroRunConfig config = loaded.config;
                 resolveConfigPaths(config, repository_root);
                 if (isPhysicsMode(job.mode)) {
+                    // GIStoOHQ physics modes use a forcing-only reduced reservoir:
+                    // dQ/dt = k(Peff-Q), Peff=max(P-PET,0).  The legacy flag name
+                    // selects the contiguous physics forcing layout; no storage
+                    // state is generated or supplied to the model.
                     config.use_latent_storage_physics = true;
-                    config.pinn_physics_profile = "water_balance";
-                    // Unified physics sweeps store the latent-reservoir recession
-                    // coefficient in the existing serialized storage_coeff field.
-                    // This keeps old experiment JSON compatible while making k
-                    // an actual runtime parameter instead of a label-only sweep.
                     config.latent_storage_recession_per_hour =
                         config.storage_coeff > 0.0 ? config.storage_coeff : 0.08;
+                    config.pinn_physics_profile = "linear_reservoir";
+                    config.lambda_decay = config.latent_storage_recession_per_hour;
+                    config.forcing_gain = config.latent_storage_recession_per_hour;
                     if (config.normalization != "none") {
                         std::cout << "[batch] physics mode requires physical-unit residuals; overriding normalization="
                                   << config.normalization << " -> none\n";
