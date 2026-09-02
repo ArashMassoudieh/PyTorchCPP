@@ -3,7 +3,7 @@
 
 The main GUI source is intentionally kept as the canonical implementation.  This
 small build-time transform removes the historical hard block on GIStoOHQ PINN
-runs and enables the latent-storage adapter only for physics-informed modes.
+runs and enables the forcing-only physics adapter for physics-informed modes.
 The generated file is not intended to be edited by hand.
 """
 
@@ -22,17 +22,19 @@ OLD = '''            if (isGisToOhqHydroPinnExport(packageRoot) && mode != "ffn"
 '''
 
 NEW = '''            if (isGisToOhqHydroPinnExport(packageRoot) && mode != "ffn" && mode != "lstm") {
-                // GIStoOHQ provides precipitation, PET, meteorological forcings, and observed runoff,
-                // but not observed catchment storage. Physics-informed modes therefore use the
-                // versioned latent-storage adapter. Storage is generated from P/PET only and never
-                // from observed runoff, so there is no target leakage into the model inputs.
-                cfg.use_latent_storage_physics = true;
-                cfg.pinn_physics_profile = "water_balance";
+                // GIStoOHQ physics modes use the reduced runoff-reservoir equation
+                // dQ/dt = k(Peff-Q), Peff=max(P-PET,0).  No observed or generated
+                // storage enters the model inputs, so the residual is independent
+                // rather than a restatement of a precomputed storage trajectory.
+                cfg.use_latent_storage_physics = true; // legacy flag name: selects contiguous physics forcing layout
+                cfg.pinn_physics_profile = "linear_reservoir";
+                cfg.lambda_decay = cfg.latent_storage_recession_per_hour;
+                cfg.forcing_gain = cfg.latent_storage_recession_per_hour;
                 if (cfg.normalization != "none") {
                     cfg.normalization = "none";
                     appendLog("GIStoOHQ PINN residuals require physical units; normalization was set to none for this physics-informed run.");
                 }
-                appendLog(QString("GIStoOHQ physics mode enabled: latent conceptual storage, recession=%1 1/h; observed storage is not required.")
+                appendLog(QString("GIStoOHQ physics mode enabled: runoff reservoir dQ/dt=k(Peff-Q), k=%1 1/h; no storage input is used.")
                               .arg(cfg.latent_storage_recession_per_hour, 0, 'g', 6));
             }
 '''
@@ -42,11 +44,11 @@ OLD_STANDALONE = '''            appendLog(cfg.pinn_physics_profile == "water_bal
                           : "Standalone PINN uses the explicit physics-only wrapper (data_weight=0).");
 '''
 
-NEW_STANDALONE = '''            appendLog(cfg.pinn_physics_profile == "water_balance"
-                          ? (cfg.use_latent_storage_physics
-                                 ? "Standalone PINN uses physics-only water-balance loss with P/ET and latent conceptual storage (no observed storage input)."
-                                 : "Standalone PINN uses physics-only water-balance loss with P/ET/total-storage features.")
-                          : "Standalone PINN uses the explicit physics-only wrapper (data_weight=0).");
+NEW_STANDALONE = '''            appendLog(cfg.use_latent_storage_physics
+                          ? "Standalone PINN uses the runoff-reservoir physics residual with an initial-condition anchor and no storage input."
+                          : (cfg.pinn_physics_profile == "water_balance"
+                                 ? "Standalone PINN uses physics-only water-balance loss with explicit observed storage."
+                                 : "Standalone PINN uses the explicit physics-only wrapper."));
 '''
 
 
