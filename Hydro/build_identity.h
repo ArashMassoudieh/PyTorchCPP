@@ -3,16 +3,21 @@
 #include <QString>
 
 #ifndef HYDRO_GIT_COMMIT
-#define HYDRO_GIT_COMMIT "unknown"
+#define HYDRO_GIT_COMMIT unknown
 #endif
+
+#define HYDRO_STRINGIZE_IMPL(x) #x
+#define HYDRO_STRINGIZE(x) HYDRO_STRINGIZE_IMPL(x)
 
 inline QString hydroBuildCommit()
 {
-    // HYDRO_GIT_COMMIT is supplied by qmake as a quoted compiler define.
-    // QStringLiteral() requires a literal token at the call site and is not
-    // safe with an externally defined macro on all Qt versions. fromLatin1()
-    // accepts the expanded const char[] directly and works with Qt 5 and Qt 6.
-    return QString::fromLatin1(HYDRO_GIT_COMMIT);
+    // Stringify the compiler definition inside C++ rather than relying on
+    // qmake/shell quote escaping. This works whether HYDRO_GIT_COMMIT reaches
+    // the compiler as d09ca2b, 2381715, "d09ca2b", or unknown.
+    QString value = QString::fromLatin1(HYDRO_STRINGIZE(HYDRO_GIT_COMMIT));
+    if (value.size() >= 2 && value.startsWith('"') && value.endsWith('"'))
+        value = value.mid(1, value.size() - 2);
+    return value;
 }
 
 inline QString hydroBuildTimestamp()
