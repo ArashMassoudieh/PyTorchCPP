@@ -6,40 +6,22 @@ This audit evaluates the five Hydro methods **before further hyperparameter swee
 
 | Method | Status | Main conclusion |
 |---|---|---|
-| FFN | **Sound baseline** | Supervised data path, chronological split, train-only scaling, validation checkpointing, inverse scaling, and held-out metrics are internally consistent. |
-| LSTM | **Sound baseline** | Sequence construction and held-out evaluation are internally consistent. GIStoOHQ sequences contain forcing variables only, so preceding forcing history across a split boundary is predictor context rather than target leakage. |
-| FFN + PINN | **Corrected for GIStoOHQ** | Uses one joint data/physics Adam update and finite-difference runoff dynamics along the forcing trajectory. No precomputed storage state is used. |
-| LSTM + PINN | **Corrected for GIStoOHQ** | Data and physics terms now participate in the same sequential mini-batch optimizer update, so `physics_weight` is a genuine tradeoff parameter. |
-| PINN | **Corrected reduced formulation** | Uses physics-only runoff dynamics plus one observed initial-condition anchor, which is required to identify the first-order forced ODE. |
+| FFN | **Sound baseline** | Supervised split/scaling/checkpoint/evaluation path is internally consistent. |
+| LSTM | **Sound baseline** | Sequence construction and held-out evaluation are internally consistent. |
+| FFN + PINN | **Corrected, cross-source** | Joint data/physics update with finite-difference runoff dynamics; shared by Synthetic, CSV, and Hydro package inputs. |
+| LSTM + PINN | **Corrected, cross-source** | Data and physics terms participate in the same sequential mini-batch Adam update for all reduced-reservoir data sources. |
+| PINN | **Corrected, cross-source** | Physics-driven runoff dynamics plus one initial-condition anchor; shared by Synthetic, CSV, and Hydro package inputs. |
 
 ## 1. Supervised baselines
 
-Current GIStoOHQ supervised inputs are
-
-\[
-[P,\,T,\,RH,\,wind,\,solar,\,PET].
-\]
-
-### FFN
-
-When lagging is enabled, lagged inputs are constructed before the chronological split. Input and target scalers are fitted using only the training subset. Validation is used for checkpoint selection, and predictions are inverse-transformed before physical-unit metrics are evaluated.
-
-**Decision:** retain FFN unchanged as the feed-forward data-driven baseline.
-
-### LSTM
-
-The LSTM builds forcing sequences first and predicts the target associated with each sequence endpoint. The chronological split is then performed on sequences. Input and target scaling is fitted only on training sequences, and the validation-selected checkpoint is restored before test evaluation.
-
-GIStoOHQ LSTM inputs contain meteorological/hydrologic forcings but not previous observed discharge. Therefore a validation/test sequence may legitimately include forcing history from immediately before the split; this is available predictor history, not target leakage.
-
-**Decision:** retain LSTM unchanged as the recurrent data-driven baseline.
+FFN and LSTM remain unchanged. Their data-source-specific input builders continue to define the supervised predictor set, and normalization is fitted only on the training subset.
 
 ## 2. Removed circular-storage formulation
 
 The previous GIStoOHQ physics adapter constructed
 
 \[
-S_t = \max\left[0,\;S_{t-1}+\Delta t\left(P_t-PET_t-kS_{t-1}\right)\right]
+S_t = \max\left[0,\;S_{t-1}+\Delta t(P_t-PET_t-kS_{t-1})\right]
 \]
 
 and then enforced
@@ -54,36 +36,16 @@ Ignoring clipping, substitution gives approximately
 r_t \approx kS_{t-1}-Q_t,
 \]
 
-so the physics term mainly forced
+so the physics term mainly forced \(Q\approx kS\). That storage reconstruction has been removed from the reduced-reservoir physics path.
 
-\[
-Q_t\approx kS_{t-1}.
-\]
+## 3. Unified reduced-reservoir physics contract
 
-That was algebraically circular because the storage trajectory had already been generated from the same reservoir assumption.
-
-This storage construction has now been removed for GIStoOHQ physics modes.
-
-## 3. Current GIStoOHQ physics forcing layout
-
-Physics-informed GIStoOHQ runs now use
-
-\[
-[t,\,P_{eff},\,P,\,PET,\,T,\,RH,\,wind,\,solar],
-\]
-
-where
-
-\[
-P_{eff}=\max(P-PET,0).
-\]
-
-No observed discharge is used to construct an input state and no synthetic storage trajectory is supplied to the models. The longest contiguous hourly segment is retained so finite-difference derivatives never cross a data gap.
-
-The reduced conceptual reservoir is
+The corrected physics-informed path uses
 
 \[
 \frac{dQ}{dt}=k(P_{eff}-Q),
+\qquad
+P_{eff}=\max(P-PET,0),
 \]
 
 with residual
@@ -92,65 +54,105 @@ with residual
 r_Q=\frac{dQ}{dt}-k(P_{eff}-Q).
 \]
 
-This is deliberately a **conceptual physics regularizer**, not a claim of exact watershed physics.
+The common tensor contract is
+
+\[
+[t,\,P_{eff},\,\text{optional forcing features}],
+\]
+
+and no storage state is reconstructed from the same governing equation.
+
+This reduced equation is a **conceptual physics regularizer**, not exact watershed physics.
+
+### Synthetic
+
+Reduced-reservoir physics runs use a dedicated synthetic verification series generated directly from the same forced ODE. This provides a controlled unit-test case in which the governing process is known.
+
+The older `watershed_balance` and `rainfall_runoff` synthetic processes are retained as separate known-state hydrologic test cases. In particular, `physics_profile="water_balance"` can still be used when a synthetic case independently provides storage. These known-state tests are intentionally distinct from the reduced-reservoir formulation.
+
+### CSV
+
+Reduced-reservoir CSV physics no longer manufactures forcing from the target runoff. That former fallback was target leakage.
+
+The explicit CSV physics contract is:
+
+- column 0: physical time;
+- column 1: precipitation;
+- column 2: PET;
+- `csv_y_column`: runoff target/diagnostic series;
+- optional remaining non-target columns: explanatory forcings.
+
+The loader derives \(P_{eff}=\max(P-PET,0)\). CSV physics therefore requires `csv_x_column=0` and `csv_y_column>=3`.
+
+### Hydro packages / GIStoOHQ
+
+GIStoOHQ reduced-reservoir inputs use
+
+\[
+[t,\,P_{eff},\,P,\,PET,\,T,\,RH,\,wind,\,solar].
+\]
+
+The longest contiguous hourly segment is retained so finite-difference derivatives never cross a data gap. Generic Hydro packages with explicit P/PET are transformed to the same forcing contract without constructing storage.
 
 ## 4. FFN + PINN
 
-For GIStoOHQ, the corrected FFN+PINN uses ordered mini-batches and a finite-difference total derivative of the predicted runoff along the forcing trajectory. This avoids treating \(\partial Q/\partial t\) at fixed forcing as the physical trajectory derivative.
-
-After the warm-up period, each optimizer step uses
+For all reduced-reservoir data sources, FFN+PINN uses ordered mini-batches and a finite-difference total derivative along the forcing trajectory. After warm-up,
 
 \[
 \mathcal L = w_d\,\mathrm{MSE}(Q_{pred},Q_{obs})
             +w_p\left[\mathrm{MSE}(r_Q,0)+0.05\,\mathrm{MSE}(\max(-Q_{pred},0),0)\right].
 \]
 
-The data and physics gradients are combined before a single Adam update, so `physics_weight` has a real relative meaning.
+Data and physics gradients are combined before one Adam update, so `physics_weight` is a genuine tradeoff parameter.
 
-The legacy FFN-PINN backend remains available for non-GIStoOHQ profiles.
+Known-state or legacy physics profiles continue through the legacy FFN-PINN backend rather than being silently converted.
 
 ## 5. LSTM + PINN
 
-The previous LSTM+PINN applied physics in a second optimizer step after supervised mini-batches. With Adam, scaling an isolated physics gradient by a positive scalar was largely normalized by the optimizer moments, which explained the nearly identical results across different physics weights.
-
-The corrected GIStoOHQ LSTM+PINN now uses ordered sequence mini-batches. For each mini-batch, runoff predictions, data loss, finite-difference runoff dynamics, and the non-negativity penalty are computed together. One combined loss is backpropagated and one Adam step is performed.
-
-Thus
+For all reduced-reservoir data sources, LSTM+PINN uses ordered sequence mini-batches. Prediction, data loss, finite-difference runoff dynamics, and non-negativity are computed in the same batch and backpropagated through one combined objective:
 
 \[
-\mathcal L = w_d\mathcal L_{data}+w_p\mathcal L_{physics}
+\mathcal L = w_d\mathcal L_{data}+w_p\mathcal L_{physics}.
 \]
 
-is now implemented as an actual joint objective.
+The former separate physics-only Adam step is no longer used for the reduced-reservoir path.
 
 ## 6. Standalone PINN
 
-A forced first-order ODE does not have a unique trajectory without one initial/boundary condition. The corrected standalone GIStoOHQ PINN therefore does **not** use a full-series discharge data loss. It uses:
+A first-order forced ODE requires one initial/boundary condition. The standalone reduced-reservoir PINN therefore uses:
 
-1. the runoff-reservoir physics residual over the training forcing trajectory;
-2. one observed runoff value at the start of the training period as the initial-condition anchor; and
+1. the runoff-reservoir residual over the training forcing trajectory;
+2. one runoff value at the beginning of the training period as the initial-condition anchor; and
 3. a small non-negativity penalty.
 
 Its objective is
 
 \[
 \mathcal L = w_p\,\mathrm{MSE}(r_Q,0)
-            +\mathrm{MSE}(Q(t_0),Q_{obs}(t_0))
+            +\mathrm{MSE}(Q(t_0),Q_0)
             +0.05\,\mathrm{MSE}(\max(-Q,0),0).
 \]
 
-The remaining training-period runoff observations do not enter the PINN optimization objective. They are used only later for evaluation/diagnostics.
+For real/CSV data, \(Q_0\) is the first observed runoff value. For the controlled synthetic reduced-reservoir test, it is the known synthetic initial condition. Remaining runoff observations do not enter the standalone PINN optimization objective; they are used for evaluation.
 
-This should be described as a **physics-driven model with an observed initial condition**, not as completely data-free.
+## 7. Data-source matrix
 
-## 7. What to test next
+| Data source | FFN/LSTM | Reduced FFN+PINN | Reduced LSTM+PINN | Reduced PINN | Known-state water balance |
+|---|---|---|---|---|---|
+| Synthetic | yes | yes | yes | yes | yes |
+| CSV | yes | yes, explicit P/PET required | yes, explicit P/PET required | yes, explicit P/PET required | only if an explicit compatible state layout is provided |
+| Hydro package | yes | yes | yes | yes | yes when storage is independently supplied |
+| GIStoOHQ | yes | yes | yes | yes | not used because observed storage is unavailable |
 
-Do not resume broad hyperparameter sweeps yet. First perform a small five-method diagnostic run and verify method behavior:
+## 8. What to test next
 
-1. FFN and LSTM should reproduce their established supervised baselines within deterministic expectations.
-2. FFN+PINN metrics should differ from the old circular-storage results.
-3. LSTM+PINN runs with materially different `physics_weight` values must now produce different fitted models/metrics.
-4. Standalone PINN should no longer reproduce the pathological old `Q≈kS` behavior and should satisfy its initial condition.
-5. Physics residuals should be inspected together with NSE/KGE/PBIAS; low pointwise RMSE alone is not sufficient.
+Do not resume broad sweeps yet. First verify method behavior:
 
-Only after these checks pass should optimizer, architecture, or physics-weight sweeps resume.
+1. supervised FFN/LSTM still reproduce established baselines;
+2. the reduced synthetic test is recovered by FFN+PINN, LSTM+PINN, and PINN;
+3. materially different `physics_weight` values now change hybrid fitted models;
+4. CSV physics rejects time+target-only files instead of deriving forcing from runoff;
+5. GIStoOHQ physics results differ from the former circular-storage results;
+6. evaluate NSE/KGE/PBIAS and residual behavior together rather than ranking on RMSE alone.
+
+Only after these checks pass should broad tuning resume.
