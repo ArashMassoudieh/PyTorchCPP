@@ -4,8 +4,10 @@
 The canonical GUI source stays readable and stable. This build-time transform:
 - enables GIStoOHQ reduced-reservoir physics without reconstructed storage,
 - routes FFN+PINN to the corrected reservoir wrapper,
-- exposes an explicit ``reduced_reservoir`` synthetic validation profile, and
-- makes that profile use the same shared truth generator as all five methods.
+- exposes an explicit ``reduced_reservoir`` synthetic validation profile,
+- makes that profile use the same shared truth generator as all five methods, and
+- assigns stable object names to data-source widgets so the full tuning pipeline
+  can snapshot the actual GUI selection instead of assuming Sligo Hydro input.
 """
 
 from pathlib import Path
@@ -58,6 +60,25 @@ NEW_DATASET_INCLUDE = '#include "dataset/csv_tensor_builder.h"\n#include "datase
 
 OLD_PROFILE_LIST = 'profileCombo_->addItems({"watershed_balance", "rainfall_runoff", "neuroforge_inputs_target", "exp_decay", "damped_sine", "mixed_wave"});'
 NEW_PROFILE_LIST = 'profileCombo_->addItems({"watershed_balance", "rainfall_runoff", "reduced_reservoir", "neuroforge_inputs_target", "exp_decay", "damped_sine", "mixed_wave"});'
+
+OLD_GUI_SOURCE_WIDGETS = '''    dataSourceCombo_->addItems({"Synthetic", "CSV File", "Hydro Package"});
+    hydroPackageProfileCombo_->addItems({"rainfall-runoff", "water-balance"});
+'''
+NEW_GUI_SOURCE_WIDGETS = '''    dataSourceCombo_->addItems({"Synthetic", "CSV File", "Hydro Package"});
+    dataSourceCombo_->setObjectName("HydroDataSourceCombo");
+    profileCombo_->setObjectName("HydroSyntheticProfileCombo");
+    sampleCountSpin_->setObjectName("HydroSyntheticSampleCount");
+    tStartSpin_->setObjectName("HydroSyntheticTStart");
+    tEndSpin_->setObjectName("HydroSyntheticTEnd");
+    csvPathEdit_->setObjectName("HydroCsvPathEdit");
+    csvXColSpin_->setObjectName("HydroCsvXColumn");
+    csvYColSpin_->setObjectName("HydroCsvYColumn");
+    csvHeaderCheck_->setObjectName("HydroCsvHeaderCheck");
+    hydroPackagePathEdit_->setObjectName("HydroPackagePathEdit");
+    hydroCatchmentIdEdit_->setObjectName("HydroCatchmentIdEdit");
+    hydroPackageProfileCombo_->setObjectName("HydroPackageProfileCombo");
+    hydroPackageProfileCombo_->addItems({"rainfall-runoff", "water-balance"});
+'''
 
 OLD_CFG = '''    HydroRunConfig cfg = currentConfig();
     if (cfg.use_hydro_package) {
@@ -139,6 +160,7 @@ def main() -> int:
     text = replace_once(text, OLD_FFN_INCLUDE, NEW_FFN_INCLUDE, "FFN-PINN include")
     text = replace_once(text, OLD_DATASET_INCLUDE, NEW_DATASET_INCLUDE, "dataset include")
     text = replace_once(text, OLD_PROFILE_LIST, NEW_PROFILE_LIST, "synthetic profile list")
+    text = replace_once(text, OLD_GUI_SOURCE_WIDGETS, NEW_GUI_SOURCE_WIDGETS, "data-source widget names")
     text = replace_once(text, OLD_CFG, NEW_CFG, "run-mode config")
     text = replace_once(text, OLD_PREVIEW_BRANCH, NEW_PREVIEW_BRANCH, "synthetic preview")
     text = replace_once(text, OLD_INPUT_MAP, NEW_INPUT_MAP, "synthetic input map")
