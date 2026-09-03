@@ -159,8 +159,6 @@ bool checkpointFormatMatchesApproach(const std::string& approach, const std::str
     if (approach == "ffn") return format == "neuralnetworkwrapper-v1";
     if (approach == "lstm" || approach == "lstm_pinn") return format == "torch-module-v1";
     if (approach == "ffn_pinn" || approach == "pinn") {
-        // Legacy/known-state PINNs use NeuralNetworkWrapper while the corrected
-        // reduced-reservoir implementations use a native torch::nn::Sequential.
         return format == "neuralnetworkwrapper-v1" || format == "torch-sequential-v1";
     }
     return false;
@@ -289,6 +287,7 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
               << "  \"sample_count\": " << config.sample_count << ",\n"
               << "  \"t_start\": " << config.t_start << ",\n"
               << "  \"t_end\": " << config.t_end << ",\n"
+              << "  \"synthetic_reservoir_truth_k\": " << config.synthetic_reservoir_truth_k << ",\n"
               << "  \"hydro_package_path\": \"" << escapeJson(config.hydro_package_path) << "\",\n"
               << "  \"hydro_catchment_id\": \"" << escapeJson(config.hydro_catchment_id) << "\",\n"
               << "  \"hydro_package_profile\": \"" << escapeJson(config.hydro_package_profile) << "\",\n"
