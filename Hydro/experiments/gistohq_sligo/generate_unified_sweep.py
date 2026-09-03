@@ -1,22 +1,11 @@
 #!/usr/bin/env python3
 """Generate a method-aware HydroPINN sweep for all five approaches.
 
-The generator deliberately avoids a blind Cartesian product. Parameters are
-applied only to methods for which they are meaningful:
-  FFN             : hidden x activation x lag x optimizer grid x seeds
-  FFN + PINN      : hidden x activation x physics-weight x recession-k x optimizer grid x seeds
-  LSTM            : hidden x sequence x optimizer grid x seeds
-  LSTM + PINN     : hidden x sequence x physics-weight x recession-k x optimizer grid x seeds
-  PINN            : hidden x recession-k x optimizer grid x seeds
-
 The selected data source is explicit and is applied to every generated config.
-This prevents a Synthetic GUI run from silently inheriting the Sligo Hydro
-package fields contained in the historical base JSON files.
-
-Reduced-reservoir physics uses
-    dQ/dt = k (Peff - Q),  Peff=max(P-PET,0).
-For controlled Synthetic validation, all five methods use the shared
-``reduced_reservoir`` truth generator.
+For controlled Synthetic validation, every method and every candidate sees one
+fixed reduced-reservoir truth hydrograph. The truth coefficient
+``synthetic_reservoir_truth_k`` is independent from the candidate/model k that
+is swept through ``lambda_decay/storage_coeff``.
 """
 
 from __future__ import annotations
@@ -104,6 +93,7 @@ def apply_source(cfg: dict, args) -> dict:
         "sample_count": args.sample_count,
         "t_start": args.t_start,
         "t_end": args.t_end,
+        "synthetic_reservoir_truth_k": args.synthetic_truth_k,
     })
 
     if args.data_source == "hydro":
@@ -178,6 +168,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--sample-count", type=int, default=240)
     p.add_argument("--t-start", type=float, default=0.0)
     p.add_argument("--t-end", type=float, default=5.0)
+    p.add_argument("--synthetic-truth-k", type=float, default=0.08,
+                   help="Fixed ground-truth reservoir k used to generate Synthetic reduced_reservoir data")
     p.add_argument("--hydro-package-path", default="../GIStoOHQ/examples/SligoCreek/outputs/sligocreekdemo_data/hydropinn")
     p.add_argument("--hydro-catchment-id", default="")
     p.add_argument("--hydro-package-profile", default="rainfall-runoff")
@@ -189,6 +181,8 @@ def parser() -> argparse.ArgumentParser:
 
 
 def validate_source_args(args, methods: list[str]) -> None:
+    if args.synthetic_truth_k <= 0:
+        raise SystemExit("--synthetic-truth-k must be positive")
     if args.data_source == "hydro" and not args.hydro_package_path.strip():
         raise SystemExit("--hydro-package-path is required for --data-source hydro")
     if args.data_source == "csv" and not args.csv_path.strip():
@@ -285,8 +279,11 @@ def main() -> int:
         actual = source_name(cfg)
         if actual != args.data_source:
             raise RuntimeError(f"generated job {cfg['experiment_id']} has source={actual}, expected={args.data_source}")
-        if args.data_source == "synthetic" and cfg.get("hydro_package_path"):
-            raise RuntimeError(f"synthetic job {cfg['experiment_id']} leaked hydro_package_path")
+        if args.data_source == "synthetic":
+            if cfg.get("hydro_package_path") or cfg.get("csv_path"):
+                raise RuntimeError(f"synthetic job {cfg['experiment_id']} leaked an external path")
+            if cfg.get("synthetic_reservoir_truth_k") != args.synthetic_truth_k:
+                raise RuntimeError(f"synthetic job {cfg['experiment_id']} changed truth k")
 
     BATCH.write_text(
         f"# Unified HydroPINN five-method sweep; data_source={args.data_source}; generated file\n" +
@@ -296,10 +293,10 @@ def main() -> int:
 
     OUT.mkdir(parents=True, exist_ok=True)
     with MANIFEST.open("w", encoding="utf-8") as out:
-        out.write("experiment_id,mode,data_source,synthetic_profile,hydro_package_path,csv_path,hidden_layers,activation,lstm_sequence_length,input_lags,learning_rate,batch_size,seed,physics_weight,recession_k\n")
+        out.write("experiment_id,mode,data_source,synthetic_profile,synthetic_truth_k,hydro_package_path,csv_path,hidden_layers,activation,lstm_sequence_length,input_lags,learning_rate,batch_size,seed,physics_weight,recession_k\n")
         for mode, _, cfg in jobs:
             out.write(
-                f"{cfg['experiment_id']},{mode},{source_name(cfg)},{cfg.get('synthetic_profile','')},"
+                f"{cfg['experiment_id']},{mode},{source_name(cfg)},{cfg.get('synthetic_profile','')},{cfg.get('synthetic_reservoir_truth_k','')},"
                 f"\"{cfg.get('hydro_package_path','')}\",\"{cfg.get('csv_path','')}\","
                 f"\"{cfg.get('hidden_layers','')}\",{cfg.get('activation','')},"
                 f"{cfg.get('lstm_sequence_length','')},\"{cfg.get('input_lags','')}\",{cfg['learning_rate']},"
@@ -309,7 +306,7 @@ def main() -> int:
     counts = {m: sum(1 for mode, _, _ in jobs if mode == m) for m in ALL_METHODS}
     print(f"Data source: {args.data_source}")
     if args.data_source == "synthetic":
-        print(f"Synthetic profile: {args.synthetic_profile}; samples={args.sample_count}; t=[{args.t_start},{args.t_end}]")
+        print(f"Synthetic profile: {args.synthetic_profile}; truth_k={args.synthetic_truth_k}; samples={args.sample_count}; t=[{args.t_start},{args.t_end}]")
     elif args.data_source == "hydro":
         print(f"Hydro package: {args.hydro_package_path}")
     else:
