@@ -97,11 +97,10 @@ inline void buildReducedReservoirSyntheticTensors(const HydroRunConfig& config,
     const double dt = (samples > 1) ? (t1 - t0) / static_cast<double>(samples - 1) : 1.0;
     if (!(dt > 0.0)) throw std::invalid_argument("Synthetic reservoir physics requires t_end > t_start.");
 
-    // Synthetic truth uses lambda_decay as the single explicit k control.  All
-    // five methods receive the same HydroRunConfig from the GUI/batch workflow,
-    // so this avoids a hidden default latent-storage coefficient changing the
-    // supervised truth relative to the physics-informed truth.
-    const double k = std::max(1.0e-8, config.lambda_decay);
+    // IMPORTANT: truth k is intentionally independent from the candidate model
+    // k (lambda_decay/storage_coeff). A physics sweep must never regenerate a
+    // different target hydrograph for each candidate.
+    const double truthK = std::max(1.0e-8, config.synthetic_reservoir_truth_k);
     constexpr double pi = 3.14159265358979323846;
     std::vector<float> features;
     std::vector<float> targets;
@@ -119,7 +118,7 @@ inline void buildReducedReservoirSyntheticTensors(const HydroRunConfig& config,
         const double precipitation = storm1 + storm2 + 0.12 * std::max(0.0, std::sin(6.0 * pi * r));
         const double pet = 0.035 + 0.02 * (1.0 + std::sin(2.0 * pi * r - 0.5));
         const double peff = std::max(0.0, precipitation - pet);
-        if (i > 0) q += dt * k * (peff - q);
+        if (i > 0) q += dt * truthK * (peff - q);
         q = std::max(0.0, q);
 
         features.push_back(static_cast<float>(t));
@@ -144,9 +143,6 @@ inline bool loadReservoirPhysicsTensors(const HydroRunConfig& config,
         if (x.dim() != 2 || x.size(1) < 2) {
             throw std::runtime_error("Hydro physics input requires at least [time, forcing].");
         }
-        // GIStoOHQ corrected physics layout already supplies [time, Peff, P, PET, ...].
-        // Generic water-balance packages supply [time, P, PET, ...]; convert them
-        // to the same reduced-reservoir contract without constructing storage.
         if (!config.use_latent_storage_physics && x.size(1) >= 3) {
             torch::Tensor time = x.slice(1, 0, 1);
             torch::Tensor precipitation = torch::clamp_min(x.slice(1, 1, 2), 0.0);
