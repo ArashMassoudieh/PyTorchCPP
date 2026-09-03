@@ -31,6 +31,22 @@ std::vector<int> parseHiddenLayers(const std::string& csv) {
     return layers;
 }
 
+torch::nn::Sequential makeSequential(int64_t inputDim,
+                                     const std::vector<int>& hidden,
+                                     const std::string& activation) {
+    torch::nn::Sequential model;
+    int64_t in = inputDim;
+    for (const int width : hidden) {
+        model->push_back(torch::nn::Linear(in, width));
+        if (activation == "relu") model->push_back(torch::nn::ReLU());
+        else if (activation == "sigmoid") model->push_back(torch::nn::Sigmoid());
+        else model->push_back(torch::nn::Tanh());
+        in = width;
+    }
+    model->push_back(torch::nn::Linear(in, 1));
+    return model;
+}
+
 class CheckpointMemoryBuffer : public std::streambuf {
 public:
     explicit CheckpointMemoryBuffer(const std::vector<std::uint8_t>& bytes) {
@@ -56,6 +72,7 @@ struct HydroInferenceSession::Impl {
     TensorScaler inputScaler;
     TensorScaler targetScaler;
     std::unique_ptr<NeuralNetworkWrapper> feedForward;
+    torch::nn::Sequential sequential{nullptr};
     HydroLSTM recurrent{nullptr};
 };
 
@@ -70,28 +87,48 @@ HydroInferenceSession::HydroInferenceSession(const HydroInferenceArtifacts& arti
     impl_->inputScaler.importState(scalerArtifact->second.input);
     impl_->targetScaler.importState(scalerArtifact->second.target);
     impl_->featureCount = static_cast<int64_t>(scalerArtifact->second.input.offset.size());
+    // Identity normalization is persisted as a scalar state and intentionally
+    // broadcasts over all physical input features.
+    if (scalerArtifact->second.input.method == "none" && impl_->featureCount == 1) {
+        if (artifacts.experiment.config.pinn_physics_profile == "linear_reservoir" &&
+            (approach == "ffn_pinn" || approach == "pinn")) {
+            // Reduced-reservoir exported models use [time, Peff, P, PET, ...].
+            // The exact width is encoded by the first linear layer, but the
+            // current artifact schema has no dedicated feature-count field.
+            // For the canonical reduced-reservoir contract use four features
+            // for synthetic/CSV and eight for GIStoOHQ Hydro packages.
+            impl_->featureCount = artifacts.experiment.config.use_hydro_package ? 8 : 4;
+        }
+    }
     if (scalerArtifact->second.target.offset.size() != 1) {
         throw std::runtime_error("Inference requires a scalar target scaler.");
     }
 
     const auto hiddenLayers = parseHiddenLayers(artifacts.experiment.config.hidden_layers_csv);
     if (approach == "ffn" || approach == "ffn_pinn" || approach == "pinn") {
-        if (modelArtifact->second.format != "neuralnetworkwrapper-v1") {
-            throw std::runtime_error("Feed-forward inference requires neuralnetworkwrapper-v1.");
+        if (modelArtifact->second.format == "neuralnetworkwrapper-v1") {
+            impl_->feedForward = std::make_unique<NeuralNetworkWrapper>();
+            impl_->feedForward->setHiddenLayers(hiddenLayers);
+            impl_->feedForward->setLags(std::vector<std::vector<int>>(
+                static_cast<std::size_t>(impl_->featureCount), {1}));
+            impl_->feedForward->initializeNetwork(1, artifacts.experiment.config.activation);
+            CheckpointMemoryStream archiveStream(modelArtifact->second.bytes);
+            impl_->feedForward->loadModel(archiveStream);
+        } else if (modelArtifact->second.format == "torch-sequential-v1") {
+            impl_->sequential = makeSequential(impl_->featureCount, hiddenLayers,
+                                               artifacts.experiment.config.activation);
+            CheckpointMemoryStream archiveStream(modelArtifact->second.bytes);
+            torch::serialize::InputArchive archive;
+            archive.load_from(archiveStream);
+            impl_->sequential->load(archive);
+            impl_->sequential->eval();
+        } else {
+            throw std::runtime_error("Feed-forward inference requires neuralnetworkwrapper-v1 or torch-sequential-v1.");
         }
-        impl_->feedForward = std::make_unique<NeuralNetworkWrapper>();
-        impl_->feedForward->setHiddenLayers(hiddenLayers);
-        impl_->feedForward->setLags(std::vector<std::vector<int>>(
-            static_cast<std::size_t>(impl_->featureCount), {1}));
-        impl_->feedForward->initializeNetwork(1, artifacts.experiment.config.activation);
-        CheckpointMemoryStream archiveStream(modelArtifact->second.bytes);
-        impl_->feedForward->loadModel(archiveStream);
     } else if (approach == "lstm" || approach == "lstm_pinn") {
         if (modelArtifact->second.format != "torch-module-v1") {
             throw std::runtime_error("Recurrent inference requires torch-module-v1.");
         }
-        // Match the effective window used by the trainer rather than trusting
-        // an undersized raw configuration value from the exported metadata.
         impl_->sequenceLength = std::max(2, artifacts.experiment.config.lstm_sequence_length);
         impl_->recurrent = HydroLSTM(impl_->featureCount, hiddenLayers.front(), 1,
                                      static_cast<int64_t>(hiddenLayers.size()));
@@ -115,12 +152,13 @@ torch::Tensor HydroInferenceSession::predict(const torch::Tensor& physicalInputs
     }
     torch::NoGradGuard noGrad;
     torch::Tensor prediction;
-    if (impl_->feedForward) {
+    if (impl_->feedForward || impl_->sequential) {
         if (physicalInputs.dim() != 2 || physicalInputs.size(1) != impl_->featureCount) {
-            throw std::invalid_argument("Feed-forward inference input shape does not match the exported scaler state.");
+            throw std::invalid_argument("Feed-forward inference input shape does not match the exported model feature count.");
         }
         const auto scaled = impl_->inputScaler.transform(physicalInputs);
-        prediction = impl_->feedForward->forwardTensor(scaled);
+        prediction = impl_->feedForward ? impl_->feedForward->forwardTensor(scaled)
+                                        : impl_->sequential->forward(scaled);
     } else {
         if (physicalInputs.dim() != 3 || physicalInputs.size(1) != impl_->sequenceLength ||
             physicalInputs.size(2) != impl_->featureCount) {
@@ -141,7 +179,7 @@ torch::Tensor HydroInferenceSession::predictSeries(const torch::Tensor& physical
         physicalSeries.size(0) == 0 || physicalSeries.size(1) != impl_->featureCount) {
         throw std::invalid_argument("Inference series must have shape [samples, configured features].");
     }
-    if (impl_->feedForward) return predict(physicalSeries);
+    if (impl_->feedForward || impl_->sequential) return predict(physicalSeries);
     if (physicalSeries.size(0) < impl_->sequenceLength) {
         throw std::invalid_argument("Inference series is shorter than the exported LSTM sequence length.");
     }
