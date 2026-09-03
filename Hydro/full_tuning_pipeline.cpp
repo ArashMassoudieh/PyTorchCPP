@@ -1,19 +1,24 @@
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDialog>
 #include <QDir>
+#include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QProcess>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTimer>
@@ -63,6 +68,133 @@ struct PipelineStage {
     QString folder;
     QStringList generatorArgs;
 };
+
+struct PipelineSourceSnapshot {
+    QString source;              // synthetic | csv | hydro
+    QString sourceDisplay;
+    QString syntheticProfile;
+    int sampleCount = 240;
+    double tStart = 0.0;
+    double tEnd = 5.0;
+    QString csvPath;
+    int csvXColumn = 0;
+    int csvYColumn = 3;
+    bool csvHasHeader = true;
+    QString hydroPackagePath;
+    QString hydroCatchmentId;
+    QString hydroPackageProfile = "rainfall-runoff";
+
+    QStringList generatorArgs() const
+    {
+        QStringList args{
+            "--data-source", source,
+            "--synthetic-profile", syntheticProfile,
+            "--sample-count", QString::number(sampleCount),
+            "--t-start", QString::number(tStart, 'g', 17),
+            "--t-end", QString::number(tEnd, 'g', 17),
+            "--csv-path", csvPath,
+            "--csv-x-column", QString::number(csvXColumn),
+            "--csv-y-column", QString::number(csvYColumn),
+            "--csv-has-header", csvHasHeader ? "true" : "false",
+            "--hydro-package-path", hydroPackagePath,
+            "--hydro-catchment-id", hydroCatchmentId,
+            "--hydro-package-profile", hydroPackageProfile
+        };
+        return args;
+    }
+
+    QString description() const
+    {
+        if (source == "synthetic") {
+            return QString("Synthetic | profile=%1 | samples=%2 | t=[%3,%4]")
+                .arg(syntheticProfile).arg(sampleCount).arg(tStart, 0, 'g', 8).arg(tEnd, 0, 'g', 8);
+        }
+        if (source == "csv") {
+            return QString("CSV | path=%1 | x=%2 | y=%3 | header=%4")
+                .arg(csvPath).arg(csvXColumn).arg(csvYColumn).arg(csvHasHeader ? "yes" : "no");
+        }
+        return QString("Hydro Package | path=%1 | catchment=%2 | profile=%3")
+            .arg(hydroPackagePath, hydroCatchmentId, hydroPackageProfile);
+    }
+};
+
+template <typename T>
+T* requiredSourceWidget(QMainWindow* window, const char* objectName, QString& error)
+{
+    T* widget = window ? window->findChild<T*>(objectName) : nullptr;
+    if (!widget && error.isEmpty()) {
+        error = QString("Full pipeline could not locate GUI data-source widget '%1'. Rebuild HydroPINN from the current source.")
+                    .arg(objectName);
+    }
+    return widget;
+}
+
+bool snapshotGuiSource(QMainWindow* window, PipelineSourceSnapshot& snapshot, QString& error)
+{
+    QComboBox* source = requiredSourceWidget<QComboBox>(window, "HydroDataSourceCombo", error);
+    QComboBox* profile = requiredSourceWidget<QComboBox>(window, "HydroSyntheticProfileCombo", error);
+    QSpinBox* samples = requiredSourceWidget<QSpinBox>(window, "HydroSyntheticSampleCount", error);
+    QDoubleSpinBox* tStart = requiredSourceWidget<QDoubleSpinBox>(window, "HydroSyntheticTStart", error);
+    QDoubleSpinBox* tEnd = requiredSourceWidget<QDoubleSpinBox>(window, "HydroSyntheticTEnd", error);
+    QLineEdit* csvPath = requiredSourceWidget<QLineEdit>(window, "HydroCsvPathEdit", error);
+    QSpinBox* csvX = requiredSourceWidget<QSpinBox>(window, "HydroCsvXColumn", error);
+    QSpinBox* csvY = requiredSourceWidget<QSpinBox>(window, "HydroCsvYColumn", error);
+    QCheckBox* csvHeader = requiredSourceWidget<QCheckBox>(window, "HydroCsvHeaderCheck", error);
+    QLineEdit* hydroPath = requiredSourceWidget<QLineEdit>(window, "HydroPackagePathEdit", error);
+    QLineEdit* catchment = requiredSourceWidget<QLineEdit>(window, "HydroCatchmentIdEdit", error);
+    QComboBox* hydroProfile = requiredSourceWidget<QComboBox>(window, "HydroPackageProfileCombo", error);
+    if (!error.isEmpty()) return false;
+
+    snapshot.sourceDisplay = source->currentText();
+    if (snapshot.sourceDisplay == "Synthetic") snapshot.source = "synthetic";
+    else if (snapshot.sourceDisplay == "CSV File") snapshot.source = "csv";
+    else if (snapshot.sourceDisplay == "Hydro Package") snapshot.source = "hydro";
+    else {
+        error = "Unknown GUI data source: " + snapshot.sourceDisplay;
+        return false;
+    }
+
+    snapshot.syntheticProfile = profile->currentText().trimmed();
+    snapshot.sampleCount = samples->value();
+    snapshot.tStart = tStart->value();
+    snapshot.tEnd = tEnd->value();
+    snapshot.csvPath = csvPath->text().trimmed();
+    snapshot.csvXColumn = csvX->value();
+    snapshot.csvYColumn = csvY->value();
+    snapshot.csvHasHeader = csvHeader->isChecked();
+    snapshot.hydroPackagePath = hydroPath->text().trimmed();
+    snapshot.hydroCatchmentId = catchment->text().trimmed();
+    snapshot.hydroPackageProfile = hydroProfile->currentText().trimmed();
+
+    if (snapshot.source == "synthetic") {
+        if (snapshot.syntheticProfile != "reduced_reservoir") {
+            error = "Full five-method synthetic tuning requires Synthetic profile 'reduced_reservoir' so FFN, LSTM, FFN+PINN, LSTM+PINN, and PINN use the same controlled truth.";
+            return false;
+        }
+        if (snapshot.sampleCount < 32 || !(snapshot.tEnd > snapshot.tStart)) {
+            error = "Synthetic pipeline requires at least 32 samples and t_end > t_start.";
+            return false;
+        }
+        // External paths are intentionally ignored by the generator for Synthetic.
+        return true;
+    }
+    if (snapshot.source == "csv") {
+        if (snapshot.csvPath.isEmpty()) {
+            error = "CSV File is selected but the CSV path is empty.";
+            return false;
+        }
+        if (snapshot.csvXColumn != 0 || snapshot.csvYColumn < 3) {
+            error = "The five-method CSV physics pipeline requires column 0=time, 1=P, 2=PET, and runoff target column >=3.";
+            return false;
+        }
+        return true;
+    }
+    if (snapshot.hydroPackagePath.isEmpty()) {
+        error = "Hydro Package is selected but the package path is empty.";
+        return false;
+    }
+    return true;
+}
 
 QList<PipelineStage> stages()
 {
@@ -117,12 +249,13 @@ public:
     PipelineController(QMainWindow* window,
                        const QString& root,
                        const QString& outputRoot,
+                       const PipelineSourceSnapshot& source,
                        QDialog* dialog,
                        QLabel* status,
                        QTextEdit* log,
                        QPushButton* stop,
                        QPushButton* close)
-        : QObject(dialog), window_(window), root_(root), outputRoot_(outputRoot), dialog_(dialog),
+        : QObject(dialog), window_(window), root_(root), outputRoot_(outputRoot), source_(source), dialog_(dialog),
           status_(status), log_(log), stop_(stop), close_(close), stages_(stages())
     {
         process_ = new QProcess(this);
@@ -171,6 +304,7 @@ private:
         const QString work = root_ + "/Hydro/experiments/gistohq_sligo";
         QStringList args{work + "/generate_unified_sweep.py"};
         args << stage.generatorArgs;
+        args << source_.generatorArgs();
         currentStep_ = Generate;
         process_->setWorkingDirectory(work);
         process_->start("python3", args);
@@ -221,6 +355,7 @@ private:
     {
         status_->setText("Full tuning pipeline completed. Results: " + outputRoot_);
         appendHeader("FULL PIPELINE COMPLETE");
+        log_->append("Data source used for every stage: " + source_.description());
         log_->append("Each stage has its own batch_summary.csv under:\n" + outputRoot_);
         stop_->setEnabled(false);
         close_->setEnabled(true);
@@ -238,6 +373,7 @@ private:
     QMainWindow* window_{};
     QString root_;
     QString outputRoot_;
+    PipelineSourceSnapshot source_;
     QDialog* dialog_{};
     QLabel* status_{};
     QTextEdit* log_{};
@@ -261,6 +397,22 @@ void runFullPipeline(QMainWindow* window)
         QMessageBox::critical(window, "Full Tuning Pipeline", "HydroBatch was not found. Build HydroBatch first.");
         return;
     }
+
+    PipelineSourceSnapshot source;
+    QString sourceError;
+    if (!snapshotGuiSource(window, source, sourceError)) {
+        QMessageBox::critical(window, "Full Tuning Pipeline - Data Source", sourceError);
+        return;
+    }
+
+    const auto answer = QMessageBox::question(
+        window,
+        "Full Tuning Pipeline - Confirm Data Source",
+        "The full pipeline will use this GUI data source for every stage:\n\n" + source.description() +
+        "\n\nContinue?",
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::Yes);
+    if (answer != QMessageBox::Yes) return;
 
     const QString defaultRoot = root + "/Hydro/experiments/gistohq_sligo/batch_outputs";
     QDir().mkpath(defaultRoot);
@@ -293,9 +445,10 @@ void runFullPipeline(QMainWindow* window)
     log->append("One-click pipeline stages:");
     int i = 0;
     for (const PipelineStage& s : stages()) log->append(QString("  %1. %2").arg(++i).arg(s.label));
-    log->append("\nPipeline root: " + outputRoot + "\n");
+    log->append("\nData source snapshot: " + source.description());
+    log->append("Pipeline root: " + outputRoot + "\n");
 
-    auto* controller = new PipelineController(window, root, outputRoot, dialog, status, log, stop, close);
+    auto* controller = new PipelineController(window, root, outputRoot, source, dialog, status, log, stop, close);
     dialog->show();
     QTimer::singleShot(0, controller, [controller]() { controller->start(); });
 }
@@ -311,7 +464,7 @@ void install()
 
     auto* action = new QAction("Run Full Tuning Pipeline...", menu);
     action->setObjectName("HydroFullTuningPipelineAction");
-    action->setToolTip("Generate and run all established tuning stages sequentially with one click.");
+    action->setToolTip("Generate and run all established tuning stages sequentially using the current GUI data source.");
     QAction* before = menu->actions().isEmpty() ? nullptr : menu->actions().first();
     menu->insertAction(before, action);
     menu->insertSeparator(action);
@@ -319,7 +472,7 @@ void install()
 
     if (QToolBar* toolbar = window->findChild<QToolBar*>("HydroBatchToolBar")) {
         auto* toolbarAction = new QAction("Run Full Pipeline", toolbar);
-        toolbarAction->setToolTip("Run all tuning stages sequentially.");
+        toolbarAction->setToolTip("Run all tuning stages using the current GUI data source.");
         toolbar->insertAction(toolbar->actions().isEmpty() ? nullptr : toolbar->actions().first(), toolbarAction);
         QObject::connect(toolbarAction, &QAction::triggered, window, [window]() { runFullPipeline(window); });
     }
