@@ -5,6 +5,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 BATCH_BIN="${HYDROBATCH_BIN:-$ROOT/build-hydrobatch/HydroBatch}"
 OUT="$HERE/batch_outputs/synthetic_method_regression_$(date +%Y%m%d_%H%M%S)"
+TRUTH_K=0.08
 
 if [[ ! -x "$BATCH_BIN" ]]; then
   echo "HydroBatch executable not found: $BATCH_BIN" >&2
@@ -16,6 +17,7 @@ cd "$HERE"
 python3 generate_unified_sweep.py \
   --data-source synthetic \
   --synthetic-profile reduced_reservoir \
+  --synthetic-truth-k "$TRUTH_K" \
   --sample-count 240 \
   --t-start 0 \
   --t-end 5 \
@@ -32,11 +34,13 @@ python3 generate_unified_sweep.py \
   --physics-weights 0.005,0.1 \
   --recession-k 0.04
 
-python3 - <<'PY'
+python3 - "$TRUTH_K" <<'PY'
 import csv
 import json
+import sys
 from pathlib import Path
 
+truth_k = float(sys.argv[1])
 root = Path("generated_unified")
 manifest = list(csv.DictReader((root / "unified_manifest.csv").open()))
 if len(manifest) != 7:
@@ -46,6 +50,8 @@ for row in manifest:
         raise SystemExit(f"Source leak in manifest: {row['experiment_id']} -> {row['data_source']}")
     if row["synthetic_profile"] != "reduced_reservoir":
         raise SystemExit(f"Wrong synthetic profile: {row['experiment_id']} -> {row['synthetic_profile']}")
+    if abs(float(row["synthetic_truth_k"]) - truth_k) > 1e-15:
+        raise SystemExit(f"Truth k changed in manifest: {row['experiment_id']} -> {row['synthetic_truth_k']}")
     if row["hydro_package_path"] or row["csv_path"]:
         raise SystemExit(f"External path leaked into synthetic manifest: {row['experiment_id']}")
     cfg = json.loads((root / f"{row['experiment_id']}.json").read_text())
@@ -55,7 +61,9 @@ for row in manifest:
         raise SystemExit(f"External path leaked into synthetic config: {row['experiment_id']}")
     if cfg.get("synthetic_profile") != "reduced_reservoir":
         raise SystemExit(f"Wrong config profile: {row['experiment_id']}")
-print("[source-regression] PASS: all 7 configs are controlled reduced_reservoir Synthetic jobs with no external paths.")
+    if abs(float(cfg.get("synthetic_reservoir_truth_k")) - truth_k) > 1e-15:
+        raise SystemExit(f"Truth k changed in config: {row['experiment_id']}")
+print(f"[source-regression] PASS: all 7 configs use one Synthetic truth (k={truth_k}) and no external paths.")
 PY
 
 mkdir -p "$OUT"
