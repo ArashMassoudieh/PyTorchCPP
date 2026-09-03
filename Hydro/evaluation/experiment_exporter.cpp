@@ -84,8 +84,7 @@ public:
                                                             candidate, error);
                 }
             }
-            throw std::runtime_error("Unable to reserve a unique experiment staging directory for: " +
-                                     destination_.string());
+            throw std::runtime_error("Unable to reserve a unique experiment staging directory for: " + destination_.string());
         } catch (...) {
             std::error_code ignored;
             std::filesystem::remove_all(lock_, ignored);
@@ -156,6 +155,17 @@ bool supportedApproach(const std::string& approach) {
            approach == "lstm" || approach == "lstm_pinn";
 }
 
+bool checkpointFormatMatchesApproach(const std::string& approach, const std::string& format) {
+    if (approach == "ffn") return format == "neuralnetworkwrapper-v1";
+    if (approach == "lstm" || approach == "lstm_pinn") return format == "torch-module-v1";
+    if (approach == "ffn_pinn" || approach == "pinn") {
+        // Legacy/known-state PINNs use NeuralNetworkWrapper while the corrected
+        // reduced-reservoir implementations use a native torch::nn::Sequential.
+        return format == "neuralnetworkwrapper-v1" || format == "torch-sequential-v1";
+    }
+    return false;
+}
+
 void validateExportResult(const std::string& approach, const HydroRunResult& result) {
     if (!supportedApproach(approach)) throw std::invalid_argument("Unsupported Hydro export approach: " + approach);
     if (!result.success) throw std::invalid_argument("Cannot export unsuccessful Hydro result: " + approach);
@@ -172,15 +182,8 @@ void validateExportResult(const std::string& approach, const HydroRunResult& res
     if (!result.physics_residual.empty() && result.physics_residual.size() != result.x.size()) {
         throw std::invalid_argument("Hydro export physics residuals do not align for: " + approach);
     }
-    if (result.model_checkpoint.empty() ||
-        (result.model_checkpoint_format != "neuralnetworkwrapper-v1" &&
-         result.model_checkpoint_format != "torch-module-v1")) {
+    if (result.model_checkpoint.empty() || !checkpointFormatMatchesApproach(approach, result.model_checkpoint_format)) {
         throw std::invalid_argument("Hydro export checkpoint is missing or has an unsupported format for: " + approach);
-    }
-    const bool recurrent = approach == "lstm" || approach == "lstm_pinn";
-    const std::string expectedFormat = recurrent ? "torch-module-v1" : "neuralnetworkwrapper-v1";
-    if (result.model_checkpoint_format != expectedFormat) {
-        throw std::invalid_argument("Hydro export checkpoint format does not match approach: " + approach);
     }
     const auto validateScaler = [&](const HydroScalerState& state, const char* kind) {
         if (state.offset.empty() || state.offset.size() != state.scale.size() || state.shape.empty()) {
