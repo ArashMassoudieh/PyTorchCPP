@@ -76,17 +76,6 @@ inline void fillPlotVectors(HydroRunResult& result,
 
 } // namespace hydro_ffn_reservoir_detail
 
-/**
- * Reduced-reservoir FFN+PINN implementation shared by Synthetic, CSV, and Hydro
- * package inputs.  The forcing contract is [time, Peff, ...], with
- * Peff=max(P-PET,0), and the residual is
- *
- *     dQ/dt = k (Peff - Q).
- *
- * Known-state synthetic water-balance experiments remain available through the
- * legacy FFNPINNWrapper by selecting physics_profile="water_balance".  This
- * wrapper is used for physics_profile="linear_reservoir".
- */
 class FFNReservoirPINNWrapper {
 public:
     HydroRunResult train(const HydroRunConfig& config) {
@@ -138,7 +127,8 @@ public:
         std::vector<torch::Tensor> bestParameters;
         std::vector<double> losses;
         std::vector<double> validationLosses;
-        double bestValidation = std::numeric_limits<double>::infinity();
+        double bestValidationObjective = std::numeric_limits<double>::infinity();
+        double bestValidationMse = std::numeric_limits<double>::infinity();
         int bestEpoch = 0;
 
         for (int epoch = 0; epoch < std::max(1, config.epochs); ++epoch) {
@@ -177,14 +167,31 @@ public:
 
             model->eval();
             double validationMse = 0.0;
+            double validationObjective = 0.0;
             {
                 torch::NoGradGuard noGrad;
-                validationMse = torch::mse_loss(model->forward(xValidation), yValidation).item<double>();
+                torch::Tensor predValidation = model->forward(xValidation);
+                torch::Tensor dataLoss = torch::mse_loss(predValidation, yValidation);
+                validationMse = dataLoss.item<double>();
+                torch::Tensor peff = xValidation.slice(1, 1, 2);
+                torch::Tensor dQdt = (predValidation.slice(0, 1, predValidation.size(0)) -
+                                       predValidation.slice(0, 0, predValidation.size(0) - 1)) / dt;
+                torch::Tensor qNow = predValidation.slice(0, 1, predValidation.size(0));
+                torch::Tensor residual = dQdt - k * (peff.slice(0, 1, peff.size(0)) - qNow);
+                torch::Tensor physicsLoss = torch::mean(residual * residual);
+                torch::Tensor negative = torch::relu(-predValidation);
+                torch::Tensor nonnegativeLoss = torch::mean(negative * negative);
+                validationObjective = (config.data_weight * dataLoss +
+                                       config.physics_weight * (physicsLoss + 0.05 * nonnegativeLoss)).item<double>();
             }
-            if (!std::isfinite(validationMse)) throw std::runtime_error("FFN-PINN validation produced a non-finite loss.");
-            validationLosses.push_back(validationMse);
-            if (validationMse < bestValidation) {
-                bestValidation = validationMse;
+            if (!std::isfinite(validationMse) || !std::isfinite(validationObjective)) {
+                throw std::runtime_error("FFN-PINN validation produced a non-finite objective.");
+            }
+            validationLosses.push_back(validationObjective);
+            const bool checkpointEligible = (config.physics_weight <= 0.0) || (epoch >= warmupEpochs);
+            if (checkpointEligible && validationObjective < bestValidationObjective) {
+                bestValidationObjective = validationObjective;
+                bestValidationMse = validationMse;
                 bestEpoch = epoch + 1;
                 bestParameters.clear();
                 for (const auto& parameter : model->parameters()) bestParameters.push_back(parameter.detach().clone());
@@ -202,7 +209,7 @@ public:
         result.validation_loss_history = validationLosses;
         result.best_epoch = bestEpoch;
         result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
-        result.validation_mse = bestValidation;
+        result.validation_mse = bestValidationMse;
         result.input_scaler.method = "none";
         result.target_scaler.method = "none";
 
