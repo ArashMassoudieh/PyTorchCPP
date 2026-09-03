@@ -5,30 +5,18 @@
 #include <limits>
 #include <vector>
 
-/**
- * Runtime default used by GUI-created HydroRunConfig instances after an
- * experiment configuration is loaded. The GUI currently has no dedicated LSTM
- * sequence-length widget, so the experiment loader updates this value and the
- * next config constructed by the window inherits the loaded setting.
- */
 inline int& hydroLstmSequenceLengthRuntimeDefault() {
     static int value = 6;
     return value;
 }
 
 struct HydroScalerState {
-    // Identity is the correct persisted scaler for normalization="none".
-    // A scalar {0}/{1} state broadcasts safely across any input feature count,
-    // while standardized/minmax runs replace it with feature-wise fitted state.
     std::string method = "none";
     std::vector<double> offset = {0.0};
     std::vector<double> scale = {1.0};
     std::vector<int64_t> shape = {1};
 };
 
-/**
- * @brief Runtime configuration used by Hydro mode wrappers.
- */
 struct HydroRunConfig {
     int epochs = 150;
     int batch_size = 32;
@@ -45,7 +33,7 @@ struct HydroRunConfig {
     double lambda_decay = 0.8;
     double data_weight = 1.0;
     double physics_weight = 0.2;
-    std::string pinn_physics_profile = "water_balance"; // water_balance | linear_reservoir | cstr_first_order | exp_decay
+    std::string pinn_physics_profile = "water_balance";
     double forcing_gain = 1.0;
     double runoff_coeff = 0.7;
     double storage_coeff = 1.0;
@@ -76,10 +64,14 @@ struct HydroRunConfig {
     int sample_count = 220;
     double t_start = 0.0;
     double t_end = 5.0;
-    // Synthetic profiles include known-state hydrologic processes plus generic
-    // signals. Reduced-reservoir PINN modes generate their own exact forced-
-    // reservoir verification series through reservoir_physics_tensor_builder.h.
-    std::string synthetic_profile = "watershed_balance"; // watershed_balance | rainfall_runoff | neuroforge_inputs_target | exp_decay | damped_sine | mixed_wave
+    std::string synthetic_profile = "watershed_balance";
+
+    // Ground-truth reservoir coefficient used only to GENERATE the controlled
+    // reduced_reservoir synthetic target. It is intentionally independent from
+    // lambda_decay/storage_coeff, which represent the candidate model k during
+    // PINN calibration/tuning. Every method and every candidate must see the same
+    // synthetic truth hydrograph.
+    double synthetic_reservoir_truth_k = 0.08;
 
     // Network options
     std::string hidden_layers_csv = "24,24";
@@ -106,9 +98,6 @@ struct HydroRunConfig {
     bool reset_optimizer_on_new_window = false;
 };
 
-/**
- * @brief Basic run result reported by Hydro mode wrappers.
- */
 struct HydroRunResult {
     bool success = false;
     double final_loss = std::numeric_limits<double>::quiet_NaN();
