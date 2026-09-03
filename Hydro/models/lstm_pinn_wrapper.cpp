@@ -94,9 +94,6 @@ void fillPlotVectors(HydroRunResult& result,
 } // namespace
 
 HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
-    // Preserve known-state/legacy PINN profiles.  The corrected reduced-reservoir
-    // implementation is shared across Synthetic, CSV, and Hydro package inputs
-    // when physics_profile="linear_reservoir".
     if (config.pinn_physics_profile != "linear_reservoir") {
         LSTMNetworkWrapper backend;
         return backend.train(config, true);
@@ -146,7 +143,8 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     std::vector<torch::Tensor> bestParameters;
     std::vector<double> losses;
     std::vector<double> validationLosses;
-    double bestValidation = std::numeric_limits<double>::infinity();
+    double bestValidationObjective = std::numeric_limits<double>::infinity();
+    double bestValidationMse = std::numeric_limits<double>::infinity();
     int bestEpoch = 0;
 
     for (int epoch = 0; epoch < std::max(1, config.epochs); ++epoch) {
@@ -187,14 +185,36 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
 
         model->eval();
         double validationMse = 0.0;
+        double validationObjective = 0.0;
         {
             torch::NoGradGuard noGrad;
-            validationMse = torch::mse_loss(model->forward(xValidation), yValidation).item<double>();
+            torch::Tensor predValidation = model->forward(xValidation);
+            torch::Tensor dataLoss = torch::mse_loss(predValidation, yValidation);
+            validationMse = dataLoss.item<double>();
+            torch::Tensor lastStep = xValidation.select(1, xValidation.size(1) - 1);
+            torch::Tensor peff = lastStep.slice(1, 1, 2);
+            torch::Tensor dQdt = (predValidation.slice(0, 1, predValidation.size(0)) -
+                                   predValidation.slice(0, 0, predValidation.size(0) - 1)) / dt;
+            torch::Tensor qNow = predValidation.slice(0, 1, predValidation.size(0));
+            torch::Tensor residual = dQdt - k * (peff.slice(0, 1, peff.size(0)) - qNow);
+            torch::Tensor physicsLoss = torch::mean(residual * residual);
+            torch::Tensor negative = torch::relu(-predValidation);
+            torch::Tensor nonnegativeLoss = torch::mean(negative * negative);
+            validationObjective = (config.data_weight * dataLoss +
+                                   config.physics_weight * (physicsLoss + 0.05 * nonnegativeLoss)).item<double>();
         }
-        if (!std::isfinite(validationMse)) throw std::runtime_error("LSTM-PINN validation produced a non-finite loss.");
-        validationLosses.push_back(validationMse);
-        if (validationMse < bestValidation) {
-            bestValidation = validationMse;
+        if (!std::isfinite(validationMse) || !std::isfinite(validationObjective)) {
+            throw std::runtime_error("LSTM-PINN validation produced a non-finite objective.");
+        }
+        validationLosses.push_back(validationObjective);
+
+        // For hybrid runs, do not allow a data-only warm-up epoch to become the
+        // restored final checkpoint. Select only after physics is active, using
+        // the same joint data+physics tradeoff used for training.
+        const bool checkpointEligible = (config.physics_weight <= 0.0) || (epoch >= warmupEpochs);
+        if (checkpointEligible && validationObjective < bestValidationObjective) {
+            bestValidationObjective = validationObjective;
+            bestValidationMse = validationMse;
             bestEpoch = epoch + 1;
             bestParameters.clear();
             for (const auto& parameter : model->parameters()) bestParameters.push_back(parameter.detach().clone());
@@ -212,7 +232,7 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     result.validation_loss_history = validationLosses;
     result.best_epoch = bestEpoch;
     result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
-    result.validation_mse = bestValidation;
+    result.validation_mse = bestValidationMse;
     result.input_scaler.method = "none";
     result.target_scaler.method = "none";
 
