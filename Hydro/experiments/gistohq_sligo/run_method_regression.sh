@@ -14,6 +14,8 @@ fi
 
 cd "$HERE"
 python3 generate_unified_sweep.py \
+  --data-source hydro \
+  --hydro-package-path "../GIStoOHQ/examples/SligoCreek/outputs/sligocreekdemo_data/hydropinn" \
   --methods ffn,ffn_pinn,lstm,lstm_pinn,pinn \
   --ffn-architectures "16,16" \
   --ffn-activations relu \
@@ -51,8 +53,6 @@ hybrids = [r for r in rows if r["mode"] == "lstm_pinn"]
 if len(hybrids) != 2:
     raise SystemExit(f"Expected two LSTM+PINN weight checks, got {len(hybrids)}")
 
-# Exact equality here was the prior regression: the restored checkpoint came
-# from the data-only warm-up, making physics_weight irrelevant.
 fields = ["test_mse", "rmse", "nse", "pbias", "physics_loss"]
 identical = all(hybrids[0][f] == hybrids[1][f] for f in fields)
 if identical:
