@@ -9,10 +9,14 @@ applied only to methods for which they are meaningful:
   LSTM + PINN     : hidden x sequence x physics-weight x recession-k x optimizer grid x seeds
   PINN            : hidden x recession-k x optimizer grid x seeds
 
-Physics-informed GIStoOHQ runs use the independent reduced-reservoir equation
-    dQ/dt = k (Peff - Q),  Peff=max(P-PET,0),
-rather than a precomputed latent-storage trajectory.  storage_coeff remains the
-serialized k field for backward compatibility with existing experiment files.
+The selected data source is explicit and is applied to every generated config.
+This prevents a Synthetic GUI run from silently inheriting the Sligo Hydro
+package fields contained in the historical base JSON files.
+
+Reduced-reservoir physics uses
+    dQ/dt = k (Peff - Q),  Peff=max(P-PET,0).
+For controlled Synthetic validation, all five methods use the shared
+``reduced_reservoir`` truth generator.
 """
 
 from __future__ import annotations
@@ -31,6 +35,8 @@ BATCH = HERE / "unified_sweep.batch"
 MANIFEST = OUT / "unified_manifest.csv"
 
 ALL_METHODS = ("ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn")
+PHYSICS_METHODS = {"ffn_pinn", "lstm_pinn", "pinn"}
+DATA_SOURCES = ("synthetic", "csv", "hydro")
 
 
 def csv_values(text: str, cast=str):
@@ -64,8 +70,64 @@ def write_config(cfg: dict) -> str:
     return f"generated_unified/{filename}"
 
 
-def common(cfg: dict, args, lr: float, batch: int, seed: int) -> dict:
+def bool_text(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise argparse.ArgumentTypeError(f"invalid boolean: {value}")
+
+
+def source_name(cfg: dict) -> str:
+    if cfg.get("use_hydro_package"):
+        return "hydro"
+    if cfg.get("use_csv_data"):
+        return "csv"
+    return "synthetic"
+
+
+def apply_source(cfg: dict, args) -> dict:
+    """Overwrite every source-specific field; never inherit source state."""
     cfg = dict(cfg)
+    cfg.update({
+        "use_hydro_package": False,
+        "use_csv_data": False,
+        "hydro_package_path": "",
+        "hydro_catchment_id": "",
+        "hydro_package_profile": args.hydro_package_profile,
+        "csv_path": "",
+        "csv_x_column": args.csv_x_column,
+        "csv_y_column": args.csv_y_column,
+        "csv_has_header": args.csv_has_header,
+        "synthetic_profile": args.synthetic_profile,
+        "sample_count": args.sample_count,
+        "t_start": args.t_start,
+        "t_end": args.t_end,
+    })
+
+    if args.data_source == "hydro":
+        cfg.update({
+            "use_hydro_package": True,
+            "hydro_package_path": args.hydro_package_path,
+            "hydro_catchment_id": args.hydro_catchment_id,
+        })
+    elif args.data_source == "csv":
+        cfg.update({
+            "use_csv_data": True,
+            "csv_path": args.csv_path,
+        })
+
+    actual = source_name(cfg)
+    if actual != args.data_source:
+        raise RuntimeError(f"source routing invariant failed: requested={args.data_source}, config={actual}")
+    if args.data_source == "synthetic" and (cfg["hydro_package_path"] or cfg["csv_path"]):
+        raise RuntimeError("Synthetic config unexpectedly retained an external data path")
+    return cfg
+
+
+def common(cfg: dict, args, lr: float, batch: int, seed: int) -> dict:
+    cfg = apply_source(cfg, args)
     cfg.update({
         "epochs": args.epochs,
         "learning_rate": lr,
@@ -87,7 +149,6 @@ def physics_common(cfg: dict, k: float) -> dict:
         "forcing_gain": k,
         "storage_coeff": k,
         "pinn_collocation_points": 0,
-        "hydro_package_profile": "rainfall-runoff",
         "use_time_lagged_ffn": False,
         "input_lags": "1",
     })
@@ -111,7 +172,37 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--recession-k", default="0.01,0.02,0.04,0.08,0.16")
     p.add_argument("--data-weight", type=float, default=1.0)
     p.add_argument("--epochs", type=int, default=150)
+
+    p.add_argument("--data-source", choices=DATA_SOURCES, default="hydro")
+    p.add_argument("--synthetic-profile", default="reduced_reservoir")
+    p.add_argument("--sample-count", type=int, default=240)
+    p.add_argument("--t-start", type=float, default=0.0)
+    p.add_argument("--t-end", type=float, default=5.0)
+    p.add_argument("--hydro-package-path", default="../GIStoOHQ/examples/SligoCreek/outputs/sligocreekdemo_data/hydropinn")
+    p.add_argument("--hydro-catchment-id", default="")
+    p.add_argument("--hydro-package-profile", default="rainfall-runoff")
+    p.add_argument("--csv-path", default="")
+    p.add_argument("--csv-x-column", type=int, default=0)
+    p.add_argument("--csv-y-column", type=int, default=3)
+    p.add_argument("--csv-has-header", type=bool_text, default=True)
     return p
+
+
+def validate_source_args(args, methods: list[str]) -> None:
+    if args.data_source == "hydro" and not args.hydro_package_path.strip():
+        raise SystemExit("--hydro-package-path is required for --data-source hydro")
+    if args.data_source == "csv" and not args.csv_path.strip():
+        raise SystemExit("--csv-path is required for --data-source csv")
+    if args.data_source == "csv" and any(m in PHYSICS_METHODS for m in methods):
+        if args.csv_x_column != 0 or args.csv_y_column < 3:
+            raise SystemExit("Reduced-reservoir CSV physics requires time column 0, P column 1, PET column 2, and runoff target column >=3")
+    if args.data_source == "synthetic":
+        if args.sample_count < 32 or not args.t_end > args.t_start:
+            raise SystemExit("Synthetic source requires sample_count>=32 and t_end>t_start")
+        if any(m in PHYSICS_METHODS for m in methods) and args.synthetic_profile != "reduced_reservoir":
+            raise SystemExit(
+                "The five-method synthetic physics pipeline requires --synthetic-profile reduced_reservoir so all methods share one controlled truth."
+            )
 
 
 def main() -> int:
@@ -123,6 +214,7 @@ def main() -> int:
     methods = [m for m in ALL_METHODS if m in methods]
     if not methods:
         raise SystemExit("Select at least one method")
+    validate_source_args(args, methods)
 
     ffn_arch = semi_values(args.ffn_architectures or args.ffn_hidden)
     activations = csv_values(args.ffn_activations)
@@ -146,7 +238,6 @@ def main() -> int:
     ffn_base = load(FFN_BASE)
     lstm_base = load(LSTM_BASE)
     jobs: list[tuple[str, str, dict]] = []
-
     grid = list(itertools.product(lrs, batches, seeds))
 
     if "ffn" in methods:
@@ -190,23 +281,39 @@ def main() -> int:
             cfg["experiment_id"] = f"unified_pinn_h{slug(hidden)}_k{slug(k)}_lr{slug(lr)}_b{batch}_s{seed}"
             jobs.append(("pinn", write_config(cfg), cfg))
 
+    for mode, _, cfg in jobs:
+        actual = source_name(cfg)
+        if actual != args.data_source:
+            raise RuntimeError(f"generated job {cfg['experiment_id']} has source={actual}, expected={args.data_source}")
+        if args.data_source == "synthetic" and cfg.get("hydro_package_path"):
+            raise RuntimeError(f"synthetic job {cfg['experiment_id']} leaked hydro_package_path")
+
     BATCH.write_text(
-        "# Unified HydroPINN five-method sweep; generated file\n" +
+        f"# Unified HydroPINN five-method sweep; data_source={args.data_source}; generated file\n" +
         "\n".join(f"{mode} {path}" for mode, path, _ in jobs) + "\n",
         encoding="utf-8",
     )
 
     OUT.mkdir(parents=True, exist_ok=True)
     with MANIFEST.open("w", encoding="utf-8") as out:
-        out.write("experiment_id,mode,hidden_layers,activation,lstm_sequence_length,input_lags,learning_rate,batch_size,seed,physics_weight,recession_k\n")
+        out.write("experiment_id,mode,data_source,synthetic_profile,hydro_package_path,csv_path,hidden_layers,activation,lstm_sequence_length,input_lags,learning_rate,batch_size,seed,physics_weight,recession_k\n")
         for mode, _, cfg in jobs:
             out.write(
-                f"{cfg['experiment_id']},{mode},\"{cfg.get('hidden_layers','')}\",{cfg.get('activation','')},"
+                f"{cfg['experiment_id']},{mode},{source_name(cfg)},{cfg.get('synthetic_profile','')},"
+                f"\"{cfg.get('hydro_package_path','')}\",\"{cfg.get('csv_path','')}\","
+                f"\"{cfg.get('hidden_layers','')}\",{cfg.get('activation','')},"
                 f"{cfg.get('lstm_sequence_length','')},\"{cfg.get('input_lags','')}\",{cfg['learning_rate']},"
                 f"{cfg['batch_size']},{cfg['random_seed']},{cfg.get('physics_weight','')},{cfg.get('storage_coeff','')}\n"
             )
 
     counts = {m: sum(1 for mode, _, _ in jobs if mode == m) for m in ALL_METHODS}
+    print(f"Data source: {args.data_source}")
+    if args.data_source == "synthetic":
+        print(f"Synthetic profile: {args.synthetic_profile}; samples={args.sample_count}; t=[{args.t_start},{args.t_end}]")
+    elif args.data_source == "hydro":
+        print(f"Hydro package: {args.hydro_package_path}")
+    else:
+        print(f"CSV: {args.csv_path}; x={args.csv_x_column}; y={args.csv_y_column}")
     print(f"Generated {len(jobs)} valid experiment(s)")
     for method in ALL_METHODS:
         if counts[method]:
