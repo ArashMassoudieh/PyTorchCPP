@@ -121,6 +121,21 @@ double numberValue(const std::string& json, const std::string& key) {
     }
 }
 
+double optionalNumberValue(const std::string& json, const std::string& key, const double fallback) {
+    rejectDuplicateField(json, key);
+    std::smatch match;
+    const std::regex pattern("\\\"" + key +
+                             "\\\"\\s*:\\s*(-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\\s*[,}]");
+    if (!std::regex_search(json, match, pattern)) return fallback;
+    try {
+        const double value = std::stod(match[1].str());
+        if (!std::isfinite(value)) throw std::out_of_range("non-finite");
+        return value;
+    } catch (...) {
+        throw std::runtime_error("Experiment configuration has an invalid number: " + key);
+    }
+}
+
 int integerValue(const std::string& json, const std::string& key) {
     rejectDuplicateField(json, key);
     std::smatch match;
@@ -171,9 +186,7 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.activation = stringValue(json, "activation");
     c.use_time_lagged_ffn = boolValue(json, "use_time_lagged_ffn");
     c.lstm_sequence_length = integerValue(json, "lstm_sequence_length");
-    if (c.lstm_sequence_length < 1) {
-        throw std::runtime_error("Experiment configuration contains invalid LSTM sequence length.");
-    }
+    if (c.lstm_sequence_length < 1) throw std::runtime_error("Experiment configuration contains invalid LSTM sequence length.");
     c.pinn_physics_profile = stringValue(json, "physics_profile");
     c.data_weight = numberValue(json, "data_weight");
     c.physics_weight = numberValue(json, "physics_weight");
@@ -192,6 +205,7 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.sample_count = integerValue(json, "sample_count");
     c.t_start = numberValue(json, "t_start");
     c.t_end = numberValue(json, "t_end");
+    c.synthetic_reservoir_truth_k = optionalNumberValue(json, "synthetic_reservoir_truth_k", c.synthetic_reservoir_truth_k);
     c.hydro_package_path = stringValue(json, "hydro_package_path");
     c.hydro_catchment_id = stringValue(json, "hydro_catchment_id");
     c.hydro_package_profile = stringValue(json, "hydro_package_profile");
@@ -201,9 +215,9 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.hydro_forecast_ensemble_member = stringValue(json, "hydro_forecast_ensemble_member");
     if (c.use_hydro_package && c.use_csv_data) throw std::runtime_error("Experiment configuration selects multiple data sources.");
     if (loaded.experiment_id.empty() || c.epochs <= 0 || c.batch_size <= 0 || c.learning_rate <= 0.0 || c.sample_count < 3 ||
-        c.train_split_ratio <= 0.0 || c.validation_split_ratio <= 0.0 ||
+        c.synthetic_reservoir_truth_k <= 0.0 || c.train_split_ratio <= 0.0 || c.validation_split_ratio <= 0.0 ||
         c.train_split_ratio + c.validation_split_ratio >= 1.0) {
-        throw std::runtime_error("Experiment configuration contains invalid training or split settings.");
+        throw std::runtime_error("Experiment configuration contains invalid training, source, or split settings.");
     }
     hydroLstmSequenceLengthRuntimeDefault() = c.lstm_sequence_length;
     return loaded;
