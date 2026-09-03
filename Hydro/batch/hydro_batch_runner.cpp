@@ -1,5 +1,6 @@
 #include "../evaluation/experiment_exporter.h"
 #include "../evaluation/experiment_loader.h"
+#include "../dataset/gistohq_package_adapter.h"
 #include "../models/ffn_wrapper.h"
 #include "../models/ffn_pinn_wrapper.h"
 #include "../models/ffn_reservoir_pinn_wrapper.h"
@@ -81,6 +82,46 @@ void resolveConfigPaths(HydroRunConfig& config, const fs::path& repository_root)
     }
 }
 
+void preparePhysicsConfig(const std::string& mode, HydroRunConfig& config) {
+    if (!isPhysicsMode(mode)) return;
+
+    const bool gisToOhq = config.use_hydro_package && !config.hydro_package_path.empty() &&
+                          isGisToOhqHydroPinnExport(config.hydro_package_path);
+
+    if (gisToOhq) {
+        // GIStoOHQ exports do not contain an independently observed storage
+        // state, so their physics path must use the reduced forcing-only
+        // reservoir formulation rather than known-state water balance.
+        config.use_latent_storage_physics = true; // legacy flag name: forcing-only layout selector
+        if (config.storage_coeff > 0.0) config.latent_storage_recession_per_hour = config.storage_coeff;
+        config.pinn_physics_profile = "linear_reservoir";
+        config.lambda_decay = config.latent_storage_recession_per_hour;
+        config.forcing_gain = config.latent_storage_recession_per_hour;
+    } else if (config.pinn_physics_profile == "linear_reservoir") {
+        // Respect an explicitly requested reduced-reservoir profile for
+        // Synthetic, CSV, and generic Hydro packages. Do not replace an
+        // explicit water_balance/cstr/exp_decay profile.
+        config.use_latent_storage_physics = true;
+        const double k = config.storage_coeff > 0.0
+            ? config.storage_coeff
+            : (config.latent_storage_recession_per_hour > 0.0
+               ? config.latent_storage_recession_per_hour
+               : config.lambda_decay);
+        config.latent_storage_recession_per_hour = k;
+        config.lambda_decay = k;
+        config.forcing_gain = k;
+    }
+
+    if (config.pinn_physics_profile == "linear_reservoir" && config.normalization != "none") {
+        std::cout << "[batch] reduced-reservoir physics requires physical-unit residuals; overriding normalization="
+                  << config.normalization << " -> none\n";
+        config.normalization = "none";
+    }
+    if (mode == "ffn_pinn" && config.pinn_physics_profile == "linear_reservoir") {
+        config.use_time_lagged_ffn = false;
+    }
+}
+
 std::vector<BatchJob> readBatchFile(const fs::path& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Unable to open Hydro batch file: " + path.string());
@@ -107,15 +148,13 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
         }
         if (mode != "ffn" && mode != "ffn_pinn" && mode != "lstm" &&
             mode != "lstm_pinn" && mode != "pinn") {
-            throw std::runtime_error("Unsupported Hydro batch mode at line " +
-                                     std::to_string(line_number) + ": " + mode);
+            throw std::runtime_error("Unsupported Hydro batch mode at line " + std::to_string(line_number) + ": " + mode);
         }
         fs::path config_path(config);
         if (config_path.is_relative()) config_path = path.parent_path() / config_path;
         config_path = fs::weakly_canonical(config_path);
         if (!fs::exists(config_path)) {
-            throw std::runtime_error("Hydro batch config does not exist at line " +
-                                     std::to_string(line_number) + ": " + config_path.string());
+            throw std::runtime_error("Hydro batch config does not exist at line " + std::to_string(line_number) + ": " + config_path.string());
         }
         jobs.push_back({mode, config_path});
     }
@@ -133,11 +172,8 @@ HydroRunResult runJob(const std::string& mode, const HydroRunConfig& config) {
 }
 
 void printHyperparameters(const std::string& mode, const HydroRunConfig& config) {
-    if (mode == "lstm" || mode == "lstm_pinn") {
-        std::cout << " sequence_length=" << config.lstm_sequence_length;
-    } else if (mode == "ffn" || mode == "ffn_pinn") {
-        std::cout << " input_lags=" << config.input_lags_csv;
-    }
+    if (mode == "lstm" || mode == "lstm_pinn") std::cout << " sequence_length=" << config.lstm_sequence_length;
+    else if (mode == "ffn" || mode == "ffn_pinn") std::cout << " input_lags=" << config.input_lags_csv;
     std::cout << " hidden_layers=" << config.hidden_layers_csv
               << " activation=" << config.activation
               << " learning_rate=" << config.learning_rate
@@ -184,14 +220,11 @@ void prepareSummaryFile(const fs::path& summary_path) {
         if (header != expected) {
             fs::path backup = summary_path.parent_path() / "batch_summary.pre_physics.csv";
             for (int suffix = 1; fs::exists(backup); ++suffix) {
-                backup = summary_path.parent_path() /
-                         ("batch_summary.pre_physics." + std::to_string(suffix) + ".csv");
+                backup = summary_path.parent_path() / ("batch_summary.pre_physics." + std::to_string(suffix) + ".csv");
             }
             fs::rename(summary_path, backup);
             std::cout << "[batch] archived legacy summary=" << backup << '\n';
-        } else {
-            return;
-        }
+        } else return;
     }
     std::ofstream out(summary_path, std::ios::trunc);
     out << summaryHeader() << '\n';
@@ -201,35 +234,24 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
                    const std::string& mode, const HydroRunConfig& config, const HydroRunResult& r) {
     std::ofstream out(summary_path, std::ios::app);
     out << std::setprecision(12)
-        << csvCell(experiment_id) << ','
-        << csvCell(mode) << ','
-        << config.lstm_sequence_length << ','
-        << csvCell(config.input_lags_csv) << ','
-        << csvCell(config.hidden_layers_csv) << ','
-        << csvCell(config.activation) << ','
-        << config.learning_rate << ','
-        << config.batch_size << ','
-        << config.random_seed << ','
-        << csvCell(config.normalization) << ','
-        << csvCell(config.pinn_physics_profile) << ','
-        << config.data_weight << ','
-        << config.physics_weight << ','
+        << csvCell(experiment_id) << ',' << csvCell(mode) << ','
+        << config.lstm_sequence_length << ',' << csvCell(config.input_lags_csv) << ','
+        << csvCell(config.hidden_layers_csv) << ',' << csvCell(config.activation) << ','
+        << config.learning_rate << ',' << config.batch_size << ',' << config.random_seed << ','
+        << csvCell(config.normalization) << ',' << csvCell(config.pinn_physics_profile) << ','
+        << config.data_weight << ',' << config.physics_weight << ','
         << (config.use_latent_storage_physics ? "true" : "false") << ','
-        << config.latent_storage_recession_per_hour << ','
-        << (r.success ? "true" : "false") << ','
-        << r.final_loss << ',' << r.validation_mse << ',' << r.mse << ','
-        << r.rmse << ',' << r.mae << ',' << r.r2 << ',' << r.nse << ',' << r.kge << ','
-        << r.correlation << ',' << r.pbias << ',' << r.volume_error_percent << ','
-        << r.peak_timing_error << ',' << r.peak_magnitude_error_percent << ','
-        << r.high_flow_rmse << ',' << r.low_flow_rmse << ','
-        << r.physics_loss << ',' << r.physics_residual_mean << ',' << r.physics_residual_rmse << ','
-        << r.cumulative_physics_residual << '\n';
+        << config.latent_storage_recession_per_hour << ',' << (r.success ? "true" : "false") << ','
+        << r.final_loss << ',' << r.validation_mse << ',' << r.mse << ',' << r.rmse << ',' << r.mae << ','
+        << r.r2 << ',' << r.nse << ',' << r.kge << ',' << r.correlation << ',' << r.pbias << ','
+        << r.volume_error_percent << ',' << r.peak_timing_error << ',' << r.peak_magnitude_error_percent << ','
+        << r.high_flow_rmse << ',' << r.low_flow_rmse << ',' << r.physics_loss << ','
+        << r.physics_residual_mean << ',' << r.physics_residual_rmse << ',' << r.cumulative_physics_residual << '\n';
 }
 
 fs::path archiveExistingExperiment(const fs::path& output_root, const std::string& experiment_id) {
     const fs::path current = output_root / experiment_id;
     if (!fs::exists(current)) return {};
-
     fs::path archive = output_root / (experiment_id + ".previous");
     for (int suffix = 2; fs::exists(archive); ++suffix) {
         archive = output_root / (experiment_id + ".previous." + std::to_string(suffix));
@@ -266,26 +288,8 @@ int main(int argc, char** argv) {
                 const auto loaded = HydroExperimentLoader().loadConfig(job.config_path.string());
                 HydroRunConfig config = loaded.config;
                 resolveConfigPaths(config, repository_root);
-                if (isPhysicsMode(job.mode)) {
-                    // GIStoOHQ physics modes use a forcing-only reduced reservoir:
-                    // dQ/dt = k(Peff-Q), Peff=max(P-PET,0).  The legacy flag name
-                    // selects the contiguous physics forcing layout; no storage
-                    // state is generated or supplied to the model.
-                    config.use_latent_storage_physics = true;
-                    config.latent_storage_recession_per_hour =
-                        config.storage_coeff > 0.0 ? config.storage_coeff : 0.08;
-                    config.pinn_physics_profile = "linear_reservoir";
-                    config.lambda_decay = config.latent_storage_recession_per_hour;
-                    config.forcing_gain = config.latent_storage_recession_per_hour;
-                    if (config.normalization != "none") {
-                        std::cout << "[batch] physics mode requires physical-unit residuals; overriding normalization="
-                                  << config.normalization << " -> none\n";
-                        config.normalization = "none";
-                    }
-                    if (job.mode == "ffn_pinn") config.use_time_lagged_ffn = false;
-                }
-                std::cout << "[batch] starting experiment=" << loaded.experiment_id
-                          << " mode=" << job.mode;
+                preparePhysicsConfig(job.mode, config);
+                std::cout << "[batch] starting experiment=" << loaded.experiment_id << " mode=" << job.mode;
                 printHyperparameters(job.mode, config);
                 std::cout << '\n';
                 if (config.use_hydro_package) std::cout << "[batch] hydro_package_path=" << config.hydro_package_path << '\n';
@@ -296,9 +300,7 @@ int main(int argc, char** argv) {
                 std::map<std::string, HydroRunResult> results;
                 results.emplace(job.mode, result);
                 const fs::path archived = archiveExistingExperiment(output_root, loaded.experiment_id);
-                if (!archived.empty()) {
-                    std::cout << "[batch] archived existing experiment=" << archived << '\n';
-                }
+                if (!archived.empty()) std::cout << "[batch] archived existing experiment=" << archived << '\n';
                 HydroExperimentExporter().exportRun(output_root.string(), loaded.experiment_id, config, results);
                 appendSummary(summary_path, loaded.experiment_id, job.mode, config, result);
                 if (!result.success) ++failures;
