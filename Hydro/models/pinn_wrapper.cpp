@@ -107,8 +107,6 @@ HydroRunResult PINNWrapper::train(const HydroRunConfig& config) {
     const ChronologicalSplit split = makeChronologicalSplit(x.size(0),
                                                             config.train_split_ratio,
                                                             config.validation_split_ratio);
-    torch::Tensor xTrain = x.slice(0, 0, split.train_end).contiguous();
-    torch::Tensor yTrain = y.slice(0, 0, split.train_end).contiguous();
     torch::Tensor xValidation = x.slice(0, split.train_end, split.validation_end).contiguous();
     torch::Tensor yValidation = y.slice(0, split.train_end, split.validation_end).contiguous();
     torch::Tensor xTest = x.slice(0, split.validation_end, x.size(0)).contiguous();
@@ -130,15 +128,21 @@ HydroRunResult PINNWrapper::train(const HydroRunConfig& config) {
     std::vector<double> losses;
     double bestObjective = std::numeric_limits<double>::infinity();
     int bestEpoch = 0;
-    const torch::Tensor q0Observed = yTrain.slice(0, 0, 1).detach();
+
+    // The standalone PINN is physics-only apart from Q(t0).  All forcing/time
+    // coordinates are therefore legitimate unlabeled collocation points,
+    // including coordinates that later belong to validation/test metrics.
+    // No target values beyond the single initial-condition anchor enter the
+    // optimization objective.
+    const torch::Tensor q0Observed = y.slice(0, 0, 1).detach();
 
     for (int epoch = 0; epoch < std::max(1, config.epochs); ++epoch) {
         model->train();
         optimizer.zero_grad();
-        torch::Tensor pred = model->forward(xTrain);
-        if (pred.size(0) < 2) throw std::runtime_error("Standalone PINN training segment is too short.");
+        torch::Tensor pred = model->forward(x);
+        if (pred.size(0) < 2) throw std::runtime_error("Standalone PINN collocation domain is too short.");
 
-        torch::Tensor peff = xTrain.slice(1, 1, 2);
+        torch::Tensor peff = x.slice(1, 1, 2);
         torch::Tensor dQdt = (pred.slice(0, 1, pred.size(0)) - pred.slice(0, 0, pred.size(0) - 1)) / dt;
         torch::Tensor qNow = pred.slice(0, 1, pred.size(0));
         torch::Tensor residual = dQdt - k * (peff.slice(0, 1, peff.size(0)) - qNow);
@@ -220,9 +224,9 @@ HydroRunResult PINNWrapper::train(const HydroRunConfig& config) {
 
     result.success = true;
     result.message = config.use_hydro_package
-        ? "Standalone PINN completed on Hydro package input with reduced-reservoir physics and one observed initial condition."
+        ? "Standalone PINN completed on Hydro package input with reduced-reservoir physics over the full collocation domain and one observed initial condition."
         : (config.use_csv_data
-           ? "Standalone PINN completed on CSV input with reduced-reservoir physics and one observed initial condition."
-           : "Standalone PINN completed on synthetic input with reduced-reservoir physics and one synthetic initial condition.");
+           ? "Standalone PINN completed on CSV input with reduced-reservoir physics over the full collocation domain and one observed initial condition."
+           : "Standalone PINN completed on synthetic input with reduced-reservoir physics over the full collocation domain and one synthetic initial condition.");
     return result;
 }
