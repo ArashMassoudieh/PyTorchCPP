@@ -104,7 +104,11 @@ inline void buildReducedReservoirSyntheticTensors(const HydroRunConfig& config,
     constexpr double pi = 3.14159265358979323846;
     std::vector<float> features;
     std::vector<float> targets;
-    std::vector<float> times;
+    // Keep the independent physical-time vector in double precision. The model
+    // features remain float32, but finite-difference timestep validation must
+    // not mistake float32 quantization of an analytically regular synthetic
+    // grid for irregular sampling.
+    std::vector<double> times;
     features.reserve(static_cast<std::size_t>(samples) * 4);
     targets.reserve(static_cast<std::size_t>(samples));
     times.reserve(static_cast<std::size_t>(samples));
@@ -126,12 +130,17 @@ inline void buildReducedReservoirSyntheticTensors(const HydroRunConfig& config,
         features.push_back(static_cast<float>(precipitation));
         features.push_back(static_cast<float>(pet));
         targets.push_back(static_cast<float>(q));
-        times.push_back(static_cast<float>(t));
+        times.push_back(t);
     }
 
     x = torch::from_blob(features.data(), {samples, 4}, torch::kFloat32).clone();
     y = torch::from_blob(targets.data(), {samples, 1}, torch::kFloat32).clone();
-    plotX = torch::from_blob(times.data(), {samples, 1}, torch::kFloat32).clone();
+    plotX = torch::from_blob(times.data(), {samples, 1}, torch::kFloat64).clone();
+    const double inferredDt = regularPhysicalTimeStepFromTime(plotX);
+    const double tolerance = std::max(1.0e-12, std::abs(dt) * 1.0e-10);
+    if (std::abs(inferredDt - dt) > tolerance) {
+        throw std::runtime_error("Synthetic reduced-reservoir timestep does not match configured regular grid.");
+    }
 }
 
 inline bool loadReservoirPhysicsTensors(const HydroRunConfig& config,
