@@ -52,6 +52,10 @@ void resetChart(QChart* chart) {
 void HydroPINNWindow::showCurrentInputsOutputs() {
     const QString source = dataSourceCombo_->currentText();
     if (source == "Synthetic") {
+        // Always rebuild the preview from the controls that are currently visible.
+        // This avoids plotting stale cached channels after the synthetic profile,
+        // sample count, or time range has been changed without pressing Preview.
+        generateSyntheticDataPreview();
         showSyntheticInputsOutputs();
         return;
     }
@@ -91,6 +95,9 @@ void HydroPINNWindow::showCurrentInputsOutputs() {
                 }
             } else {
                 names.push_back(csvColumnName(header, cfg.csv_x_column));
+                while (names.size() < static_cast<size_t>(columns)) {
+                    names.push_back(QString("input_%1").arg(names.size()));
+                }
             }
 
             for (int64_t row = 0; row < rows; ++row) {
@@ -157,7 +164,7 @@ void HydroPINNWindow::showCurrentInputsOutputs() {
             const size_t count = std::min(x.size(), inputs[column].size());
             for (size_t row = 0; row < count; ++row) {
                 const double value = inputs[column][row];
-                if (!std::isfinite(value)) continue;
+                if (!std::isfinite(value) || !std::isfinite(x[row])) continue;
                 series->append(x[row], value);
                 inputMin = std::min(inputMin, value);
                 inputMax = std::max(inputMax, value);
@@ -173,7 +180,7 @@ void HydroPINNWindow::showCurrentInputsOutputs() {
         double targetMax = -std::numeric_limits<double>::infinity();
         const size_t targetCount = std::min(x.size(), target.size());
         for (size_t row = 0; row < targetCount; ++row) {
-            if (!std::isfinite(target[row])) continue;
+            if (!std::isfinite(target[row]) || !std::isfinite(x[row])) continue;
             targetSeries->append(x[row], target[row]);
             targetMin = std::min(targetMin, target[row]);
             targetMax = std::max(targetMax, target[row]);
@@ -190,10 +197,17 @@ void HydroPINNWindow::showCurrentInputsOutputs() {
             const double span = std::max(1.0e-12, targetMax - targetMin);
             axisTarget->setRange(targetMin - 0.05 * span, targetMax + 0.05 * span);
         }
-        const auto [minX, maxX] = std::minmax_element(x.begin(), x.end());
-        if (minX != x.end() && maxX != x.end()) {
-            const double span = std::max(1.0e-12, *maxX - *minX);
-            axisX->setRange(*minX - 0.01 * span, *maxX + 0.01 * span);
+
+        double minX = std::numeric_limits<double>::infinity();
+        double maxX = -std::numeric_limits<double>::infinity();
+        for (double value : x) {
+            if (!std::isfinite(value)) continue;
+            minX = std::min(minX, value);
+            maxX = std::max(maxX, value);
+        }
+        if (std::isfinite(minX) && std::isfinite(maxX)) {
+            const double span = std::max(1.0e-12, maxX - minX);
+            axisX->setRange(minX - 0.01 * span, maxX + 0.01 * span);
         }
 
         chart->setTitle(QString("Inputs + Output - %1").arg(source));
