@@ -6,7 +6,8 @@ The canonical GUI source stays readable and stable. This build-time transform:
 - routes FFN+PINN to the corrected reservoir wrapper,
 - exposes an explicit ``reduced_reservoir`` synthetic validation profile,
 - makes that profile use the same shared truth generator as all five methods,
-- keeps direct GUI controlled-validation runs on the known synthetic truth k, and
+- keeps direct GUI controlled-validation runs on the known synthetic truth k,
+- wires Inputs + Output directly to the active data-source plotter, and
 - assigns stable object names to data-source widgets so the full tuning pipeline
   can snapshot the actual GUI selection instead of assuming Sligo Hydro input.
 """
@@ -151,6 +152,9 @@ NEW_EXPORT = '''        } else if (profile == "reduced_reservoir") {
             if (profile == "watershed_balance") {
 '''
 
+OLD_INPUTS_OUTPUT_CONNECT = '    connect(showInputsOutputsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showSyntheticInputsOutputs);\n'
+NEW_INPUTS_OUTPUT_CONNECT = '    connect(showInputsOutputsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showCurrentInputsOutputs);\n'
+
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
     if old not in text:
@@ -170,6 +174,7 @@ def main() -> int:
     text = replace_once(text, OLD_PREVIEW_BRANCH, NEW_PREVIEW_BRANCH, "synthetic preview")
     text = replace_once(text, OLD_INPUT_MAP, NEW_INPUT_MAP, "synthetic input map")
     text = replace_once(text, OLD_EXPORT, NEW_EXPORT, "synthetic export")
+    text = replace_once(text, OLD_INPUTS_OUTPUT_CONNECT, NEW_INPUTS_OUTPUT_CONNECT, "Inputs + Output button wiring")
     text = text.replace("FFNPINNWrapper runner;", "FFNReservoirPINNWrapper runner;")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(text, encoding="utf-8")
