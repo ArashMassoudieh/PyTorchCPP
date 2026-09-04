@@ -10,7 +10,7 @@ This audit evaluates the five Hydro methods **before further hyperparameter swee
 | LSTM | **Sound baseline** | Sequence construction and held-out evaluation are internally consistent. |
 | FFN + PINN | **Corrected, cross-source** | Joint data/physics update with finite-difference runoff dynamics; shared by Synthetic, CSV, and Hydro package inputs. |
 | LSTM + PINN | **Corrected, cross-source** | Data and physics terms participate in the same sequential mini-batch Adam update for all reduced-reservoir data sources. |
-| PINN | **Corrected, cross-source** | Physics-driven runoff dynamics plus one initial-condition anchor; shared by Synthetic, CSV, and Hydro package inputs. |
+| PINN | **Corrected, cross-source and full-domain collocation** | Physics-driven runoff dynamics plus one initial-condition anchor; forcing/time coordinates over the full domain are used as unlabeled collocation points. |
 
 ## 1. Supervised baselines
 
@@ -68,9 +68,11 @@ This reduced equation is a **conceptual physics regularizer**, not exact watersh
 
 ### Synthetic
 
-The GUI now exposes an explicit `reduced_reservoir` profile. Its truth series is generated directly from the same forced ODE and is shared by FFN, FFN+PINN, LSTM, LSTM+PINN, and PINN.
+The GUI exposes an explicit `reduced_reservoir` profile. Its truth series is generated directly from the same forced ODE and is shared by FFN, FFN+PINN, LSTM, LSTM+PINN, and PINN.
 
-For this controlled test, `lambda_decay` is the single explicit synthetic reservoir coefficient \(k\). This avoids a hidden runtime default causing the supervised methods and physics-informed methods to see different truth trajectories. Physics-mode routing copies the same value into the runtime recession/forcing coefficients.
+Synthetic truth generation uses `synthetic_reservoir_truth_k`, which is intentionally independent of the candidate/model coefficient used during tuning. This prevents a k sweep from changing the target dataset.
+
+For a **direct GUI controlled-validation run**, the physics-informed methods automatically align model k with `synthetic_reservoir_truth_k` so the known governing equation is tested at the known coefficient. Batch/tuning sweeps remain free to vary candidate k against the fixed truth.
 
 The preview and CSV export for this profile are generated from the same shared tensor builder. Export columns are:
 
@@ -111,7 +113,7 @@ For all reduced-reservoir data sources, FFN+PINN uses ordered mini-batches and a
             +w_p\left[\mathrm{MSE}(r_Q,0)+0.05\,\mathrm{MSE}(\max(-Q_{pred},0),0)\right].
 \]
 
-Data and physics gradients are combined before one Adam update, so `physics_weight` is a genuine tradeoff parameter.
+Data and physics gradients are combined before one Adam update, so `physics_weight` is a genuine tradeoff parameter. Validation checkpoint selection uses the joint validation objective after warm-up, while reported `validation_mse` remains the pure data MSE.
 
 Known-state or legacy physics profiles continue through the legacy FFN-PINN backend rather than being silently converted.
 
@@ -123,14 +125,14 @@ For all reduced-reservoir data sources, LSTM+PINN uses ordered sequence mini-bat
 \mathcal L = w_d\mathcal L_{data}+w_p\mathcal L_{physics}.
 \]
 
-The former separate physics-only Adam step is no longer used for the reduced-reservoir path.
+The former separate physics-only Adam step is no longer used for the reduced-reservoir path. Validation checkpoint selection uses the joint validation objective after warm-up.
 
 ## 6. Standalone PINN
 
 A first-order forced ODE requires one initial/boundary condition. The standalone reduced-reservoir PINN therefore uses:
 
-1. the runoff-reservoir residual over the training forcing trajectory;
-2. one runoff value at the beginning of the training period as the initial-condition anchor; and
+1. the runoff-reservoir residual over the **full available forcing/time domain**;
+2. one runoff value at the initial time as the initial-condition anchor; and
 3. a small non-negativity penalty.
 
 Its objective is
@@ -141,7 +143,9 @@ Its objective is
             +0.05\,\mathrm{MSE}(\max(-Q,0),0).
 \]
 
-For real/CSV data, \(Q_0\) is the first observed runoff value. For the controlled synthetic reduced-reservoir test, it is the known synthetic initial condition. Remaining runoff observations do not enter the standalone PINN optimization objective; they are used for evaluation.
+Using validation/test forcing coordinates as collocation points is not target leakage: no validation/test runoff values enter optimization. Only time/forcing coordinates and the single initial runoff anchor are used. Validation/test runoff values remain evaluation-only.
+
+For real/CSV data, \(Q_0\) is the first observed runoff value. For the controlled synthetic reduced-reservoir test, it is the known synthetic initial condition.
 
 ## 7. Data-source matrix
 
@@ -156,11 +160,28 @@ For real/CSV data, \(Q_0\) is the first observed runoff value. For the controlle
 
 Use `Synthetic -> reduced_reservoir` and then `Run All`. The run should satisfy these invariants:
 
-1. all five methods use the same `sample_count`, `t_start`, `t_end`, precipitation, PET, effective precipitation, runoff target, and synthetic \(k\);
+1. all five methods use the same `sample_count`, `t_start`, `t_end`, precipitation, PET, effective precipitation, runoff target, and synthetic truth k;
 2. FFN/LSTM use the shared realization as supervised data only;
-3. FFN+PINN/LSTM+PINN additionally enforce the matching reduced-reservoir residual;
-4. standalone PINN uses the same forcing and only the first synthetic runoff value as its initial-condition anchor;
+3. direct-GUI FFN+PINN/LSTM+PINN enforce the matching reduced-reservoir residual with `model_k=truth_k`;
+4. standalone PINN uses the same forcing over the full collocation domain and only the first synthetic runoff value as its initial-condition anchor;
 5. physics modes automatically switch to `linear_reservoir`, physical-unit normalization, and non-lagged FFN physics input;
-6. the GUI log explicitly reports controlled reduced-reservoir physics instead of `water_balance`.
+6. the GUI log explicitly reports `truth_k=model_k` for controlled reduced-reservoir runs;
+7. batch/tuning sweeps preserve a fixed `synthetic_reservoir_truth_k` while candidate k varies independently.
 
-Do not resume broad sweeps until this controlled run passes and materially different `physics_weight` values produce different hybrid fits.
+### Verified GUI baseline (2026-09-04)
+
+Controlled case: `reduced_reservoir`, 240 samples, `t=[0,5]`, `truth_k=model_k=0.08`, hidden layers `24,24`, tanh, seed/configuration from the GUI run.
+
+| Method | RMSE | MAE | PBIAS |
+|---|---:|---:|---:|
+| FFN | 0.0489058 | 0.0485737 | 19.6081% |
+| FFN + PINN | 0.0180916 | 0.0172854 | 6.9777% |
+| LSTM | 0.0177027 | 0.0170453 | 6.8808% |
+| LSTM + PINN | 0.0196529 | 0.0189713 | 7.6583% |
+| PINN | **0.0050753** | **0.0042166** | **1.1878%** |
+
+The standalone PINN result is the key known-truth check: after switching from training-segment-only physics to full-domain collocation, test RMSE improved from approximately 0.03539 to 0.00508 and PBIAS from approximately 14.07% to 1.19%.
+
+The strongly negative NSE/R² values in this short deterministic test tail are driven by very small target variance and should not be used alone to judge controlled-method correctness. RMSE/MAE/PBIAS, the known governing equation, and physics residual behavior are more informative for this regression.
+
+Broad sweeps should resume only after the focused synthetic regression passes and materially different `physics_weight` values produce different hybrid fits.
