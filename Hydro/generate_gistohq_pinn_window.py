@@ -5,7 +5,8 @@ The canonical GUI source stays readable and stable. This build-time transform:
 - enables GIStoOHQ reduced-reservoir physics without reconstructed storage,
 - routes FFN+PINN to the corrected reservoir wrapper,
 - exposes an explicit ``reduced_reservoir`` synthetic validation profile,
-- makes that profile use the same shared truth generator as all five methods, and
+- makes that profile use the same shared truth generator as all five methods,
+- keeps direct GUI controlled-validation runs on the known synthetic truth k, and
 - assigns stable object names to data-source widgets so the full tuning pipeline
   can snapshot the actual GUI selection instead of assuming Sligo Hydro input.
 """
@@ -87,14 +88,19 @@ NEW_CFG = '''    HydroRunConfig cfg = currentConfig();
     if (!cfg.use_hydro_package && !cfg.use_csv_data && cfg.synthetic_profile == "reduced_reservoir" &&
         (mode == "ffn_pinn" || mode == "lstm_pinn" || mode == "pinn")) {
         cfg.pinn_physics_profile = "linear_reservoir";
-        cfg.latent_storage_recession_per_hour = std::max(1.0e-8, cfg.lambda_decay);
+        // A direct GUI run of the controlled reduced-reservoir case is a known-truth
+        // validation, not a parameter sweep.  Keep the model coefficient aligned
+        // with the coefficient used to generate the synthetic target.  Candidate-k
+        // sweeps remain independent in generate_unified_sweep.py / HydroBatch.
+        cfg.latent_storage_recession_per_hour = std::max(1.0e-8, cfg.synthetic_reservoir_truth_k);
+        cfg.lambda_decay = cfg.latent_storage_recession_per_hour;
         cfg.forcing_gain = cfg.latent_storage_recession_per_hour;
         cfg.use_time_lagged_ffn = false;
         if (cfg.normalization != "none") {
             cfg.normalization = "none";
             appendLog("Reduced-reservoir PINN validation uses physical units; normalization was set to none for this physics-informed run.");
         }
-        appendLog(QString("Controlled reduced-reservoir physics enabled: dQ/dt=k(Peff-Q), k=%1.")
+        appendLog(QString("Controlled reduced-reservoir physics enabled: dQ/dt=k(Peff-Q), truth_k=model_k=%1.")
                       .arg(cfg.latent_storage_recession_per_hour, 0, 'g', 6));
     }
     if (cfg.use_hydro_package) {
@@ -105,7 +111,6 @@ OLD_PREVIEW_BRANCH = '''    } else if (profile == "watershed_balance") {
 NEW_PREVIEW_BRANCH = '''    } else if (profile == "reduced_reservoir") {
         HydroRunConfig previewCfg = currentConfig();
         previewCfg.synthetic_profile = "reduced_reservoir";
-        previewCfg.latent_storage_recession_per_hour = std::max(1.0e-8, previewCfg.lambda_decay);
         torch::Tensor rx, ry, rt;
         buildReducedReservoirSyntheticTensors(previewCfg, rx, ry, rt);
         auto xc = rx.to(torch::kCPU).contiguous();
