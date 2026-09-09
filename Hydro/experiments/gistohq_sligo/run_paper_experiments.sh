@@ -25,12 +25,14 @@ python3 "$HERE/run_adaptive_full_pipeline.py" \
   --hydrobatch "$BATCH" --output-root "$OUT/01_synthetic_controlled" \
   --data-source synthetic --synthetic-profile reduced_reservoir --synthetic-truth-k 0.08 \
   --sample-count 240 --t-start 0 --t-end 5 | tee "$OUT/01_synthetic_controlled.log"
+python3 "$HERE/postprocess_metric_status.py" "$OUT/01_synthetic_controlled"
 
 echo "[paper] 2/3 adaptive Sligo Creek study"
 python3 "$HERE/run_adaptive_full_pipeline.py" \
   --hydrobatch "$BATCH" --output-root "$OUT/02_sligo_hydro" \
   --data-source hydro --hydro-package-path "$SLIGO_PACKAGE" --hydro-package-profile rainfall-runoff \
   | tee "$OUT/02_sligo_hydro.log"
+python3 "$HERE/postprocess_metric_status.py" "$OUT/02_sligo_hydro"
 
 echo "[paper] 3/3 manuscript tables and figures"
 python3 "$HERE/build_paper_comparison.py" "$OUT"
