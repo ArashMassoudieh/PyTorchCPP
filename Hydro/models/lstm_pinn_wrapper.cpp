@@ -4,6 +4,7 @@
 
 #include "../dataset/chronological_split.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
+#include "../dataset/tensor_scaler.h"
 #include "../evaluation/hydro_metrics.h"
 #include "../evaluation/model_checkpoint.h"
 
@@ -41,36 +42,65 @@ std::vector<double> tensorValues(const torch::Tensor& tensor) {
     return out;
 }
 
+// Keep the recurrent predictor on the same meteorological forcing contract as the
+// supervised LSTM whenever the GIStoOHQ eight-column physics tensor is present.
+// Physics-only auxiliaries (absolute time and I*=max(P-PET,0)) are deliberately
+// excluded from the neural input and retained separately for the residual.
+// GIStoOHQ physics layout: [time, I*, P, PET, T, RH, wind, solar].
+torch::Tensor predictorFeatures(const torch::Tensor& physicsX) {
+    if (physicsX.dim() != 2 || physicsX.size(1) < 3) {
+        throw std::runtime_error("LSTM-PINN predictor feature builder requires [time, forcing, ...].");
+    }
+    if (physicsX.size(1) >= 8) {
+        return torch::cat({
+            physicsX.slice(1, 2, 3), // P
+            physicsX.slice(1, 4, 5), // T
+            physicsX.slice(1, 5, 6), // RH
+            physicsX.slice(1, 6, 7), // wind
+            physicsX.slice(1, 7, 8), // solar
+            physicsX.slice(1, 3, 4)  // PET
+        }, 1).contiguous();
+    }
+    // Controlled reduced-reservoir synthetic/CSV contract is normally
+    // [time, I*, P, PET].  Do not feed absolute time or the derived I* twice.
+    if (physicsX.size(1) >= 4) return physicsX.slice(1, 2, 4).contiguous();
+    return physicsX.slice(1, 1, physicsX.size(1)).contiguous();
+}
+
 struct SequenceData {
     torch::Tensor x;
     torch::Tensor y;
     torch::Tensor time;
+    torch::Tensor peff;
 };
 
-SequenceData makeSequences(const torch::Tensor& x,
+SequenceData makeSequences(const torch::Tensor& modelX,
                            const torch::Tensor& y,
                            const torch::Tensor& time,
+                           const torch::Tensor& peff,
                            int sequenceLength) {
-    if (!x.defined() || !y.defined() || !time.defined() || x.dim() != 2 || y.dim() != 2 ||
-        x.size(0) != y.size(0) || time.numel() != x.size(0)) {
-        throw std::runtime_error("LSTM-PINN sequence builder expects aligned 2-D x/y tensors and physical time.");
+    if (!modelX.defined() || !y.defined() || !time.defined() || !peff.defined() ||
+        modelX.dim() != 2 || y.dim() != 2 || modelX.size(0) != y.size(0) ||
+        time.numel() != modelX.size(0) || peff.numel() != modelX.size(0)) {
+        throw std::runtime_error("LSTM-PINN sequence builder expects aligned model inputs, target, time, and I*.");
     }
     sequenceLength = std::max(2, sequenceLength);
-    if (x.size(0) < sequenceLength + 3) {
+    if (modelX.size(0) < sequenceLength + 3) {
         throw std::runtime_error("Too few samples for requested LSTM-PINN sequence length.");
     }
 
     regularPhysicalTimeStepFromTime(time);
     std::vector<torch::Tensor> sequences;
-    sequences.reserve(static_cast<std::size_t>(x.size(0) - sequenceLength + 1));
-    for (int64_t end = sequenceLength - 1; end < x.size(0); ++end) {
-        sequences.push_back(x.slice(0, end - sequenceLength + 1, end + 1));
+    sequences.reserve(static_cast<std::size_t>(modelX.size(0) - sequenceLength + 1));
+    for (int64_t end = sequenceLength - 1; end < modelX.size(0); ++end) {
+        sequences.push_back(modelX.slice(0, end - sequenceLength + 1, end + 1));
     }
 
     SequenceData result;
     result.x = torch::stack(sequences, 0).contiguous();
     result.y = y.slice(0, sequenceLength - 1, y.size(0)).contiguous();
     result.time = time.reshape({-1, 1}).slice(0, sequenceLength - 1, time.numel()).contiguous();
+    result.peff = peff.reshape({-1, 1}).slice(0, sequenceLength - 1, peff.numel()).contiguous();
     return result;
 }
 
@@ -91,6 +121,18 @@ void fillPlotVectors(HydroRunResult& result,
     }
 }
 
+torch::Tensor physicalResidual(const torch::Tensor& predPhysical,
+                               const torch::Tensor& peff,
+                               const double dt,
+                               const double k) {
+    if (predPhysical.size(0) < 2) return torch::zeros({}, predPhysical.options());
+    torch::Tensor dQdt = (predPhysical.slice(0, 1, predPhysical.size(0)) -
+                           predPhysical.slice(0, 0, predPhysical.size(0) - 1)) / dt;
+    torch::Tensor qNow = predPhysical.slice(0, 1, predPhysical.size(0));
+    torch::Tensor pNow = peff.slice(0, 1, peff.size(0));
+    return dQdt - k * (pNow - qNow);
+}
+
 } // namespace
 
 HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
@@ -98,32 +140,47 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
         LSTMNetworkWrapper backend;
         return backend.train(config, true);
     }
-    if (config.normalization != "none") {
-        throw std::invalid_argument("LSTM-PINN runoff-reservoir physics must be trained in physical units (normalization=none).");
-    }
 
     HydroRunResult result;
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
-    torch::Tensor x, y, plotX;
-    if (!loadReservoirPhysicsTensors(config, x, y, plotX)) {
+    torch::Tensor physicsX, y, plotX;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX)) {
         throw std::runtime_error("Unable to construct reduced-reservoir LSTM-PINN tensors.");
     }
-    if (x.dim() != 2 || x.size(1) < 2) {
-        throw std::runtime_error("LSTM-PINN reservoir physics requires [time, Peff, ...] input features.");
+    if (physicsX.dim() != 2 || physicsX.size(1) < 2) {
+        throw std::runtime_error("LSTM-PINN reservoir physics requires [time, I*, ...] input features.");
     }
 
-    SequenceData seq = makeSequences(x, y, plotX, config.lstm_sequence_length);
+    const torch::Tensor modelX = predictorFeatures(physicsX);
+    const torch::Tensor peff = physicsX.slice(1, 1, 2).contiguous();
+    SequenceData seq = makeSequences(modelX, y, plotX, peff, config.lstm_sequence_length);
     const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
                                                             config.train_split_ratio,
                                                             config.validation_split_ratio);
     const int64_t nTrain = split.train_end;
-    torch::Tensor xTrain = seq.x.slice(0, 0, nTrain).contiguous();
-    torch::Tensor yTrain = seq.y.slice(0, 0, nTrain).contiguous();
-    torch::Tensor xValidation = seq.x.slice(0, nTrain, split.validation_end).contiguous();
-    torch::Tensor yValidation = seq.y.slice(0, nTrain, split.validation_end).contiguous();
-    torch::Tensor xTest = seq.x.slice(0, split.validation_end, seq.x.size(0)).contiguous();
-    torch::Tensor yTest = seq.y.slice(0, split.validation_end, seq.y.size(0)).contiguous();
+    torch::Tensor xTrainPhysical = seq.x.slice(0, 0, nTrain).contiguous();
+    torch::Tensor yTrainPhysical = seq.y.slice(0, 0, nTrain).contiguous();
+    torch::Tensor pTrain = seq.peff.slice(0, 0, nTrain).contiguous();
+    torch::Tensor xValidationPhysical = seq.x.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor yValidationPhysical = seq.y.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor pValidation = seq.peff.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor xTestPhysical = seq.x.slice(0, split.validation_end, seq.x.size(0)).contiguous();
+    torch::Tensor yTestPhysical = seq.y.slice(0, split.validation_end, seq.y.size(0)).contiguous();
+
+    // Stage A is an internal supervised-parent fit on exactly the same forcing
+    // contract used by the plain LSTM.  Keeping this inside the hybrid wrapper
+    // avoids fragile cross-experiment checkpoint coupling while providing a true
+    // data-trained warm start before physics fine-tuning.
+    TensorScaler inputScaler;
+    TensorScaler targetScaler;
+    inputScaler.fit(xTrainPhysical, "standardize");
+    targetScaler.fit(yTrainPhysical, "standardize");
+    torch::Tensor xTrain = inputScaler.transform(xTrainPhysical);
+    torch::Tensor yTrain = targetScaler.transform(yTrainPhysical);
+    torch::Tensor xValidation = inputScaler.transform(xValidationPhysical);
+    torch::Tensor yValidation = targetScaler.transform(yValidationPhysical);
+    torch::Tensor xTest = inputScaler.transform(xTestPhysical);
 
     const std::vector<int> hiddenLayers = parseHiddenLayers(config.hidden_layers_csv);
     const int64_t hiddenDim = static_cast<int64_t>(hiddenLayers.front());
@@ -138,42 +195,59 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
                                        : config.lambda_decay);
     const int64_t trainN = xTrain.size(0);
     const int batchSize = std::max(2, config.batch_size);
-    const int warmupEpochs = config.data_weight > 0.0 ? std::max(1, config.epochs / 5) : 0;
+    const int totalEpochs = std::max(1, config.epochs);
+    const int pretrainEpochs = config.data_weight > 0.0
+        ? std::min(totalEpochs - 1, std::max(10, (2 * totalEpochs) / 5))
+        : 0;
+    const int rampEpochs = std::max(1, totalEpochs - pretrainEpochs);
+    const double targetVariance = std::max(1.0e-10,
+        yTrainPhysical.var(false).item<double>());
 
     std::vector<torch::Tensor> bestParameters;
     std::vector<double> losses;
     std::vector<double> validationLosses;
     double bestValidationObjective = std::numeric_limits<double>::infinity();
     double bestValidationMse = std::numeric_limits<double>::infinity();
+    double physicsReference = std::numeric_limits<double>::quiet_NaN();
     int bestEpoch = 0;
 
-    for (int epoch = 0; epoch < std::max(1, config.epochs); ++epoch) {
+    for (int epoch = 0; epoch < totalEpochs; ++epoch) {
         model->train();
         double epochLoss = 0.0;
         int64_t seen = 0;
+        const bool physicsActive = epoch >= pretrainEpochs && config.physics_weight > 0.0;
+        const double rampFraction = physicsActive
+            ? std::min(1.0, static_cast<double>(epoch - pretrainEpochs + 1) / static_cast<double>(rampEpochs))
+            : 0.0;
+        // Quadratic ramp keeps the first fine-tuning epochs close to the strong
+        // supervised parent and introduces the physical prior progressively.
+        const double effectivePhysicsWeight = config.physics_weight * rampFraction * rampFraction;
 
         for (int64_t start = 0; start < trainN; start += batchSize) {
             const int64_t end = std::min<int64_t>(start + batchSize, trainN);
             if (end - start < 2) continue;
             torch::Tensor xb = xTrain.slice(0, start, end);
             torch::Tensor yb = yTrain.slice(0, start, end);
+            torch::Tensor pb = pTrain.slice(0, start, end);
 
             optimizer.zero_grad();
-            torch::Tensor pred = model->forward(xb);
-            torch::Tensor dataLoss = torch::mse_loss(pred, yb);
-            torch::Tensor lastStep = xb.select(1, xb.size(1) - 1);
-            torch::Tensor effectiveRain = lastStep.slice(1, 1, 2);
-            torch::Tensor dQdt = (pred.slice(0, 1, pred.size(0)) - pred.slice(0, 0, pred.size(0) - 1)) / dt;
-            torch::Tensor qNow = pred.slice(0, 1, pred.size(0));
-            torch::Tensor peffNow = effectiveRain.slice(0, 1, effectiveRain.size(0));
-            torch::Tensor residual = dQdt - k * (peffNow - qNow);
-            torch::Tensor physicsLoss = torch::mean(residual * residual);
-            torch::Tensor negative = torch::relu(-pred);
-            torch::Tensor nonnegativeLoss = torch::mean(negative * negative);
-
-            const double physicsWeight = epoch < warmupEpochs ? 0.0 : config.physics_weight;
+            torch::Tensor predScaled = model->forward(xb);
+            torch::Tensor dataLoss = torch::mse_loss(predScaled, yb);
+            torch::Tensor predPhysical = targetScaler.inverseTransform(predScaled);
+            torch::Tensor residual = physicalResidual(predPhysical, pb, dt, k);
+            torch::Tensor physicsLoss = residual.numel() > 0
+                ? torch::mean(residual * residual)
+                : torch::zeros({}, predScaled.options());
+            if (physicsActive && !std::isfinite(physicsReference)) {
+                physicsReference = std::max(1.0e-10, physicsLoss.detach().item<double>());
+            }
+            const double reference = std::isfinite(physicsReference) ? physicsReference : 1.0;
+            torch::Tensor normalizedPhysicsLoss = physicsLoss / reference;
+            torch::Tensor negative = torch::relu(-predPhysical);
+            torch::Tensor normalizedNonnegativeLoss = torch::mean(negative * negative) / targetVariance;
             torch::Tensor totalLoss = config.data_weight * dataLoss +
-                                      physicsWeight * (physicsLoss + 0.05 * nonnegativeLoss);
+                                      effectivePhysicsWeight * (normalizedPhysicsLoss +
+                                                                0.05 * normalizedNonnegativeLoss);
             totalLoss.backward();
             optimizer.step();
 
@@ -184,37 +258,37 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
         losses.push_back(epochLoss / static_cast<double>(std::max<int64_t>(1, seen)));
 
         model->eval();
-        double validationMse = 0.0;
+        double validationMsePhysical = 0.0;
         double validationObjective = 0.0;
         {
             torch::NoGradGuard noGrad;
-            torch::Tensor predValidation = model->forward(xValidation);
-            torch::Tensor dataLoss = torch::mse_loss(predValidation, yValidation);
-            validationMse = dataLoss.item<double>();
-            torch::Tensor lastStep = xValidation.select(1, xValidation.size(1) - 1);
-            torch::Tensor peff = lastStep.slice(1, 1, 2);
-            torch::Tensor dQdt = (predValidation.slice(0, 1, predValidation.size(0)) -
-                                   predValidation.slice(0, 0, predValidation.size(0) - 1)) / dt;
-            torch::Tensor qNow = predValidation.slice(0, 1, predValidation.size(0));
-            torch::Tensor residual = dQdt - k * (peff.slice(0, 1, peff.size(0)) - qNow);
-            torch::Tensor physicsLoss = torch::mean(residual * residual);
-            torch::Tensor negative = torch::relu(-predValidation);
-            torch::Tensor nonnegativeLoss = torch::mean(negative * negative);
-            validationObjective = (config.data_weight * dataLoss +
-                                   config.physics_weight * (physicsLoss + 0.05 * nonnegativeLoss)).item<double>();
+            torch::Tensor predValidationScaled = model->forward(xValidation);
+            torch::Tensor dataLossScaled = torch::mse_loss(predValidationScaled, yValidation);
+            validationMsePhysical = targetScaler.mseToPhysical(dataLossScaled.item<double>());
+            torch::Tensor predValidationPhysical = targetScaler.inverseTransform(predValidationScaled);
+            torch::Tensor residual = physicalResidual(predValidationPhysical, pValidation, dt, k);
+            torch::Tensor physicsLoss = residual.numel() > 0
+                ? torch::mean(residual * residual)
+                : torch::zeros({}, predValidationScaled.options());
+            const double reference = std::isfinite(physicsReference) ? physicsReference : 1.0;
+            torch::Tensor normalizedPhysicsLoss = physicsLoss / reference;
+            torch::Tensor negative = torch::relu(-predValidationPhysical);
+            torch::Tensor normalizedNonnegativeLoss = torch::mean(negative * negative) / targetVariance;
+            validationObjective = (config.data_weight * dataLossScaled +
+                                   effectivePhysicsWeight * (normalizedPhysicsLoss +
+                                                             0.05 * normalizedNonnegativeLoss)).item<double>();
         }
-        if (!std::isfinite(validationMse) || !std::isfinite(validationObjective)) {
+        if (!std::isfinite(validationMsePhysical) || !std::isfinite(validationObjective)) {
             throw std::runtime_error("LSTM-PINN validation produced a non-finite objective.");
         }
         validationLosses.push_back(validationObjective);
 
-        // For hybrid runs, do not allow a data-only warm-up epoch to become the
-        // restored final checkpoint. Select only after physics is active, using
-        // the same joint data+physics tradeoff used for training.
-        const bool checkpointEligible = (config.physics_weight <= 0.0) || (epoch >= warmupEpochs);
+        // Preserve the supervised warm start, but select the final checkpoint
+        // only after physics fine-tuning begins when a nonzero physics weight is requested.
+        const bool checkpointEligible = (config.physics_weight <= 0.0) || (epoch >= pretrainEpochs);
         if (checkpointEligible && validationObjective < bestValidationObjective) {
             bestValidationObjective = validationObjective;
-            bestValidationMse = validationMse;
+            bestValidationMse = validationMsePhysical;
             bestEpoch = epoch + 1;
             bestParameters.clear();
             for (const auto& parameter : model->parameters()) bestParameters.push_back(parameter.detach().clone());
@@ -233,8 +307,8 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     result.best_epoch = bestEpoch;
     result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
     result.validation_mse = bestValidationMse;
-    result.input_scaler.method = "none";
-    result.target_scaler.method = "none";
+    result.input_scaler = inputScaler.exportState();
+    result.target_scaler = targetScaler.exportState();
 
     {
         const auto checkpoint = temporaryHydroCheckpointPath("hydro_lstm_pinn_reservoir");
@@ -248,17 +322,18 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
 
     model->eval();
     torch::NoGradGuard noGrad;
-    torch::Tensor predTest = model->forward(xTest);
-    if (!predTest.defined() || !predTest.isfinite().all().item<bool>()) {
+    torch::Tensor predTestPhysical = targetScaler.inverseTransform(model->forward(xTest));
+    if (!predTestPhysical.defined() || !predTestPhysical.isfinite().all().item<bool>()) {
         throw std::runtime_error("LSTM-PINN prediction produced non-finite values.");
     }
     if (config.evaluate_metrics) {
-        populateHydroMetrics(result, tensorValues(yTest), tensorValues(predTest));
+        populateHydroMetrics(result, tensorValues(yTestPhysical), tensorValues(predTestPhysical));
         if (!hydroMetricsAreFinite(result)) throw std::runtime_error("LSTM-PINN evaluation produced invalid core hydrology metrics.");
     }
 
-    torch::Tensor predFull = model->forward(seq.x);
-    fillPlotVectors(result, seq.time, seq.y, predFull);
+    torch::Tensor xFull = inputScaler.transform(seq.x);
+    torch::Tensor predFullPhysical = targetScaler.inverseTransform(model->forward(xFull));
+    fillPlotVectors(result, seq.time, seq.y, predFullPhysical);
     result.split.resize(result.x.size(), "test");
     for (std::size_t i = 0; i < result.split.size(); ++i) {
         if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
@@ -266,24 +341,22 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     }
     populateHydroPeakMetrics(result);
 
-    if (predFull.size(0) >= 2) {
-        torch::Tensor lastStep = seq.x.select(1, seq.x.size(1) - 1);
-        torch::Tensor peff = lastStep.slice(1, 1, 2);
-        torch::Tensor dQdt = (predFull.slice(0, 1, predFull.size(0)) - predFull.slice(0, 0, predFull.size(0) - 1)) / dt;
-        torch::Tensor qNow = predFull.slice(0, 1, predFull.size(0));
-        torch::Tensor residual = dQdt - k * (peff.slice(0, 1, peff.size(0)) - qNow);
+    if (predFullPhysical.size(0) >= 2) {
+        torch::Tensor residual = physicalResidual(predFullPhysical, seq.peff, dt, k);
         result.physics_loss = torch::mean(residual * residual).item<double>();
         auto values = residual.detach().to(torch::kCPU).reshape({-1}).contiguous();
         result.physics_residual.assign(result.x.size(), std::numeric_limits<double>::quiet_NaN());
-        for (int64_t i = 0; i < values.size(0); ++i) result.physics_residual[static_cast<std::size_t>(i + 1)] = values[i].item<double>();
+        for (int64_t i = 0; i < values.size(0); ++i) {
+            result.physics_residual[static_cast<std::size_t>(i + 1)] = values[i].item<double>();
+        }
         populateHydroPhysicsResidualMetrics(result);
     }
 
     result.success = true;
     result.message = config.use_hydro_package
-        ? "LSTM-PINN completed on Hydro package input with joint reduced-reservoir physics."
+        ? "LSTM-PINN completed on Hydro package input with supervised-parent warm start, scaled predictor inputs, and ramped normalized reduced-reservoir physics."
         : (config.use_csv_data
-           ? "LSTM-PINN completed on CSV input with joint reduced-reservoir physics."
-           : "LSTM-PINN completed on synthetic input with joint reduced-reservoir physics.");
+           ? "LSTM-PINN completed on CSV input with supervised-parent warm start and ramped normalized reduced-reservoir physics."
+           : "LSTM-PINN completed on synthetic input with supervised-parent warm start and ramped normalized reduced-reservoir physics.");
     return result;
 }
