@@ -7,15 +7,18 @@ Stages:
 3. Optimizer tuning per method inheriting prior-stage winners.
 4. Multi-seed robustness per method using frozen Stage-3 settings.
 
-Selection uses validation_mse only. Test metrics are never used to choose candidates.
-For controlled reduced-reservoir synthetic runs, whole-domain known-truth metrics are
-computed separately from predictions.csv to avoid misleading low-variance tail NSE.
+For real Hydro/CSV rainfall-runoff runs, selection is based only on VALIDATION
+hydrologic skill: finite/non-degenerate KGE first, then NSE, then RMSE. This
+prevents nearly constant low-flow predictions from winning merely because their
+pointwise MSE is small. Controlled synthetic known-truth runs retain validation
+MSE selection so the parameter-recovery experiment remains a direct numerical
+verification. Test metrics are exported for reporting but never used to choose
+candidates.
 """
 from __future__ import annotations
 
 import argparse
 import csv
-import json
 import math
 import shutil
 import statistics
@@ -26,6 +29,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 GENERATOR = HERE / "generate_unified_sweep.py"
 BATCH_FILE = HERE / "unified_sweep.batch"
+POSTPROCESS = HERE / "postprocess_metric_status.py"
 MODES = ("ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn")
 PHYSICS = {"ffn_pinn", "lstm_pinn", "pinn"}
 
@@ -108,18 +112,98 @@ def finite_float(v: str | None, default: float = math.inf) -> float:
         return default
 
 
-def winner(rows: list[dict[str, str]], mode: str) -> dict[str, str]:
+def corr(x: list[float], y: list[float]) -> float:
+    if len(x) < 2:
+        return math.nan
+    mx, my = statistics.fmean(x), statistics.fmean(y)
+    sx = math.sqrt(sum((v - mx) ** 2 for v in x))
+    sy = math.sqrt(sum((v - my) ** 2 for v in y))
+    if sx <= 1.0e-15 or sy <= 1.0e-15:
+        return math.nan
+    return sum((a - mx) * (b - my) for a, b in zip(x, y)) / (sx * sy)
+
+
+def metrics(obs: list[float], pred: list[float]) -> dict[str, float]:
+    n = len(obs)
+    if n < 2 or n != len(pred):
+        return {k: math.nan for k in ("mse", "rmse", "mae", "nse", "kge", "correlation", "pbias", "pred_std")}
+    err = [p - o for o, p in zip(obs, pred)]
+    mse = sum(e * e for e in err) / n
+    rmse = math.sqrt(mse)
+    mae = sum(abs(e) for e in err) / n
+    mo, mp = statistics.fmean(obs), statistics.fmean(pred)
+    ssto = sum((o - mo) ** 2 for o in obs)
+    nse = 1.0 - sum(e * e for e in err) / ssto if ssto > 0 else math.nan
+    r = corr(obs, pred)
+    so = statistics.pstdev(obs)
+    sp = statistics.pstdev(pred)
+    alpha = sp / so if so > 0 else math.nan
+    beta = mp / mo if mo != 0 else math.nan
+    kge = 1.0 - math.sqrt((r - 1) ** 2 + (alpha - 1) ** 2 + (beta - 1) ** 2) \
+        if all(math.isfinite(v) for v in (r, alpha, beta)) else math.nan
+    total = sum(obs)
+    pbias = 100.0 * sum(err) / total if total != 0 else math.nan
+    return {"mse": mse, "rmse": rmse, "mae": mae, "nse": nse,
+            "kge": kge, "correlation": r, "pbias": pbias, "pred_std": sp}
+
+
+def split_metrics(predictions: Path, split: str) -> dict[str, float]:
+    if not predictions.exists():
+        return {k: math.nan for k in ("mse", "rmse", "mae", "nse", "kge", "correlation", "pbias", "pred_std")}
+    obs: list[float] = []
+    pred: list[float] = []
+    with predictions.open(newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row.get("split") != split:
+                continue
+            try:
+                o = float(row["observed"]); p = float(row["predicted"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if math.isfinite(o) and math.isfinite(p):
+                obs.append(o); pred.append(p)
+    return metrics(obs, pred)
+
+
+def annotate_validation(rows: list[dict[str, str]], out: Path) -> None:
+    for row in rows:
+        exp = row.get("experiment_id", "")
+        mode = row.get("mode", "")
+        candidates = [out / exp / "predictions.csv", out / mode / exp / "predictions.csv"]
+        path = next((p for p in candidates if p.exists()), candidates[0])
+        m = split_metrics(path, "validation")
+        for key, value in m.items():
+            row[f"validation_{key}"] = str(value)
+        row["validation_near_constant"] = "true" if math.isfinite(m["pred_std"]) and m["pred_std"] <= 1.0e-10 else "false"
+
+
+def winner(a: argparse.Namespace, rows: list[dict[str, str]], mode: str) -> dict[str, str]:
     candidates = [r for r in rows if r.get("mode") == mode]
     if not candidates:
         raise RuntimeError(f"No candidates for mode={mode}")
-    return min(candidates, key=lambda r: (finite_float(r.get("validation_mse")), r.get("experiment_id", "")))
+    if a.data_source == "synthetic":
+        return min(candidates, key=lambda r: (finite_float(r.get("validation_mse")), r.get("experiment_id", "")))
+
+    # Hydrologic validation selection.  Degenerate predictions are ranked behind
+    # non-degenerate candidates; among valid candidates maximize KGE and NSE and
+    # then minimize RMSE.  No test metric enters this ordering.
+    def key(r: dict[str, str]):
+        degenerate = r.get("validation_near_constant", "false") == "true"
+        kge = finite_float(r.get("validation_kge"), -math.inf)
+        nse = finite_float(r.get("validation_nse"), -math.inf)
+        rmse = finite_float(r.get("validation_rmse"), math.inf)
+        return (1 if degenerate else 0, -kge, -nse, rmse, r.get("experiment_id", ""))
+    return min(candidates, key=key)
 
 
 def run_generated(a: argparse.Namespace, generator_args: list[str], out: Path) -> list[dict[str, str]]:
     out.mkdir(parents=True, exist_ok=True)
     run([sys.executable, str(GENERATOR), *generator_args, *source_args(a)])
     run([str(a.hydrobatch.resolve()), str(BATCH_FILE.resolve()), str(out.resolve())], cwd=HERE.parent.parent.parent)
-    return load_summary(out / "batch_summary.csv")
+    rows = load_summary(out / "batch_summary.csv")
+    annotate_validation(rows, out)
+    write_rows(out / "batch_summary.csv", rows)
+    return rows
 
 
 def q(row: dict[str, str], field: str, fallback: str) -> str:
@@ -138,13 +222,23 @@ def stage1(a: argparse.Namespace, root: Path) -> tuple[list[dict[str, str]], dic
         "--lstm-sequences", "6,12,24,48",
         "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
     ], root / "01_stage1_supervised")
-    winners = {m: winner(rows, m) for m in ("ffn", "lstm")}
+    winners = {m: winner(a, rows, m) for m in ("ffn", "lstm")}
     return rows, winners
 
 
 def stage2(a: argparse.Namespace, root: Path, s1: dict[str, dict[str, str]]) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
     print("\n[adaptive] STAGE 2: physics tuning inherited from Stage 1", flush=True)
     ffn, lstm = s1["ffn"], s1["lstm"]
+    if a.data_source == "synthetic":
+        physics_weights = "0.001,0.005,0.01,0.025,0.05,0.1"
+        recession_k = "0.01,0.02,0.04,0.08,0.16"
+    else:
+        # Real catchments need a broad weak-to-moderate regularization sweep.
+        # The old lower bound (1e-3) was still strong enough for some models to
+        # collapse toward near-constant runoff.  Allow hybrids to remain close to
+        # their supervised parent while testing whether physics adds validation skill.
+        physics_weights = "0.000001,0.00001,0.0001,0.0005,0.001,0.005,0.01,0.025"
+        recession_k = "0.0025,0.005,0.01,0.02,0.04,0.08,0.16"
     rows = run_generated(a, [
         "--methods", "ffn_pinn,lstm_pinn,pinn",
         "--ffn-architectures", q(ffn, "hidden_layers", "16,16"),
@@ -153,10 +247,10 @@ def stage2(a: argparse.Namespace, root: Path, s1: dict[str, dict[str, str]]) -> 
         "--lstm-sequences", q(lstm, "lstm_sequence_length", "12"),
         "--pinn-architectures", "16,16;24,24;32,32",
         "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
-        "--physics-weights", "0.001,0.005,0.01,0.025,0.05,0.1",
-        "--recession-k", "0.01,0.02,0.04,0.08,0.16",
+        "--physics-weights", physics_weights,
+        "--recession-k", recession_k,
     ], root / "02_stage2_physics")
-    winners = {m: winner(rows, m) for m in ("ffn_pinn", "lstm_pinn", "pinn")}
+    winners = {m: winner(a, rows, m) for m in ("ffn_pinn", "lstm_pinn", "pinn")}
     return rows, winners
 
 
@@ -186,7 +280,7 @@ def stage3(a: argparse.Namespace, root: Path, s1: dict[str, dict[str, str]], s2:
         mode_rows = run_generated(a, method_args(mode, bases[mode], lrs="0.001,0.003,0.005", batches="16,32,64", seeds="42"), stage_root / mode)
         rows.extend(mode_rows)
     write_rows(stage_root / "batch_summary.csv", rows)
-    winners = {m: winner(rows, m) for m in MODES}
+    winners = {m: winner(a, rows, m) for m in MODES}
     return rows, winners
 
 
@@ -209,46 +303,38 @@ def mean_sd(values: list[float]) -> tuple[float, float]:
     return statistics.fmean(values), statistics.pstdev(values) if len(values) > 1 else 0.0
 
 
-def corr(x: list[float], y: list[float]) -> float:
-    if len(x) < 2: return math.nan
-    mx, my = statistics.fmean(x), statistics.fmean(y)
-    sx = math.sqrt(sum((v-mx)**2 for v in x)); sy = math.sqrt(sum((v-my)**2 for v in y))
-    if sx == 0 or sy == 0: return math.nan
-    return sum((a-mx)*(b-my) for a,b in zip(x,y))/(sx*sy)
-
-
 def whole_domain_metrics(predictions: Path) -> dict[str, float]:
     with predictions.open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
-    obs = [float(r["observed"]) for r in rows]; pred = [float(r["predicted"]) for r in rows]
-    n = len(obs)
-    if n == 0: raise RuntimeError(f"Empty predictions: {predictions}")
-    err = [p-o for o,p in zip(obs,pred)]
-    mse = sum(e*e for e in err)/n; rmse = math.sqrt(mse); mae = sum(abs(e) for e in err)/n
-    mean_o = statistics.fmean(obs); mean_p = statistics.fmean(pred)
-    denom = sum((o-mean_o)**2 for o in obs)
-    nse = 1.0 - sum(e*e for e in err)/denom if denom > 0 else math.nan
-    pbias = 100.0*sum(err)/sum(obs) if sum(obs) != 0 else math.nan
-    r = corr(obs,pred); std_o = statistics.pstdev(obs); std_p = statistics.pstdev(pred)
-    alpha = std_p/std_o if std_o > 0 else math.nan; beta = mean_p/mean_o if mean_o != 0 else math.nan
-    kge = 1.0-math.sqrt((r-1)**2+(alpha-1)**2+(beta-1)**2) if all(math.isfinite(v) for v in (r,alpha,beta)) else math.nan
-    return {"whole_mse":mse,"whole_rmse":rmse,"whole_mae":mae,"whole_nse":nse,"whole_kge":kge,"whole_correlation":r,"whole_pbias":pbias}
+    obs = [float(r["observed"]) for r in rows]
+    pred = [float(r["predicted"]) for r in rows]
+    m = metrics(obs, pred)
+    return {"whole_mse": m["mse"], "whole_rmse": m["rmse"], "whole_mae": m["mae"],
+            "whole_nse": m["nse"], "whole_kge": m["kge"],
+            "whole_correlation": m["correlation"], "whole_pbias": m["pbias"]}
+
+
+def selection_label(a: argparse.Namespace) -> str:
+    return "validation_mse" if a.data_source == "synthetic" else "validation_KGE_then_NSE_then_RMSE_non_degenerate"
 
 
 def finalize(a: argparse.Namespace, root: Path, s1: dict[str, dict[str, str]], s2: dict[str, dict[str, str]], s3: dict[str, dict[str, str]], s4: list[dict[str, str]]) -> None:
     selected: list[dict[str, str]] = []
+    sel = selection_label(a)
     for stage, ws in (("stage1", s1), ("stage2", s2), ("stage3", s3)):
         for mode, row in ws.items():
-            r = dict(row); r["stage"] = stage; r["selection_metric"] = "validation_mse"; selected.append(r)
+            r = dict(row); r["stage"] = stage; r["selection_metric"] = sel; selected.append(r)
     write_rows(root / "adaptive_validation_winners.csv", selected)
 
     robust_rows: list[dict[str, str]] = []
     for mode in MODES:
         members = [r for r in s4 if r.get("mode") == mode]
         out = {"mode": mode, "seed_count": str(len(members))}
-        for field in ("validation_mse","test_mse","rmse","mae","nse","kge","pbias","physics_loss","physics_residual_rmse"):
+        for field in ("validation_mse", "validation_kge", "validation_nse", "validation_rmse",
+                      "test_mse", "rmse", "mae", "nse", "kge", "pbias",
+                      "physics_loss", "physics_residual_rmse"):
             vals = [finite_float(r.get(field), math.nan) for r in members]
-            m, sd = mean_sd(vals); out[field+"_mean"] = str(m); out[field+"_std"] = str(sd)
+            m, sd = mean_sd(vals); out[field + "_mean"] = str(m); out[field + "_std"] = str(sd)
         robust_rows.append(out)
     write_rows(root / "paper_robustness_summary.csv", robust_rows)
 
@@ -264,42 +350,60 @@ def finalize(a: argparse.Namespace, root: Path, s1: dict[str, dict[str, str]], s
     if a.data_source == "synthetic" and a.synthetic_profile == "reduced_reservoir":
         for row in s4:
             mode = row["mode"]
-            metrics = whole_domain_metrics(stage4_root / mode / row["experiment_id"] / "predictions.csv")
-            whole_rows.append({"experiment_id":row["experiment_id"],"mode":mode,"seed":row.get("random_seed",""),**{k:str(v) for k,v in metrics.items()}})
+            mm = whole_domain_metrics(stage4_root / mode / row["experiment_id"] / "predictions.csv")
+            whole_rows.append({"experiment_id": row["experiment_id"], "mode": mode, "seed": row.get("random_seed", ""),
+                               **{k: str(v) for k, v in mm.items()}})
         write_rows(root / "synthetic_whole_domain_metrics.csv", whole_rows)
         summary = []
         for mode in MODES:
-            members = [r for r in whole_rows if r["mode"] == mode]; out = {"mode":mode,"seed_count":str(len(members))}
-            for field in ("whole_rmse","whole_mae","whole_nse","whole_kge","whole_correlation","whole_pbias"):
-                m,sd=mean_sd([float(r[field]) for r in members]); out[field+"_mean"]=str(m); out[field+"_std"]=str(sd)
+            members = [r for r in whole_rows if r["mode"] == mode]
+            out = {"mode": mode, "seed_count": str(len(members))}
+            for field in ("whole_rmse", "whole_mae", "whole_nse", "whole_kge", "whole_correlation", "whole_pbias"):
+                m, sd = mean_sd([float(r[field]) for r in members]); out[field + "_mean"] = str(m); out[field + "_std"] = str(sd)
             summary.append(out)
         write_rows(root / "paper_synthetic_known_truth_summary.csv", summary)
 
-    paper_rows=[]
+    paper_rows = []
     for mode in MODES:
-        b=s3[mode]; rr=next(r for r in robust_rows if r["mode"]==mode)
-        out={"mode":mode,"hidden_layers":b.get("hidden_layers",""),"activation":b.get("activation",""),"input_lags":b.get("input_lags",""),"lstm_sequence_length":b.get("lstm_sequence_length",""),"learning_rate":b.get("learning_rate",""),"batch_size":b.get("batch_size",""),"physics_weight":b.get("physics_weight",""),"reservoir_k":b.get("latent_recession_per_hour","")}
+        b = s3[mode]; rr = next(r for r in robust_rows if r["mode"] == mode)
+        out = {"mode": mode, "hidden_layers": b.get("hidden_layers", ""), "activation": b.get("activation", ""),
+               "input_lags": b.get("input_lags", ""), "lstm_sequence_length": b.get("lstm_sequence_length", ""),
+               "learning_rate": b.get("learning_rate", ""), "batch_size": b.get("batch_size", ""),
+               "physics_weight": b.get("physics_weight", ""), "reservoir_k": b.get("latent_recession_per_hour", "")}
         out.update(rr); paper_rows.append(out)
     write_rows(root / "paper_method_summary.csv", paper_rows)
 
-    lines=["HydroPINN adaptive paper-run manifest","====================================",f"data_source={a.data_source}",f"output_root={root}","selection_metric=validation_mse (test metrics never used for tuning)","stage4=multi-seed robustness of frozen Stage-3 configurations",""]
+    lines = ["HydroPINN adaptive paper-run manifest", "====================================",
+             f"data_source={a.data_source}", f"output_root={root}",
+             f"selection_metric={sel} (test metrics never used for tuning)",
+             "domain=common longest contiguous GIStoOHQ segment for all five methods when applicable",
+             "stage4=multi-seed robustness of frozen Stage-3 configurations", ""]
     for mode in MODES:
-        b=s3[mode]
+        b = s3[mode]
         lines.append(f"{mode}: hidden={b.get('hidden_layers','')} act={b.get('activation','')} lags={b.get('input_lags','')} seq={b.get('lstm_sequence_length','')} lr={b.get('learning_rate','')} batch={b.get('batch_size','')} w={b.get('physics_weight','')} k={b.get('latent_recession_per_hour','')}")
-    lines += ["", "Paper artifacts:", "  adaptive_validation_winners.csv", "  paper_robustness_summary.csv", "  paper_method_summary.csv", "  frozen_configs/*.json"]
-    if whole_rows: lines += ["  synthetic_whole_domain_metrics.csv", "  paper_synthetic_known_truth_summary.csv"]
-    (root / "PAPER_RUN_MANIFEST.txt").write_text("\n".join(lines)+"\n", encoding="utf-8")
+    lines += ["", "Paper artifacts:", "  adaptive_validation_winners.csv", "  paper_robustness_summary.csv",
+              "  paper_method_summary.csv", "  frozen_configs/*.json"]
+    if whole_rows:
+        lines += ["  synthetic_whole_domain_metrics.csv", "  paper_synthetic_known_truth_summary.csv"]
+    (root / "PAPER_RUN_MANIFEST.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines), flush=True)
 
 
 def main() -> int:
-    a=parse_args(); root=a.output_root.resolve(); root.mkdir(parents=True, exist_ok=True)
+    a = parse_args(); root = a.output_root.resolve(); root.mkdir(parents=True, exist_ok=True)
     if not a.hydrobatch.exists(): raise SystemExit(f"HydroBatch not found: {a.hydrobatch}")
-    if a.data_source=="synthetic" and a.synthetic_profile!="reduced_reservoir": raise SystemExit("Paper five-method synthetic run requires reduced_reservoir")
-    if a.data_source=="hydro" and not a.hydro_package_path: raise SystemExit("Hydro package path is required")
-    if a.data_source=="csv" and not a.csv_path: raise SystemExit("CSV path is required")
-    _,s1=stage1(a,root); _,s2=stage2(a,root,s1); _,s3=stage3(a,root,s1,s2); s4=stage4(a,root,s3); finalize(a,root,s1,s2,s3,s4)
+    if a.data_source == "synthetic" and a.synthetic_profile != "reduced_reservoir": raise SystemExit("Paper five-method synthetic run requires reduced_reservoir")
+    if a.data_source == "hydro" and not a.hydro_package_path: raise SystemExit("Hydro package path is required")
+    if a.data_source == "csv" and not a.csv_path: raise SystemExit("CSV path is required")
+    _, s1 = stage1(a, root)
+    _, s2 = stage2(a, root, s1)
+    _, s3 = stage3(a, root, s1, s2)
+    s4 = stage4(a, root, s3)
+    finalize(a, root, s1, s2, s3, s4)
+    if a.data_source != "synthetic" and POSTPROCESS.exists():
+        run([sys.executable, str(POSTPROCESS), str(root)])
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
