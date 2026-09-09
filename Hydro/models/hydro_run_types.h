@@ -24,8 +24,16 @@ struct HydroRunConfig {
 
     // PINN-specific options.
     // Physics profiles:
-    // - linear_reservoir: reduced runoff evolution dQ/dt = k(Peff-Q), shared by
-    //   Synthetic, CSV, and Hydro-package physics modes. Peff=max(P-PET,0).
+    // - linear_reservoir: single linear-reservoir routing constraint
+    //       dQ/dt = k(I*-Q),  k = 1/K,
+    //   obtained from continuity dS/dt=I-Q and S=KQ.  For the current
+    //   rainfall-runoff experiments I*=max(P-PET,0) is a simplified net
+    //   atmospheric input in the same catchment-depth/time units as Q.  It is
+    //   NOT a complete rainfall-excess model: interception, infiltration,
+    //   soil-moisture controls, groundwater partitioning, and multi-reservoir
+    //   routing are not represented.  Therefore this profile is intentionally
+    //   treated as a reduced physical regularizer/benchmark, not as a full
+    //   watershed process model.
     // - water_balance: explicit known-state balance P-ET-Q-dS/dt=0; intended for
     //   controlled synthetic or packages that independently provide storage S.
     // - cstr_first_order: dy/dt + lambda*y - forcing_gain*u = 0.
@@ -42,7 +50,7 @@ struct HydroRunConfig {
 
     // Historical flag name retained for experiment compatibility. For GIStoOHQ
     // reduced-reservoir physics it now selects the contiguous forcing-only layout
-    // [time, Peff, P, PET, T, RH, wind, solar]; no latent storage is generated.
+    // [time, I*, P, PET, T, RH, wind, solar]; no latent storage is generated.
     bool use_latent_storage_physics = false;
     double latent_storage_recession_per_hour = 0.08;
 
