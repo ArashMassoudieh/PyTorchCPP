@@ -81,7 +81,7 @@ struct PipelineSourceSnapshot {
     QString description() const
     {
         if (source == "synthetic")
-            return QString("Synthetic | profile=%1 | samples=%2 | t=[%3,%4] | truth_k=0.08")
+            return QString("Synthetic | profile=%1 | samples=%2 | t=[%3,%4]")
                 .arg(syntheticProfile).arg(sampleCount).arg(tStart, 0, 'g', 8).arg(tEnd, 0, 'g', 8);
         if (source == "csv")
             return QString("CSV | path=%1 | x=%2 | y=%3 | header=%4")
@@ -90,24 +90,23 @@ struct PipelineSourceSnapshot {
             .arg(hydroPackagePath, hydroCatchmentId, hydroPackageProfile);
     }
 
-    QStringList adaptiveArgs(const QString& hydroBatch, const QString& outputRoot) const
+    QStringList fullPaperArgs(const QString& hydroBatch, const QString& outputRoot) const
     {
         return QStringList{
             "--hydrobatch", hydroBatch,
             "--output-root", outputRoot,
             "--data-source", source,
-            "--synthetic-profile", syntheticProfile,
-            "--synthetic-truth-k", "0.08",
-            "--sample-count", QString::number(sampleCount),
-            "--t-start", QString::number(tStart, 'g', 17),
-            "--t-end", QString::number(tEnd, 'g', 17),
             "--csv-path", csvPath,
             "--csv-x-column", QString::number(csvXColumn),
             "--csv-y-column", QString::number(csvYColumn),
             "--csv-has-header", csvHasHeader ? "true" : "false",
             "--hydro-package-path", hydroPackagePath,
             "--hydro-catchment-id", hydroCatchmentId,
-            "--hydro-package-profile", hydroPackageProfile
+            "--hydro-package-profile", hydroPackageProfile,
+            "--synthetic-sample-count", QString::number(sampleCount),
+            "--synthetic-t-start", QString::number(tStart, 'g', 17),
+            "--synthetic-t-end", QString::number(tEnd, 'g', 17),
+            "--synthetic-truth-k", "0.08"
         };
     }
 };
@@ -117,7 +116,7 @@ T* requiredSourceWidget(QMainWindow* window, const char* objectName, QString& er
 {
     T* widget = window ? window->findChild<T*>(objectName) : nullptr;
     if (!widget && error.isEmpty())
-        error = QString("Adaptive pipeline could not locate GUI data-source widget '%1'. Rebuild HydroPINN from current source.").arg(objectName);
+        error = QString("Full paper pipeline could not locate GUI data-source widget '%1'. Rebuild HydroPINN from current source.").arg(objectName);
     return widget;
 }
 
@@ -155,16 +154,17 @@ bool snapshotGuiSource(QMainWindow* window, PipelineSourceSnapshot& s, QString& 
     s.hydroCatchmentId = catchment->text().trimmed();
     s.hydroPackageProfile = hydroProfile->currentText().trimmed();
 
+    // The full paper pipeline always runs its own controlled synthetic study.
+    // The GUI source must therefore identify the real-data experiment.
     if (s.source == "synthetic") {
-        if (s.syntheticProfile != "reduced_reservoir") {
-            error = "The five-method paper pipeline requires Synthetic profile 'reduced_reservoir'.";
-            return false;
-        }
-        if (s.sampleCount < 32 || !(s.tEnd > s.tStart)) {
-            error = "Synthetic pipeline requires at least 32 samples and t_end > t_start.";
-            return false;
-        }
-    } else if (s.source == "csv") {
+        error = "Full Paper Pipeline automatically runs the controlled synthetic verification. Select Hydro Package (or CSV File) in Data Source for the real-data comparison, then run the button again.";
+        return false;
+    }
+    if (s.sampleCount < 32 || !(s.tEnd > s.tStart)) {
+        error = "Controlled synthetic verification requires at least 32 samples and t_end > t_start.";
+        return false;
+    }
+    if (s.source == "csv") {
         if (s.csvPath.isEmpty()) { error = "CSV File is selected but the path is empty."; return false; }
         if (s.csvXColumn != 0 || s.csvYColumn < 3) {
             error = "Reduced-reservoir CSV physics requires column 0=time, 1=P, 2=PET, runoff target >=3.";
@@ -181,49 +181,56 @@ void runFullPipeline(QMainWindow* window)
 {
     const QString root = repoRoot();
     if (root.isEmpty()) {
-        QMessageBox::critical(window, "Adaptive Tuning Pipeline", "Unable to locate the PyTorchCPP repository root.");
+        QMessageBox::critical(window, "Full Paper Pipeline", "Unable to locate the PyTorchCPP repository root.");
         return;
     }
     const QString batch = hydroBatchExecutable(root);
     if (batch.isEmpty()) {
-        QMessageBox::critical(window, "Adaptive Tuning Pipeline", "HydroBatch was not found. Build HydroBatch first.");
+        QMessageBox::critical(window, "Full Paper Pipeline", "HydroBatch was not found. Rebuild HydroBatch first so it includes the current common-domain data fix.");
         return;
     }
-    const QString script = root + "/Hydro/experiments/gistohq_sligo/run_adaptive_full_pipeline.py";
+    const QString script = root + "/Hydro/experiments/gistohq_sligo/run_full_paper_pipeline.py";
     if (!QFileInfo::exists(script)) {
-        QMessageBox::critical(window, "Adaptive Tuning Pipeline", "Adaptive pipeline script was not found. Pull the current repository and rebuild.");
+        QMessageBox::critical(window, "Full Paper Pipeline", "Full paper pipeline script was not found. Pull the current repository and rebuild HydroPINN.");
         return;
     }
 
     PipelineSourceSnapshot source;
     QString sourceError;
     if (!snapshotGuiSource(window, source, sourceError)) {
-        QMessageBox::critical(window, "Adaptive Tuning Pipeline - Data Source", sourceError);
+        QMessageBox::critical(window, "Full Paper Pipeline - Data Source", sourceError);
         return;
     }
 
     const auto answer = QMessageBox::question(
         window,
-        "Adaptive Tuning Pipeline - Confirm Data Source",
-        "The paper-grade adaptive pipeline will use:\n\n" + source.description() +
-        "\n\nStages inherit validation-selected winners; test metrics are not used for tuning. Continue?",
+        "Full Paper Pipeline - Confirm",
+        "One click will run:\n\n"
+        "1. Controlled reduced-reservoir synthetic verification\n"
+        "2. Five-method adaptive real-data study\n"
+        "3. Five-seed robustness\n"
+        "4. KGE/degeneracy diagnostics\n"
+        "5. Final paper tables\n"
+        "6. Publication figures (600-dpi PNG + PDF + SVG)\n\n"
+        "Real-data source:\n" + source.description() +
+        "\n\nAll five GIStoOHQ methods use one common contiguous hourly domain. Real-data model selection uses validation KGE/NSE/RMSE only; held-out test metrics are not used for tuning. Continue?",
         QMessageBox::Yes | QMessageBox::No,
         QMessageBox::Yes);
     if (answer != QMessageBox::Yes) return;
 
     const QString defaultRoot = root + "/Hydro/experiments/gistohq_sligo/batch_outputs";
     QDir().mkpath(defaultRoot);
-    const QString parent = QFileDialog::getExistingDirectory(window, "Choose Adaptive Pipeline Output Parent", defaultRoot);
+    const QString parent = QFileDialog::getExistingDirectory(window, "Choose Full Paper Pipeline Output Parent", defaultRoot);
     if (parent.isEmpty()) return;
-    const QString outputRoot = parent + "/adaptive_pipeline_" + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    const QString outputRoot = parent + "/paper_run_" + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
     QDir().mkpath(outputRoot);
 
     auto* dialog = new QDialog(window);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setWindowTitle("HydroPINN Adaptive Paper Tuning Pipeline");
-    dialog->resize(980, 720);
+    dialog->setWindowTitle("HydroPINN Full Paper Pipeline");
+    dialog->resize(1020, 760);
     auto* layout = new QVBoxLayout(dialog);
-    auto* status = new QLabel("Starting adaptive paper-grade tuning...", dialog);
+    auto* status = new QLabel("Starting complete paper workflow...", dialog);
     status->setWordWrap(true);
     auto* log = new QTextEdit(dialog);
     log->setReadOnly(true);
@@ -235,13 +242,15 @@ void runFullPipeline(QMainWindow* window)
     layout->addWidget(status); layout->addWidget(log, 1); layout->addLayout(buttons);
     QObject::connect(close, &QPushButton::clicked, dialog, &QDialog::close);
 
-    log->append("Adaptive paper pipeline:");
-    log->append("  1. Supervised architecture + real FFN memory-horizon tuning");
-    log->append("  2. Physics tuning inheriting Stage-1 architectures");
-    log->append("  3. Per-method optimizer tuning inheriting Stage-1/2 winners");
-    log->append("  4. Multi-seed robustness using frozen Stage-3 settings");
-    log->append("  5. Paper-ready summaries + frozen configs");
-    log->append("\nData source snapshot: " + source.description());
+    log->append("Full paper pipeline:");
+    log->append("  1. Controlled synthetic five-method verification + k recovery");
+    log->append("  2. Real-data supervised architecture/memory tuning");
+    log->append("  3. Hybrid physics tuning with weak-to-moderate physics weights");
+    log->append("  4. Hydrologic validation selection (KGE -> NSE -> RMSE; non-degenerate)");
+    log->append("  5. Per-method optimizer tuning");
+    log->append("  6. Five-seed robustness");
+    log->append("  7. Diagnostics, final tables, and publication figures");
+    log->append("\nReal-data source: " + source.description());
     log->append("Output root: " + outputRoot + "\n");
 
     auto* process = new QProcess(dialog);
@@ -256,15 +265,15 @@ void runFullPipeline(QMainWindow* window)
                      [status, log, stop, close, outputRoot](int code, QProcess::ExitStatus st) {
         stop->setEnabled(false); close->setEnabled(true);
         if (st == QProcess::NormalExit && code == 0) {
-            status->setText("Adaptive paper pipeline completed: " + outputRoot);
-            log->append("\n[adaptive-gui] COMPLETE\nPaper summaries and frozen configs are under:\n" + outputRoot);
+            status->setText("Full paper pipeline completed: " + outputRoot);
+            log->append("\n[full-paper-gui] COMPLETE\nTables, diagnostics, frozen configs, and PNG/PDF/SVG figures are under:\n" + outputRoot);
         } else {
-            status->setText("Adaptive paper pipeline stopped or failed. See log for the last completed stage.");
-            log->append(QString("\n[adaptive-gui] FAILED exit_code=%1").arg(code));
+            status->setText("Full paper pipeline stopped or failed. See log for the last completed stage.");
+            log->append(QString("\n[full-paper-gui] FAILED exit_code=%1").arg(code));
         }
     });
     QObject::connect(stop, &QPushButton::clicked, dialog, [process, stop, status]() {
-        stop->setEnabled(false); status->setText("Stopping adaptive pipeline...");
+        stop->setEnabled(false); status->setText("Stopping full paper pipeline...");
         if (process->state() != QProcess::NotRunning) {
             process->terminate();
             QTimer::singleShot(5000, process, [process]() { if (process->state() != QProcess::NotRunning) process->kill(); });
@@ -272,9 +281,9 @@ void runFullPipeline(QMainWindow* window)
     });
 
     dialog->show();
-    process->start("python3", QStringList{script} + source.adaptiveArgs(batch, outputRoot));
+    process->start("python3", QStringList{script} + source.fullPaperArgs(batch, outputRoot));
     if (!process->waitForStarted(5000)) {
-        status->setText("Unable to start adaptive pipeline.");
+        status->setText("Unable to start full paper pipeline.");
         stop->setEnabled(false); close->setEnabled(true);
     }
 }
@@ -288,16 +297,16 @@ void install()
     if (!menu) { QTimer::singleShot(100, [](){ install(); }); return; }
     if (menu->findChild<QAction*>("HydroFullTuningPipelineAction")) return;
 
-    auto* action = new QAction("Run Adaptive Paper Tuning Pipeline...", menu);
+    auto* action = new QAction("Run Full Paper Pipeline...", menu);
     action->setObjectName("HydroFullTuningPipelineAction");
-    action->setToolTip("Run validation-selected adaptive tuning and produce paper-ready summaries using the current GUI data source.");
+    action->setToolTip("Run controlled verification, adaptive real-data tuning, robustness, diagnostics, final tables, and publication figures.");
     QAction* before = menu->actions().isEmpty() ? nullptr : menu->actions().first();
     menu->insertAction(before, action); menu->insertSeparator(action);
     QObject::connect(action, &QAction::triggered, window, [window]() { runFullPipeline(window); });
 
     if (QToolBar* toolbar = window->findChild<QToolBar*>("HydroBatchToolBar")) {
-        auto* toolbarAction = new QAction("Run Adaptive Pipeline", toolbar);
-        toolbarAction->setToolTip("Run paper-grade adaptive tuning using the current GUI data source.");
+        auto* toolbarAction = new QAction("Full Paper Pipeline", toolbar);
+        toolbarAction->setToolTip("Run the complete paper experiment and artifact workflow using the current real-data source.");
         toolbar->insertAction(toolbar->actions().isEmpty() ? nullptr : toolbar->actions().first(), toolbarAction);
         QObject::connect(toolbarAction, &QAction::triggered, window, [window]() { runFullPipeline(window); });
     }
