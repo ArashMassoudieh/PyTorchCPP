@@ -25,6 +25,15 @@ def fmt(x, nd=4):
         return f"{v:.{nd}f}" if math.isfinite(v) else "--"
     except: return "--"
 
+def fmt_kge(value, status=''):
+    try:
+        v=float(value)
+        if math.isfinite(v): return f"{v:.4f}"
+    except: pass
+    if 'constant_prediction' in status:
+        return "N/A (constant prediction)"
+    return "N/A (undefined)"
+
 def main():
     p=argparse.ArgumentParser(); p.add_argument('paper_root',type=Path); a=p.parse_args(); root=a.paper_root.resolve()
     syn=by_mode(read(root/'01_synthetic_controlled'/'paper_method_summary.csv'))
@@ -45,7 +54,11 @@ def main():
             'synthetic_whole_pbias_mean':k.get('whole_pbias_mean',''),
             'sligo_rmse_mean':h.get('rmse_mean',''),'sligo_rmse_std':h.get('rmse_std',''),
             'sligo_mae_mean':h.get('mae_mean',''),'sligo_nse_mean':h.get('nse_mean',''),
-            'sligo_kge_mean':h.get('kge_mean',''),'sligo_pbias_mean':h.get('pbias_mean',''),
+            'sligo_kge_mean':h.get('kge_mean',''),'sligo_kge_std':h.get('kge_std',''),
+            'sligo_kge_defined_seed_count':h.get('kge_defined_seed_count',''),
+            'sligo_kge_status':h.get('kge_status',''),
+            'sligo_prediction_near_constant_seed_count':h.get('prediction_near_constant_seed_count',''),
+            'sligo_pbias_mean':h.get('pbias_mean',''),
             'sligo_physics_residual_rmse_mean':h.get('physics_residual_rmse_mean',''),
         })
     write(root/'paper_final_method_comparison.csv',rows)
@@ -56,8 +69,9 @@ def main():
         md.append(f"| {r['method']} | {fmt(r['synthetic_whole_rmse_mean'])} ± {fmt(r['synthetic_whole_rmse_std'])} | {fmt(r['synthetic_whole_nse_mean'])} | {fmt(r['synthetic_whole_kge_mean'])} | {fmt(r['synthetic_whole_pbias_mean'],2)} |")
     md += ["","## Sligo Creek Hydro package","", "| Method | RMSE | MAE | NSE | KGE | PBIAS (%) |","|---|---:|---:|---:|---:|---:|"]
     for r in rows:
-        md.append(f"| {r['method']} | {fmt(r['sligo_rmse_mean'])} ± {fmt(r['sligo_rmse_std'])} | {fmt(r['sligo_mae_mean'])} | {fmt(r['sligo_nse_mean'])} | {fmt(r['sligo_kge_mean'])} | {fmt(r['sligo_pbias_mean'],2)} |")
-    md += ["","## Frozen hyperparameters","", "| Method | Hidden | Activation | Lags | Sequence | LR | Batch | Physics w | k |","|---|---|---|---|---:|---:|---:|---:|---:|"]
+        md.append(f"| {r['method']} | {fmt(r['sligo_rmse_mean'])} ± {fmt(r['sligo_rmse_std'])} | {fmt(r['sligo_mae_mean'])} | {fmt(r['sligo_nse_mean'])} | {fmt_kge(r['sligo_kge_mean'],r['sligo_kge_status'])} | {fmt(r['sligo_pbias_mean'],2)} |")
+    md += ["","KGE is reported as undefined rather than imputed when Pearson correlation cannot be evaluated, e.g. for constant held-out predictions.","",
+           "## Frozen hyperparameters","", "| Method | Hidden | Activation | Lags | Sequence | LR | Batch | Physics w | k |","|---|---|---|---|---:|---:|---:|---:|---:|"]
     for r in rows:
         md.append(f"| {r['method']} | {r['hidden_layers']} | {r['activation']} | {r['input_lags']} | {r['lstm_sequence_length']} | {r['learning_rate']} | {r['batch_size']} | {r['physics_weight']} | {r['reservoir_k']} |")
     (root/'paper_final_tables.md').write_text('\n'.join(md)+'\n',encoding='utf-8')
