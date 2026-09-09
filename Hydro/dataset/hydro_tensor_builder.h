@@ -32,31 +32,28 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         const auto prepared = prepareGisToOhqPackage(packageRoot, true);
         std::vector<float> features, targets, times;
 
-        // Plain FFN/LSTM preserve the verified six-forcing contract:
-        // [P, T, RH, wind, solar, PET].
-        //
-        // Physics-informed GIStoOHQ runs use an independent runoff-dynamics
-        // forcing layout instead of a precomputed storage state:
-        // [time, Peff, P, PET, T, RH, wind, solar],
-        // where Peff=max(P-PET,0).  No observed runoff is used to construct an
-        // input state, and no storage trajectory is generated from the same
-        // reservoir equation later imposed as a physics residual.  This avoids
-        // the circular constraint that previously reduced the PINN to Q ~= kS.
-        //
-        // Finite-difference physics residuals must not bridge missing-data gaps.
-        // The producer adapter labels contiguous hourly blocks with segment_id;
-        // use the longest contiguous segment for the current PINN backends.
-        if (config.use_latent_storage_physics) {
-            std::map<std::size_t, std::size_t> segmentCounts;
-            for (const auto& row : prepared.model_rows) ++segmentCounts[row.segment_id];
-            if (segmentCounts.empty()) throw std::runtime_error("GIStoOHQ package has no contiguous physics segment.");
-            const auto longest = std::max_element(
-                segmentCounts.begin(), segmentCounts.end(),
-                [](const auto& a, const auto& b) { return a.second < b.second; });
-            const std::size_t selectedSegment = longest->first;
-            const std::size_t selectedCount = longest->second;
-            if (selectedCount < 4) throw std::runtime_error("GIStoOHQ longest contiguous physics segment is too short.");
+        // All five paper methods must be evaluated over the SAME uninterrupted
+        // GIStoOHQ hourly domain.  Previously the physics-informed methods used
+        // the longest contiguous segment while supervised FFN/LSTM concatenated
+        // all forcing-valid segments.  That allowed sequence models to bridge
+        // gaps and produced different held-out time windows, invalidating direct
+        // method/figure comparisons.  Select the longest contiguous segment once
+        // here and use it for both supervised and physics-informed layouts.
+        std::map<std::size_t, std::size_t> segmentCounts;
+        for (const auto& row : prepared.model_rows) ++segmentCounts[row.segment_id];
+        if (segmentCounts.empty()) throw std::runtime_error("GIStoOHQ package has no contiguous model segment.");
+        const auto longest = std::max_element(
+            segmentCounts.begin(), segmentCounts.end(),
+            [](const auto& a, const auto& b) { return a.second < b.second; });
+        const std::size_t selectedSegment = longest->first;
+        const std::size_t selectedCount = longest->second;
+        if (selectedCount < 4) throw std::runtime_error("GIStoOHQ longest contiguous model segment is too short.");
 
+        // Plain FFN/LSTM keep the six-forcing contract [P,T,RH,wind,solar,PET].
+        // Physics-informed methods use [time,I*,P,PET,T,RH,wind,solar] with
+        // I*=max(P-PET,0).  The feature layouts differ by method, but rows,
+        // timestamps, targets, and chronological split domain are common.
+        if (config.use_latent_storage_physics) {
             features.reserve(selectedCount * 8);
             targets.reserve(selectedCount);
             times.reserve(selectedCount);
@@ -67,7 +64,7 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
                 const double time = row.elapsed_hours;
                 const double dt = first ? 1.0 : time - previousTime;
                 if (!first && std::abs(dt - 1.0) > 1.0e-6) {
-                    throw std::runtime_error("Selected GIStoOHQ physics segment is not hourly contiguous.");
+                    throw std::runtime_error("Selected GIStoOHQ model segment is not hourly contiguous.");
                 }
                 const double precipitation = std::max(0.0, row.features[0]);
                 const double pet = std::max(0.0, row.features[5]);
@@ -93,15 +90,25 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
             return true;
         }
 
-        features.reserve(prepared.model_rows.size() * 6);
-        targets.reserve(prepared.model_rows.size());
-        times.reserve(prepared.model_rows.size());
+        features.reserve(selectedCount * 6);
+        targets.reserve(selectedCount);
+        times.reserve(selectedCount);
+        double previousTime = 0.0;
+        bool first = true;
         for (const auto& row : prepared.model_rows) {
+            if (row.segment_id != selectedSegment) continue;
+            const double time = row.elapsed_hours;
+            const double dt = first ? 1.0 : time - previousTime;
+            if (!first && std::abs(dt - 1.0) > 1.0e-6) {
+                throw std::runtime_error("Selected GIStoOHQ supervised segment is not hourly contiguous.");
+            }
             for (const auto value : row.features) features.push_back(static_cast<float>(value));
             targets.push_back(static_cast<float>(row.target_runoff_mm_per_hour));
-            times.push_back(static_cast<float>(row.elapsed_hours));
+            times.push_back(static_cast<float>(time));
+            previousTime = time;
+            first = false;
         }
-        if (targets.empty()) throw std::runtime_error("GIStoOHQ package contains no supervised hourly rows.");
+        if (targets.empty()) throw std::runtime_error("GIStoOHQ package contains no supervised rows in selected contiguous segment.");
         const auto n = static_cast<int64_t>(targets.size());
         x = torch::from_blob(features.data(), {n, 6}, torch::kFloat32).clone();
         y = torch::from_blob(targets.data(), {n, 1}, torch::kFloat32).clone();
@@ -141,7 +148,7 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         features.push_back(static_cast<float>(row.elapsed_hours));
         features.push_back(static_cast<float>(row.precipitation_mm_per_hour));
         features.push_back(static_cast<float>(row.potential_et_mm_per_hour));
-        features.push_back(0.0f); // reserved temperature slot for current wrapper layout
+        features.push_back(0.0f);
         features.push_back(static_cast<float>(row.storage_mm.value_or(0.0)));
         if (forecastFeature) features.push_back(static_cast<float>(forecastFeature->values.at(rowIndex)));
         targets.push_back(static_cast<float>(row.observed_runoff_mm_per_hour));
