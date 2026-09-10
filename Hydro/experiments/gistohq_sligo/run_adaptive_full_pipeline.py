@@ -3,17 +3,15 @@
 
 Stages:
 1. Supervised architecture/memory tuning (FFN, LSTM).
-2. Physics tuning inheriting Stage-1 architectures (FFN+PINN, LSTM+PINN, PINN).
+2. Physics/process tuning. Synthetic verification keeps the reduced single
+   reservoir. Real LSTM+PINN uses learned runoff generation plus differentiable
+   fast/slow routing, with architecture/memory screening before routing tuning.
 3. Optimizer tuning per method inheriting prior-stage winners.
 4. Multi-seed robustness per method using frozen Stage-3 settings.
 
 For real Hydro/CSV rainfall-runoff runs, selection is based only on VALIDATION
-hydrologic skill: finite/non-degenerate KGE first, then NSE, then RMSE. This
-prevents nearly constant low-flow predictions from winning merely because their
-pointwise MSE is small. Controlled synthetic known-truth runs retain validation
-MSE selection so the parameter-recovery experiment remains a direct numerical
-verification. Test metrics are exported for reporting but never used to choose
-candidates.
+hydrologic skill: finite/non-degenerate KGE first, then NSE, then RMSE. Test
+metrics are exported for final reporting but never used to choose candidates.
 """
 from __future__ import annotations
 
@@ -32,6 +30,7 @@ BATCH_FILE = HERE / "unified_sweep.batch"
 POSTPROCESS = HERE / "postprocess_metric_status.py"
 MODES = ("ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn")
 PHYSICS = {"ffn_pinn", "lstm_pinn", "pinn"}
+PROCESS_PROFILE = "two_reservoir_hybrid"
 
 
 def parse_args() -> argparse.Namespace:
@@ -184,9 +183,6 @@ def winner(a: argparse.Namespace, rows: list[dict[str, str]], mode: str) -> dict
     if a.data_source == "synthetic":
         return min(candidates, key=lambda r: (finite_float(r.get("validation_mse")), r.get("experiment_id", "")))
 
-    # Hydrologic validation selection.  Degenerate predictions are ranked behind
-    # non-degenerate candidates; among valid candidates maximize KGE and NSE and
-    # then minimize RMSE.  No test metric enters this ordering.
     def key(r: dict[str, str]):
         degenerate = r.get("validation_near_constant", "false") == "true"
         kge = finite_float(r.get("validation_kge"), -math.inf)
@@ -211,6 +207,14 @@ def q(row: dict[str, str], field: str, fallback: str) -> str:
     return value if value else fallback
 
 
+def unique_semicolon(values: list[str]) -> str:
+    out: list[str] = []
+    for value in values:
+        if value and value not in out:
+            out.append(value)
+    return ";".join(out)
+
+
 def stage1(a: argparse.Namespace, root: Path) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
     print("\n[adaptive] STAGE 1: supervised architecture / memory", flush=True)
     rows = run_generated(a, [
@@ -227,30 +231,75 @@ def stage1(a: argparse.Namespace, root: Path) -> tuple[list[dict[str, str]], dic
 
 
 def stage2(a: argparse.Namespace, root: Path, s1: dict[str, dict[str, str]]) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
-    print("\n[adaptive] STAGE 2: physics tuning inherited from Stage 1", flush=True)
+    print("\n[adaptive] STAGE 2: physics/process tuning", flush=True)
     ffn, lstm = s1["ffn"], s1["lstm"]
+    stage_root = root / "02_stage2_physics"
+
     if a.data_source == "synthetic":
-        physics_weights = "0.001,0.005,0.01,0.025,0.05,0.1"
-        recession_k = "0.01,0.02,0.04,0.08,0.16"
-    else:
-        # Real catchments need a broad weak-to-moderate regularization sweep.
-        # The old lower bound (1e-3) was still strong enough for some models to
-        # collapse toward near-constant runoff.  Allow hybrids to remain close to
-        # their supervised parent while testing whether physics adds validation skill.
-        physics_weights = "0.000001,0.00001,0.0001,0.0005,0.001,0.005,0.01,0.025"
-        recession_k = "0.0025,0.005,0.01,0.02,0.04,0.08,0.16"
-    rows = run_generated(a, [
-        "--methods", "ffn_pinn,lstm_pinn,pinn",
+        rows = run_generated(a, [
+            "--methods", "ffn_pinn,lstm_pinn,pinn",
+            "--ffn-architectures", q(ffn, "hidden_layers", "16,16"),
+            "--ffn-activations", q(ffn, "activation", "relu"),
+            "--lstm-architectures", q(lstm, "hidden_layers", "32"),
+            "--lstm-sequences", q(lstm, "lstm_sequence_length", "12"),
+            "--pinn-architectures", "16,16;24,24;32,32",
+            "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
+            "--physics-weights", "0.001,0.005,0.01,0.025,0.05,0.1",
+            "--recession-k", "0.01,0.02,0.04,0.08,0.16",
+            "--lstm-pinn-profile", "linear_reservoir",
+        ], stage_root)
+        winners = {m: winner(a, rows, m) for m in ("ffn_pinn", "lstm_pinn", "pinn")}
+        return rows, winners
+
+    # Real-data legacy reduced-reservoir comparators remain unchanged.
+    legacy_rows = run_generated(a, [
+        "--methods", "ffn_pinn,pinn",
         "--ffn-architectures", q(ffn, "hidden_layers", "16,16"),
         "--ffn-activations", q(ffn, "activation", "relu"),
-        "--lstm-architectures", q(lstm, "hidden_layers", "32"),
-        "--lstm-sequences", q(lstm, "lstm_sequence_length", "12"),
         "--pinn-architectures", "16,16;24,24;32,32",
         "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
-        "--physics-weights", physics_weights,
-        "--recession-k", recession_k,
-    ], root / "02_stage2_physics")
-    winners = {m: winner(a, rows, m) for m in ("ffn_pinn", "lstm_pinn", "pinn")}
+        "--physics-weights", "0.000001,0.00001,0.0001,0.0005,0.001,0.005,0.01,0.025",
+        "--recession-k", "0.0025,0.005,0.01,0.02,0.04,0.08,0.16",
+    ], stage_root / "legacy")
+
+    # First choose a recurrent memory/architecture for the process-aware hybrid
+    # using fixed, moderate routing values. This keeps the expensive routing grid
+    # separate from architecture selection and avoids a combinatorial sweep.
+    hybrid_architectures = unique_semicolon([
+        q(lstm, "hidden_layers", "48"), "32,16", "48,24", "48,32,16", "64,32,16"
+    ])
+    arch_rows = run_generated(a, [
+        "--methods", "lstm_pinn",
+        "--lstm-architectures", hybrid_architectures,
+        "--lstm-sequences", "6,12,24,48",
+        "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
+        "--physics-weights", "0.001",
+        "--lstm-pinn-profile", PROCESS_PROFILE,
+        "--fast-k", "0.25", "--slow-k", "0.01", "--routing-alpha", "0.65",
+    ], stage_root / "lstm_pinn_architecture")
+    arch_winner = winner(a, arch_rows, "lstm_pinn")
+
+    # Then tune routing and only the weak runoff-availability prior. The routing
+    # layer itself is a hard differentiable process constraint.
+    routing_rows = run_generated(a, [
+        "--methods", "lstm_pinn",
+        "--lstm-architectures", q(arch_winner, "hidden_layers", "48,24"),
+        "--lstm-sequences", q(arch_winner, "lstm_sequence_length", "12"),
+        "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
+        "--physics-weights", "0,0.0001,0.001,0.01",
+        "--lstm-pinn-profile", PROCESS_PROFILE,
+        "--fast-k", "0.1,0.25,0.5",
+        "--slow-k", "0.0025,0.01,0.04",
+        "--routing-alpha", "0.35,0.65,0.85",
+    ], stage_root / "lstm_pinn_routing")
+
+    rows = legacy_rows + arch_rows + routing_rows
+    write_rows(stage_root / "batch_summary.csv", rows)
+    winners = {
+        "ffn_pinn": winner(a, legacy_rows, "ffn_pinn"),
+        "pinn": winner(a, legacy_rows, "pinn"),
+        "lstm_pinn": winner(a, routing_rows, "lstm_pinn"),
+    }
     return rows, winners
 
 
@@ -265,7 +314,16 @@ def method_args(mode: str, base: dict[str, str], *, lrs: str, batches: str, seed
                  "--lstm-sequences", q(base, "lstm_sequence_length", "12")]
     if mode == "pinn":
         args += ["--pinn-architectures", q(base, "hidden_layers", "24,24")]
-    if mode in PHYSICS:
+
+    if mode == "lstm_pinn" and q(base, "physics_profile", "") == PROCESS_PROFILE:
+        args += [
+            "--lstm-pinn-profile", PROCESS_PROFILE,
+            "--physics-weights", q(base, "physics_weight", "0.001"),
+            "--fast-k", q(base, "storage_coeff", "0.25"),
+            "--slow-k", q(base, "lambda_decay", "0.01"),
+            "--routing-alpha", q(base, "runoff_coeff", "0.65"),
+        ]
+    elif mode in PHYSICS:
         args += ["--physics-weights", q(base, "physics_weight", "1.0" if mode == "pinn" else "0.01"),
                  "--recession-k", q(base, "latent_recession_per_hour", "0.08")]
     return args
@@ -366,21 +424,46 @@ def finalize(a: argparse.Namespace, root: Path, s1: dict[str, dict[str, str]], s
     paper_rows = []
     for mode in MODES:
         b = s3[mode]; rr = next(r for r in robust_rows if r["mode"] == mode)
-        out = {"mode": mode, "hidden_layers": b.get("hidden_layers", ""), "activation": b.get("activation", ""),
-               "input_lags": b.get("input_lags", ""), "lstm_sequence_length": b.get("lstm_sequence_length", ""),
-               "learning_rate": b.get("learning_rate", ""), "batch_size": b.get("batch_size", ""),
-               "physics_weight": b.get("physics_weight", ""), "reservoir_k": b.get("latent_recession_per_hour", "")}
+        out = {
+            "mode": mode,
+            "hidden_layers": b.get("hidden_layers", ""),
+            "activation": b.get("activation", ""),
+            "input_lags": b.get("input_lags", ""),
+            "lstm_sequence_length": b.get("lstm_sequence_length", ""),
+            "learning_rate": b.get("learning_rate", ""),
+            "batch_size": b.get("batch_size", ""),
+            "physics_profile": b.get("physics_profile", ""),
+            "physics_weight": b.get("physics_weight", ""),
+            "reservoir_k": b.get("latent_recession_per_hour", ""),
+            "fast_k": b.get("storage_coeff", ""),
+            "slow_k": b.get("lambda_decay", ""),
+            "routing_alpha": b.get("runoff_coeff", ""),
+        }
         out.update(rr); paper_rows.append(out)
     write_rows(root / "paper_method_summary.csv", paper_rows)
 
-    lines = ["HydroPINN adaptive paper-run manifest", "====================================",
-             f"data_source={a.data_source}", f"output_root={root}",
-             f"selection_metric={sel} (test metrics never used for tuning)",
-             "domain=common longest contiguous GIStoOHQ segment for all five methods when applicable",
-             "stage4=multi-seed robustness of frozen Stage-3 configurations", ""]
+    lines = [
+        "HydroPINN adaptive paper-run manifest",
+        "====================================",
+        f"data_source={a.data_source}",
+        f"output_root={root}",
+        f"selection_metric={sel} (test metrics never used for tuning)",
+        "domain=common longest contiguous GIStoOHQ segment for all five methods when applicable",
+        "real_lstm_pinn=learned runoff generation + differentiable fast/slow reservoir routing",
+        "process_hybrid_scaling=train-only standardization for neural predictor; routing remains in physical units",
+        "stage4=multi-seed robustness of frozen Stage-3 configurations",
+        "",
+    ]
     for mode in MODES:
         b = s3[mode]
-        lines.append(f"{mode}: hidden={b.get('hidden_layers','')} act={b.get('activation','')} lags={b.get('input_lags','')} seq={b.get('lstm_sequence_length','')} lr={b.get('learning_rate','')} batch={b.get('batch_size','')} w={b.get('physics_weight','')} k={b.get('latent_recession_per_hour','')}")
+        lines.append(
+            f"{mode}: hidden={b.get('hidden_layers','')} act={b.get('activation','')} "
+            f"lags={b.get('input_lags','')} seq={b.get('lstm_sequence_length','')} "
+            f"lr={b.get('learning_rate','')} batch={b.get('batch_size','')} "
+            f"profile={b.get('physics_profile','')} w={b.get('physics_weight','')} "
+            f"k={b.get('latent_recession_per_hour','')} fast_k={b.get('storage_coeff','')} "
+            f"slow_k={b.get('lambda_decay','')} alpha={b.get('runoff_coeff','')}"
+        )
     lines += ["", "Paper artifacts:", "  adaptive_validation_winners.csv", "  paper_robustness_summary.csv",
               "  paper_method_summary.csv", "  frozen_configs/*.json"]
     if whole_rows:
