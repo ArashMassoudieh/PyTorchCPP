@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Generate a method-aware HydroPINN sweep for all five approaches.
 
-The selected data source is explicit and is applied to every generated config.
-For controlled Synthetic validation, every method and every candidate sees one
-fixed reduced-reservoir truth hydrograph. The truth coefficient
-``synthetic_reservoir_truth_k`` is independent from the candidate/model k that
-is swept through ``lambda_decay/storage_coeff``.
+Synthetic verification retains the reduced single-reservoir formulation. Real
+LSTM+PINN studies may instead use ``two_reservoir_hybrid``: an LSTM learns
+non-negative effective runoff generation and a differentiable fast/slow routing
+layer maps it to streamflow. Test metrics are never used by this generator.
 """
 
 from __future__ import annotations
@@ -26,6 +25,7 @@ MANIFEST = OUT / "unified_manifest.csv"
 ALL_METHODS = ("ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn")
 PHYSICS_METHODS = {"ffn_pinn", "lstm_pinn", "pinn"}
 DATA_SOURCES = ("synthetic", "csv", "hydro")
+LSTM_PINN_PROFILES = ("linear_reservoir", "two_reservoir_hybrid")
 
 
 def csv_values(text: str, cast=str):
@@ -77,7 +77,6 @@ def source_name(cfg: dict) -> str:
 
 
 def apply_source(cfg: dict, args) -> dict:
-    """Overwrite every source-specific field; never inherit source state."""
     cfg = dict(cfg)
     cfg.update({
         "use_hydro_package": False,
@@ -95,7 +94,6 @@ def apply_source(cfg: dict, args) -> dict:
         "t_end": args.t_end,
         "synthetic_reservoir_truth_k": args.synthetic_truth_k,
     })
-
     if args.data_source == "hydro":
         cfg.update({
             "use_hydro_package": True,
@@ -103,10 +101,7 @@ def apply_source(cfg: dict, args) -> dict:
             "hydro_catchment_id": args.hydro_catchment_id,
         })
     elif args.data_source == "csv":
-        cfg.update({
-            "use_csv_data": True,
-            "csv_path": args.csv_path,
-        })
+        cfg.update({"use_csv_data": True, "csv_path": args.csv_path})
 
     actual = source_name(cfg)
     if actual != args.data_source:
@@ -145,6 +140,23 @@ def physics_common(cfg: dict, k: float) -> dict:
     return cfg
 
 
+def process_hybrid_common(cfg: dict, fast_k: float, slow_k: float, alpha: float) -> dict:
+    cfg = dict(cfg)
+    cfg.update({
+        "normalization": "standardize",
+        "physics_profile": "two_reservoir_hybrid",
+        "physics_dt": 1.0,
+        "storage_coeff": fast_k,
+        "lambda_decay": slow_k,
+        "runoff_coeff": alpha,
+        "forcing_gain": 1.0,
+        "pinn_collocation_points": 0,
+        "use_time_lagged_ffn": False,
+        "input_lags": "1",
+    })
+    return cfg
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--methods", default=",".join(ALL_METHODS))
@@ -160,6 +172,13 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--seeds", default="42")
     p.add_argument("--physics-weights", default="0.005,0.01,0.025,0.05")
     p.add_argument("--recession-k", default="0.01,0.02,0.04,0.08,0.16")
+    p.add_argument("--lstm-pinn-profile", choices=LSTM_PINN_PROFILES, default="linear_reservoir")
+    p.add_argument("--fast-k", default="0.1,0.25,0.5",
+                   help="Fast-routing k values (1/h) for two_reservoir_hybrid")
+    p.add_argument("--slow-k", default="0.0025,0.01,0.04",
+                   help="Slow-routing k values (1/h) for two_reservoir_hybrid")
+    p.add_argument("--routing-alpha", default="0.35,0.65,0.85",
+                   help="Fast-flow partition fractions for two_reservoir_hybrid")
     p.add_argument("--data-weight", type=float, default=1.0)
     p.add_argument("--epochs", type=int, default=150)
 
@@ -168,8 +187,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--sample-count", type=int, default=240)
     p.add_argument("--t-start", type=float, default=0.0)
     p.add_argument("--t-end", type=float, default=5.0)
-    p.add_argument("--synthetic-truth-k", type=float, default=0.08,
-                   help="Fixed ground-truth reservoir k used to generate Synthetic reduced_reservoir data")
+    p.add_argument("--synthetic-truth-k", type=float, default=0.08)
     p.add_argument("--hydro-package-path", default="../GIStoOHQ/examples/SligoCreek/outputs/sligocreekdemo_data/hydropinn")
     p.add_argument("--hydro-catchment-id", default="")
     p.add_argument("--hydro-package-profile", default="rainfall-runoff")
@@ -189,14 +207,14 @@ def validate_source_args(args, methods: list[str]) -> None:
         raise SystemExit("--csv-path is required for --data-source csv")
     if args.data_source == "csv" and any(m in PHYSICS_METHODS for m in methods):
         if args.csv_x_column != 0 or args.csv_y_column < 3:
-            raise SystemExit("Reduced-reservoir CSV physics requires time column 0, P column 1, PET column 2, and runoff target column >=3")
+            raise SystemExit("Physics CSV requires time column 0, P column 1, PET column 2, and runoff target column >=3")
     if args.data_source == "synthetic":
         if args.sample_count < 32 or not args.t_end > args.t_start:
             raise SystemExit("Synthetic source requires sample_count>=32 and t_end>t_start")
         if any(m in PHYSICS_METHODS for m in methods) and args.synthetic_profile != "reduced_reservoir":
-            raise SystemExit(
-                "The five-method synthetic physics pipeline requires --synthetic-profile reduced_reservoir so all methods share one controlled truth."
-            )
+            raise SystemExit("The five-method synthetic physics pipeline requires --synthetic-profile reduced_reservoir")
+        if args.lstm_pinn_profile != "linear_reservoir" and "lstm_pinn" in methods:
+            raise SystemExit("Controlled synthetic verification must keep LSTM+PINN on linear_reservoir")
 
 
 def main() -> int:
@@ -221,13 +239,18 @@ def main() -> int:
     seeds = csv_values(args.seeds, int)
     physics_weights = csv_values(args.physics_weights, float)
     ks = csv_values(args.recession_k, float)
+    fast_ks = csv_values(args.fast_k, float)
+    slow_ks = csv_values(args.slow_k, float)
+    alphas = csv_values(args.routing_alpha, float)
 
     if args.epochs < 1 or any(v <= 0 for v in lrs) or any(v < 1 for v in batches + sequences):
         raise SystemExit("epochs/LR/batch/sequence settings must be positive")
-    if any(v <= 0 for v in ks):
+    if any(v <= 0 for v in ks + fast_ks + slow_ks):
         raise SystemExit("reservoir k values must be positive")
     if any(v < 0 for v in physics_weights):
         raise SystemExit("physics weights cannot be negative")
+    if any(not 0.0 < v < 1.0 for v in alphas):
+        raise SystemExit("routing-alpha values must lie strictly between 0 and 1")
 
     ffn_base = load(FFN_BASE)
     lstm_base = load(LSTM_BASE)
@@ -260,12 +283,25 @@ def main() -> int:
             jobs.append(("lstm", write_config(cfg), cfg))
 
     if "lstm_pinn" in methods:
-        for hidden, seq, w, k, (lr, batch, seed) in itertools.product(lstm_arch, sequences, physics_weights, ks, grid):
-            cfg = physics_common(common(lstm_base, args, lr, batch, seed), k)
-            cfg.update({"hidden_layers": hidden, "lstm_sequence_length": seq,
-                        "data_weight": args.data_weight, "physics_weight": w})
-            cfg["experiment_id"] = f"unified_lstm_pinn_h{slug(hidden)}_seq{seq}_w{slug(w)}_k{slug(k)}_lr{slug(lr)}_b{batch}_s{seed}"
-            jobs.append(("lstm_pinn", write_config(cfg), cfg))
+        if args.lstm_pinn_profile == "two_reservoir_hybrid":
+            routing_grid = [(kf, ks, a) for kf, ks, a in itertools.product(fast_ks, slow_ks, alphas) if kf > ks]
+            for hidden, seq, w, (kf, ks, alpha), (lr, batch, seed) in itertools.product(
+                    lstm_arch, sequences, physics_weights, routing_grid, grid):
+                cfg = process_hybrid_common(common(lstm_base, args, lr, batch, seed), kf, ks, alpha)
+                cfg.update({"hidden_layers": hidden, "lstm_sequence_length": seq,
+                            "data_weight": args.data_weight, "physics_weight": w})
+                cfg["experiment_id"] = (
+                    f"unified_lstm_pinn_h{slug(hidden)}_seq{seq}_w{slug(w)}_"
+                    f"kf{slug(kf)}_ks{slug(ks)}_a{slug(alpha)}_lr{slug(lr)}_b{batch}_s{seed}"
+                )
+                jobs.append(("lstm_pinn", write_config(cfg), cfg))
+        else:
+            for hidden, seq, w, k, (lr, batch, seed) in itertools.product(lstm_arch, sequences, physics_weights, ks, grid):
+                cfg = physics_common(common(lstm_base, args, lr, batch, seed), k)
+                cfg.update({"hidden_layers": hidden, "lstm_sequence_length": seq,
+                            "data_weight": args.data_weight, "physics_weight": w})
+                cfg["experiment_id"] = f"unified_lstm_pinn_h{slug(hidden)}_seq{seq}_w{slug(w)}_k{slug(k)}_lr{slug(lr)}_b{batch}_s{seed}"
+                jobs.append(("lstm_pinn", write_config(cfg), cfg))
 
     if "pinn" in methods:
         for hidden, k, (lr, batch, seed) in itertools.product(pinn_arch, ks, grid):
@@ -293,14 +329,15 @@ def main() -> int:
 
     OUT.mkdir(parents=True, exist_ok=True)
     with MANIFEST.open("w", encoding="utf-8") as out:
-        out.write("experiment_id,mode,data_source,synthetic_profile,synthetic_truth_k,hydro_package_path,csv_path,hidden_layers,activation,lstm_sequence_length,input_lags,learning_rate,batch_size,seed,physics_weight,recession_k\n")
+        out.write("experiment_id,mode,data_source,synthetic_profile,synthetic_truth_k,hydro_package_path,csv_path,hidden_layers,activation,lstm_sequence_length,input_lags,learning_rate,batch_size,seed,physics_profile,physics_weight,recession_k,fast_k,slow_k,routing_alpha\n")
         for mode, _, cfg in jobs:
             out.write(
                 f"{cfg['experiment_id']},{mode},{source_name(cfg)},{cfg.get('synthetic_profile','')},{cfg.get('synthetic_reservoir_truth_k','')},"
                 f"\"{cfg.get('hydro_package_path','')}\",\"{cfg.get('csv_path','')}\","
                 f"\"{cfg.get('hidden_layers','')}\",{cfg.get('activation','')},"
                 f"{cfg.get('lstm_sequence_length','')},\"{cfg.get('input_lags','')}\",{cfg['learning_rate']},"
-                f"{cfg['batch_size']},{cfg['random_seed']},{cfg.get('physics_weight','')},{cfg.get('storage_coeff','')}\n"
+                f"{cfg['batch_size']},{cfg['random_seed']},{cfg.get('physics_profile','')},{cfg.get('physics_weight','')},"
+                f"{cfg.get('storage_coeff','')},{cfg.get('storage_coeff','')},{cfg.get('lambda_decay','')},{cfg.get('runoff_coeff','')}\n"
             )
 
     counts = {m: sum(1 for mode, _, _ in jobs if mode == m) for m in ALL_METHODS}
@@ -311,6 +348,8 @@ def main() -> int:
         print(f"Hydro package: {args.hydro_package_path}")
     else:
         print(f"CSV: {args.csv_path}; x={args.csv_x_column}; y={args.csv_y_column}")
+    if "lstm_pinn" in methods:
+        print(f"LSTM+PINN profile: {args.lstm_pinn_profile}")
     print(f"Generated {len(jobs)} valid experiment(s)")
     for method in ALL_METHODS:
         if counts[method]:
