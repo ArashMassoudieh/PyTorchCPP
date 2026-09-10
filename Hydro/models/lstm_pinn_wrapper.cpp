@@ -44,8 +44,6 @@ std::vector<double> tensorValues(const torch::Tensor& tensor) {
 
 // Keep the recurrent predictor on the same meteorological forcing contract as the
 // supervised LSTM whenever the GIStoOHQ eight-column physics tensor is present.
-// Physics-only auxiliaries (absolute time and I*=max(P-PET,0)) are deliberately
-// excluded from the neural input and retained separately for the residual.
 // GIStoOHQ physics layout: [time, I*, P, PET, T, RH, wind, solar].
 torch::Tensor predictorFeatures(const torch::Tensor& physicsX) {
     if (physicsX.dim() != 2 || physicsX.size(1) < 3) {
@@ -61,8 +59,7 @@ torch::Tensor predictorFeatures(const torch::Tensor& physicsX) {
             physicsX.slice(1, 3, 4)  // PET
         }, 1).contiguous();
     }
-    // Controlled reduced-reservoir synthetic/CSV contract is normally
-    // [time, I*, P, PET].  Do not feed absolute time or the derived I* twice.
+    // Controlled reduced-reservoir synthetic/CSV contract: [time, I*, P, PET].
     if (physicsX.size(1) >= 4) return physicsX.slice(1, 2, 4).contiguous();
     return physicsX.slice(1, 1, physicsX.size(1)).contiguous();
 }
@@ -72,17 +69,20 @@ struct SequenceData {
     torch::Tensor y;
     torch::Tensor time;
     torch::Tensor peff;
+    torch::Tensor precipitation;
 };
 
 SequenceData makeSequences(const torch::Tensor& modelX,
                            const torch::Tensor& y,
                            const torch::Tensor& time,
                            const torch::Tensor& peff,
+                           const torch::Tensor& precipitation,
                            int sequenceLength) {
     if (!modelX.defined() || !y.defined() || !time.defined() || !peff.defined() ||
-        modelX.dim() != 2 || y.dim() != 2 || modelX.size(0) != y.size(0) ||
-        time.numel() != modelX.size(0) || peff.numel() != modelX.size(0)) {
-        throw std::runtime_error("LSTM-PINN sequence builder expects aligned model inputs, target, time, and I*.");
+        !precipitation.defined() || modelX.dim() != 2 || y.dim() != 2 ||
+        modelX.size(0) != y.size(0) || time.numel() != modelX.size(0) ||
+        peff.numel() != modelX.size(0) || precipitation.numel() != modelX.size(0)) {
+        throw std::runtime_error("LSTM-PINN sequence builder expects aligned model inputs, target, time, I*, and precipitation.");
     }
     sequenceLength = std::max(2, sequenceLength);
     if (modelX.size(0) < sequenceLength + 3) {
@@ -101,6 +101,8 @@ SequenceData makeSequences(const torch::Tensor& modelX,
     result.y = y.slice(0, sequenceLength - 1, y.size(0)).contiguous();
     result.time = time.reshape({-1, 1}).slice(0, sequenceLength - 1, time.numel()).contiguous();
     result.peff = peff.reshape({-1, 1}).slice(0, sequenceLength - 1, peff.numel()).contiguous();
+    result.precipitation = precipitation.reshape({-1, 1})
+                               .slice(0, sequenceLength - 1, precipitation.numel()).contiguous();
     return result;
 }
 
@@ -133,14 +135,224 @@ torch::Tensor physicalResidual(const torch::Tensor& predPhysical,
     return dQdt - k * (pNow - qNow);
 }
 
-} // namespace
+void copyParameters(const std::vector<torch::Tensor>& source,
+                    const std::vector<torch::Tensor>& destination) {
+    if (source.size() != destination.size()) {
+        throw std::runtime_error("Cannot warm-start recurrent backbone: parameter counts differ.");
+    }
+    torch::NoGradGuard noGrad;
+    for (std::size_t i = 0; i < source.size(); ++i) {
+        if (source[i].sizes() != destination[i].sizes()) {
+            throw std::runtime_error("Cannot warm-start recurrent backbone: parameter shapes differ.");
+        }
+        destination[i].copy_(source[i]);
+    }
+}
 
-HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
-    if (config.pinn_physics_profile != "linear_reservoir") {
-        LSTMNetworkWrapper backend;
-        return backend.train(config, true);
+HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
+    HydroRunResult result;
+    torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
+
+    torch::Tensor physicsX, y, plotX;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX)) {
+        throw std::runtime_error("Unable to construct process-aware LSTM-PINN tensors.");
+    }
+    if (physicsX.dim() != 2 || physicsX.size(1) < 4) {
+        throw std::runtime_error("Two-reservoir LSTM-PINN requires [time, I*, P, PET, ...] forcing layout.");
     }
 
+    const torch::Tensor modelX = predictorFeatures(physicsX);
+    const torch::Tensor peff = physicsX.slice(1, 1, 2).contiguous();
+    const torch::Tensor precipitation = physicsX.slice(1, 2, 3).contiguous();
+    SequenceData seq = makeSequences(modelX, y, plotX, peff, precipitation,
+                                     config.lstm_sequence_length);
+    const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
+                                                            config.train_split_ratio,
+                                                            config.validation_split_ratio);
+    const int64_t nTrain = split.train_end;
+    const int64_t nValidationEnd = split.validation_end;
+
+    torch::Tensor xTrainPhysical = seq.x.slice(0, 0, nTrain).contiguous();
+    torch::Tensor yTrainPhysical = seq.y.slice(0, 0, nTrain).contiguous();
+    torch::Tensor xValidationPhysical = seq.x.slice(0, nTrain, nValidationEnd).contiguous();
+    torch::Tensor yValidationPhysical = seq.y.slice(0, nTrain, nValidationEnd).contiguous();
+
+    TensorScaler inputScaler;
+    TensorScaler targetScaler;
+    inputScaler.fit(xTrainPhysical, "standardize");
+    targetScaler.fit(yTrainPhysical, "standardize");
+    const torch::Tensor xFull = inputScaler.transform(seq.x);
+    const torch::Tensor xTrain = xFull.slice(0, 0, nTrain).contiguous();
+    const torch::Tensor yTrain = targetScaler.transform(yTrainPhysical);
+    const torch::Tensor xValidation = inputScaler.transform(xValidationPhysical);
+    const torch::Tensor yValidation = targetScaler.transform(yValidationPhysical);
+
+    const std::vector<int> hiddenLayers = parseHiddenLayers(config.hidden_layers_csv);
+    const int64_t hiddenDim = static_cast<int64_t>(hiddenLayers.front());
+    const int64_t numLayers = static_cast<int64_t>(std::max<std::size_t>(1, hiddenLayers.size()));
+    const double dt = regularPhysicalTimeStepFromTime(seq.time);
+    const double fastK = config.storage_coeff;
+    const double slowK = config.lambda_decay;
+    const double alpha = config.runoff_coeff;
+    if (!(fastK > 0.0 && slowK > 0.0 && fastK > slowK && alpha > 0.0 && alpha < 1.0)) {
+        throw std::runtime_error("Two-reservoir LSTM-PINN requires fast_k>slow_k>0 and 0<routing_alpha<1.");
+    }
+    if (dt * fastK > 1.0 || dt * slowK > 1.0) {
+        throw std::runtime_error("Two-reservoir LSTM-PINN explicit routing requires dt*k <= 1 for both stores.");
+    }
+
+    const int totalEpochs = std::max(1, config.epochs);
+    const int pretrainEpochs = std::min(totalEpochs - 1, std::max(10, (2 * totalEpochs) / 5));
+
+    // Stage A: fit a conventional supervised LSTM parent on the same standardized
+    // meteorological sequences and copy its recurrent backbone into the hybrid.
+    HydroLSTM parent(seq.x.size(2), hiddenDim, 1, numLayers);
+    torch::optim::Adam parentOptimizer(parent->parameters(),
+        torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
+    std::vector<torch::Tensor> bestParentParameters;
+    double bestParentValidation = std::numeric_limits<double>::infinity();
+    const int batchSize = std::max(2, config.batch_size);
+    for (int epoch = 0; epoch < pretrainEpochs; ++epoch) {
+        parent->train();
+        for (int64_t start = 0; start < nTrain; start += batchSize) {
+            const int64_t end = std::min<int64_t>(start + batchSize, nTrain);
+            parentOptimizer.zero_grad();
+            const torch::Tensor pred = parent->forward(xTrain.slice(0, start, end));
+            const torch::Tensor loss = torch::mse_loss(pred, yTrain.slice(0, start, end));
+            loss.backward();
+            parentOptimizer.step();
+        }
+        parent->eval();
+        torch::NoGradGuard noGrad;
+        const double vmse = torch::mse_loss(parent->forward(xValidation), yValidation).item<double>();
+        if (vmse < bestParentValidation) {
+            bestParentValidation = vmse;
+            bestParentParameters.clear();
+            for (const auto& p : parent->parameters()) bestParentParameters.push_back(p.detach().clone());
+        }
+    }
+    if (bestParentParameters.empty()) {
+        throw std::runtime_error("Supervised LSTM parent did not produce a warm-start checkpoint.");
+    }
+    copyParameters(bestParentParameters, parent->parameters());
+
+    HydroTwoReservoirLSTM model(seq.x.size(2), hiddenDim, numLayers,
+                                dt, fastK, slowK, alpha);
+    copyParameters(parent->lstm->parameters(), model->lstm->parameters());
+    torch::optim::Adam optimizer(model->parameters(),
+        torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
+
+    const double targetVariance = std::max(1.0e-10, yTrainPhysical.var(false).item<double>());
+    const double precipitationScale = std::max(1.0e-8,
+        seq.precipitation.slice(0, 0, nTrain).pow(2).mean().item<double>());
+    const int fineTuneEpochs = std::max(1, totalEpochs - pretrainEpochs);
+    std::vector<torch::Tensor> bestParameters;
+    std::vector<double> losses;
+    std::vector<double> validationLosses;
+    double bestValidationMse = std::numeric_limits<double>::infinity();
+    int bestEpoch = 0;
+
+    // Stage B: differentiable process-aware fine tuning.  The LSTM learns R_nn,
+    // while fast/slow reservoirs enforce routing structurally.  Physics weight is
+    // used only for the weak water-availability prior R_nn <= precipitation;
+    // it does not force raw P-PET to equal effective runoff.
+    for (int epoch = 0; epoch < fineTuneEpochs; ++epoch) {
+        model->train();
+        optimizer.zero_grad();
+        const torch::Tensor runoff = model->runoffGeneration(xTrain);
+        const auto routed = model->routeRunoff(runoff);
+        const torch::Tensor qPhysical = std::get<0>(routed);
+        const torch::Tensor qScaled = targetScaler.transform(qPhysical);
+        const torch::Tensor dataLoss = torch::mse_loss(qScaled, yTrain);
+        const torch::Tensor pTrain = seq.precipitation.slice(0, 0, nTrain);
+        const torch::Tensor excess = torch::relu(runoff - pTrain);
+        const torch::Tensor availabilityLoss = torch::mean(excess * excess) / precipitationScale;
+        const double ramp = static_cast<double>(epoch + 1) / static_cast<double>(fineTuneEpochs);
+        const double effectivePhysicsWeight = config.physics_weight * ramp * ramp;
+        const torch::Tensor totalLoss = config.data_weight * dataLoss +
+                                        effectivePhysicsWeight * availabilityLoss;
+        totalLoss.backward();
+        torch::nn::utils::clip_grad_norm_(model->parameters(), 5.0);
+        optimizer.step();
+        losses.push_back(totalLoss.item<double>());
+
+        model->eval();
+        double validationMsePhysical = 0.0;
+        {
+            torch::NoGradGuard noGrad;
+            // Route from the beginning of the record so validation receives the
+            // physically carried storage state from the training period.
+            const torch::Tensor qThroughValidation = model->forward(xFull.slice(0, 0, nValidationEnd));
+            const torch::Tensor qValidation = qThroughValidation.slice(0, nTrain, nValidationEnd);
+            validationMsePhysical = torch::mse_loss(qValidation, yValidationPhysical).item<double>();
+        }
+        validationLosses.push_back(validationMsePhysical);
+        if (validationMsePhysical < bestValidationMse) {
+            bestValidationMse = validationMsePhysical;
+            bestEpoch = pretrainEpochs + epoch + 1;
+            bestParameters.clear();
+            for (const auto& p : model->parameters()) bestParameters.push_back(p.detach().clone());
+        }
+    }
+
+    if (bestParameters.empty()) {
+        throw std::runtime_error("Two-reservoir LSTM-PINN did not produce a validation checkpoint.");
+    }
+    copyParameters(bestParameters, model->parameters());
+
+    result.training_loss_history = losses;
+    result.validation_loss_history = validationLosses;
+    result.best_epoch = bestEpoch;
+    result.final_loss = losses.empty() ? bestValidationMse : losses.back();
+    result.validation_mse = bestValidationMse;
+    result.input_scaler = inputScaler.exportState();
+    result.target_scaler = targetScaler.exportState();
+
+    {
+        const auto checkpoint = temporaryHydroCheckpointPath("hydro_lstm_pinn_two_reservoir");
+        torch::serialize::OutputArchive archive;
+        model->save(archive);
+        archive.save_to(checkpoint.string());
+        result.model_checkpoint = readHydroCheckpoint(checkpoint);
+        result.model_checkpoint_format = "torch-module-v1";
+        std::filesystem::remove(checkpoint);
+    }
+
+    model->eval();
+    torch::NoGradGuard noGrad;
+    const torch::Tensor predFullPhysical = model->forward(xFull);
+    const torch::Tensor yTestPhysical = seq.y.slice(0, nValidationEnd, seq.y.size(0)).contiguous();
+    const torch::Tensor predTestPhysical = predFullPhysical.slice(0, nValidationEnd, predFullPhysical.size(0));
+    if (!predFullPhysical.defined() || !predFullPhysical.isfinite().all().item<bool>()) {
+        throw std::runtime_error("Two-reservoir LSTM-PINN produced non-finite runoff.");
+    }
+    if (config.evaluate_metrics) {
+        populateHydroMetrics(result, tensorValues(yTestPhysical), tensorValues(predTestPhysical));
+        if (!hydroMetricsAreFinite(result)) {
+            throw std::runtime_error("Two-reservoir LSTM-PINN evaluation produced invalid core hydrology metrics.");
+        }
+    }
+
+    fillPlotVectors(result, seq.time, seq.y, predFullPhysical);
+    result.split.resize(result.x.size(), "test");
+    for (std::size_t i = 0; i < result.split.size(); ++i) {
+        if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
+        else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+    }
+    populateHydroPeakMetrics(result);
+
+    const torch::Tensor runoffFull = model->runoffGeneration(xFull);
+    const torch::Tensor availabilityResidual = torch::relu(runoffFull - seq.precipitation);
+    result.physics_loss = torch::mean(availabilityResidual * availabilityResidual).item<double>();
+    result.physics_residual = tensorValues(availabilityResidual);
+    populateHydroPhysicsResidualMetrics(result);
+
+    result.success = true;
+    result.message = "LSTM-PINN completed with supervised-LSTM backbone warm start, train-only standardization, learned effective runoff generation, and differentiable fast/slow reservoir routing.";
+    return result;
+}
+
+HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
     HydroRunResult result;
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
@@ -154,7 +366,11 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
 
     const torch::Tensor modelX = predictorFeatures(physicsX);
     const torch::Tensor peff = physicsX.slice(1, 1, 2).contiguous();
-    SequenceData seq = makeSequences(modelX, y, plotX, peff, config.lstm_sequence_length);
+    const torch::Tensor precipitation = physicsX.size(1) >= 3
+        ? physicsX.slice(1, 2, 3).contiguous()
+        : peff;
+    SequenceData seq = makeSequences(modelX, y, plotX, peff, precipitation,
+                                     config.lstm_sequence_length);
     const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
                                                             config.train_split_ratio,
                                                             config.validation_split_ratio);
@@ -168,10 +384,6 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     torch::Tensor xTestPhysical = seq.x.slice(0, split.validation_end, seq.x.size(0)).contiguous();
     torch::Tensor yTestPhysical = seq.y.slice(0, split.validation_end, seq.y.size(0)).contiguous();
 
-    // Stage A is an internal supervised-parent fit on exactly the same forcing
-    // contract used by the plain LSTM.  Keeping this inside the hybrid wrapper
-    // avoids fragile cross-experiment checkpoint coupling while providing a true
-    // data-trained warm start before physics fine-tuning.
     TensorScaler inputScaler;
     TensorScaler targetScaler;
     inputScaler.fit(xTrainPhysical, "standardize");
@@ -219,8 +431,6 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
         const double rampFraction = physicsActive
             ? std::min(1.0, static_cast<double>(epoch - pretrainEpochs + 1) / static_cast<double>(rampEpochs))
             : 0.0;
-        // Quadratic ramp keeps the first fine-tuning epochs close to the strong
-        // supervised parent and introduces the physical prior progressively.
         const double effectivePhysicsWeight = config.physics_weight * rampFraction * rampFraction;
 
         for (int64_t start = 0; start < trainN; start += batchSize) {
@@ -283,8 +493,6 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
         }
         validationLosses.push_back(validationObjective);
 
-        // Preserve the supervised warm start, but select the final checkpoint
-        // only after physics fine-tuning begins when a nonzero physics weight is requested.
         const bool checkpointEligible = (config.physics_weight <= 0.0) || (epoch >= pretrainEpochs);
         if (checkpointEligible && validationObjective < bestValidationObjective) {
             bestValidationObjective = validationObjective;
@@ -296,11 +504,7 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     }
 
     if (bestParameters.empty()) throw std::runtime_error("LSTM-PINN did not produce a validation-selected checkpoint.");
-    {
-        torch::NoGradGuard noGrad;
-        auto parameters = model->parameters();
-        for (std::size_t i = 0; i < parameters.size(); ++i) parameters[i].copy_(bestParameters[i]);
-    }
+    copyParameters(bestParameters, model->parameters());
 
     result.training_loss_history = losses;
     result.validation_loss_history = validationLosses;
@@ -359,4 +563,17 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
            ? "LSTM-PINN completed on CSV input with supervised-parent warm start and ramped normalized reduced-reservoir physics."
            : "LSTM-PINN completed on synthetic input with supervised-parent warm start and ramped normalized reduced-reservoir physics.");
     return result;
+}
+
+} // namespace
+
+HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
+    if (config.pinn_physics_profile == "two_reservoir_hybrid") {
+        return trainTwoReservoirHybrid(config);
+    }
+    if (config.pinn_physics_profile == "linear_reservoir") {
+        return trainLinearReservoir(config);
+    }
+    LSTMNetworkWrapper backend;
+    return backend.train(config, true);
 }
