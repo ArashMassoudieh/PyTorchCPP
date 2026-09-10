@@ -3,6 +3,7 @@
 #include <torch/torch.h>
 
 #include <algorithm>
+#include <stdexcept>
 #include <tuple>
 #include <vector>
 
