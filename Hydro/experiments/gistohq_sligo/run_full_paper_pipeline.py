@@ -4,10 +4,10 @@
 The workflow first executes a fast process-aware LSTM+PINN runtime preflight,
 then creates a controlled reduced-reservoir synthetic verification and a
 real-data experiment using the selected Hydro package or CSV source. It finally
-generates metric-definition diagnostics, combined paper tables, frozen configs,
-and publication figures. Model selection is delegated to the adaptive pipeline
-and therefore uses validation data only; held-out test metrics are not used to
-choose hyperparameters.
+generates metric-definition diagnostics, combined paper tables, a post-hoc
+hybrid-gain assessment, frozen configs, and publication figures. Model selection
+is delegated to the adaptive pipeline and therefore uses validation data only;
+held-out test metrics are not used to choose hyperparameters.
 """
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ PREFLIGHT = HERE / "smoke_test_process_hybrid.py"
 ADAPTIVE = HERE / "run_adaptive_full_pipeline.py"
 POSTPROCESS = HERE / "postprocess_metric_status.py"
 TABLES = HERE / "build_paper_comparison.py"
+ASSESS = HERE / "assess_hybrid_gain.py"
 FIGURES = HERE / "make_paper_figures.py"
 
 
@@ -145,9 +146,10 @@ def main() -> int:
         *real_source_args(a),
     ])
 
-    print("\n[full-paper] 3/4 Diagnostics and final tables", flush=True)
+    print("\n[full-paper] 3/4 Diagnostics, final tables, and hybrid assessment", flush=True)
     run([sys.executable, POSTPROCESS, real])
     run([sys.executable, TABLES, root])
+    run([sys.executable, ASSESS, root])
 
     print("\n[full-paper] 4/4 Publication figures", flush=True)
     run([sys.executable, FIGURES, root])
@@ -159,6 +161,7 @@ def main() -> int:
     print("\n[full-paper] COMPLETE")
     print("[full-paper] output:", root)
     print("[full-paper] table:", root / "paper_final_method_comparison.csv")
+    print("[full-paper] hybrid assessment:", root / "paper_hybrid_gain_assessment.csv")
     print("[full-paper] markdown:", root / "paper_final_tables.md")
     print("[full-paper] figures: PNG 600 dpi + PDF + SVG")
     return 0
