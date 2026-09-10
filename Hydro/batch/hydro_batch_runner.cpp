@@ -87,20 +87,24 @@ void preparePhysicsConfig(const std::string& mode, HydroRunConfig& config) {
 
     const bool gisToOhq = config.use_hydro_package && !config.hydro_package_path.empty() &&
                           isGisToOhqHydroPinnExport(config.hydro_package_path);
+    const bool processAwareLstm = mode == "lstm_pinn" &&
+                                  config.pinn_physics_profile == "two_reservoir_hybrid";
 
-    if (gisToOhq) {
+    if (gisToOhq && processAwareLstm) {
+        // The process-aware recurrent hybrid intentionally uses the GIStoOHQ
+        // forcing-only physical layout, but it must retain its two-reservoir
+        // routing profile rather than being rewritten to the legacy single
+        // linear-reservoir benchmark.
+        config.use_latent_storage_physics = true; // legacy name: forcing-only layout selector
+    } else if (gisToOhq) {
         // GIStoOHQ exports do not contain an independently observed storage
-        // state, so their physics path must use the reduced forcing-only
-        // reservoir formulation rather than known-state water balance.
-        config.use_latent_storage_physics = true; // legacy flag name: forcing-only layout selector
+        // state, so legacy PINN paths use the reduced forcing-only reservoir.
+        config.use_latent_storage_physics = true;
         if (config.storage_coeff > 0.0) config.latent_storage_recession_per_hour = config.storage_coeff;
         config.pinn_physics_profile = "linear_reservoir";
         config.lambda_decay = config.latent_storage_recession_per_hour;
         config.forcing_gain = config.latent_storage_recession_per_hour;
     } else if (config.pinn_physics_profile == "linear_reservoir") {
-        // Respect an explicitly requested reduced-reservoir profile for
-        // Synthetic, CSV, and generic Hydro packages. Do not replace an
-        // explicit water_balance/cstr/exp_decay profile.
         config.use_latent_storage_physics = true;
         const double k = config.storage_coeff > 0.0
             ? config.storage_coeff
@@ -186,6 +190,13 @@ void printHyperparameters(const std::string& mode, const HydroRunConfig& config)
                   << " physics_weight=" << config.physics_weight
                   << " latent_storage=" << (config.use_latent_storage_physics ? "yes" : "no")
                   << " latent_recession_per_hour=" << config.latent_storage_recession_per_hour;
+        if (mode == "lstm_pinn" && config.pinn_physics_profile == "two_reservoir_hybrid") {
+            std::cout << " fast_k=" << config.storage_coeff
+                      << " slow_k=" << config.lambda_decay
+                      << " routing_alpha=" << config.runoff_coeff
+                      << " predictor_scaling=train_only_standardize"
+                      << " routing_units=physical";
+        }
     }
 }
 
@@ -208,7 +219,7 @@ void printMetrics(const std::string& experiment_id, const std::string& mode,
 }
 
 const char* summaryHeader() {
-    return "experiment_id,mode,lstm_sequence_length,input_lags,hidden_layers,activation,learning_rate,batch_size,random_seed,normalization,physics_profile,data_weight,physics_weight,latent_storage,latent_recession_per_hour,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_loss,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual";
+    return "experiment_id,mode,lstm_sequence_length,input_lags,hidden_layers,activation,learning_rate,batch_size,random_seed,normalization,physics_profile,storage_coeff,lambda_decay,runoff_coeff,data_weight,physics_weight,latent_storage,latent_recession_per_hour,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_loss,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual";
 }
 
 void prepareSummaryFile(const fs::path& summary_path) {
@@ -239,6 +250,7 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
         << csvCell(config.hidden_layers_csv) << ',' << csvCell(config.activation) << ','
         << config.learning_rate << ',' << config.batch_size << ',' << config.random_seed << ','
         << csvCell(config.normalization) << ',' << csvCell(config.pinn_physics_profile) << ','
+        << config.storage_coeff << ',' << config.lambda_decay << ',' << config.runoff_coeff << ','
         << config.data_weight << ',' << config.physics_weight << ','
         << (config.use_latent_storage_physics ? "true" : "false") << ','
         << config.latent_storage_recession_per_hour << ',' << (r.success ? "true" : "false") << ','
