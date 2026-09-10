@@ -60,7 +60,6 @@ class CheckpointMemoryStream : public std::istream {
 public:
     explicit CheckpointMemoryStream(const std::vector<std::uint8_t>& bytes)
         : std::istream(nullptr), buffer_(bytes) { rdbuf(&buffer_); }
-
 private:
     CheckpointMemoryBuffer buffer_;
 };
@@ -69,11 +68,13 @@ private:
 struct HydroInferenceSession::Impl {
     int64_t featureCount = 0;
     int sequenceLength = 0;
+    bool recurrentOutputIsPhysical = false;
     TensorScaler inputScaler;
     TensorScaler targetScaler;
     std::unique_ptr<NeuralNetworkWrapper> feedForward;
     torch::nn::Sequential sequential{nullptr};
     HydroLSTM recurrent{nullptr};
+    HydroTwoReservoirLSTM processRecurrent{nullptr};
 };
 
 HydroInferenceSession::HydroInferenceSession(const HydroInferenceArtifacts& artifacts,
@@ -87,16 +88,9 @@ HydroInferenceSession::HydroInferenceSession(const HydroInferenceArtifacts& arti
     impl_->inputScaler.importState(scalerArtifact->second.input);
     impl_->targetScaler.importState(scalerArtifact->second.target);
     impl_->featureCount = static_cast<int64_t>(scalerArtifact->second.input.offset.size());
-    // Identity normalization is persisted as a scalar state and intentionally
-    // broadcasts over all physical input features.
     if (scalerArtifact->second.input.method == "none" && impl_->featureCount == 1) {
         if (artifacts.experiment.config.pinn_physics_profile == "linear_reservoir" &&
             (approach == "ffn_pinn" || approach == "pinn")) {
-            // Reduced-reservoir exported models use [time, Peff, P, PET, ...].
-            // The exact width is encoded by the first linear layer, but the
-            // current artifact schema has no dedicated feature-count field.
-            // For the canonical reduced-reservoir contract use four features
-            // for synthetic/CSV and eight for GIStoOHQ Hydro packages.
             impl_->featureCount = artifacts.experiment.config.use_hydro_package ? 8 : 4;
         }
     }
@@ -130,13 +124,30 @@ HydroInferenceSession::HydroInferenceSession(const HydroInferenceArtifacts& arti
             throw std::runtime_error("Recurrent inference requires torch-module-v1.");
         }
         impl_->sequenceLength = std::max(2, artifacts.experiment.config.lstm_sequence_length);
-        impl_->recurrent = HydroLSTM(impl_->featureCount, hiddenLayers.front(), 1,
-                                     static_cast<int64_t>(hiddenLayers.size()));
         CheckpointMemoryStream archiveStream(modelArtifact->second.bytes);
         torch::serialize::InputArchive archive;
         archive.load_from(archiveStream);
-        impl_->recurrent->load(archive);
-        impl_->recurrent->eval();
+
+        const bool processAware = approach == "lstm_pinn" &&
+            artifacts.experiment.config.pinn_physics_profile == "two_reservoir_hybrid";
+        if (processAware) {
+            impl_->processRecurrent = HydroTwoReservoirLSTM(
+                impl_->featureCount,
+                hiddenLayers.front(),
+                static_cast<int64_t>(hiddenLayers.size()),
+                artifacts.experiment.config.physics_dt,
+                artifacts.experiment.config.storage_coeff,
+                artifacts.experiment.config.lambda_decay,
+                artifacts.experiment.config.runoff_coeff);
+            impl_->processRecurrent->load(archive);
+            impl_->processRecurrent->eval();
+            impl_->recurrentOutputIsPhysical = true;
+        } else {
+            impl_->recurrent = HydroLSTM(impl_->featureCount, hiddenLayers.front(), 1,
+                                         static_cast<int64_t>(hiddenLayers.size()));
+            impl_->recurrent->load(archive);
+            impl_->recurrent->eval();
+        }
     } else {
         throw std::invalid_argument("Unsupported inference approach: " + approach);
     }
@@ -164,9 +175,14 @@ torch::Tensor HydroInferenceSession::predict(const torch::Tensor& physicalInputs
             physicalInputs.size(2) != impl_->featureCount) {
             throw std::invalid_argument("Recurrent inference input shape does not match the exported configuration.");
         }
-        prediction = impl_->recurrent->forward(impl_->inputScaler.transform(physicalInputs));
+        const auto scaled = impl_->inputScaler.transform(physicalInputs);
+        prediction = impl_->processRecurrent
+            ? impl_->processRecurrent->forward(scaled)
+            : impl_->recurrent->forward(scaled);
     }
-    prediction = impl_->targetScaler.inverseTransform(prediction);
+    if (!impl_->recurrentOutputIsPhysical) {
+        prediction = impl_->targetScaler.inverseTransform(prediction);
+    }
     if (!prediction.defined() || prediction.dim() != 2 || prediction.size(0) != physicalInputs.size(0) ||
         prediction.size(1) != 1 || !prediction.isfinite().all().item<bool>()) {
         throw std::runtime_error("Checkpoint produced invalid predictions.");
