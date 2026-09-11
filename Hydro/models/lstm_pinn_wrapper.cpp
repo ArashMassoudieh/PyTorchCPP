@@ -289,7 +289,9 @@ HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
         validationLosses.push_back(validationMsePhysical);
         if (validationMsePhysical < bestValidationMse) {
             bestValidationMse = validationMsePhysical;
-            bestEpoch = pretrainEpochs + epoch + 1;
+            // best_epoch indexes the exported fine-tuning history only; supervised
+            // pretraining is intentionally not part of training_loss_history.
+            bestEpoch = epoch + 1;
             bestParameters.clear();
             for (const auto& p : model->parameters()) bestParameters.push_back(p.detach().clone());
         }
@@ -298,12 +300,15 @@ HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
     if (bestParameters.empty()) {
         throw std::runtime_error("Two-reservoir LSTM-PINN did not produce a validation checkpoint.");
     }
+    if (bestEpoch < 1 || static_cast<std::size_t>(bestEpoch) > losses.size()) {
+        throw std::runtime_error("Two-reservoir LSTM-PINN selected an invalid fine-tuning checkpoint epoch.");
+    }
     copyParameters(bestParameters, model->parameters());
 
     result.training_loss_history = losses;
     result.validation_loss_history = validationLosses;
     result.best_epoch = bestEpoch;
-    result.final_loss = losses.empty() ? bestValidationMse : losses.back();
+    result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
     result.validation_mse = bestValidationMse;
     result.input_scaler = inputScaler.exportState();
     result.target_scaler = targetScaler.exportState();
