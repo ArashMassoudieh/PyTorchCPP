@@ -4,10 +4,10 @@
 The workflow first executes a fast process-aware LSTM+PINN runtime preflight,
 then creates a controlled reduced-reservoir synthetic verification and a
 real-data experiment using the selected Hydro package or CSV source. It finally
-generates metric-definition diagnostics, combined paper tables, a post-hoc
-hybrid-gain assessment, frozen configs, and publication figures. Model selection
-is delegated to the adaptive pipeline and therefore uses validation data only;
-held-out test metrics are not used to choose hyperparameters.
+generates split-shift diagnostics, metric-definition diagnostics, combined paper
+tables, a post-hoc hybrid-gain assessment, frozen configs, and publication
+figures. Real-data selection uses validation data only; held-out test metrics are
+never used to choose hyperparameters.
 """
 from __future__ import annotations
 
@@ -19,16 +19,48 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 PREFLIGHT = HERE / "smoke_test_process_hybrid.py"
-ADAPTIVE = HERE / "run_adaptive_full_pipeline.py"
+ADAPTIVE = HERE / "run_improved_adaptive_pipeline.py"
 POSTPROCESS = HERE / "postprocess_metric_status.py"
+SPLIT_DIAGNOSTICS = HERE / "diagnose_split_shift.py"
 TABLES = HERE / "build_paper_comparison.py"
 ASSESS = HERE / "assess_hybrid_gain.py"
 FIGURES = HERE / "make_paper_figures.py"
+LOG_PATH: Path | None = None
+
+
+def append_log(text: str) -> None:
+    if LOG_PATH is None:
+        return
+    with LOG_PATH.open("a", encoding="utf-8") as f:
+        f.write(text)
+        if text and not text.endswith("\n"):
+            f.write("\n")
+
+
+def say(text: str = "") -> None:
+    print(text, flush=True)
+    append_log(text)
 
 
 def run(cmd: list[str]) -> None:
-    print("[full-paper] $", " ".join(str(v) for v in cmd), flush=True)
-    subprocess.run([str(v) for v in cmd], cwd=HERE, check=True)
+    command = "[full-paper] $ " + " ".join(str(v) for v in cmd)
+    say(command)
+    process = subprocess.Popen(
+        [str(v) for v in cmd],
+        cwd=HERE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    assert process.stdout is not None
+    for line in process.stdout:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        append_log(line.rstrip("\n"))
+    code = process.wait()
+    if code != 0:
+        raise subprocess.CalledProcessError(code, [str(v) for v in cmd])
 
 
 def parser() -> argparse.ArgumentParser:
@@ -84,9 +116,17 @@ def preflight_source_args(a: argparse.Namespace) -> list[str]:
 
 
 def main() -> int:
+    global LOG_PATH
     a = parser().parse_args()
     root = a.output_root.resolve()
     root.mkdir(parents=True, exist_ok=True)
+    LOG_PATH = root / "full_pipeline.log"
+    LOG_PATH.write_text(
+        "HydroPINN full paper pipeline log\n"
+        f"started_utc={datetime.now(timezone.utc).isoformat()}\n"
+        f"output_root={root}\n\n",
+        encoding="utf-8",
+    )
     if not a.hydrobatch.exists():
         raise SystemExit(f"HydroBatch not found: {a.hydrobatch}")
     if a.data_source == "hydro" and not a.hydro_package_path.strip():
@@ -101,7 +141,9 @@ def main() -> int:
         f"real_data_source={a.data_source}\n" +
         f"hydro_package_path={a.hydro_package_path}\n" +
         f"csv_path={a.csv_path}\n" +
+        f"full_pipeline_log={LOG_PATH}\n" +
         "selection=validation only; test metrics not used for tuning\n" +
+        "selection_order_real=nondegenerate KGE -> NSE -> |PBIAS| -> RMSE\n" +
         "comparison_domain=common longest contiguous GIStoOHQ segment when HydroPINNExport is used\n" +
         f"process_hybrid_preflight={'skipped' if a.skip_process_preflight else 'required'}\n",
         encoding="utf-8",
@@ -109,10 +151,10 @@ def main() -> int:
 
     preflight = root / "00_process_hybrid_preflight"
     synthetic = root / "01_synthetic_controlled"
-    real = root / "02_sligo_hydro"  # retained name for backward-compatible table/figure scripts
+    real = root / "02_sligo_hydro"
 
     if not a.skip_process_preflight:
-        print("\n[full-paper] 0/4 Process-aware LSTM+PINN preflight", flush=True)
+        say("\n[full-paper] 0/4 Process-aware LSTM+PINN preflight")
         run([
             sys.executable, PREFLIGHT,
             "--hydrobatch", a.hydrobatch.resolve(),
@@ -123,7 +165,7 @@ def main() -> int:
         with metadata.open("a", encoding="utf-8") as f:
             f.write("process_hybrid_preflight_status=pass\n")
 
-    print("\n[full-paper] 1/4 Controlled reduced-reservoir verification", flush=True)
+    say("\n[full-paper] 1/4 Controlled reduced-reservoir verification")
     run([
         sys.executable, ADAPTIVE,
         "--hydrobatch", a.hydrobatch.resolve(),
@@ -138,7 +180,7 @@ def main() -> int:
         "--robust-seeds", a.robust_seeds,
     ])
 
-    print("\n[full-paper] 2/4 Real-data five-method adaptive study", flush=True)
+    say("\n[full-paper] 2/4 Real-data five-method adaptive study")
     run([
         sys.executable, ADAPTIVE,
         "--hydrobatch", a.hydrobatch.resolve(),
@@ -146,26 +188,33 @@ def main() -> int:
         *real_source_args(a),
     ])
 
-    print("\n[full-paper] 3/4 Diagnostics, final tables, and hybrid assessment", flush=True)
+    say("\n[full-paper] 3/4 Split-shift diagnostics, final tables, and hybrid assessment")
+    run([sys.executable, SPLIT_DIAGNOSTICS, real])
     run([sys.executable, POSTPROCESS, real])
     run([sys.executable, TABLES, root])
     run([sys.executable, ASSESS, root])
 
-    print("\n[full-paper] 4/4 Publication figures", flush=True)
+    say("\n[full-paper] 4/4 Publication figures")
     run([sys.executable, FIGURES, root])
 
     with metadata.open("a", encoding="utf-8") as f:
         f.write("finished_utc=" + datetime.now(timezone.utc).isoformat() + "\n")
         f.write("status=complete\n")
 
-    print("\n[full-paper] COMPLETE")
-    print("[full-paper] output:", root)
-    print("[full-paper] table:", root / "paper_final_method_comparison.csv")
-    print("[full-paper] hybrid assessment:", root / "paper_hybrid_gain_assessment.csv")
-    print("[full-paper] markdown:", root / "paper_final_tables.md")
-    print("[full-paper] figures: PNG 600 dpi + PDF + SVG")
+    say("\n[full-paper] COMPLETE")
+    say("[full-paper] output: " + str(root))
+    say("[full-paper] log: " + str(LOG_PATH))
+    say("[full-paper] table: " + str(root / "paper_final_method_comparison.csv"))
+    say("[full-paper] hybrid assessment: " + str(root / "paper_hybrid_gain_assessment.csv"))
+    say("[full-paper] split diagnostics: " + str(real / "paper_split_shift_diagnostics.csv"))
+    say("[full-paper] markdown: " + str(root / "paper_final_tables.md"))
+    say("[full-paper] figures: PNG 600 dpi + PDF + SVG")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except BaseException as exc:
+        append_log(f"[full-paper] FAILED: {type(exc).__name__}: {exc}")
+        raise
