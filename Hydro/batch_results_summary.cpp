@@ -76,6 +76,7 @@ struct ResultRow {
     double rmse = std::numeric_limits<double>::quiet_NaN();
     double mae = std::numeric_limits<double>::quiet_NaN();
     double r2 = std::numeric_limits<double>::quiet_NaN();
+    double nse = std::numeric_limits<double>::quiet_NaN();
     double kge = std::numeric_limits<double>::quiet_NaN();
     double pbias = std::numeric_limits<double>::quiet_NaN();
     double physicsRmse = std::numeric_limits<double>::quiet_NaN();
@@ -86,32 +87,41 @@ QString statusFor(const ResultRow& r, bool best)
 {
     if (!r.success) return "Failed";
     if (best) return "Best";
-    if (!std::isfinite(r.r2)) return "Check metrics";
-    if (r.r2 >= 0.50 && (!std::isfinite(r.kge) || r.kge >= 0.50)) return "Good";
-    if (r.r2 >= 0.0) return "Fair";
+    if (!std::isfinite(r.nse)) return "Check metrics";
+    if (r.nse >= 0.50 && (!std::isfinite(r.kge) || r.kge >= 0.50)) return "Good";
+    if (r.nse >= 0.0) return "Fair";
     return "Needs tuning";
 }
 
 bool better(const ResultRow& a, const ResultRow& b)
 {
     if (a.success != b.success) return a.success;
-    const bool ar2 = std::isfinite(a.r2);
-    const bool br2 = std::isfinite(b.r2);
-    if (ar2 != br2) return ar2;
-    if (ar2 && std::abs(a.r2 - b.r2) > 1e-12) return a.r2 > b.r2;
+
     const bool ak = std::isfinite(a.kge);
     const bool bk = std::isfinite(b.kge);
     if (ak != bk) return ak;
     if (ak && std::abs(a.kge - b.kge) > 1e-12) return a.kge > b.kge;
+
+    const bool an = std::isfinite(a.nse);
+    const bool bn = std::isfinite(b.nse);
+    if (an != bn) return an;
+    if (an && std::abs(a.nse - b.nse) > 1e-12) return a.nse > b.nse;
+
     const bool ap = std::isfinite(a.pbias);
     const bool bp = std::isfinite(b.pbias);
     if (ap != bp) return ap;
     if (ap && std::abs(std::abs(a.pbias) - std::abs(b.pbias)) > 1e-12)
         return std::abs(a.pbias) < std::abs(b.pbias);
+
     const bool armse = std::isfinite(a.rmse);
     const bool brmse = std::isfinite(b.rmse);
     if (armse != brmse) return armse;
     if (armse && std::abs(a.rmse - b.rmse) > 1e-12) return a.rmse < b.rmse;
+
+    const bool ar2 = std::isfinite(a.r2);
+    const bool br2 = std::isfinite(b.r2);
+    if (ar2 != br2) return ar2;
+    if (ar2 && std::abs(a.r2 - b.r2) > 1e-12) return a.r2 > b.r2;
     return a.experimentId < b.experimentId;
 }
 
@@ -159,7 +169,7 @@ void showHydroBatchResultsSummary(QWidget* parent,
         r.rmse = numberOrNan(value(cRmse));
         r.mae = numberOrNan(value(cMae));
         r.r2 = numberOrNan(value(cR2));
-        if (!std::isfinite(r.r2)) r.r2 = numberOrNan(value(cNse));
+        r.nse = numberOrNan(value(cNse));
         r.kge = numberOrNan(value(cKge));
         r.pbias = numberOrNan(value(cPbias));
         r.physicsRmse = numberOrNan(value(cPhysicsRmse));
@@ -172,17 +182,16 @@ void showHydroBatchResultsSummary(QWidget* parent,
     auto* dialog = new QDialog(parent);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setWindowTitle(title.isEmpty() ? "HydroBatch Results Summary" : title);
-    dialog->resize(1040, 560);
+    dialog->resize(1120, 560);
     auto* layout = new QVBoxLayout(dialog);
 
     auto* intro = new QLabel(
-        "Ranked primarily by R²/NSE, then KGE, absolute PBIAS, and RMSE. "
-        "Very low RMSE does not override negative R²/NSE or invalid KGE.", dialog);
+        "Ranked by KGE, then NSE, absolute PBIAS, and RMSE. Pearson R² is shown separately as a pattern-association diagnostic and is not treated as an NSE alias.", dialog);
     intro->setWordWrap(true);
     layout->addWidget(intro);
 
-    auto* table = new QTableWidget(rows.size(), 10, dialog);
-    table->setHorizontalHeaderLabels({"Rank","Method","Architecture","Memory","RMSE","MAE","R²/NSE","KGE","PBIAS %","Status"});
+    auto* table = new QTableWidget(rows.size(), 11, dialog);
+    table->setHorizontalHeaderLabels({"Rank","Method","Architecture","Memory","RMSE","MAE","NSE","Pearson R²","KGE","PBIAS %","Status"});
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setAlternatingRowColors(true);
@@ -192,7 +201,7 @@ void showHydroBatchResultsSummary(QWidget* parent,
         const QString memory = r.sequence.isEmpty() || r.sequence == "0" ? "—" : r.sequence + " h";
         const QStringList values = {
             QString::number(i + 1), methodLabel(r.mode), architecture, memory,
-            fmt(r.rmse, 5), fmt(r.mae, 5), fmt(r.r2, 3), fmt(r.kge, 3), fmt(r.pbias, 2), statusFor(r, i == 0)
+            fmt(r.rmse, 5), fmt(r.mae, 5), fmt(r.nse, 3), fmt(r.r2, 3), fmt(r.kge, 3), fmt(r.pbias, 2), statusFor(r, i == 0)
         };
         for (int c = 0; c < values.size(); ++c) table->setItem(i, c, new QTableWidgetItem(values.at(c)));
     }
@@ -201,8 +210,9 @@ void showHydroBatchResultsSummary(QWidget* parent,
     layout->addWidget(table, 1);
 
     const ResultRow& best = rows.first();
-    QString bestText = QString("Top ranked: %1  |  R²/NSE %2  |  KGE %3  |  PBIAS %4%  |  RMSE %5")
+    QString bestText = QString("Top ranked: %1  |  NSE %2  |  Pearson R² %3  |  KGE %4  |  PBIAS %5%  |  RMSE %6")
         .arg(methodLabel(best.mode))
+        .arg(fmt(best.nse, 3))
         .arg(fmt(best.r2, 3))
         .arg(fmt(best.kge, 3))
         .arg(fmt(best.pbias, 2))
