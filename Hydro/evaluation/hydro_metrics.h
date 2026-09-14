@@ -43,20 +43,30 @@ inline void populateHydroMetrics(HydroRunResult& result,
     result.mse = squared / static_cast<double>(n);
     result.rmse = std::sqrt(result.mse);
     result.mae = absolute / static_cast<double>(n);
+
+    // Nash-Sutcliffe efficiency is the hydrologic 1-SSE/SST efficiency metric.
+    // Keep it separate from R^2 so the two columns are not mathematical aliases.
     result.nse = denominator > 0.0 ? 1.0 - squared / denominator
                                    : std::numeric_limits<double>::quiet_NaN();
-    // ML coefficient of determination on the same held-out series. With this
-    // standard 1-SSE/SST definition it is numerically identical to NSE; both
-    // names are retained because they serve different ML/hydrology audiences.
-    result.r2 = result.nse;
+
+    result.correlation = denominator > 0.0 && predictedVariance > 0.0
+                             ? covariance / std::sqrt(denominator * predictedVariance)
+                             : std::numeric_limits<double>::quiet_NaN();
+
+    // HydroPINN reports R^2 as squared Pearson correlation. This is deliberately
+    // distinct from NSE: R^2 measures linear association/pattern agreement,
+    // whereas NSE also penalizes bias and scale errors relative to the observed
+    // mean benchmark. Undefined correlation therefore implies undefined R^2.
+    result.r2 = std::isfinite(result.correlation)
+                    ? result.correlation * result.correlation
+                    : std::numeric_limits<double>::quiet_NaN();
+
     double observedSum = 0.0;
     for (size_t i = 0; i < n; ++i) observedSum += observed[i];
     result.pbias = std::abs(observedSum) > 0.0 ? 100.0 * signedError / observedSum
                                                : std::numeric_limits<double>::quiet_NaN();
     result.volume_error_percent = result.pbias;
-    result.correlation = denominator > 0.0 && predictedVariance > 0.0
-                             ? covariance / std::sqrt(denominator * predictedVariance)
-                             : std::numeric_limits<double>::quiet_NaN();
+
     const double observedStd = n > 1 ? std::sqrt(denominator / static_cast<double>(n - 1)) : 0.0;
     const double predictedStd = n > 1 ? std::sqrt(predictedVariance / static_cast<double>(n - 1)) : 0.0;
     if (std::isfinite(result.correlation) && std::abs(mean) > 0.0 && observedStd > 0.0) {
