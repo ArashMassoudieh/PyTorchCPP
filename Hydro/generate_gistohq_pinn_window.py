@@ -7,9 +7,11 @@ The canonical GUI source stays readable and stable. This build-time transform:
 - exposes an explicit ``reduced_reservoir`` synthetic validation profile,
 - makes that profile use the same shared truth generator as all five methods,
 - keeps direct GUI controlled-validation runs on the known synthetic truth k,
-- wires Inputs + Output directly to the active data-source plotter, and
+- wires Inputs + Output directly to the active data-source plotter,
 - assigns stable object names to data-source widgets so the full tuning pipeline
-  can snapshot the actual GUI selection instead of assuming Sligo Hydro input.
+  can snapshot the actual GUI selection instead of assuming Sligo Hydro input,
+- reports Pearson R² separately from NSE in direct-run logs, and
+- prevents 1-SSE/SST scatter diagnostics from being mislabeled as R².
 """
 
 from pathlib import Path
@@ -90,8 +92,8 @@ NEW_CFG = '''    HydroRunConfig cfg = currentConfig();
         (mode == "ffn_pinn" || mode == "lstm_pinn" || mode == "pinn")) {
         cfg.pinn_physics_profile = "linear_reservoir";
         // A direct GUI run of the controlled reduced-reservoir case is a known-truth
-        // validation, not a parameter sweep.  Keep the model coefficient aligned
-        // with the coefficient used to generate the synthetic target.  Candidate-k
+        // validation, not a parameter sweep. Keep the model coefficient aligned
+        // with the coefficient used to generate the synthetic target. Candidate-k
         // sweeps remain independent in generate_unified_sweep.py / HydroBatch.
         cfg.latent_storage_recession_per_hour = std::max(1.0e-8, cfg.synthetic_reservoir_truth_k);
         cfg.lambda_decay = cfg.latent_storage_recession_per_hour;
@@ -155,6 +157,25 @@ NEW_EXPORT = '''        } else if (profile == "reduced_reservoir") {
 OLD_INPUTS_OUTPUT_CONNECT = '    connect(showInputsOutputsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showSyntheticInputsOutputs);\n'
 NEW_INPUTS_OUTPUT_CONNECT = '    connect(showInputsOutputsButton_, &QPushButton::clicked, this, &HydroPINNWindow::showCurrentInputsOutputs);\n'
 
+OLD_DIRECT_LOG_FORMAT = '  final_loss=%1, validation_mse=%2, test_mse=%3, rmse=%4, mae=%5, nse=%6, pbias=%7, physics_loss=%8, msg=%9'
+NEW_DIRECT_LOG_FORMAT = '  final_loss=%1, validation_mse=%2, test_mse=%3, rmse=%4, mae=%5, nse=%6, r2=%7, pbias=%8, physics_loss=%9, msg=%10'
+OLD_DIRECT_LOG_ARGS = '''                      .arg(result.nse, 0, 'g', 8)
+                      .arg(result.pbias, 0, 'g', 8)
+'''
+NEW_DIRECT_LOG_ARGS = '''                      .arg(result.nse, 0, 'g', 8)
+                      .arg(result.r2, 0, 'g', 8)
+                      .arg(result.pbias, 0, 'g', 8)
+'''
+
+OLD_SCATTER_MODE = '''        const double r2 = (ssTot > 1e-12) ? (1.0 - ssRes / ssTot) : 0.0;
+        pts->setName(QString("%1 (R²=%2)").arg(modeDisplayName(mode)).arg(r2, 0, 'f', 3));
+'''
+NEW_SCATTER_MODE = '''        const double nse = (ssTot > 1e-12) ? (1.0 - ssRes / ssTot) : 0.0;
+        pts->setName(QString("%1 (NSE=%2)").arg(modeDisplayName(mode)).arg(nse, 0, 'f', 3));
+'''
+OLD_SCATTER_TITLE = '        pts->setName(QString("%1 (R²=%2)").arg(titles[i]).arg(r2, 0, \'f\', 3));\n'
+NEW_SCATTER_TITLE = '        pts->setName(QString("%1 (NSE=%2)").arg(titles[i]).arg(r2, 0, \'f\', 3));\n'
+
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
     if old not in text:
@@ -175,6 +196,10 @@ def main() -> int:
     text = replace_once(text, OLD_INPUT_MAP, NEW_INPUT_MAP, "synthetic input map")
     text = replace_once(text, OLD_EXPORT, NEW_EXPORT, "synthetic export")
     text = replace_once(text, OLD_INPUTS_OUTPUT_CONNECT, NEW_INPUTS_OUTPUT_CONNECT, "Inputs + Output button wiring")
+    text = replace_once(text, OLD_DIRECT_LOG_FORMAT, NEW_DIRECT_LOG_FORMAT, "direct-run R2 log format")
+    text = replace_once(text, OLD_DIRECT_LOG_ARGS, NEW_DIRECT_LOG_ARGS, "direct-run R2 log argument")
+    text = replace_once(text, OLD_SCATTER_MODE, NEW_SCATTER_MODE, "mode scatter metric label")
+    text = replace_once(text, OLD_SCATTER_TITLE, NEW_SCATTER_TITLE, "comparison scatter metric label")
     text = text.replace("FFNPINNWrapper runner;", "FFNReservoirPINNWrapper runner;")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(text, encoding="utf-8")
