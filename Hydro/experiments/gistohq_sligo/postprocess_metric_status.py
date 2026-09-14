@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Add explicit metric-definition diagnostics to a completed adaptive paper run.
 
-KGE is mathematically undefined when Pearson correlation is undefined, most
-commonly because a model's held-out predictions are constant (zero variance).
-This script inspects Stage-4 per-seed batch metrics and predictions, then adds
-explicit *_defined_seed_count / *_status fields to the paper summaries.
-It does not alter any model predictions or finite metric values.
+KGE and Pearson R^2 are mathematically undefined when Pearson correlation is
+undefined, most commonly because a model's held-out predictions are constant
+(zero variance). This script inspects Stage-4 per-seed batch metrics and
+predictions, then adds explicit *_defined_seed_count / *_status fields plus
+Pearson-R^2 robustness statistics to the paper summaries.
+
+HydroPINN defines R^2 for paper reporting as squared Pearson correlation, r^2.
+NSE remains the distinct hydrologic 1-SSE/SST efficiency metric. This script
+also repairs legacy batch rows where the old r2 column duplicated NSE by
+recomputing R^2 from the exported Pearson correlation. It does not alter model
+predictions or any other finite metric values.
 """
 from __future__ import annotations
 
@@ -44,6 +50,14 @@ def finite(value: str | None) -> bool:
         return False
 
 
+def finite_value(value: str | None) -> float:
+    try:
+        parsed = float(value)
+        return parsed if math.isfinite(parsed) else math.nan
+    except (TypeError, ValueError):
+        return math.nan
+
+
 def prediction_std(path: Path) -> float:
     if not path.exists():
         return math.nan
@@ -63,18 +77,25 @@ def prediction_std(path: Path) -> float:
     return statistics.pstdev(values)
 
 
-def diagnostic_status(defined: int, total: int, near_constant: int) -> str:
+def diagnostic_status(defined: int, total: int, near_constant: int, metric: str) -> str:
     if total <= 0:
         return "not_evaluated"
     if defined == total:
         return "defined_all_seeds"
     if defined == 0 and near_constant == total:
-        return "undefined_all_seeds_constant_prediction"
+        return f"undefined_all_seeds_constant_prediction_{metric}"
     if defined == 0:
-        return "undefined_all_seeds"
+        return f"undefined_all_seeds_{metric}"
     if near_constant > 0:
-        return "partially_defined_some_constant_predictions"
-    return "partially_defined"
+        return f"partially_defined_some_constant_predictions_{metric}"
+    return f"partially_defined_{metric}"
+
+
+def mean_std(values: list[float]) -> tuple[float, float]:
+    values = [v for v in values if math.isfinite(v)]
+    if not values:
+        return math.nan, math.nan
+    return statistics.fmean(values), statistics.pstdev(values) if len(values) > 1 else 0.0
 
 
 def process(root: Path) -> None:
@@ -90,7 +111,18 @@ def process(root: Path) -> None:
         batch_paths = [aggregate] if aggregate.exists() else []
     batch_rows: list[dict[str, str]] = []
     for path in batch_paths:
-        batch_rows.extend(read_rows(path))
+        rows = read_rows(path)
+        changed = False
+        for row in rows:
+            corr = finite_value(row.get("correlation"))
+            corrected_r2 = corr * corr if math.isfinite(corr) else math.nan
+            corrected_text = str(corrected_r2)
+            if row.get("r2") != corrected_text:
+                row["r2"] = corrected_text
+                changed = True
+        if changed:
+            write_rows(path, rows)
+        batch_rows.extend(rows)
     if not batch_rows:
         raise SystemExit(f"No Stage-4 batch summaries found under {stage4}")
 
@@ -101,6 +133,10 @@ def process(root: Path) -> None:
         total = len(members)
         kge_defined = sum(finite(r.get("kge")) for r in members)
         corr_defined = sum(finite(r.get("correlation")) for r in members)
+        r2_values = [finite_value(r.get("r2")) for r in members]
+        r2_defined = sum(math.isfinite(v) for v in r2_values)
+        r2_mean, r2_std = mean_std(r2_values)
+
         stds: list[float] = []
         near_constant = 0
         for r in members:
@@ -113,10 +149,16 @@ def process(root: Path) -> None:
         finite_stds = [s for s in stds if math.isfinite(s)]
         diagnostics[mode] = {
             "correlation_defined_seed_count": str(corr_defined),
+            "pearson_r2_defined_seed_count": str(r2_defined),
+            "pearson_r2_mean": str(r2_mean),
+            "pearson_r2_std": str(r2_std),
+            "pearson_r2_status": diagnostic_status(r2_defined, total, near_constant, "pearson_r2"),
             "kge_defined_seed_count": str(kge_defined),
             "prediction_near_constant_seed_count": str(near_constant),
             "prediction_test_std_mean": str(statistics.fmean(finite_stds)) if finite_stds else "nan",
-            "kge_status": diagnostic_status(kge_defined, total, near_constant),
+            "kge_status": diagnostic_status(kge_defined, total, near_constant, "kge"),
+            "r2_definition": "squared_pearson_correlation",
+            "nse_definition": "1_minus_sse_over_observed_sst",
         }
 
     for path in (summary_path, method_path):
