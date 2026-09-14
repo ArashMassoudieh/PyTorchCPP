@@ -144,6 +144,7 @@ def main() -> int:
         f"full_pipeline_log={LOG_PATH}\n" +
         "selection=validation only; test metrics not used for tuning\n" +
         "selection_order_real=nondegenerate KGE -> NSE -> |PBIAS| -> RMSE\n" +
+        "r2_definition=squared Pearson correlation; NSE retained separately\n" +
         "comparison_domain=common longest contiguous GIStoOHQ segment when HydroPINNExport is used\n" +
         f"process_hybrid_preflight={'skipped' if a.skip_process_preflight else 'required'}\n",
         encoding="utf-8",
@@ -188,8 +189,9 @@ def main() -> int:
         *real_source_args(a),
     ])
 
-    say("\n[full-paper] 3/4 Split-shift diagnostics, final tables, and hybrid assessment")
+    say("\n[full-paper] 3/4 Split-shift diagnostics, metric definitions, final tables, and hybrid assessment")
     run([sys.executable, SPLIT_DIAGNOSTICS, real])
+    run([sys.executable, POSTPROCESS, synthetic])
     run([sys.executable, POSTPROCESS, real])
     run([sys.executable, TABLES, root])
     run([sys.executable, ASSESS, root])
