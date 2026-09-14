@@ -98,6 +98,37 @@ def mean_std(values: list[float]) -> tuple[float, float]:
     return statistics.fmean(values), statistics.pstdev(values) if len(values) > 1 else 0.0
 
 
+def add_synthetic_whole_domain_r2(root: Path) -> None:
+    whole_path = root / "synthetic_whole_domain_metrics.csv"
+    summary_path = root / "paper_synthetic_known_truth_summary.csv"
+    if not whole_path.exists() or not summary_path.exists():
+        return
+
+    whole_rows = read_rows(whole_path)
+    for row in whole_rows:
+        corr = finite_value(row.get("whole_correlation"))
+        row["whole_r2"] = str(corr * corr) if math.isfinite(corr) else "nan"
+        row["r2_definition"] = "squared_pearson_correlation"
+        row["nse_definition"] = "1_minus_sse_over_observed_sst"
+    write_rows(whole_path, whole_rows)
+
+    by_mode: dict[str, list[dict[str, str]]] = {}
+    for row in whole_rows:
+        by_mode.setdefault(row.get("mode", ""), []).append(row)
+
+    summary_rows = read_rows(summary_path)
+    for row in summary_rows:
+        members = by_mode.get(row.get("mode", ""), [])
+        values = [finite_value(member.get("whole_r2")) for member in members]
+        mean, std = mean_std(values)
+        row["whole_r2_mean"] = str(mean)
+        row["whole_r2_std"] = str(std)
+        row["whole_r2_defined_seed_count"] = str(sum(math.isfinite(v) for v in values))
+        row["r2_definition"] = "squared_pearson_correlation"
+        row["nse_definition"] = "1_minus_sse_over_observed_sst"
+    write_rows(summary_path, summary_rows)
+
+
 def process(root: Path) -> None:
     stage4 = root / "04_stage4_robustness"
     summary_path = root / "paper_robustness_summary.csv"
@@ -166,6 +197,8 @@ def process(root: Path) -> None:
         for row in rows:
             row.update(diagnostics.get(row.get("mode", ""), {}))
         write_rows(path, rows)
+
+    add_synthetic_whole_domain_r2(root)
 
     diag_rows = [{"mode": mode, **values} for mode, values in diagnostics.items()]
     write_rows(root / "paper_metric_definition_diagnostics.csv", diag_rows)
