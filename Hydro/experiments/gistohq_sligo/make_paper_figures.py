@@ -33,7 +33,6 @@ def pred(stage4: Path, mode: str):
 
 
 def save_publication(fig, root: Path, stem: str):
-    # 600-dpi raster for journal submission plus vector PDF/SVG for editing/typesetting.
     fig.savefig(root / f"{stem}.png", dpi=600, bbox_inches="tight")
     fig.savefig(root / f"{stem}.pdf", bbox_inches="tight")
     fig.savefig(root / f"{stem}.svg", bbox_inches="tight")
@@ -50,8 +49,6 @@ def keyed(rows, split=None):
             continue
         if not all(math.isfinite(v) for v in (x, obs, pr)):
             continue
-        # Physical times are hourly for GIStoOHQ and regular for synthetic.  A
-        # rounded key avoids float32 text serialization noise without changing x.
         out[round(x, 8)] = (x, obs, pr)
     return out
 
@@ -108,30 +105,30 @@ def plot_skill_summary(root: Path):
     labels = [LABEL[m] for m in MODES]
     xs = list(range(len(MODES)))
 
-    fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.4))
+    fig, axes = plt.subplots(2, 2, figsize=(11.8, 8.0))
     panels = [
         ("RMSE", "rmse_mean", "rmse_std", "RMSE (mm h$^{-1}$)", None),
         ("NSE", "nse_mean", "nse_std", "NSE", 0.0),
+        ("Pearson R²", "pearson_r2_mean", "pearson_r2_std", "Pearson $R^2$", 0.0),
         ("PBIAS", "pbias_mean", "pbias_std", "PBIAS (%)", 0.0),
     ]
-    for ax, (_, mean_key, std_key, ylabel, reference) in zip(axes, panels):
+    for ax, (title, mean_key, std_key, ylabel, reference) in zip(axes.flat, panels):
         means = [numeric(by_mode[m], mean_key) for m in MODES]
         errs = [numeric(by_mode[m], std_key) for m in MODES]
         ax.errorbar(xs, means, yerr=errs, fmt="o", capsize=4, linewidth=1.2, markersize=6)
         if reference is not None:
             ax.axhline(reference, linewidth=0.9, linestyle="--", alpha=0.6)
-        ax.set_xticks(xs, labels, rotation=25, ha="right")
+        ax.set_xticks(xs, labels, rotation=22, ha="right")
         ax.set_ylabel(ylabel)
+        ax.set_title(title)
         ax.grid(axis="y", alpha=0.16, linewidth=0.7)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-    fig.suptitle("Sligo Creek held-out performance across five random seeds", y=1.02)
+    fig.suptitle("Sligo Creek held-out hydrologic skill across five random seeds", y=1.01)
     fig.tight_layout()
     save_publication(fig, root, "paper_sligo_hydrologic_skill")
     plt.close(fig)
 
-    # Keep a dedicated RMSE figure for compatibility, but make it a restrained
-    # point/error-bar plot rather than a bar chart that can overemphasize low RMSE.
     fig, ax = plt.subplots(figsize=(7.8, 4.8))
     means = [numeric(by_mode[m], "rmse_mean") for m in MODES]
     errs = [numeric(by_mode[m], "rmse_std") for m in MODES]
