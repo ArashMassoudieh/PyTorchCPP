@@ -122,7 +122,14 @@ inline void buildReducedReservoirSyntheticTensors(const HydroRunConfig& config,
         const double precipitation = storm1 + storm2 + 0.12 * std::max(0.0, std::sin(6.0 * pi * r));
         const double pet = 0.035 + 0.02 * (1.0 + std::sin(2.0 * pi * r - 0.5));
         const double peff = std::max(0.0, precipitation - pet);
-        if (i > 0) q += dt * truthK * (peff - q);
+        if (i > 0) {
+            // Match the backward-Euler residual enforced by all reduced-reservoir
+            // PINN implementations:
+            //   (Q_i-Q_{i-1})/dt = k(Peff_i-Q_i)
+            // Therefore the known-truth trajectory has zero discrete residual
+            // (up to floating-point roundoff) when evaluated with truthK.
+            q = (q + dt * truthK * peff) / (1.0 + dt * truthK);
+        }
         q = std::max(0.0, q);
 
         features.push_back(static_cast<float>(t));
