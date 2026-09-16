@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Run the complete HydroPINN paper workflow from one command/GUI action.
 
-The workflow first executes a fast process-aware LSTM+PINN runtime preflight,
-then creates a controlled reduced-reservoir synthetic verification and a
-real-data experiment using the selected Hydro package or CSV source. It finally
-generates split-shift diagnostics, metric-definition diagnostics, combined paper
-tables, a post-hoc hybrid-gain assessment, frozen configs, and publication
-figures. Real-data selection uses validation data only; held-out test metrics are
-never used to choose hyperparameters.
+The workflow first executes cheap source/physics regression checks and a fast
+process-aware LSTM+PINN runtime preflight, then creates a controlled
+reduced-reservoir synthetic verification and a real-data experiment using the
+selected Hydro package or CSV source. It finally generates split-shift
+diagnostics, metric-definition diagnostics, combined paper tables, a post-hoc
+hybrid-gain assessment, frozen configs, and publication figures. Real-data
+selection uses validation data only; held-out test metrics are never used to
+choose hyperparameters.
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+REGRESSION_CHECKS = HERE / "check_gui_physics_regressions.py"
 PREFLIGHT = HERE / "smoke_test_process_hybrid.py"
 ADAPTIVE = HERE / "run_improved_adaptive_pipeline.py"
 POSTPROCESS = HERE / "postprocess_metric_status.py"
@@ -145,6 +147,7 @@ def main() -> int:
         "selection=validation only; test metrics not used for tuning\n" +
         "selection_order_real=nondegenerate KGE -> NSE -> |PBIAS| -> RMSE\n" +
         "r2_definition=squared Pearson correlation; NSE retained separately\n" +
+        "synthetic_discretization=backward Euler, matched to reduced-reservoir PINN residual\n" +
         "comparison_domain=common longest contiguous GIStoOHQ segment when HydroPINNExport is used\n" +
         f"process_hybrid_preflight={'skipped' if a.skip_process_preflight else 'required'}\n",
         encoding="utf-8",
@@ -154,8 +157,13 @@ def main() -> int:
     synthetic = root / "01_synthetic_controlled"
     real = root / "02_sligo_hydro"
 
+    say("\n[full-paper] 0a/4 GUI routing + synthetic-physics regression checks")
+    run([sys.executable, REGRESSION_CHECKS])
+    with metadata.open("a", encoding="utf-8") as f:
+        f.write("gui_physics_regression_status=pass\n")
+
     if not a.skip_process_preflight:
-        say("\n[full-paper] 0/4 Process-aware LSTM+PINN preflight")
+        say("\n[full-paper] 0b/4 Process-aware LSTM+PINN preflight")
         run([
             sys.executable, PREFLIGHT,
             "--hydrobatch", a.hydrobatch.resolve(),
