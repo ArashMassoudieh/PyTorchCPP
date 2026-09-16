@@ -3,7 +3,8 @@
 
 The canonical GUI source stays readable and stable. This build-time transform:
 - enables GIStoOHQ reduced-reservoir physics without reconstructed storage,
-- routes FFN+PINN to the corrected reservoir wrapper,
+- routes only the direct FFN+PINN run to the corrected reservoir wrapper,
+- preserves the lag-search FFN+PINN wrapper so GA candidates can use lagged inputs,
 - exposes an explicit ``reduced_reservoir`` synthetic validation profile,
 - makes that profile use the same shared truth generator as all five methods,
 - keeps direct GUI controlled-validation runs on the known synthetic truth k,
@@ -176,10 +177,23 @@ NEW_SCATTER_MODE = '''        const double nse = (ssTot > 1e-12) ? (1.0 - ssRes 
 OLD_SCATTER_TITLE = '        pts->setName(QString("%1 (R²=%2)").arg(titles[i]).arg(r2, 0, \'f\', 3));\n'
 NEW_SCATTER_TITLE = '        pts->setName(QString("%1 (NSE=%2)").arg(titles[i]).arg(r2, 0, \'f\', 3));\n'
 
+OLD_DIRECT_FFN_PINN = '''        } else if (mode == "ffn_pinn") {
+            FFNPINNWrapper runner;
+            result = runner.train(cfg);
+'''
+NEW_DIRECT_FFN_PINN = '''        } else if (mode == "ffn_pinn") {
+            FFNReservoirPINNWrapper runner;
+            result = runner.train(cfg);
+'''
+
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
-    if old not in text:
-        raise SystemExit(f"Expected {label} anchor was not found; update the GUI generator for the current source.")
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(
+            f"Expected exactly one {label} anchor; found {count}. "
+            "Update the GUI generator for the current source instead of applying a broad replacement."
+        )
     return text.replace(old, new, 1)
 
 
@@ -200,7 +214,10 @@ def main() -> int:
     text = replace_once(text, OLD_DIRECT_LOG_ARGS, NEW_DIRECT_LOG_ARGS, "direct-run R2 log argument")
     text = replace_once(text, OLD_SCATTER_MODE, NEW_SCATTER_MODE, "mode scatter metric label")
     text = replace_once(text, OLD_SCATTER_TITLE, NEW_SCATTER_TITLE, "comparison scatter metric label")
-    text = text.replace("FFNPINNWrapper runner;", "FFNReservoirPINNWrapper runner;")
+    text = replace_once(text, OLD_DIRECT_FFN_PINN, NEW_DIRECT_FFN_PINN, "direct FFN+PINN dispatch")
+    # Guard the regression that previously rewrote both GA lag-search dispatches.
+    if text.count("FFNPINNWrapper runner;") < 2:
+        raise SystemExit("Expected GA FFN+PINN lag-search dispatches to remain on FFNPINNWrapper.")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(text, encoding="utf-8")
     print(f"Generated {OUTPUT}")
