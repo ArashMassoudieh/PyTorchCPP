@@ -6,12 +6,25 @@ is unchanged. For real rainfall-runoff data it:
   * keeps test data fully held out;
   * ranks non-degenerate candidates by validation KGE, NSE, |PBIAS|, then RMSE;
   * refines the process-aware LSTM+PINN routing grid around the boundary solution
-    found by the previous paper run, without increasing the sweep size drastically.
+    found by the previous paper run, without increasing the sweep size drastically;
+  * shards independent HydroBatch jobs across multiple processes so the paper
+    pipeline can use the host CPU instead of running every experiment serially.
+
+Parallelism is process-level on purpose. HydroBatch currently pins LibTorch to one
+intra-op/inter-op thread, so independent processes are the safest way to use a
+multi-core workstation without introducing shared LibTorch/model state. Set
+HYDROPINN_BATCH_JOBS to override the automatic worker count; set it to 1 for the
+legacy serial execution path.
 """
 from __future__ import annotations
 
 import math
+import os
+import shutil
+import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 import run_adaptive_full_pipeline as base
 
@@ -32,6 +45,142 @@ def winner(a, rows, mode):
         return (1 if degenerate else 0, -kge, -nse, pbias, rmse, r.get("experiment_id", ""))
 
     return min(candidates, key=key)
+
+
+def _batch_workers(job_count: int) -> int:
+    override = os.environ.get("HYDROPINN_BATCH_JOBS", "").strip()
+    if override:
+        try:
+            requested = int(override)
+        except ValueError as exc:
+            raise RuntimeError("HYDROPINN_BATCH_JOBS must be an integer >= 1") from exc
+        if requested < 1:
+            raise RuntimeError("HYDROPINN_BATCH_JOBS must be >= 1")
+    else:
+        # HydroBatch is currently one LibTorch thread per process. Use at most
+        # half the logical CPUs by default to leave memory/IO headroom on long
+        # LSTM/PINN jobs. On the 24-core Hydro workstation this selects 12.
+        requested = max(1, (os.cpu_count() or 1) // 2)
+    return max(1, min(requested, job_count))
+
+
+def _active_batch_lines(path: Path) -> list[str]:
+    lines: list[str] = []
+    for raw in path.read_text(encoding="utf-8-sig").splitlines():
+        stripped = raw.split("#", 1)[0].strip()
+        if stripped:
+            lines.append(stripped)
+    if not lines:
+        raise RuntimeError(f"Generated HydroBatch file contains no jobs: {path}")
+    return lines
+
+
+def _contiguous_chunks(lines: list[str], count: int) -> list[list[str]]:
+    count = max(1, min(count, len(lines)))
+    q, r = divmod(len(lines), count)
+    chunks: list[list[str]] = []
+    start = 0
+    for i in range(count):
+        size = q + (1 if i < r else 0)
+        chunks.append(lines[start:start + size])
+        start += size
+    return chunks
+
+
+def _merge_shard_outputs(shard_roots: list[Path], out: Path) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for shard_root in shard_roots:
+        rows.extend(base.load_summary(shard_root / "batch_summary.csv"))
+        for child in shard_root.iterdir():
+            if child.name == "batch_summary.csv":
+                continue
+            destination = out / child.name
+            if destination.exists():
+                raise RuntimeError(
+                    f"Parallel HydroBatch produced duplicate output path: {destination}"
+                )
+            if child.is_dir():
+                shutil.move(str(child), str(destination))
+            else:
+                shutil.move(str(child), str(destination))
+    return rows
+
+
+def parallel_run_generated(a, generator_args, out):
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    base.run([sys.executable, str(base.GENERATOR), *generator_args, *base.source_args(a)])
+
+    lines = _active_batch_lines(base.BATCH_FILE)
+    workers = _batch_workers(len(lines))
+    if workers == 1:
+        print("[adaptive] HydroBatch execution: serial (HYDROPINN_BATCH_JOBS=1)", flush=True)
+        base.run(
+            [str(a.hydrobatch.resolve()), str(base.BATCH_FILE.resolve()), str(out.resolve())],
+            cwd=base.HERE.parent.parent.parent,
+        )
+        rows = base.load_summary(out / "batch_summary.csv")
+        base.annotate_validation(rows, out)
+        base.write_rows(out / "batch_summary.csv", rows)
+        return rows
+
+    print(
+        f"[adaptive] HydroBatch execution: {len(lines)} independent jobs across {workers} processes "
+        f"(logical_cpus={os.cpu_count() or 1}; override with HYDROPINN_BATCH_JOBS)",
+        flush=True,
+    )
+
+    shard_parent = out / ".parallel_shards"
+    if shard_parent.exists():
+        shutil.rmtree(shard_parent)
+    shard_parent.mkdir(parents=True)
+
+    chunks = _contiguous_chunks(lines, workers)
+    batch_files: list[Path] = []
+    shard_roots: list[Path] = []
+    # Keep shard batch files beside unified_sweep.batch so its relative config
+    # paths retain exactly the same interpretation as the serial runner.
+    for i, chunk in enumerate(chunks):
+        batch_file = base.BATCH_FILE.parent / f".unified_sweep.parallel_{os.getpid()}_{i:02d}.batch"
+        batch_file.write_text("\n".join(chunk) + "\n", encoding="utf-8")
+        batch_files.append(batch_file)
+        shard_root = shard_parent / f"shard_{i:02d}"
+        shard_root.mkdir(parents=True)
+        shard_roots.append(shard_root)
+
+    def run_shard(index: int) -> None:
+        cmd = [
+            str(a.hydrobatch.resolve()),
+            str(batch_files[index].resolve()),
+            str(shard_roots[index].resolve()),
+        ]
+        print(f"[adaptive] shard {index + 1}/{workers}: {' '.join(cmd)}", flush=True)
+        subprocess.run(
+            cmd,
+            cwd=base.HERE.parent.parent.parent,
+            check=True,
+        )
+
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(run_shard, i): i for i in range(workers)}
+            for future in as_completed(futures):
+                i = futures[future]
+                future.result()
+                print(f"[adaptive] shard {i + 1}/{workers} complete", flush=True)
+
+        rows = _merge_shard_outputs(shard_roots, out)
+        base.annotate_validation(rows, out)
+        base.write_rows(out / "batch_summary.csv", rows)
+        return rows
+    finally:
+        for batch_file in batch_files:
+            try:
+                batch_file.unlink()
+            except FileNotFoundError:
+                pass
+        if shard_parent.exists():
+            shutil.rmtree(shard_parent)
 
 
 def stage2(a, root, s1):
@@ -93,6 +242,7 @@ def stage2(a, root, s1):
 
 
 ORIGINAL_STAGE2 = base.stage2
+base.run_generated = parallel_run_generated
 base.winner = winner
 base.stage2 = stage2
 base.selection_label = lambda a: (
