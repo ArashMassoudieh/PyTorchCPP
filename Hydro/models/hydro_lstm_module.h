@@ -71,11 +71,10 @@ struct HydroTwoReservoirLSTMImpl : torch::nn::Module {
             return std::make_tuple(empty, empty, empty);
         }
 
-        // The recurrence is intentionally retained exactly: changing it to an
-        // approximate parallel scan would alter the differentiable physics used
-        // by the paper experiments.  Avoid, however, constructing/storing a third
-        // per-timestep tensor for qFast+qSlow.  Concatenate the two state histories
-        // once and form total runoff with one vectorized add after the recurrence.
+        // Retain the exact recurrence used by the paper experiments.  The speed
+        // improvement here is allocation/dispatch only: do not construct and keep
+        // a third qFast+qSlow tensor at every timestep.  Concatenate the two state
+        // histories once and form total runoff with one vectorized add afterward.
         torch::Tensor qFast = torch::zeros({1, 1}, runoff.options());
         torch::Tensor qSlow = torch::zeros({1, 1}, runoff.options());
         std::vector<torch::Tensor> fastValues;
@@ -83,17 +82,12 @@ struct HydroTwoReservoirLSTMImpl : torch::nn::Module {
         fastValues.reserve(static_cast<std::size_t>(runoff.size(0)));
         slowValues.reserve(static_cast<std::size_t>(runoff.size(0)));
 
-        const double fastDecay = dt_hours * fast_k;
-        const double slowDecay = dt_hours * slow_k;
-        const double fastInput = fastDecay * fast_fraction;
-        const double slowInput = slowDecay * (1.0 - fast_fraction);
-        const double fastCarry = 1.0 - fastDecay;
-        const double slowCarry = 1.0 - slowDecay;
-
+        const double fastStep = dt_hours * fast_k;
+        const double slowStep = dt_hours * slow_k;
         for (int64_t i = 0; i < runoff.size(0); ++i) {
             const torch::Tensor r = runoff.slice(0, i, i + 1);
-            qFast = fastCarry * qFast + fastInput * r;
-            qSlow = slowCarry * qSlow + slowInput * r;
+            qFast = qFast + fastStep * (fast_fraction * r - qFast);
+            qSlow = qSlow + slowStep * ((1.0 - fast_fraction) * r - qSlow);
             fastValues.push_back(qFast);
             slowValues.push_back(qSlow);
         }
