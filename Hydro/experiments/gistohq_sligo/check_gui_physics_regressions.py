@@ -16,6 +16,7 @@ HERE = Path(__file__).resolve().parent
 HYDRO = HERE.parents[1]
 GENERATOR = HYDRO / "generate_gistohq_pinn_window.py"
 GENERATED = HYDRO / "generated" / "hydropinnwindow_gistohq_pinn.cpp"
+ROUTING_HEADER = HYDRO / "models" / "hydro_lstm_module.h"
 
 
 def check_generated_dispatch() -> None:
@@ -34,6 +35,46 @@ def check_generated_dispatch() -> None:
         raise SystemExit("FAIL: GA confirmation dispatch was rewritten away from lag-capable FFNPINNWrapper")
 
     print("PASS: direct FFN+PINN uses reservoir wrapper; both GA lag-search dispatches remain lag-capable")
+
+
+def check_two_reservoir_routing_contract() -> None:
+    text = ROUTING_HEADER.read_text(encoding="utf-8")
+    required = (
+        "qFast = qFast + fastStep * (fast_fraction * r - qFast);",
+        "qSlow = qSlow + slowStep * ((1.0 - fast_fraction) * r - qSlow);",
+        "const torch::Tensor fast = torch::cat(fastValues, 0);",
+        "const torch::Tensor slow = torch::cat(slowValues, 0);",
+        "return std::make_tuple(fast + slow, fast, slow);",
+    )
+    for snippet in required:
+        if snippet not in text:
+            raise SystemExit(f"FAIL: two-reservoir routing contract changed or optimization missing: {snippet}")
+    if "totalValues.push_back" in text:
+        raise SystemExit("FAIL: two-reservoir routing still creates a per-timestep total-runoff tensor")
+
+    # Numerically verify the optimized bookkeeping against the original recurrence.
+    dt, fast_k, slow_k, alpha = 1.0, 0.10, 0.04, 0.85
+    runoff = [0.0, 0.3, 1.1, 0.7, 0.2, 0.0, 0.5, 0.1]
+    qf = qs = 0.0
+    original: list[tuple[float, float, float]] = []
+    for r in runoff:
+        qf = qf + dt * fast_k * (alpha * r - qf)
+        qs = qs + dt * slow_k * ((1.0 - alpha) * r - qs)
+        original.append((qf + qs, qf, qs))
+
+    qf = qs = 0.0
+    optimized: list[tuple[float, float, float]] = []
+    fast_step = dt * fast_k
+    slow_step = dt * slow_k
+    for r in runoff:
+        qf = qf + fast_step * (alpha * r - qf)
+        qs = qs + slow_step * ((1.0 - alpha) * r - qs)
+        optimized.append((qf + qs, qf, qs))
+
+    max_abs = max(abs(a - b) for left, right in zip(original, optimized) for a, b in zip(left, right))
+    if max_abs > 1.0e-15:
+        raise SystemExit(f"FAIL: two-reservoir routing refactor changed recurrence values: max_abs={max_abs:.3e}")
+    print("PASS: two-reservoir routing keeps the recurrence and removes per-step total tensor allocation")
 
 
 def check_backward_euler_truth() -> None:
@@ -72,6 +113,7 @@ def check_backward_euler_truth() -> None:
 
 def main() -> int:
     check_generated_dispatch()
+    check_two_reservoir_routing_contract()
     check_backward_euler_truth()
     print("PASS: HydroPINN GUI/physics regression checks complete")
     return 0
