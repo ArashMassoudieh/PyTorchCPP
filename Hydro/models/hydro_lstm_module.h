@@ -71,26 +71,35 @@ struct HydroTwoReservoirLSTMImpl : torch::nn::Module {
             return std::make_tuple(empty, empty, empty);
         }
 
+        // The recurrence is intentionally retained exactly: changing it to an
+        // approximate parallel scan would alter the differentiable physics used
+        // by the paper experiments.  Avoid, however, constructing/storing a third
+        // per-timestep tensor for qFast+qSlow.  Concatenate the two state histories
+        // once and form total runoff with one vectorized add after the recurrence.
         torch::Tensor qFast = torch::zeros({1, 1}, runoff.options());
         torch::Tensor qSlow = torch::zeros({1, 1}, runoff.options());
         std::vector<torch::Tensor> fastValues;
         std::vector<torch::Tensor> slowValues;
-        std::vector<torch::Tensor> totalValues;
         fastValues.reserve(static_cast<std::size_t>(runoff.size(0)));
         slowValues.reserve(static_cast<std::size_t>(runoff.size(0)));
-        totalValues.reserve(static_cast<std::size_t>(runoff.size(0)));
+
+        const double fastDecay = dt_hours * fast_k;
+        const double slowDecay = dt_hours * slow_k;
+        const double fastInput = fastDecay * fast_fraction;
+        const double slowInput = slowDecay * (1.0 - fast_fraction);
+        const double fastCarry = 1.0 - fastDecay;
+        const double slowCarry = 1.0 - slowDecay;
 
         for (int64_t i = 0; i < runoff.size(0); ++i) {
             const torch::Tensor r = runoff.slice(0, i, i + 1);
-            qFast = qFast + dt_hours * fast_k * (fast_fraction * r - qFast);
-            qSlow = qSlow + dt_hours * slow_k * ((1.0 - fast_fraction) * r - qSlow);
+            qFast = fastCarry * qFast + fastInput * r;
+            qSlow = slowCarry * qSlow + slowInput * r;
             fastValues.push_back(qFast);
             slowValues.push_back(qSlow);
-            totalValues.push_back(qFast + qSlow);
         }
-        return std::make_tuple(torch::cat(totalValues, 0),
-                               torch::cat(fastValues, 0),
-                               torch::cat(slowValues, 0));
+        const torch::Tensor fast = torch::cat(fastValues, 0);
+        const torch::Tensor slow = torch::cat(slowValues, 0);
+        return std::make_tuple(fast + slow, fast, slow);
     }
 
     torch::Tensor forward(const torch::Tensor& inputs) {
