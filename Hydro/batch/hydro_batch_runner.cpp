@@ -87,12 +87,14 @@ void preparePhysicsConfig(const std::string& mode, HydroRunConfig& config) {
 
     const bool gisToOhq = config.use_hydro_package && !config.hydro_package_path.empty() &&
                           isGisToOhqHydroPinnExport(config.hydro_package_path);
-    const bool processAwareLstm = mode == "lstm_pinn" &&
-                                  config.pinn_physics_profile == "two_reservoir_hybrid";
+    const bool processAwareHybrid =
+        (mode == "lstm_pinn" && config.pinn_physics_profile == "two_reservoir_hybrid") ||
+        (mode == "ffn_pinn" && config.pinn_physics_profile == "ffn_two_reservoir_hybrid") ||
+        (mode == "pinn" && config.pinn_physics_profile == "pinn_two_reservoir_hybrid");
 
-    if (gisToOhq && processAwareLstm) {
-        // The process-aware recurrent hybrid intentionally uses the GIStoOHQ
-        // forcing-only physical layout, but it must retain its two-reservoir
+    if (gisToOhq && processAwareHybrid) {
+        // The process-aware FFN/LSTM/PINN hybrids intentionally use the GIStoOHQ
+        // forcing-only physical layout, but they must retain their two-reservoir
         // routing profile rather than being rewritten to the legacy single
         // linear-reservoir benchmark.
         config.use_latent_storage_physics = true; // legacy name: forcing-only layout selector

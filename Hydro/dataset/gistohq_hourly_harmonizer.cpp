@@ -51,6 +51,36 @@ void requireRange(const double value, const double minimum, const double maximum
         throw std::invalid_argument(std::string(name) + " is outside its supported range.");
     }
 }
+
+// Fills gaps in a strictly-increasing timed series that are longer than one
+// nominal sampling step but no longer than max_gap_seconds, by inserting
+// linearly-interpolated points spaced at step_seconds. Gaps longer than
+// max_gap_seconds are left untouched (see header comment on
+// max_interpolated_discharge_gap_seconds for why).
+std::vector<GisToOhqTimedValue> interpolateShortGaps(const std::vector<GisToOhqTimedValue>& values,
+                                                     double step_seconds,
+                                                     double max_gap_seconds) {
+    if (values.size() < 2 || step_seconds <= 0.0 || max_gap_seconds <= 0.0) return values;
+    std::vector<GisToOhqTimedValue> filled;
+    filled.reserve(values.size());
+    filled.push_back(values.front());
+    for (std::size_t i = 1; i < values.size(); ++i) {
+        const auto& prev = values[i - 1];
+        const auto& next = values[i];
+        const double gap = static_cast<double>(next.epoch_seconds - prev.epoch_seconds);
+        if (gap > step_seconds * 1.5 && gap <= max_gap_seconds) {
+            const auto stepsToInsert = static_cast<std::int64_t>(std::floor(gap / step_seconds + 1.0e-6)) - 1;
+            for (std::int64_t s = 1; s <= stepsToInsert; ++s) {
+                const auto epoch = prev.epoch_seconds + static_cast<std::int64_t>(std::llround(step_seconds * static_cast<double>(s)));
+                if (epoch >= next.epoch_seconds) break;
+                const double fraction = static_cast<double>(epoch - prev.epoch_seconds) / gap;
+                filled.push_back({epoch, prev.value + fraction * (next.value - prev.value)});
+            }
+        }
+        filled.push_back(next);
+    }
+    return filled;
+}
 }
 
 std::vector<GisToOhqHourlyRow> harmonizeGisToOhqHourly(
@@ -125,13 +155,16 @@ std::vector<GisToOhqHourlyRow> harmonizeGisToOhqHourly(
         }
     }
 
+    const auto dischargeSamples = interpolateShortGaps(inputs.discharge_ft3_per_second,
+                                                        config.discharge_sample_support_seconds,
+                                                        config.max_interpolated_discharge_gap_seconds);
     std::vector<double> dischargeVolume(count, 0.0);
     std::vector<double> dischargeCoveredSeconds(count, 0.0);
-    for (std::size_t i = 0; i < inputs.discharge_ft3_per_second.size(); ++i) {
-        const auto& sample = inputs.discharge_ft3_per_second[i];
+    for (std::size_t i = 0; i < dischargeSamples.size(); ++i) {
+        const auto& sample = dischargeSamples[i];
         requireRange(sample.value, 0.0, std::numeric_limits<double>::max(), "00060");
-        const double next = i + 1 < inputs.discharge_ft3_per_second.size()
-                                ? static_cast<double>(inputs.discharge_ft3_per_second[i + 1].epoch_seconds)
+        const double next = i + 1 < dischargeSamples.size()
+                                ? static_cast<double>(dischargeSamples[i + 1].epoch_seconds)
                                 : static_cast<double>(sample.epoch_seconds) + config.discharge_sample_support_seconds;
         const double supportedEnd = std::min(next, static_cast<double>(sample.epoch_seconds) +
                                                        config.discharge_sample_support_seconds);

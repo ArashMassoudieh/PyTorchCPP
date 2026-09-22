@@ -154,7 +154,7 @@ HEADERS += \
     Hydro/evaluation/artifact_loader.h Hydro/evaluation/inference_runner.h Hydro/evaluation/model_checkpoint.h \
     Hydro/physics/physics_config.h Hydro/physics/rr_physics.h \
     Hydro/models/hydro_run_types.h Hydro/models/hydro_lstm_module.h \
-    Hydro/models/ffn_wrapper.h Hydro/models/ffn_pinn_wrapper.h Hydro/models/ffn_reservoir_pinn_wrapper.h Hydro/models/pinn_wrapper.h \
+    Hydro/models/ffn_wrapper.h Hydro/models/ffn_pinn_wrapper.h Hydro/models/ffn_reservoir_pinn_wrapper.h Hydro/models/ffn_two_reservoir_pinn_wrapper.h Hydro/models/pinn_wrapper.h \
     Hydro/models/lstm_wrapper.h Hydro/models/lstm_pinn_wrapper.h Hydro/models/lstmnetworkwrapper.h
 
 qnx: target.path = /tmp/$${TARGET}/bin
