@@ -118,5 +118,5 @@ HEADERS += \
     Hydro/evaluation/hydro_metrics.h Hydro/evaluation/experiment_exporter.h Hydro/evaluation/experiment_loader.h \
     Hydro/physics/physics_config.h Hydro/physics/rr_physics.h \
     Hydro/models/hydro_run_types.h Hydro/models/hydro_lstm_module.h \
-    Hydro/models/ffn_wrapper.h Hydro/models/ffn_pinn_wrapper.h Hydro/models/ffn_reservoir_pinn_wrapper.h Hydro/models/pinn_wrapper.h \
+    Hydro/models/ffn_wrapper.h Hydro/models/ffn_pinn_wrapper.h Hydro/models/ffn_reservoir_pinn_wrapper.h Hydro/models/ffn_two_reservoir_pinn_wrapper.h Hydro/models/pinn_wrapper.h \
     Hydro/models/lstm_wrapper.h Hydro/models/lstm_pinn_wrapper.h Hydro/models/lstmnetworkwrapper.h

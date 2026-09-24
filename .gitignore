@@ -66,3 +66,20 @@ Hydro/experiments/**/unified_sweep.batch
 # Directly exported experiment folders and archived reruns
 Hydro/experiments/**/sligo_*/
 Hydro/experiments/**/unified_*/
+
+# Transient per-worker shard batch files written by parallel_run_generated()
+# in run_improved_adaptive_pipeline.py; normally self-deleted, but can be
+# left behind if a run is interrupted.
+Hydro/experiments/**/.unified_sweep.parallel_*.batch
+
+# Python bytecode cache (the Hydro experiment/paper scripts are Python)
+__pycache__/
+*.pyc
+
+# HydroBatch build output directories (qmake-generated; never source)
+build-hydrobatch/
+build-hydrobatch-dev/
+
+# Ad-hoc scratch batch files dropped at the repo root during manual testing;
+# real batch files live under Hydro/experiments/**/*.batch, never at the root.
+/*.batch

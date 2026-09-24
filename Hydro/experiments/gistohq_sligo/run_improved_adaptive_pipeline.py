@@ -201,6 +201,21 @@ def stage2(a, root, s1):
         "--recession-k", "0.0025,0.005,0.01,0.02,0.04,0.08,0.16",
     ], stage_root / "legacy")
 
+    # Standalone PINN has no data term, so a single scalar k can never match
+    # both the fast quickflow response and the slow baseflow recession seen in
+    # the real record (measured directly off the storm hydrograph, they differ
+    # by ~75x); and feeding raw Peff straight through implicitly assumes a
+    # runoff coefficient of 1, which no real catchment has. This is a pure
+    # forward simulation (no training), so a wide grid costs almost nothing.
+    pinn_hybrid_rows = base.run_generated(a, [
+        "--methods", "pinn",
+        "--pinn-profile", "pinn_two_reservoir_hybrid",
+        "--fast-k", "0.1,0.25,0.5,0.75,0.9",
+        "--slow-k", "0.005,0.01,0.02,0.04",
+        "--routing-alpha", "0.3,0.5,0.7,0.85,0.95",
+        "--pinn-runoff-coefficients", "0.05,0.1,0.15,0.2,0.25,0.3,0.4,0.5,0.7,1.0",
+    ], stage_root / "pinn_hybrid")
+
     hybrid_architectures = base.unique_semicolon([
         base.q(lstm, "hidden_layers", "48"),
         "32,16", "48,24", "48,32,16", "64,32,16"
@@ -226,25 +241,95 @@ def stage2(a, root, s1):
         "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
         "--physics-weights", "0,0.00003,0.0001,0.0003",
         "--lstm-pinn-profile", base.PROCESS_PROFILE,
-        "--fast-k", "0.05,0.10,0.20",
+        "--fast-k", "0.05,0.10,0.20,0.40",
         "--slow-k", "0.02,0.04,0.06",
         "--routing-alpha", "0.75,0.85,0.95",
     ], stage_root / "lstm_pinn_routing")
 
-    rows = legacy_rows + arch_rows + routing_rows
+    # A single linear reservoir cannot represent both the fast quickflow
+    # response and the slow baseflow recession seen in the real Sligo Creek
+    # record at once (measured directly off the storm hydrograph, the two
+    # rates differ by roughly 75x). Give FFN+PINN the same fast/slow routing
+    # structure LSTM+PINN already has and let validation selection decide
+    # whether it beats the legacy single-reservoir FFN+PINN above.
+    ffn_hybrid_arch_rows = base.run_generated(a, [
+        "--methods", "ffn_pinn",
+        "--ffn-architectures", base.unique_semicolon([base.q(ffn, "hidden_layers", "16,16"), "32,16", "32,32"]),
+        "--ffn-activations", base.q(ffn, "activation", "relu"),
+        "--ffn-hybrid-lags", "none;1,2,3",
+        "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
+        "--physics-weights", "0.0001",
+        "--ffn-pinn-profile", "ffn_two_reservoir_hybrid",
+        "--fast-k", "0.10", "--slow-k", "0.04", "--routing-alpha", "0.85",
+    ], stage_root / "ffn_pinn_hybrid_architecture")
+    ffn_hybrid_winner = winner(a, ffn_hybrid_arch_rows, "ffn_pinn")
+
+    # batch_summary.csv does not export use_time_lagged_ffn, and input_lags
+    # reads "1" whether lagging is on or off (see process_hybrid_common), so
+    # the winning lag choice can't be recovered from the row alone. Keep both
+    # options in the routing-refinement grid instead of trying to pin one down.
+    ffn_hybrid_routing_rows = base.run_generated(a, [
+        "--methods", "ffn_pinn",
+        "--ffn-architectures", base.q(ffn_hybrid_winner, "hidden_layers", "32,16"),
+        "--ffn-activations", base.q(ffn, "activation", "relu"),
+        "--ffn-hybrid-lags", "none;1,2,3",
+        "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
+        "--physics-weights", "0,0.00003,0.0001,0.0003",
+        "--ffn-pinn-profile", "ffn_two_reservoir_hybrid",
+        "--fast-k", "0.05,0.10,0.20,0.40",
+        "--slow-k", "0.02,0.04,0.06",
+        "--routing-alpha", "0.75,0.85,0.95",
+    ], stage_root / "ffn_pinn_hybrid_routing")
+
+    rows = legacy_rows + arch_rows + routing_rows + ffn_hybrid_arch_rows + ffn_hybrid_routing_rows + pinn_hybrid_rows
     base.write_rows(stage_root / "batch_summary.csv", rows)
+    ffn_pinn_candidates = legacy_rows + ffn_hybrid_routing_rows
+    pinn_candidates = legacy_rows + pinn_hybrid_rows
     winners = {
-        "ffn_pinn": winner(a, legacy_rows, "ffn_pinn"),
-        "pinn": winner(a, legacy_rows, "pinn"),
+        "ffn_pinn": winner(a, ffn_pinn_candidates, "ffn_pinn"),
+        "pinn": winner(a, pinn_candidates, "pinn"),
         "lstm_pinn": winner(a, routing_rows, "lstm_pinn"),
     }
     return rows, winners
 
 
+def method_args_with_hybrids(mode: str, row: dict[str, str], *, lrs: str, batches: str, seeds: str) -> list[str]:
+    # base.method_args (used by both Stage 3 optimizer tuning and Stage 4
+    # robustness) only special-cases lstm_pinn/two_reservoir_hybrid; without
+    # this override, a Stage 2 winner on either new two-reservoir profile
+    # would silently fall through to legacy single-reservoir args here and
+    # the routing win would be lost for the rest of the pipeline.
+    profile = base.q(row, "physics_profile", "")
+    if mode == "ffn_pinn" and profile == "ffn_two_reservoir_hybrid":
+        return [
+            "--methods", mode, "--learning-rates", lrs, "--batch-sizes", batches, "--seeds", seeds,
+            "--ffn-architectures", base.q(row, "hidden_layers", "16,16"),
+            "--ffn-activations", base.q(row, "activation", "relu"),
+            "--ffn-pinn-profile", "ffn_two_reservoir_hybrid",
+            "--ffn-hybrid-lags", "none;1,2,3",
+            "--physics-weights", base.q(row, "physics_weight", "0.0001"),
+            "--fast-k", base.q(row, "storage_coeff", "0.1"),
+            "--slow-k", base.q(row, "lambda_decay", "0.04"),
+            "--routing-alpha", base.q(row, "runoff_coeff", "0.85"),
+        ]
+    if mode == "pinn" and profile == "pinn_two_reservoir_hybrid":
+        return [
+            "--methods", mode, "--learning-rates", lrs, "--batch-sizes", batches, "--seeds", seeds,
+            "--pinn-profile", "pinn_two_reservoir_hybrid",
+            "--fast-k", base.q(row, "storage_coeff", "0.5"),
+            "--slow-k", base.q(row, "lambda_decay", "0.02"),
+            "--routing-alpha", base.q(row, "runoff_coeff", "0.7"),
+            "--pinn-runoff-coefficients", base.q(row, "forcing_gain", "0.2"),
+        ]
+    return ORIGINAL_METHOD_ARGS(mode, row, lrs=lrs, batches=batches, seeds=seeds)
+
+
 ORIGINAL_STAGE2 = base.stage2
+ORIGINAL_METHOD_ARGS = base.method_args
 base.run_generated = parallel_run_generated
 base.winner = winner
 base.stage2 = stage2
+base.method_args = method_args_with_hybrids
 base.selection_label = lambda a: (
     "validation_mse" if a.data_source == "synthetic"
     else "validation_KGE_then_NSE_then_absPBIAS_then_RMSE_non_degenerate"

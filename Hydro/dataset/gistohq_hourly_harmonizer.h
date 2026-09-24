@@ -25,6 +25,13 @@ struct GisToOhqHourlyConfig {
     double discharge_sample_support_seconds = 300.0;
     double minimum_discharge_coverage = 0.75;
     double latent_heat_mj_per_kg = 2.45;
+    // USGS discharge telemetry occasionally drops out for a few hours for reasons
+    // unrelated to the hydrologic process (radio/logger hiccups); linearly
+    // interpolating across gaps at or below this bound is standard provisional-data
+    // practice and avoids fracturing an otherwise-valid record into short unusable
+    // segments. Gaps longer than this (e.g. a gauge knocked out during a flood) are
+    // left untouched so a real storm hydrograph is never fabricated by interpolation.
+    double max_interpolated_discharge_gap_seconds = 10800.0;
 };
 
 struct GisToOhqHourlyRow {

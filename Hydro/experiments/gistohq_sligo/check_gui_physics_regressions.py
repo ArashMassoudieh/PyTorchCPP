@@ -40,19 +40,20 @@ def check_generated_dispatch() -> None:
 def check_two_reservoir_routing_contract() -> None:
     text = ROUTING_HEADER.read_text(encoding="utf-8")
     required = (
-        "qFast = qFast + fastStep * (fast_fraction * r - qFast);",
-        "qSlow = qSlow + slowStep * ((1.0 - fast_fraction) * r - qSlow);",
-        "const torch::Tensor fast = torch::cat(fastValues, 0);",
-        "const torch::Tensor slow = torch::cat(slowValues, 0);",
+        "static torch::Tensor routeSingleReservoir(const torch::Tensor& runoff, double step, double fraction)",
+        "const torch::Tensor fast = routeSingleReservoir(runoff, dt_hours * fast_k, fast_fraction);",
+        "const torch::Tensor slow = routeSingleReservoir(runoff, dt_hours * slow_k, 1.0 - fast_fraction);",
         "return std::make_tuple(fast + slow, fast, slow);",
     )
     for snippet in required:
         if snippet not in text:
-            raise SystemExit(f"FAIL: two-reservoir routing contract changed or optimization missing: {snippet}")
-    if "totalValues.push_back" in text:
-        raise SystemExit("FAIL: two-reservoir routing still creates a per-timestep total-runoff tensor")
+            raise SystemExit(f"FAIL: two-reservoir routing contract changed or scan optimization missing: {snippet}")
+    if "for (int64_t i = 0; i < runoff.size(0); ++i)" in text:
+        raise SystemExit("FAIL: two-reservoir routing still contains a per-timestep sequential loop")
 
-    # Numerically verify the optimized bookkeeping against the original recurrence.
+    # Numerically verify the parallel-scan recurrence against the original
+    # sequential one, and against a single-reservoir formulation matching
+    # routeSingleReservoir's (a, b) affine-map convention.
     dt, fast_k, slow_k, alpha = 1.0, 0.10, 0.04, 0.85
     runoff = [0.0, 0.3, 1.1, 0.7, 0.2, 0.0, 0.5, 0.1]
     qf = qs = 0.0
@@ -62,19 +63,29 @@ def check_two_reservoir_routing_contract() -> None:
         qs = qs + dt * slow_k * ((1.0 - alpha) * r - qs)
         original.append((qf + qs, qf, qs))
 
-    qf = qs = 0.0
-    optimized: list[tuple[float, float, float]] = []
-    fast_step = dt * fast_k
-    slow_step = dt * slow_k
-    for r in runoff:
-        qf = qf + fast_step * (alpha * r - qf)
-        qs = qs + slow_step * ((1.0 - alpha) * r - qs)
-        optimized.append((qf + qs, qf, qs))
+    def scan(step: float, fraction: float) -> list[float]:
+        a = [1.0 - step] * len(runoff)
+        b = [step * fraction * r for r in runoff]
+        offset = 1
+        n = len(runoff)
+        while offset < n:
+            new_a = list(a)
+            new_b = list(b)
+            for i in range(offset, n):
+                new_b[i] = a[i] * b[i - offset] + b[i]
+                new_a[i] = a[i] * a[i - offset]
+            a, b = new_a, new_b
+            offset *= 2
+        return b
 
-    max_abs = max(abs(a - b) for left, right in zip(original, optimized) for a, b in zip(left, right))
-    if max_abs > 1.0e-15:
-        raise SystemExit(f"FAIL: two-reservoir routing refactor changed recurrence values: max_abs={max_abs:.3e}")
-    print("PASS: two-reservoir routing keeps the recurrence and removes per-step total tensor allocation")
+    fast_scan = scan(dt * fast_k, alpha)
+    slow_scan = scan(dt * slow_k, 1.0 - alpha)
+    scanned = [(f + s, f, s) for f, s in zip(fast_scan, slow_scan)]
+
+    max_abs = max(abs(a - b) for left, right in zip(original, scanned) for a, b in zip(left, right))
+    if max_abs > 1.0e-12:
+        raise SystemExit(f"FAIL: two-reservoir parallel-scan routing changed recurrence values: max_abs={max_abs:.3e}")
+    print("PASS: two-reservoir routing uses a parallel-scan recurrence with unchanged values")
 
 
 def check_backward_euler_truth() -> None:

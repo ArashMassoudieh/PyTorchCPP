@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ffn_pinn_wrapper.h"
+#include "ffn_two_reservoir_pinn_wrapper.h"
 #include "hydro_run_types.h"
 #include "../dataset/chronological_split.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
@@ -79,6 +80,10 @@ inline void fillPlotVectors(HydroRunResult& result,
 class FFNReservoirPINNWrapper {
 public:
     HydroRunResult train(const HydroRunConfig& config) {
+        if (config.pinn_physics_profile == "ffn_two_reservoir_hybrid") {
+            FFNTwoReservoirPINNWrapper hybrid;
+            return hybrid.train(config);
+        }
         if (config.pinn_physics_profile != "linear_reservoir") {
             FFNPINNWrapper legacy;
             return legacy.train(config);

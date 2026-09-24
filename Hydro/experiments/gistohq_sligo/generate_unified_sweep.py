@@ -26,6 +26,8 @@ ALL_METHODS = ("ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn")
 PHYSICS_METHODS = {"ffn_pinn", "lstm_pinn", "pinn"}
 DATA_SOURCES = ("synthetic", "csv", "hydro")
 LSTM_PINN_PROFILES = ("linear_reservoir", "two_reservoir_hybrid")
+FFN_PINN_PROFILES = ("linear_reservoir", "ffn_two_reservoir_hybrid")
+PINN_PROFILES = ("linear_reservoir", "pinn_two_reservoir_hybrid")
 
 
 def csv_values(text: str, cast=str):
@@ -140,19 +142,24 @@ def physics_common(cfg: dict, k: float) -> dict:
     return cfg
 
 
-def process_hybrid_common(cfg: dict, fast_k: float, slow_k: float, alpha: float) -> dict:
+def process_hybrid_common(cfg: dict, fast_k: float, slow_k: float, alpha: float,
+                           profile: str = "two_reservoir_hybrid", lag: str | None = None,
+                           runoff_coefficient: float = 1.0) -> dict:
     cfg = dict(cfg)
     cfg.update({
         "normalization": "standardize",
-        "physics_profile": "two_reservoir_hybrid",
+        "physics_profile": profile,
         "physics_dt": 1.0,
         "storage_coeff": fast_k,
         "lambda_decay": slow_k,
         "runoff_coeff": alpha,
-        "forcing_gain": 1.0,
+        # For pinn_two_reservoir_hybrid only, forcing_gain doubles as the
+        # fraction of Peff that actually reaches the gauge (see pinn_wrapper.cpp);
+        # FFN/LSTM two-reservoir hybrids learn their own scaling and ignore it.
+        "forcing_gain": runoff_coefficient,
         "pinn_collocation_points": 0,
-        "use_time_lagged_ffn": False,
-        "input_lags": "1",
+        "use_time_lagged_ffn": bool(lag),
+        "input_lags": lag or "1",
     })
     return cfg
 
@@ -173,8 +180,16 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--physics-weights", default="0.005,0.01,0.025,0.05")
     p.add_argument("--recession-k", default="0.01,0.02,0.04,0.08,0.16")
     p.add_argument("--lstm-pinn-profile", choices=LSTM_PINN_PROFILES, default="linear_reservoir")
-    p.add_argument("--fast-k", default="0.1,0.25,0.5",
-                   help="Fast-routing k values (1/h) for two_reservoir_hybrid")
+    p.add_argument("--ffn-pinn-profile", choices=FFN_PINN_PROFILES, default="linear_reservoir")
+    p.add_argument("--pinn-profile", choices=PINN_PROFILES, default="linear_reservoir")
+    p.add_argument("--pinn-runoff-coefficients", default="0.1,0.15,0.2,0.25,0.35,0.5",
+                   help="Fraction of Peff assumed to reach the gauge, for pinn_two_reservoir_hybrid "
+                        "(this profile has no data term to learn its own scale)")
+    p.add_argument("--ffn-hybrid-lags", default="none;1;1,2;1,2,3",
+                   help="Semicolon-separated lag specs for ffn_two_reservoir_hybrid ('none' = no lag/no memory)")
+    p.add_argument("--fast-k", default="0.1,0.25,0.5,0.9",
+                   help="Fast-routing k values (1/h) for two_reservoir_hybrid; Sligo Creek's own recorded "
+                        "storm recession implies a fast component near 0.8-0.9/h, above the old 0.5 ceiling")
     p.add_argument("--slow-k", default="0.0025,0.01,0.04",
                    help="Slow-routing k values (1/h) for two_reservoir_hybrid")
     p.add_argument("--routing-alpha", default="0.35,0.65,0.85",
@@ -215,6 +230,10 @@ def validate_source_args(args, methods: list[str]) -> None:
             raise SystemExit("The five-method synthetic physics pipeline requires --synthetic-profile reduced_reservoir")
         if args.lstm_pinn_profile != "linear_reservoir" and "lstm_pinn" in methods:
             raise SystemExit("Controlled synthetic verification must keep LSTM+PINN on linear_reservoir")
+        if args.ffn_pinn_profile != "linear_reservoir" and "ffn_pinn" in methods:
+            raise SystemExit("Controlled synthetic verification must keep FFN+PINN on linear_reservoir")
+        if args.pinn_profile != "linear_reservoir" and "pinn" in methods:
+            raise SystemExit("Controlled synthetic verification must keep standalone PINN on linear_reservoir")
 
 
 def main() -> int:
@@ -242,6 +261,10 @@ def main() -> int:
     fast_ks = csv_values(args.fast_k, float)
     slow_ks = csv_values(args.slow_k, float)
     alphas = csv_values(args.routing_alpha, float)
+    ffn_hybrid_lags = semi_values(args.ffn_hybrid_lags)
+    pinn_runoff_coefficients = csv_values(args.pinn_runoff_coefficients, float)
+    if any(not 0.0 < v <= 1.0 for v in pinn_runoff_coefficients):
+        raise SystemExit("--pinn-runoff-coefficients values must lie in (0, 1]")
 
     if args.epochs < 1 or any(v <= 0 for v in lrs) or any(v < 1 for v in batches + sequences):
         raise SystemExit("epochs/LR/batch/sequence settings must be positive")
@@ -267,12 +290,27 @@ def main() -> int:
             jobs.append(("ffn", write_config(cfg), cfg))
 
     if "ffn_pinn" in methods:
-        for hidden, act, w, k, (lr, batch, seed) in itertools.product(ffn_arch, activations, physics_weights, ks, grid):
-            cfg = physics_common(common(ffn_base, args, lr, batch, seed), k)
-            cfg.update({"hidden_layers": hidden, "activation": act,
-                        "data_weight": args.data_weight, "physics_weight": w})
-            cfg["experiment_id"] = f"unified_ffn_pinn_h{slug(hidden)}_{slug(act)}_w{slug(w)}_k{slug(k)}_lr{slug(lr)}_b{batch}_s{seed}"
-            jobs.append(("ffn_pinn", write_config(cfg), cfg))
+        if args.ffn_pinn_profile == "ffn_two_reservoir_hybrid":
+            routing_grid = [(kf, ks, a) for kf, ks, a in itertools.product(fast_ks, slow_ks, alphas) if kf > ks]
+            for hidden, act, lag, w, (kf, ks, alpha), (lr, batch, seed) in itertools.product(
+                    ffn_arch, activations, ffn_hybrid_lags, physics_weights, routing_grid, grid):
+                use_lag = lag != "none"
+                cfg = process_hybrid_common(common(ffn_base, args, lr, batch, seed), kf, ks, alpha,
+                                            profile="ffn_two_reservoir_hybrid", lag=lag if use_lag else None)
+                cfg.update({"hidden_layers": hidden, "activation": act,
+                            "data_weight": args.data_weight, "physics_weight": w})
+                cfg["experiment_id"] = (
+                    f"unified_ffn_pinn_h{slug(hidden)}_{slug(act)}_lag{slug(lag)}_w{slug(w)}_"
+                    f"kf{slug(kf)}_ks{slug(ks)}_a{slug(alpha)}_lr{slug(lr)}_b{batch}_s{seed}"
+                )
+                jobs.append(("ffn_pinn", write_config(cfg), cfg))
+        else:
+            for hidden, act, w, k, (lr, batch, seed) in itertools.product(ffn_arch, activations, physics_weights, ks, grid):
+                cfg = physics_common(common(ffn_base, args, lr, batch, seed), k)
+                cfg.update({"hidden_layers": hidden, "activation": act,
+                            "data_weight": args.data_weight, "physics_weight": w})
+                cfg["experiment_id"] = f"unified_ffn_pinn_h{slug(hidden)}_{slug(act)}_w{slug(w)}_k{slug(k)}_lr{slug(lr)}_b{batch}_s{seed}"
+                jobs.append(("ffn_pinn", write_config(cfg), cfg))
 
     if "lstm" in methods:
         for hidden, seq, (lr, batch, seed) in itertools.product(lstm_arch, sequences, grid):
@@ -304,12 +342,24 @@ def main() -> int:
                 jobs.append(("lstm_pinn", write_config(cfg), cfg))
 
     if "pinn" in methods:
-        for hidden, k, (lr, batch, seed) in itertools.product(pinn_arch, ks, grid):
-            cfg = physics_common(common(ffn_base, args, lr, batch, seed), k)
-            cfg.update({"hidden_layers": hidden, "activation": "tanh",
-                        "data_weight": 0.0, "physics_weight": 1.0})
-            cfg["experiment_id"] = f"unified_pinn_h{slug(hidden)}_k{slug(k)}_lr{slug(lr)}_b{batch}_s{seed}"
-            jobs.append(("pinn", write_config(cfg), cfg))
+        if args.pinn_profile == "pinn_two_reservoir_hybrid":
+            # No network is trained for this profile (it is an exact forward
+            # simulation of the given reservoir parameters), so architecture/lr/
+            # batch/seed are irrelevant; only fast_k, slow_k, and alpha matter.
+            routing_grid = [(kf, ks, a) for kf, ks, a in itertools.product(fast_ks, slow_ks, alphas) if kf > ks]
+            for (kf, ks, alpha), c in itertools.product(routing_grid, pinn_runoff_coefficients):
+                cfg = process_hybrid_common(common(ffn_base, args, lrs[0], batches[0], seeds[0]), kf, ks, alpha,
+                                            profile="pinn_two_reservoir_hybrid", runoff_coefficient=c)
+                cfg.update({"data_weight": 0.0, "physics_weight": 1.0})
+                cfg["experiment_id"] = f"unified_pinn_kf{slug(kf)}_ks{slug(ks)}_a{slug(alpha)}_c{slug(c)}"
+                jobs.append(("pinn", write_config(cfg), cfg))
+        else:
+            for hidden, k, (lr, batch, seed) in itertools.product(pinn_arch, ks, grid):
+                cfg = physics_common(common(ffn_base, args, lr, batch, seed), k)
+                cfg.update({"hidden_layers": hidden, "activation": "tanh",
+                            "data_weight": 0.0, "physics_weight": 1.0})
+                cfg["experiment_id"] = f"unified_pinn_h{slug(hidden)}_k{slug(k)}_lr{slug(lr)}_b{batch}_s{seed}"
+                jobs.append(("pinn", write_config(cfg), cfg))
 
     for mode, _, cfg in jobs:
         actual = source_name(cfg)
@@ -350,6 +400,8 @@ def main() -> int:
         print(f"CSV: {args.csv_path}; x={args.csv_x_column}; y={args.csv_y_column}")
     if "lstm_pinn" in methods:
         print(f"LSTM+PINN profile: {args.lstm_pinn_profile}")
+    if "ffn_pinn" in methods:
+        print(f"FFN+PINN profile: {args.ffn_pinn_profile}")
     print(f"Generated {len(jobs)} valid experiment(s)")
     for method in ALL_METHODS:
         if counts[method]:
