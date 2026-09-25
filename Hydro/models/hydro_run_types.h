@@ -50,6 +50,11 @@ struct HydroRunConfig {
     double storage_coeff = 1.0;
     double physics_dt = 1.0;
     int pinn_collocation_points = 0;
+    // pinn_two_reservoir_hybrid only: delays the forcing series feeding the
+    // reservoir routing by this many hours, to correct a systematic
+    // catchment travel-time lag between rainfall and gauge response that the
+    // reservoirs' own K-based dynamics do not otherwise capture.
+    double pinn_routing_lag_hours = 0.0;
 
     // Historical flag name retained for experiment compatibility. For GIStoOHQ
     // reduced-reservoir and process-aware physics it selects the contiguous

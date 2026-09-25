@@ -125,6 +125,14 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     // coefficient so it is swept and validation-selected like the other
     // reservoir parameters instead of silently baking in an assumption of 1.
     const double runoffCoefficient = std::max(1.0e-6, config.forcing_gain);
+    // A catchment's rainfall-to-gauge travel time is not represented by the
+    // reservoirs' own K-based smoothing alone; diagnosed on real Sligo Creek
+    // data as the model's routed peak arriving several hours before the
+    // observed peak. Shifting the forcing series back in time by this many
+    // steps delays the whole simulated response to correct that offset.
+    const int64_t lagSteps = dt > 0.0
+        ? static_cast<int64_t>(std::llround(std::max(0.0, config.pinn_routing_lag_hours) / dt))
+        : 0;
 
     std::vector<double> qFast(static_cast<std::size_t>(n));
     std::vector<double> qSlow(static_cast<std::size_t>(n));
@@ -135,7 +143,8 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     qSlow[0] = (1.0 - alpha) * q0;
     predicted[0] = q0;
     for (int64_t i = 1; i < n; ++i) {
-        const double p = runoffCoefficient * peff[i].item<double>();
+        const int64_t forcingIdx = std::max<int64_t>(0, i - lagSteps);
+        const double p = runoffCoefficient * peff[forcingIdx].item<double>();
         const auto prev = static_cast<std::size_t>(i - 1);
         const auto cur = static_cast<std::size_t>(i);
         qFast[cur] = qFast[prev] + dt * fastK * (alpha * p - qFast[prev]);

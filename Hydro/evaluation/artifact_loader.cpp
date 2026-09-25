@@ -239,7 +239,7 @@ std::map<std::string, HydroArtifactScalers> HydroArtifactLoader::loadScalers(
         if (fields.size() != 7 || fields[0].empty() || (fields[1] != "input" && fields[1] != "target")) {
             throw std::runtime_error("Invalid scalers.csv row " + std::to_string(row) + ".");
         }
-        if (fields[3] != "none" && fields[3] != "standardize" && fields[3] != "minmax") {
+        if (fields[3] != "none" && fields[3] != "standardize" && fields[3] != "minmax" && fields[3] != "log_standardize") {
             throw std::runtime_error("Unsupported scaler method in row " + std::to_string(row) + ": " + fields[3]);
         }
         std::size_t index = 0;

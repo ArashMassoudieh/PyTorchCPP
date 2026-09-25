@@ -45,6 +45,23 @@ int main() {
     scaler.fit(constant, "standardize");
     assert(torch::isfinite(scaler.transform(constant)).all().item<bool>());
 
+    // log_standardize: round-trips through log1p/expm1 and preserves ordering.
+    TensorScaler logScaler;
+    auto flowTrain = torch::tensor({{0.0f}, {0.02f}, {0.5f}, {4.15f}});
+    logScaler.fit(flowTrain, "log_standardize");
+    auto flowHeldOut = torch::tensor({{0.45f}});
+    auto logTransformed = logScaler.transform(flowHeldOut);
+    assert(torch::allclose(logScaler.inverseTransform(logTransformed), flowHeldOut, 1e-4, 1e-4));
+    // A big training flood (4.15) must not distort a small held-out value the
+    // way plain standardize does: log-space transform of a near-zero value
+    // stays finite and its inverse recovers the exact physical value.
+    auto smallFlow = torch::tensor({{0.001f}});
+    assert(torch::allclose(logScaler.inverseTransform(logScaler.transform(smallFlow)), smallFlow, 1e-4, 1e-4));
+    bool negativeBelowLog1pDomainRejected = false;
+    try { logScaler.fit(torch::tensor({{-2.0f}, {1.0f}}), "log_standardize"); }
+    catch (const std::invalid_argument&) { negativeBelowLog1pDomainRejected = true; }
+    assert(negativeBelowLog1pDomainRejected);
+
     auto regular = torch::tensor({{0.0f, 1.0f}, {0.5f, 2.0f}, {1.0f, 3.0f}});
     assert(regularPhysicalTimeStep(regular) == 0.5);
     auto physicalTime = torch::tensor({{0.0f}, {0.5f}, {1.0f}});

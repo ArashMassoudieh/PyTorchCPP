@@ -377,7 +377,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     momentumSpin_->setDecimals(4);
     momentumSpin_->setRange(0.0, 0.9999);
     momentumSpin_->setValue(0.9);
-    normalizationCombo_->addItems({"none", "standardize", "minmax"});
+    normalizationCombo_->addItems({"none", "standardize", "minmax", "log_standardize"});
 
     incrementalCheck_->setChecked(false);
     windowSizeSpin_->setDecimals(3);
@@ -2784,10 +2784,21 @@ void HydroPINNWindow::runMode(const QString& mode) {
     if (cfg.use_hydro_package) {
         try {
             const auto packageRoot = resolveHydroPackageDirectory(cfg.hydro_package_path);
-            if (isGisToOhqHydroPinnExport(packageRoot) && mode != "ffn" && mode != "lstm") {
+            // GIStoOHQ HydroPINNExport packages carry P/PET/Q but no observed
+            // storage state, so only water_balance (which needs an
+            // independently-provided S to close P-ET-Q-dS/dt=0) is actually
+            // incompatible. linear_reservoir/cstr_first_order/exp_decay are
+            // pure P,PET-forced ODE constraints on Q itself and need no
+            // storage; the batch pipeline (HydroBatch) runs pinn/ffn_pinn/
+            // lstm_pinn against this exact export type routinely using
+            // linear_reservoir and the two-reservoir hybrid profiles.
+            if (isGisToOhqHydroPinnExport(packageRoot) && mode != "ffn" && mode != "lstm" &&
+                cfg.pinn_physics_profile == "water_balance") {
                 throw std::runtime_error(
-                    "GIStoOHQ HydroPINNExport has no observed storage; only FFN and LSTM are enabled. "
-                    "PINN approaches require a separately versioned rainfall-runoff physics profile.");
+                    "GIStoOHQ HydroPINNExport has no observed storage, so the water_balance PINN "
+                    "profile cannot close its mass balance. Select linear_reservoir, "
+                    "cstr_first_order, or exp_decay instead - those need only precipitation/PET "
+                    "and discharge, which this package provides.");
             }
             if (isGisToOhqHydroPinnExport(packageRoot)) {
                 appendLog("Detected GIStoOHQ HydroPINNExport; routing native temporal assets through hourly harmonization.");
