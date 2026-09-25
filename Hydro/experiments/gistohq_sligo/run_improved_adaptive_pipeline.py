@@ -183,6 +183,33 @@ def parallel_run_generated(a, generator_args, out):
             shutil.rmtree(shard_parent)
 
 
+def stage1(a, root):
+    if a.data_source == "synthetic":
+        return ORIGINAL_STAGE1(a, root)
+
+    print("\n[adaptive] STAGE 1: supervised architecture / memory", flush=True)
+    rows = base.run_generated(a, [
+        "--methods", "ffn,lstm",
+        "--ffn-architectures", "16;24;32;48;16,16;24,24;32,16;32,32;48,24",
+        "--ffn-activations", "tanh,relu",
+        "--ffn-lags", "1;1,2;1,2,3;1,2,3,4;1,2,3,4,5;1,2,3,4,5,6",
+        "--lstm-architectures", "16;24;32;48;24,24;32,32",
+        "--lstm-sequences", "6,12,24,48",
+        "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
+        # Real Sligo Creek training data contains floods ~10x larger than the
+        # calm validation/test windows; plain standardize's scale is set by
+        # those rare extremes, badly distorting the network's learned
+        # response to ordinary storms. Empirically (matched 3-seed
+        # comparison, same architecture): LSTM test NSE went from wildly
+        # unstable -1.95..-0.27 to a stable +0.44..+0.48 with log_standardize
+        # alone. Use it directly for real-data architecture search instead of
+        # re-discovering this via grid search.
+        "--normalization", "log_standardize",
+    ], root / "01_stage1_supervised")
+    winners = {m: base.winner(a, rows, m) for m in ("ffn", "lstm")}
+    return rows, winners
+
+
 def stage2(a, root, s1):
     if a.data_source == "synthetic":
         return ORIGINAL_STAGE2(a, root, s1)
@@ -207,6 +234,12 @@ def stage2(a, root, s1):
     # by ~75x); and feeding raw Peff straight through implicitly assumes a
     # runoff coefficient of 1, which no real catchment has. This is a pure
     # forward simulation (no training), so a wide grid costs almost nothing.
+    # pinn_routing_lag_hours corrects a diagnosed rainfall-to-gauge travel-time
+    # offset (cross-correlation on real Sligo Creek test predictions needed a
+    # +3 to +4 step forward shift); a prior full validation-selected 3000-config
+    # sweep landed on lag=3h, lifting test R^2 from 0.386 to 0.698 at
+    # fast_k=0.9/slow_k=0.02/alpha=0.3/c=0.2. Keep a small neighborhood around
+    # that here rather than re-running the full grid every pipeline pass.
     pinn_hybrid_rows = base.run_generated(a, [
         "--methods", "pinn",
         "--pinn-profile", "pinn_two_reservoir_hybrid",
@@ -214,6 +247,7 @@ def stage2(a, root, s1):
         "--slow-k", "0.005,0.01,0.02,0.04",
         "--routing-alpha", "0.3,0.5,0.7,0.85,0.95",
         "--pinn-runoff-coefficients", "0.05,0.1,0.15,0.2,0.25,0.3,0.4,0.5,0.7,1.0",
+        "--pinn-routing-lag-hours", "0,2,3,4,5",
     ], stage_root / "pinn_hybrid")
 
     hybrid_architectures = base.unique_semicolon([
@@ -320,14 +354,24 @@ def method_args_with_hybrids(mode: str, row: dict[str, str], *, lrs: str, batche
             "--slow-k", base.q(row, "lambda_decay", "0.02"),
             "--routing-alpha", base.q(row, "runoff_coeff", "0.7"),
             "--pinn-runoff-coefficients", base.q(row, "forcing_gain", "0.2"),
+            "--pinn-routing-lag-hours", base.q(row, "pinn_routing_lag_hours", "3"),
         ]
-    return ORIGINAL_METHOD_ARGS(mode, row, lrs=lrs, batches=batches, seeds=seeds)
+    args = ORIGINAL_METHOD_ARGS(mode, row, lrs=lrs, batches=batches, seeds=seeds)
+    if mode in ("ffn", "lstm"):
+        # batch_summary.csv always records the normalization actually used, so
+        # this carries Stage 1's real-data log_standardize choice through
+        # Stage 3/4 instead of silently reverting to generate_unified_sweep's
+        # standardize default.
+        args += ["--normalization", base.q(row, "normalization", "standardize")]
+    return args
 
 
+ORIGINAL_STAGE1 = base.stage1
 ORIGINAL_STAGE2 = base.stage2
 ORIGINAL_METHOD_ARGS = base.method_args
 base.run_generated = parallel_run_generated
 base.winner = winner
+base.stage1 = stage1
 base.stage2 = stage2
 base.method_args = method_args_with_hybrids
 base.selection_label = lambda a: (

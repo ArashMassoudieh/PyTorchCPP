@@ -22,14 +22,18 @@ SOURCE = HERE / "hydropinnwindow.cpp"
 OUT_DIR = HERE / "generated"
 OUTPUT = OUT_DIR / "hydropinnwindow_gistohq_pinn.cpp"
 
-OLD = '''            if (isGisToOhqHydroPinnExport(packageRoot) && mode != "ffn" && mode != "lstm") {
+OLD = '''            if (isGisToOhqHydroPinnExport(packageRoot) && mode != "ffn" && mode != "lstm" &&
+                cfg.pinn_physics_profile == "water_balance") {
                 throw std::runtime_error(
-                    "GIStoOHQ HydroPINNExport has no observed storage; only FFN and LSTM are enabled. "
-                    "PINN approaches require a separately versioned rainfall-runoff physics profile.");
+                    "GIStoOHQ HydroPINNExport has no observed storage, so the water_balance PINN "
+                    "profile cannot close its mass balance. Select linear_reservoir, "
+                    "cstr_first_order, or exp_decay instead - those need only precipitation/PET "
+                    "and discharge, which this package provides.");
             }
 '''
 
-NEW = '''            if (isGisToOhqHydroPinnExport(packageRoot) && mode != "ffn" && mode != "lstm") {
+NEW = '''            if (isGisToOhqHydroPinnExport(packageRoot) && mode != "ffn" && mode != "lstm" &&
+                cfg.pinn_physics_profile == "water_balance") {
                 // GIStoOHQ physics modes use the reduced runoff-reservoir equation
                 // dQ/dt = k(Peff-Q), Peff=max(P-PET,0). No observed or generated
                 // storage enters the model inputs.
