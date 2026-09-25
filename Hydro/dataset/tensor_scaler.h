@@ -23,18 +23,28 @@ public:
         if (!training.is_floating_point() || !training.isfinite().all().item<bool>()) {
             throw std::invalid_argument("Scaler training data must contain finite floating-point values.");
         }
-        if (method == "log_standardize" && (training < -1.0).any().item<bool>()) {
-            throw std::invalid_argument("log_standardize requires training values >= -1 (log1p domain).");
-        }
-        const torch::Tensor working = method == "log_standardize" ? torch::log1p(training) : training;
+        // `normalization` is a single config knob shared by both the input
+        // feature scaler and the target scaler at every call site (see e.g.
+        // lstmnetworkwrapper.cpp: inputScaler.fit(xTrain, config.normalization)
+        // and targetScaler.fit(yTrain, config.normalization)). log_standardize
+        // is intended for nonnegative target-like series (discharge), but
+        // input feature tensors (precipitation, PET, engineered lags, ...)
+        // are not guaranteed nonnegative - e.g. P-PET style features go
+        // negative on dry, high-evapotranspiration days. Rather than require
+        // every caller to know in advance which of its tensors are safe for
+        // a log1p transform, fall back to plain standardize per-tensor when
+        // the data doesn't fit the log1p domain, instead of failing the run.
+        const bool useLog = method == "log_standardize" && !(training < -1.0).any().item<bool>();
+        const std::string effectiveMethod = method == "log_standardize" && !useLog ? "standardize" : method;
+        const torch::Tensor working = useLog ? torch::log1p(training) : training;
         const auto reduceDimensions = training.dim() == 3 ? std::vector<int64_t>{0, 1}
                                                            : std::vector<int64_t>{0};
         torch::Tensor offset;
         torch::Tensor scale;
-        if (method == "standardize" || method == "log_standardize") {
+        if (effectiveMethod == "standardize" || effectiveMethod == "log_standardize") {
             offset = working.mean(reduceDimensions, true);
             scale = working.std(reduceDimensions, false, true);
-        } else if (method == "minmax") {
+        } else if (effectiveMethod == "minmax") {
             offset = working.amin(reduceDimensions, true);
             scale = working.amax(reduceDimensions, true) - offset;
         } else {
@@ -42,7 +52,7 @@ public:
             scale = torch::ones_like(offset);
         }
         scale = torch::where(torch::abs(scale) < 1.0e-12, torch::ones_like(scale), scale);
-        method_ = method;
+        method_ = effectiveMethod;
         offset_ = std::move(offset);
         scale_ = std::move(scale);
     }

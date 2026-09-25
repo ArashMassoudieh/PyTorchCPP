@@ -1,7 +1,0 @@
-# LSTM normalization comparison
-lstm generated_unified/unified_lstm_h48_seq24_lr0p005_b16_s42.json
-lstm generated_unified/unified_lstm_h48_seq24_lr0p005_b16_s123.json
-lstm generated_unified/unified_lstm_h48_seq24_lr0p005_b16_s2026.json
-lstm generated_unified/unified_lstm_h48_seq24_lr0p005_b16_s42_log.json
-lstm generated_unified/unified_lstm_h48_seq24_lr0p005_b16_s123_log.json
-lstm generated_unified/unified_lstm_h48_seq24_lr0p005_b16_s2026_log.json

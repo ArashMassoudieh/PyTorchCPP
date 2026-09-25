@@ -57,10 +57,19 @@ int main() {
     // stays finite and its inverse recovers the exact physical value.
     auto smallFlow = torch::tensor({{0.001f}});
     assert(torch::allclose(logScaler.inverseTransform(logScaler.transform(smallFlow)), smallFlow, 1e-4, 1e-4));
-    bool negativeBelowLog1pDomainRejected = false;
-    try { logScaler.fit(torch::tensor({{-2.0f}, {1.0f}}), "log_standardize"); }
-    catch (const std::invalid_argument&) { negativeBelowLog1pDomainRejected = true; }
-    assert(negativeBelowLog1pDomainRejected);
+    // A tensor outside the log1p domain (e.g. a signed input feature such as
+    // P-PET, sharing the same `normalization` config as a nonnegative
+    // discharge target) must not fail the run: fall back to plain
+    // standardize for that tensor instead of throwing.
+    TensorScaler fallbackScaler;
+    auto signedFeature = torch::tensor({{-2.0f}, {1.0f}, {3.0f}});
+    fallbackScaler.fit(signedFeature, "log_standardize");
+    assert(fallbackScaler.exportState().method == "standardize");
+    auto plainStandardizeScaler = TensorScaler();
+    plainStandardizeScaler.fit(signedFeature, "standardize");
+    assert(torch::allclose(
+        fallbackScaler.transform(signedFeature),
+        plainStandardizeScaler.transform(signedFeature)));
 
     auto regular = torch::tensor({{0.0f, 1.0f}, {0.5f, 2.0f}, {1.0f, 3.0f}});
     assert(regularPhysicalTimeStep(regular) == 0.5);
