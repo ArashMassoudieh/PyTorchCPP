@@ -26,7 +26,7 @@ ALL_METHODS = ("ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn")
 PHYSICS_METHODS = {"ffn_pinn", "lstm_pinn", "pinn"}
 DATA_SOURCES = ("synthetic", "csv", "hydro")
 LSTM_PINN_PROFILES = ("linear_reservoir", "two_reservoir_hybrid")
-FFN_PINN_PROFILES = ("linear_reservoir", "ffn_two_reservoir_hybrid")
+FFN_PINN_PROFILES = ("linear_reservoir", "ffn_two_reservoir_hybrid", "ffn_residual_pinn_hybrid")
 PINN_PROFILES = ("linear_reservoir", "pinn_two_reservoir_hybrid")
 
 
@@ -149,7 +149,11 @@ def process_hybrid_common(cfg: dict, fast_k: float, slow_k: float, alpha: float,
                            flow_exponent: float = 0.0) -> dict:
     cfg = dict(cfg)
     cfg.update({
-        "normalization": "standardize",
+        # ffn_residual_pinn_hybrid's network only fits the physics baseline's
+        # residual, on physical-unit discharge (see residual_pinn_wrapper.h) -
+        # it needs raw units like linear_reservoir/pinn_two_reservoir_hybrid,
+        # not the standardize scale the joint-loss hybrids' networks need.
+        "normalization": "none" if profile == "ffn_residual_pinn_hybrid" else "standardize",
         "physics_profile": profile,
         "physics_dt": 1.0,
         "storage_coeff": fast_k,
@@ -326,6 +330,26 @@ def main() -> int:
                 cfg["experiment_id"] = (
                     f"unified_ffn_pinn_h{slug(hidden)}_{slug(act)}_lag{slug(lag)}_w{slug(w)}_"
                     f"kf{slug(kf)}_ks{slug(ks)}_a{slug(alpha)}_lr{slug(lr)}_b{batch}_s{seed}"
+                )
+                jobs.append(("ffn_pinn", write_config(cfg), cfg))
+        elif args.ffn_pinn_profile == "ffn_residual_pinn_hybrid":
+            # No physics_weight/data_weight split here (there is no joint loss:
+            # the physics baseline is an exact forward simulation, and the
+            # network is trained purely on MSE against its residual - see
+            # residual_pinn_wrapper.h), so this sweeps architecture and the
+            # same routing parameters as pinn_two_reservoir_hybrid instead.
+            routing_grid = [(kf, ks, a) for kf, ks, a in itertools.product(fast_ks, slow_ks, alphas) if kf > ks]
+            for hidden, act, (kf, ks, alpha), c, routing_lag, flow_exp, (lr, batch, seed) in itertools.product(
+                    ffn_arch, activations, routing_grid, pinn_runoff_coefficients,
+                    pinn_routing_lag_hours, pinn_flow_exponents, grid):
+                cfg = process_hybrid_common(common(ffn_base, args, lr, batch, seed), kf, ks, alpha,
+                                            profile="ffn_residual_pinn_hybrid", runoff_coefficient=c,
+                                            routing_lag_hours=routing_lag, flow_exponent=flow_exp)
+                cfg.update({"hidden_layers": hidden, "activation": act,
+                            "data_weight": 1.0, "physics_weight": 0.0})
+                cfg["experiment_id"] = (
+                    f"unified_ffn_residual_h{slug(hidden)}_{slug(act)}_kf{slug(kf)}_ks{slug(ks)}_a{slug(alpha)}_"
+                    f"c{slug(c)}_lag{slug(routing_lag)}_fe{slug(flow_exp)}_lr{slug(lr)}_b{batch}_s{seed}"
                 )
                 jobs.append(("ffn_pinn", write_config(cfg), cfg))
         else:

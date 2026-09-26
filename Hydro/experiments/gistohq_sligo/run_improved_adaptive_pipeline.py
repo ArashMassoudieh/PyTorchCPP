@@ -332,9 +332,48 @@ def stage2(a, root, s1):
         "--routing-alpha", "0.75,0.85,0.95",
     ], stage_root / "ffn_pinn_hybrid_routing")
 
-    rows = legacy_rows + arch_rows + routing_rows + ffn_hybrid_arch_rows + ffn_hybrid_routing_rows + pinn_hybrid_rows
+    # Residual-correction hybrid: a physics baseline (exact forward simulation,
+    # same routing as pinn_two_reservoir_hybrid) supplies the hydrograph shape
+    # and a small FFN learns only what it leaves unexplained (see
+    # residual_pinn_wrapper.h). This differs from ffn_two_reservoir_hybrid
+    # above, where the network generates the *input* to the routing (a
+    # joint-loss architecture that has consistently underperformed its parent
+    # FFN on real Sligo Creek data - see paper_run_20260925_130303's
+    # genuine_hydrologic_improvement=False finding). Center the routing grid on
+    # pinn_two_reservoir_hybrid's own rolling-origin-validated best region
+    # (fast_k=0.1, slow_k=0.04, alpha=0.3, forcing_gain=0.25, flow_exponent=0.5)
+    # rather than re-deriving it, and let architecture/lr vary around that.
+    ffn_residual_arch_rows = base.run_generated(a, [
+        "--methods", "ffn_pinn",
+        "--ffn-architectures", base.unique_semicolon([base.q(ffn, "hidden_layers", "16,16"), "32,16", "32,32"]),
+        "--ffn-activations", base.q(ffn, "activation", "relu"),
+        "--learning-rates", "0.003", "--batch-sizes", "16,32", "--seeds", "42",
+        "--ffn-pinn-profile", "ffn_residual_pinn_hybrid",
+        "--fast-k", "0.1", "--slow-k", "0.04", "--routing-alpha", "0.3",
+        "--pinn-runoff-coefficients", "0.25",
+        "--pinn-routing-lag-hours", "0",
+        "--pinn-flow-exponent", "0.5",
+    ], stage_root / "ffn_residual_hybrid_architecture")
+    ffn_residual_winner = winner(a, ffn_residual_arch_rows, "ffn_pinn")
+
+    ffn_residual_routing_rows = base.run_generated(a, [
+        "--methods", "ffn_pinn",
+        "--ffn-architectures", base.q(ffn_residual_winner, "hidden_layers", "16,16"),
+        "--ffn-activations", base.q(ffn, "activation", "relu"),
+        "--learning-rates", "0.003", "--batch-sizes", "16,32", "--seeds", "42",
+        "--ffn-pinn-profile", "ffn_residual_pinn_hybrid",
+        "--fast-k", "0.05,0.10,0.20,0.40",
+        "--slow-k", "0.02,0.04,0.06",
+        "--routing-alpha", "0.2,0.3,0.5",
+        "--pinn-runoff-coefficients", "0.15,0.25,0.35",
+        "--pinn-routing-lag-hours", "0",
+        "--pinn-flow-exponent=-0.5,0,0.5,1",
+    ], stage_root / "ffn_residual_hybrid_routing")
+
+    rows = (legacy_rows + arch_rows + routing_rows + ffn_hybrid_arch_rows + ffn_hybrid_routing_rows +
+            pinn_hybrid_rows + ffn_residual_arch_rows + ffn_residual_routing_rows)
     base.write_rows(stage_root / "batch_summary.csv", rows)
-    ffn_pinn_candidates = legacy_rows + ffn_hybrid_routing_rows
+    ffn_pinn_candidates = legacy_rows + ffn_hybrid_routing_rows + ffn_residual_routing_rows
     pinn_candidates = legacy_rows + pinn_hybrid_rows
     winners = {
         "ffn_pinn": winner(a, ffn_pinn_candidates, "ffn_pinn"),
@@ -362,6 +401,19 @@ def method_args_with_hybrids(mode: str, row: dict[str, str], *, lrs: str, batche
             "--fast-k", base.q(row, "storage_coeff", "0.1"),
             "--slow-k", base.q(row, "lambda_decay", "0.04"),
             "--routing-alpha", base.q(row, "runoff_coeff", "0.85"),
+        ]
+    if mode == "ffn_pinn" and profile == "ffn_residual_pinn_hybrid":
+        return [
+            "--methods", mode, "--learning-rates", lrs, "--batch-sizes", batches, "--seeds", seeds,
+            "--ffn-architectures", base.q(row, "hidden_layers", "16,16"),
+            "--ffn-activations", base.q(row, "activation", "relu"),
+            "--ffn-pinn-profile", "ffn_residual_pinn_hybrid",
+            "--fast-k", base.q(row, "storage_coeff", "0.1"),
+            "--slow-k", base.q(row, "lambda_decay", "0.04"),
+            "--routing-alpha", base.q(row, "runoff_coeff", "0.3"),
+            "--pinn-runoff-coefficients", base.q(row, "forcing_gain", "0.25"),
+            "--pinn-routing-lag-hours", base.q(row, "pinn_routing_lag_hours", "0"),
+            "--pinn-flow-exponent", base.q(row, "pinn_flow_exponent", "0.5"),
         ]
     if mode == "pinn" and profile == "pinn_two_reservoir_hybrid":
         return [
