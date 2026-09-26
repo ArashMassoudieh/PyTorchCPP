@@ -234,12 +234,28 @@ def stage2(a, root, s1):
     # by ~75x); and feeding raw Peff straight through implicitly assumes a
     # runoff coefficient of 1, which no real catchment has. This is a pure
     # forward simulation (no training), so a wide grid costs almost nothing.
-    # pinn_routing_lag_hours corrects a diagnosed rainfall-to-gauge travel-time
-    # offset (cross-correlation on real Sligo Creek test predictions needed a
-    # +3 to +4 step forward shift); a prior full validation-selected 3000-config
-    # sweep landed on lag=3h, lifting test R^2 from 0.386 to 0.698 at
-    # fast_k=0.9/slow_k=0.02/alpha=0.3/c=0.2. Keep a small neighborhood around
-    # that here rather than re-running the full grid every pipeline pass.
+    #
+    # pinn_routing_lag_hours (a fixed forcing delay) was tried first, based on
+    # cross-correlation on real Sligo Creek test predictions needing a +3 to
+    # +4 step forward shift. A single-validation-window sweep found lag=3h
+    # apparently lifted test R^2 from 0.386 to 0.698 - but that DID NOT
+    # survive a rolling-origin check across 4 independent historical windows:
+    # every top-15 config by mean KGE across those windows had lag=0. The
+    # apparent lag benefit was specific to the one test-period storm, not a
+    # general property of the catchment - a fixed lag is the wrong model
+    # structure regardless of value, so keep only a small lag neighborhood
+    # around 0 here (mainly as a regression check, not expecting it to win).
+    #
+    # pinn_flow_exponent makes K scale with (flow/initial_flow)^exponent
+    # instead of being fixed (kinematic-wave-consistent; see e.g. Bindas
+    # et al. 2024, WRR, differentiable Muskingum-Cunge routing). This DID
+    # survive the same rolling-origin check: flow_exponent=0.5 configs
+    # dominate the top of the 4-window mean-KGE ranking (a real, if modest,
+    # ~2% edge over the best purely-linear config), and unlike the lag
+    # result, multiple independently top-ranked flow_exponent=0.5 configs
+    # (not just the single best one) also score well on held-out test
+    # (R^2 0.68-0.80 across the top several), which is what makes this one
+    # trustworthy where the lag one wasn't.
     pinn_hybrid_rows = base.run_generated(a, [
         "--methods", "pinn",
         "--pinn-profile", "pinn_two_reservoir_hybrid",
@@ -247,7 +263,8 @@ def stage2(a, root, s1):
         "--slow-k", "0.005,0.01,0.02,0.04",
         "--routing-alpha", "0.3,0.5,0.7,0.85,0.95",
         "--pinn-runoff-coefficients", "0.05,0.1,0.15,0.2,0.25,0.3,0.4,0.5,0.7,1.0",
-        "--pinn-routing-lag-hours", "0,2,3,4,5",
+        "--pinn-routing-lag-hours", "0,2",
+        "--pinn-flow-exponent=-2,-1,-0.5,0,0.5,1,2",
     ], stage_root / "pinn_hybrid")
 
     hybrid_architectures = base.unique_semicolon([
