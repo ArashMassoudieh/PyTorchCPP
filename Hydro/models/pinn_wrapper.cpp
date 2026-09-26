@@ -1,6 +1,7 @@
 #include "pinn_wrapper.h"
 
 #include "ffn_pinn_wrapper.h"
+#include "two_reservoir_routing.h"
 #include "../dataset/chronological_split.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
@@ -147,37 +148,18 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     // dependency (faster vs slower response at higher flow) is itself an
     // empirical question for this catchment.
     const double flowExponent = config.pinn_flow_exponent;
-    const double flowReference = std::max(q0, 1.0e-3);
-    const double flowFloor = 1.0e-3;
 
-    std::vector<double> qFast(static_cast<std::size_t>(n));
-    std::vector<double> qSlow(static_cast<std::size_t>(n));
-    std::vector<double> predicted(static_cast<std::size_t>(n));
-    // No data term to fit the fast/slow split of the single observed IC, so
-    // partition it consistently with each store's steady-state share.
-    qFast[0] = alpha * q0;
-    qSlow[0] = (1.0 - alpha) * q0;
-    predicted[0] = q0;
-    for (int64_t i = 1; i < n; ++i) {
-        const int64_t forcingIdx = std::max<int64_t>(0, i - lagSteps);
-        const double p = runoffCoefficient * peff[forcingIdx].item<double>();
-        const auto prev = static_cast<std::size_t>(i - 1);
-        const auto cur = static_cast<std::size_t>(i);
-        double nonlinearFactor = 1.0;
-        if (flowExponent != 0.0) {
-            const double qPrevTotal = std::max(qFast[prev] + qSlow[prev], 0.0) + flowFloor;
-            nonlinearFactor = std::pow(qPrevTotal / flowReference, flowExponent);
-            // Bound the factor so a poorly-chosen exponent cannot blow up the
-            // explicit-Euler recurrence; the dt*K<=1 check below still
-            // enforces hard stability on top of this.
-            nonlinearFactor = std::min(std::max(nonlinearFactor, 0.05), 20.0);
-        }
-        const double effectiveFastK = std::min(fastK * nonlinearFactor, 0.99 / dt);
-        const double effectiveSlowK = std::min(slowK * nonlinearFactor, 0.99 / dt);
-        qFast[cur] = qFast[prev] + dt * effectiveFastK * (alpha * p - qFast[prev]);
-        qSlow[cur] = qSlow[prev] + dt * effectiveSlowK * ((1.0 - alpha) * p - qSlow[prev]);
-        predicted[cur] = qFast[cur] + qSlow[cur];
-    }
+    std::vector<double> peffVec(static_cast<std::size_t>(n));
+    for (int64_t i = 0; i < n; ++i) peffVec[static_cast<std::size_t>(i)] = peff[i].item<double>();
+    TwoReservoirRoutingParams routingParams;
+    routingParams.fastK = fastK;
+    routingParams.slowK = slowK;
+    routingParams.alpha = alpha;
+    routingParams.runoffCoefficient = runoffCoefficient;
+    routingParams.dt = dt;
+    routingParams.lagSteps = lagSteps;
+    routingParams.flowExponent = flowExponent;
+    const std::vector<double> predicted = simulateTwoReservoirBaseline(peffVec, q0, routingParams);
     if (std::any_of(predicted.begin(), predicted.end(), [](double v) { return !std::isfinite(v); })) {
         throw std::runtime_error("Standalone two-reservoir PINN simulation produced non-finite values.");
     }
