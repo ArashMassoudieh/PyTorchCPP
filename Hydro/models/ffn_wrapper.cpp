@@ -326,11 +326,15 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
         std::filesystem::remove(checkpoint);
     }
 
+    // Discharge is physically non-negative; the network's plain linear output
+    // head has no such constraint, so clamp after inverse-transform (not
+    // during training - that would zero the gradient signal that should push
+    // predictions up instead).
     model.setTensorData(DataType::Test, xValidation, yValidation);
-    torch::Tensor predValidation = targetScaler.inverseTransform(model.forward(DataType::Test));
+    torch::Tensor predValidation = targetScaler.inverseTransform(model.forward(DataType::Test)).clamp_min(0.0);
     result.validation_mse = torch::mse_loss(predValidation, y.slice(0, nTrain, split.validation_end)).item<double>();
     model.setTensorData(DataType::Test, xTest, yTestScaled);
-    torch::Tensor predTest = targetScaler.inverseTransform(model.forward(DataType::Test));
+    torch::Tensor predTest = targetScaler.inverseTransform(model.forward(DataType::Test)).clamp_min(0.0);
     if (!predTest.defined() || predTest.size(0) != yTest.size(0) || !predTest.isfinite().all().item<bool>()) {
         throw std::runtime_error("FFN prediction on test set failed or produced non-finite values.");
     }
@@ -343,7 +347,7 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     // Keep metrics on held-out test set, but plot full-series predictions for better visual coverage.
     torch::Tensor xFullScaled = inputScaler.transform(x);
     model.setTensorData(DataType::Test, xFullScaled, targetScaler.transform(y));
-    torch::Tensor predFull = targetScaler.inverseTransform(model.forward(DataType::Test));
+    torch::Tensor predFull = targetScaler.inverseTransform(model.forward(DataType::Test)).clamp_min(0.0);
     if (!predFull.defined() || predFull.size(0) != y.size(0) || !predFull.isfinite().all().item<bool>()) {
         throw std::runtime_error("Full-series prediction for plotting failed or produced non-finite values.");
     }

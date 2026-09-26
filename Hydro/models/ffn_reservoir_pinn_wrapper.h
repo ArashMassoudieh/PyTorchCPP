@@ -230,7 +230,10 @@ public:
 
         model->eval();
         torch::NoGradGuard noGrad;
-        torch::Tensor predTest = model->forward(xTest);
+        // Discharge is physically non-negative; nonnegativeLoss above is only
+        // a training-time soft penalty, not a guarantee, so clamp the
+        // reported predictions.
+        torch::Tensor predTest = model->forward(xTest).clamp_min(0.0);
         if (!predTest.defined() || !predTest.isfinite().all().item<bool>()) {
             throw std::runtime_error("FFN-PINN prediction produced non-finite values.");
         }
@@ -241,7 +244,7 @@ public:
             }
         }
 
-        torch::Tensor predFull = model->forward(x);
+        torch::Tensor predFull = model->forward(x).clamp_min(0.0);
         fillPlotVectors(result, plotX, y, predFull);
         result.split.resize(result.x.size(), "test");
         for (std::size_t i = 0; i < result.split.size(); ++i) {

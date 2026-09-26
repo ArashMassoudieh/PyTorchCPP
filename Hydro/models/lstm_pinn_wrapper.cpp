@@ -531,7 +531,11 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
 
     model->eval();
     torch::NoGradGuard noGrad;
-    torch::Tensor predTestPhysical = targetScaler.inverseTransform(model->forward(xTest));
+    // Discharge is physically non-negative; the plain linear output head has
+    // no such constraint (the relu(-pred) term above is only a training-time
+    // soft penalty, not a guarantee), so clamp the reported predictions after
+    // inverse-transform.
+    torch::Tensor predTestPhysical = targetScaler.inverseTransform(model->forward(xTest)).clamp_min(0.0);
     if (!predTestPhysical.defined() || !predTestPhysical.isfinite().all().item<bool>()) {
         throw std::runtime_error("LSTM-PINN prediction produced non-finite values.");
     }
@@ -541,7 +545,7 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
     }
 
     torch::Tensor xFull = inputScaler.transform(seq.x);
-    torch::Tensor predFullPhysical = targetScaler.inverseTransform(model->forward(xFull));
+    torch::Tensor predFullPhysical = targetScaler.inverseTransform(model->forward(xFull)).clamp_min(0.0);
     fillPlotVectors(result, seq.time, seq.y, predFullPhysical);
     result.split.resize(result.x.size(), "test");
     for (std::size_t i = 0; i < result.split.size(); ++i) {

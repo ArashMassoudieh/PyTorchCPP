@@ -503,9 +503,13 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
 
     model->eval();
     torch::NoGradGuard noGrad;
-    torch::Tensor predValidation = targetScaler.inverseTransform(model->forward(xValidation));
+    // Discharge is physically non-negative; the plain linear output head has
+    // no such constraint, so clamp after inverse-transform (not during
+    // training - that would zero the gradient signal instead of letting the
+    // loss push predictions up).
+    torch::Tensor predValidation = targetScaler.inverseTransform(model->forward(xValidation)).clamp_min(0.0);
     result.validation_mse = tensorMSEValue(predValidation, yValidationPhysical);
-    torch::Tensor predTest = targetScaler.inverseTransform(model->forward(xTest));
+    torch::Tensor predTest = targetScaler.inverseTransform(model->forward(xTest)).clamp_min(0.0);
     if (!predTest.defined() || predTest.size(0) != yTestPhysical.size(0) || !predTest.isfinite().all().item<bool>()) {
         throw std::runtime_error(physicsInformed ? "LSTM-PINN prediction failed or produced non-finite values." : "LSTM prediction failed or produced non-finite values.");
     }
@@ -514,7 +518,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         if (!hydroMetricsAreFinite(result)) throw std::runtime_error(physicsInformed ? "LSTM-PINN evaluation produced non-finite hydrology metrics." : "LSTM evaluation produced non-finite hydrology metrics.");
     }
 
-    torch::Tensor predFull = targetScaler.inverseTransform(model->forward(inputScaler.transform(seq.xSeq)));
+    torch::Tensor predFull = targetScaler.inverseTransform(model->forward(inputScaler.transform(seq.xSeq))).clamp_min(0.0);
     if (!predFull.defined() || predFull.size(0) != seq.ySeq.size(0) || !predFull.isfinite().all().item<bool>()) {
         throw std::runtime_error(physicsInformed ? "Full-series LSTM-PINN prediction for plotting failed or produced non-finite values." : "Full-series LSTM prediction for plotting failed or produced non-finite values.");
     }
