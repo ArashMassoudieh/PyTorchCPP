@@ -133,6 +133,22 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     const int64_t lagSteps = dt > 0.0
         ? static_cast<int64_t>(std::llround(std::max(0.0, config.pinn_routing_lag_hours) / dt))
         : 0;
+    // A single fixed K assumes constant catchment travel time, but real
+    // events differ: diagnosed on real Sligo Creek data (rolling-origin
+    // check across independent windows) that the routing response that best
+    // fits one storm does not fit another. Kinematic-wave theory (and its
+    // differentiable-Muskingum-Cunge realizations, e.g. Bindas et al. 2024,
+    // WRR) makes travel time a function of the current flow state instead of
+    // a constant: celerity - and so the effective rate K - scales with
+    // (Q/Qref)^flowExponent. flowExponent=0 recovers the original constant-K
+    // behavior exactly (default, backward compatible); its sign and
+    // magnitude are swept and validation-selected like the other reservoir
+    // parameters rather than assumed a priori, since the direction of the
+    // dependency (faster vs slower response at higher flow) is itself an
+    // empirical question for this catchment.
+    const double flowExponent = config.pinn_flow_exponent;
+    const double flowReference = std::max(q0, 1.0e-3);
+    const double flowFloor = 1.0e-3;
 
     std::vector<double> qFast(static_cast<std::size_t>(n));
     std::vector<double> qSlow(static_cast<std::size_t>(n));
@@ -147,8 +163,19 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
         const double p = runoffCoefficient * peff[forcingIdx].item<double>();
         const auto prev = static_cast<std::size_t>(i - 1);
         const auto cur = static_cast<std::size_t>(i);
-        qFast[cur] = qFast[prev] + dt * fastK * (alpha * p - qFast[prev]);
-        qSlow[cur] = qSlow[prev] + dt * slowK * ((1.0 - alpha) * p - qSlow[prev]);
+        double nonlinearFactor = 1.0;
+        if (flowExponent != 0.0) {
+            const double qPrevTotal = std::max(qFast[prev] + qSlow[prev], 0.0) + flowFloor;
+            nonlinearFactor = std::pow(qPrevTotal / flowReference, flowExponent);
+            // Bound the factor so a poorly-chosen exponent cannot blow up the
+            // explicit-Euler recurrence; the dt*K<=1 check below still
+            // enforces hard stability on top of this.
+            nonlinearFactor = std::min(std::max(nonlinearFactor, 0.05), 20.0);
+        }
+        const double effectiveFastK = std::min(fastK * nonlinearFactor, 0.99 / dt);
+        const double effectiveSlowK = std::min(slowK * nonlinearFactor, 0.99 / dt);
+        qFast[cur] = qFast[prev] + dt * effectiveFastK * (alpha * p - qFast[prev]);
+        qSlow[cur] = qSlow[prev] + dt * effectiveSlowK * ((1.0 - alpha) * p - qSlow[prev]);
         predicted[cur] = qFast[cur] + qSlow[cur];
     }
     if (std::any_of(predicted.begin(), predicted.end(), [](double v) { return !std::isfinite(v); })) {

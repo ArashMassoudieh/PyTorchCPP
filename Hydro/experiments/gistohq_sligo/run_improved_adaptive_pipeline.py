@@ -355,6 +355,7 @@ def method_args_with_hybrids(mode: str, row: dict[str, str], *, lrs: str, batche
             "--routing-alpha", base.q(row, "runoff_coeff", "0.7"),
             "--pinn-runoff-coefficients", base.q(row, "forcing_gain", "0.2"),
             "--pinn-routing-lag-hours", base.q(row, "pinn_routing_lag_hours", "3"),
+            "--pinn-flow-exponent", base.q(row, "pinn_flow_exponent", "0"),
         ]
     args = ORIGINAL_METHOD_ARGS(mode, row, lrs=lrs, batches=batches, seeds=seeds)
     if mode in ("ffn", "lstm"):

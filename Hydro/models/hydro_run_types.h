@@ -55,6 +55,12 @@ struct HydroRunConfig {
     // catchment travel-time lag between rainfall and gauge response that the
     // reservoirs' own K-based dynamics do not otherwise capture.
     double pinn_routing_lag_hours = 0.0;
+    // pinn_two_reservoir_hybrid only: makes both reservoirs' rate constants
+    // scale with (current_flow/initial_flow)^pinn_flow_exponent instead of
+    // being fixed, so effective travel time varies by event instead of being
+    // frozen to one value. 0.0 (default) recovers the original constant-K
+    // behavior exactly.
+    double pinn_flow_exponent = 0.0;
 
     // Historical flag name retained for experiment compatibility. For GIStoOHQ
     // reduced-reservoir and process-aware physics it selects the contiguous

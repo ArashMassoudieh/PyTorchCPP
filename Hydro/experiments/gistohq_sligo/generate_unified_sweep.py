@@ -145,7 +145,8 @@ def physics_common(cfg: dict, k: float) -> dict:
 def process_hybrid_common(cfg: dict, fast_k: float, slow_k: float, alpha: float,
                            profile: str = "two_reservoir_hybrid", lag: str | None = None,
                            runoff_coefficient: float = 1.0,
-                           routing_lag_hours: float = 0.0) -> dict:
+                           routing_lag_hours: float = 0.0,
+                           flow_exponent: float = 0.0) -> dict:
     cfg = dict(cfg)
     cfg.update({
         "normalization": "standardize",
@@ -165,6 +166,9 @@ def process_hybrid_common(cfg: dict, fast_k: float, slow_k: float, alpha: float,
         # a catchment travel-time offset (see pinn_wrapper.cpp); other
         # profiles' networks learn their own effective timing and ignore it.
         "pinn_routing_lag_hours": routing_lag_hours,
+        # pinn_two_reservoir_hybrid only: makes K scale with (flow/initial
+        # flow)^flow_exponent instead of being fixed (see pinn_wrapper.cpp).
+        "pinn_flow_exponent": flow_exponent,
     })
     return cfg
 
@@ -193,6 +197,10 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--pinn-routing-lag-hours", default="0",
                    help="Forcing-delay values (hours) for pinn_two_reservoir_hybrid, correcting a "
                         "catchment travel-time offset the reservoirs' own K dynamics do not capture")
+    p.add_argument("--pinn-flow-exponent", default="0",
+                   help="Flow-dependence exponents for pinn_two_reservoir_hybrid: K scales with "
+                        "(flow/initial_flow)^exponent instead of being fixed. 0 = original constant-K "
+                        "behavior. Sign and magnitude are swept, not assumed.")
     p.add_argument("--normalization", default="standardize",
                    choices=("none", "standardize", "minmax", "log_standardize"),
                    help="Target normalization for plain ffn/lstm (two-reservoir hybrids always use "
@@ -280,6 +288,7 @@ def main() -> int:
     pinn_routing_lag_hours = csv_values(args.pinn_routing_lag_hours, float)
     if any(v < 0 for v in pinn_routing_lag_hours):
         raise SystemExit("--pinn-routing-lag-hours values cannot be negative")
+    pinn_flow_exponents = csv_values(args.pinn_flow_exponent, float)
 
     if args.epochs < 1 or any(v <= 0 for v in lrs) or any(v < 1 for v in batches + sequences):
         raise SystemExit("epochs/LR/batch/sequence settings must be positive")
@@ -362,14 +371,15 @@ def main() -> int:
             # simulation of the given reservoir parameters), so architecture/lr/
             # batch/seed are irrelevant; only fast_k, slow_k, and alpha matter.
             routing_grid = [(kf, ks, a) for kf, ks, a in itertools.product(fast_ks, slow_ks, alphas) if kf > ks]
-            for (kf, ks, alpha), c, routing_lag in itertools.product(
-                    routing_grid, pinn_runoff_coefficients, pinn_routing_lag_hours):
+            for (kf, ks, alpha), c, routing_lag, flow_exp in itertools.product(
+                    routing_grid, pinn_runoff_coefficients, pinn_routing_lag_hours, pinn_flow_exponents):
                 cfg = process_hybrid_common(common(ffn_base, args, lrs[0], batches[0], seeds[0]), kf, ks, alpha,
                                             profile="pinn_two_reservoir_hybrid", runoff_coefficient=c,
-                                            routing_lag_hours=routing_lag)
+                                            routing_lag_hours=routing_lag, flow_exponent=flow_exp)
                 cfg.update({"data_weight": 0.0, "physics_weight": 1.0})
                 cfg["experiment_id"] = (
-                    f"unified_pinn_kf{slug(kf)}_ks{slug(ks)}_a{slug(alpha)}_c{slug(c)}_lag{slug(routing_lag)}"
+                    f"unified_pinn_kf{slug(kf)}_ks{slug(ks)}_a{slug(alpha)}_c{slug(c)}_"
+                    f"lag{slug(routing_lag)}_fe{slug(flow_exp)}"
                 )
                 jobs.append(("pinn", write_config(cfg), cfg))
         else:

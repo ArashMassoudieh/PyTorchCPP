@@ -221,7 +221,7 @@ void printMetrics(const std::string& experiment_id, const std::string& mode,
 }
 
 const char* summaryHeader() {
-    return "experiment_id,mode,lstm_sequence_length,input_lags,hidden_layers,activation,learning_rate,batch_size,random_seed,normalization,physics_profile,storage_coeff,lambda_decay,runoff_coeff,pinn_routing_lag_hours,data_weight,physics_weight,latent_storage,latent_recession_per_hour,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_loss,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual";
+    return "experiment_id,mode,lstm_sequence_length,input_lags,hidden_layers,activation,learning_rate,batch_size,random_seed,normalization,physics_profile,storage_coeff,lambda_decay,runoff_coeff,pinn_routing_lag_hours,pinn_flow_exponent,data_weight,physics_weight,latent_storage,latent_recession_per_hour,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_loss,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual";
 }
 
 void prepareSummaryFile(const fs::path& summary_path) {
@@ -253,7 +253,7 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
         << config.learning_rate << ',' << config.batch_size << ',' << config.random_seed << ','
         << csvCell(config.normalization) << ',' << csvCell(config.pinn_physics_profile) << ','
         << config.storage_coeff << ',' << config.lambda_decay << ',' << config.runoff_coeff << ','
-        << config.pinn_routing_lag_hours << ','
+        << config.pinn_routing_lag_hours << ',' << config.pinn_flow_exponent << ','
         << config.data_weight << ',' << config.physics_weight << ','
         << (config.use_latent_storage_physics ? "true" : "false") << ','
         << config.latent_storage_recession_per_hour << ',' << (r.success ? "true" : "false") << ','
