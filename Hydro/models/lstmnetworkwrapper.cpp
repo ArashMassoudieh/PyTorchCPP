@@ -440,6 +440,19 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
             const bool dataWarmup = physicsInformed && config.data_weight > 0.0 && epoch < std::max(1, config.epochs / 5);
             const double effectiveDataWeight = dataWarmup ? std::max(1.0, config.data_weight) : config.data_weight;
             torch::Tensor loss = physicsInformed ? effectiveDataWeight * dataLoss : dataLoss;
+            if (config.lstm_bias_weight > 0.0) {
+                // Pointwise MSE does not penalize a consistent over/under-shoot
+                // as long as pointwise error stays low, which is exactly how
+                // LSTM/LSTM+PINN's persistent nonzero PBIAS on real Sligo Creek
+                // data (-1% to -34% across configs) can coexist with a
+                // reasonable NSE/R^2. Penalize the batch-mean bias directly, in
+                // physical discharge units so the weight is interpretable
+                // regardless of normalization method.
+                torch::Tensor predPhysical = targetScaler.inverseTransform(pred);
+                torch::Tensor truthPhysical = targetScaler.inverseTransform(yb);
+                torch::Tensor bias = predPhysical.mean() - truthPhysical.mean();
+                loss = loss + config.lstm_bias_weight * bias * bias;
+            }
             loss.backward();
             optimizer.step();
 

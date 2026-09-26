@@ -197,6 +197,7 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.pinn_collocation_points = integerValue(json, "pinn_collocation_points");
     c.pinn_routing_lag_hours = optionalNumberValue(json, "pinn_routing_lag_hours", 0.0);
     c.pinn_flow_exponent = optionalNumberValue(json, "pinn_flow_exponent", 0.0);
+    c.lstm_bias_weight = optionalNumberValue(json, "lstm_bias_weight", 0.0);
     c.use_hydro_package = boolValue(json, "use_hydro_package");
     c.use_csv_data = boolValue(json, "use_csv_data");
     c.csv_path = stringValue(json, "csv_path");

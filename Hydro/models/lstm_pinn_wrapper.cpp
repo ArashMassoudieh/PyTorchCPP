@@ -269,8 +269,19 @@ HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
         const torch::Tensor availabilityLoss = torch::mean(excess * excess) / precipitationScale;
         const double ramp = static_cast<double>(epoch + 1) / static_cast<double>(fineTuneEpochs);
         const double effectivePhysicsWeight = config.physics_weight * ramp * ramp;
-        const torch::Tensor totalLoss = config.data_weight * dataLoss +
-                                        effectivePhysicsWeight * availabilityLoss;
+        torch::Tensor totalLoss = config.data_weight * dataLoss +
+                                   effectivePhysicsWeight * availabilityLoss;
+        if (config.lstm_bias_weight > 0.0) {
+            // See lstmnetworkwrapper.cpp: pointwise MSE alone does not
+            // penalize a consistent over/under-shoot, which is how this
+            // profile's persistent PBIAS (measured as low as -20% on real
+            // Sligo Creek data) coexists with a reasonable NSE. This is a
+            // full-batch mean (the routing here trains on the whole
+            // chronological training window per epoch, not mini-batches),
+            // so it directly targets the training-period volume bias.
+            const torch::Tensor bias = qPhysical.mean() - yTrainPhysical.mean();
+            totalLoss = totalLoss + config.lstm_bias_weight * bias * bias;
+        }
         totalLoss.backward();
         torch::nn::utils::clip_grad_norm_(model->parameters(), 5.0);
         optimizer.step();

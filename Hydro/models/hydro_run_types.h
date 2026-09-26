@@ -109,6 +109,14 @@ struct HydroRunConfig {
     double window_step = 0.5;
     int epochs_per_window = 25;
     bool reset_optimizer_on_new_window = false;
+
+    // LSTM/LSTM+PINN only: adds weight*(mean(pred)-mean(observed))^2 on the
+    // physical (inverse-scaled) discharge to each mini-batch's loss, directly
+    // penalizing systematic volume bias (what PBIAS measures) instead of only
+    // pointwise MSE, which does not penalize a consistent over/under-shoot as
+    // long as pointwise error stays low. 0.0 (default) recovers prior
+    // behavior exactly.
+    double lstm_bias_weight = 0.0;
 };
 
 struct HydroRunResult {

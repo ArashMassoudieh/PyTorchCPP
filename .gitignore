@@ -83,3 +83,9 @@ build-hydrobatch-dev/
 # Ad-hoc scratch batch files dropped at the repo root during manual testing;
 # real batch files live under Hydro/experiments/**/*.batch, never at the root.
 /*.batch
+
+# Ad-hoc scratch sweep/smoke-test directories (leading underscore is this
+# project's convention for throwaway manual runs, e.g. _bias_test/,
+# _residual_sweep/, _ensemble/) - normally deleted once their results are
+# copied out, but ignored too in case one is left behind.
+Hydro/experiments/**/_*/
