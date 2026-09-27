@@ -124,7 +124,15 @@ GisToOhqPreparedPackage prepareGisToOhqPackageFromManifest(
 
 bool acceptedUnit(const std::string& variable, const std::string& unit) {
     static const std::map<std::string, std::set<std::string>> accepted = {
-        {"PRECTOTCORR", {"mm/day", "mm/d"}}, {"T2M", {"degC", "°C", "C"}},
+        // NASA POWER's hourly endpoint reports PRECTOTCORR as "mm/hour" (its
+        // current live metadata; verified against the API directly), not the
+        // "mm/day" this package originally shipped with - GIStoOHQ's own
+        // acceptance list (ohqbuilder/watershed_data/temporal.py) already
+        // treats both as valid for the same reason. No conversion factor is
+        // applied to the value here regardless of which unit string is
+        // present, so accepting both is safe: an hourly-cadence depth means
+        // the same thing under either label.
+        {"PRECTOTCORR", {"mm/day", "mm/d", "mm/hour", "mm/hr"}}, {"T2M", {"degC", "°C", "C"}},
         {"RH2M", {"%", "percent"}}, {"WS2M", {"m/s"}},
         {"ALLSKY_SFC_SW_DWN", {"MJ/m2/h", "MJ/m²/h", "MJ/m^2/h", "MJ/hr"}},
         {"EVPTRNS", {"MJ/m2/day", "MJ/m²/day", "MJ/m^2/day"}},

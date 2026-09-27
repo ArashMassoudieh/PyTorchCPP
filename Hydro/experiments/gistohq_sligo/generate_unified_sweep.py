@@ -25,7 +25,7 @@ MANIFEST = OUT / "unified_manifest.csv"
 ALL_METHODS = ("ffn", "ffn_pinn", "lstm", "lstm_pinn", "pinn")
 PHYSICS_METHODS = {"ffn_pinn", "lstm_pinn", "pinn"}
 DATA_SOURCES = ("synthetic", "csv", "hydro")
-LSTM_PINN_PROFILES = ("linear_reservoir", "two_reservoir_hybrid")
+LSTM_PINN_PROFILES = ("linear_reservoir", "two_reservoir_hybrid", "lstm_residual_pinn_hybrid")
 FFN_PINN_PROFILES = ("linear_reservoir", "ffn_two_reservoir_hybrid", "ffn_residual_pinn_hybrid")
 PINN_PROFILES = ("linear_reservoir", "pinn_two_reservoir_hybrid")
 
@@ -379,6 +379,26 @@ def main() -> int:
                 cfg["experiment_id"] = (
                     f"unified_lstm_pinn_h{slug(hidden)}_seq{seq}_w{slug(w)}_"
                     f"kf{slug(kf)}_ks{slug(ks)}_a{slug(alpha)}_lr{slug(lr)}_b{batch}_s{seed}"
+                )
+                jobs.append(("lstm_pinn", write_config(cfg), cfg))
+        elif args.lstm_pinn_profile == "lstm_residual_pinn_hybrid":
+            # No physics_weight/data_weight split (no joint loss: the physics
+            # baseline is an exact forward simulation and the LSTM is trained
+            # purely on MSE against its residual - see trainResidualHybrid in
+            # lstm_pinn_wrapper.cpp), so this sweeps architecture/sequence and
+            # the same routing parameters as pinn_two_reservoir_hybrid instead.
+            routing_grid = [(kf, ks, a) for kf, ks, a in itertools.product(fast_ks, slow_ks, alphas) if kf > ks]
+            for hidden, seq, (kf, ks, alpha), c, routing_lag, flow_exp, (lr, batch, seed) in itertools.product(
+                    lstm_arch, sequences, routing_grid, pinn_runoff_coefficients,
+                    pinn_routing_lag_hours, pinn_flow_exponents, grid):
+                cfg = process_hybrid_common(common(lstm_base, args, lr, batch, seed), kf, ks, alpha,
+                                            profile="lstm_residual_pinn_hybrid", runoff_coefficient=c,
+                                            routing_lag_hours=routing_lag, flow_exponent=flow_exp)
+                cfg.update({"hidden_layers": hidden, "lstm_sequence_length": seq,
+                            "data_weight": 1.0, "physics_weight": 0.0})
+                cfg["experiment_id"] = (
+                    f"unified_lstm_residual_h{slug(hidden)}_seq{seq}_kf{slug(kf)}_ks{slug(ks)}_a{slug(alpha)}_"
+                    f"c{slug(c)}_lag{slug(routing_lag)}_fe{slug(flow_exp)}_lr{slug(lr)}_b{batch}_s{seed}"
                 )
                 jobs.append(("lstm_pinn", write_config(cfg), cfg))
         else:

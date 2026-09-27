@@ -89,6 +89,7 @@ void preparePhysicsConfig(const std::string& mode, HydroRunConfig& config) {
                           isGisToOhqHydroPinnExport(config.hydro_package_path);
     const bool processAwareHybrid =
         (mode == "lstm_pinn" && config.pinn_physics_profile == "two_reservoir_hybrid") ||
+        (mode == "lstm_pinn" && config.pinn_physics_profile == "lstm_residual_pinn_hybrid") ||
         (mode == "ffn_pinn" && config.pinn_physics_profile == "ffn_two_reservoir_hybrid") ||
         (mode == "ffn_pinn" && config.pinn_physics_profile == "ffn_residual_pinn_hybrid") ||
         (mode == "pinn" && config.pinn_physics_profile == "pinn_two_reservoir_hybrid");

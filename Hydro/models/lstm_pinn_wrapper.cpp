@@ -1,6 +1,7 @@
 #include "lstm_pinn_wrapper.h"
 #include "lstmnetworkwrapper.h"
 #include "hydro_lstm_module.h"
+#include "two_reservoir_routing.h"
 
 #include "../dataset/chronological_split.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
@@ -585,11 +586,215 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
     return result;
 }
 
+// Residual-correction hybrid: an exact fast/slow two-reservoir physics
+// baseline (the same routing as pinn_two_reservoir_hybrid, shared via
+// two_reservoir_routing.h) supplies the hydrograph shape, and a plain LSTM
+// learns only the residual (observed - baseline) from the meteorological
+// sequence. Unlike two_reservoir_hybrid above, where the LSTM generates the
+// routing's *input* (a joint-loss architecture that has consistently
+// underperformed its parent LSTM on real Sligo Creek data), the physics term
+// here is exact and untrainable - the network only has to learn what the
+// physics leaves on the table. Mirrors ffn_residual_pinn_hybrid
+// (residual_pinn_wrapper.h) for the recurrent case.
+HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
+    HydroRunResult result;
+    torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
+
+    torch::Tensor physicsX, y, plotX;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX)) {
+        throw std::runtime_error("Unable to construct reduced-reservoir LSTM residual-hybrid tensors.");
+    }
+    if (physicsX.dim() != 2 || physicsX.size(1) < 2) {
+        throw std::runtime_error("LSTM residual-hybrid requires [time, I*, ...] input features.");
+    }
+
+    const double dt = regularPhysicalTimeStepFromTime(plotX);
+    const double fastK = config.storage_coeff;
+    const double slowK = config.lambda_decay;
+    const double alpha = config.runoff_coeff;
+    if (!(fastK > 0.0 && slowK > 0.0 && fastK > slowK && alpha > 0.0 && alpha < 1.0)) {
+        throw std::runtime_error("LSTM residual-hybrid requires fast_k>slow_k>0 and 0<routing_alpha<1.");
+    }
+    if (dt * fastK > 1.0 || dt * slowK > 1.0) {
+        throw std::runtime_error("LSTM residual-hybrid explicit routing requires dt*k <= 1 for both stores.");
+    }
+
+    const torch::Tensor peffFull = physicsX.slice(1, 1, 2).reshape({-1}).contiguous();
+    const torch::Tensor observedFull = y.reshape({-1}).contiguous();
+    const int64_t n = peffFull.size(0);
+    const double q0 = observedFull[0].item<double>();
+    const double runoffCoefficient = std::max(1.0e-6, config.forcing_gain);
+    const int64_t lagSteps = dt > 0.0
+        ? static_cast<int64_t>(std::llround(std::max(0.0, config.pinn_routing_lag_hours) / dt))
+        : 0;
+
+    std::vector<double> peffVec(static_cast<std::size_t>(n));
+    for (int64_t i = 0; i < n; ++i) peffVec[static_cast<std::size_t>(i)] = peffFull[i].item<double>();
+    TwoReservoirRoutingParams routingParams;
+    routingParams.fastK = fastK;
+    routingParams.slowK = slowK;
+    routingParams.alpha = alpha;
+    routingParams.runoffCoefficient = runoffCoefficient;
+    routingParams.dt = dt;
+    routingParams.lagSteps = lagSteps;
+    routingParams.flowExponent = config.pinn_flow_exponent;
+    const std::vector<double> baselineVec = simulateTwoReservoirBaseline(peffVec, q0, routingParams);
+    if (std::any_of(baselineVec.begin(), baselineVec.end(), [](double v) { return !std::isfinite(v); })) {
+        throw std::runtime_error("LSTM residual-hybrid physics baseline produced non-finite values.");
+    }
+    torch::Tensor baselineFull = torch::from_blob(const_cast<double*>(baselineVec.data()), {n}, torch::kDouble)
+                                      .clone().to(torch::kFloat32).reshape({n, 1});
+    // The residual is what the exact physics baseline leaves unexplained; the
+    // network only has to learn that remainder, not the whole hydrograph.
+    torch::Tensor residualFull = y - baselineFull;
+
+    const torch::Tensor modelX = predictorFeatures(physicsX);
+    const torch::Tensor precipitation = physicsX.size(1) >= 3
+        ? physicsX.slice(1, 2, 3).contiguous()
+        : peffFull.reshape({-1, 1});
+    SequenceData seq = makeSequences(modelX, residualFull, plotX, peffFull.reshape({-1, 1}), precipitation,
+                                     config.lstm_sequence_length);
+    const int sequenceLength = std::max(2, config.lstm_sequence_length);
+    // Same alignment rule makeSequences uses internally: a sequence ending at
+    // index `end` predicts the target at `end`, so slice the raw observed
+    // discharge and baseline series the same way to reconstruct physical
+    // predictions after the network only ever sees/learns the residual.
+    const torch::Tensor qObservedSeq = observedFull.reshape({-1, 1})
+        .slice(0, sequenceLength - 1, observedFull.numel()).contiguous();
+    const torch::Tensor baselineSeq = baselineFull.slice(0, sequenceLength - 1, baselineFull.size(0)).contiguous();
+
+    const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
+                                                            config.train_split_ratio,
+                                                            config.validation_split_ratio);
+    const int64_t nTrain = split.train_end;
+    torch::Tensor xTrainPhysical = seq.x.slice(0, 0, nTrain).contiguous();
+    torch::Tensor residualTrainPhysical = seq.y.slice(0, 0, nTrain).contiguous();
+    torch::Tensor xValidationPhysical = seq.x.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor xTestPhysical = seq.x.slice(0, split.validation_end, seq.x.size(0)).contiguous();
+    torch::Tensor qValidation = qObservedSeq.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor qTest = qObservedSeq.slice(0, split.validation_end, qObservedSeq.size(0)).contiguous();
+    torch::Tensor baselineValidation = baselineSeq.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor baselineTest = baselineSeq.slice(0, split.validation_end, baselineSeq.size(0)).contiguous();
+
+    TensorScaler inputScaler;
+    TensorScaler targetScaler;
+    inputScaler.fit(xTrainPhysical, "standardize");
+    targetScaler.fit(residualTrainPhysical, "standardize");
+    torch::Tensor xTrain = inputScaler.transform(xTrainPhysical);
+    torch::Tensor residualTrain = targetScaler.transform(residualTrainPhysical);
+    torch::Tensor xValidation = inputScaler.transform(xValidationPhysical);
+    torch::Tensor xTest = inputScaler.transform(xTestPhysical);
+
+    const std::vector<int> hiddenLayers = parseHiddenLayers(config.hidden_layers_csv);
+    const int64_t hiddenDim = static_cast<int64_t>(hiddenLayers.front());
+    const int64_t numLayers = static_cast<int64_t>(std::max<std::size_t>(1, hiddenLayers.size()));
+    HydroLSTM model(seq.x.size(2), hiddenDim, 1, numLayers);
+    torch::optim::Adam optimizer(model->parameters(),
+                                 torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
+
+    const int64_t trainN = xTrain.size(0);
+    const int batchSize = std::max(2, config.batch_size);
+    std::vector<torch::Tensor> bestParameters;
+    std::vector<double> losses;
+    std::vector<double> validationLosses;
+    double bestValidationMse = std::numeric_limits<double>::infinity();
+    int bestEpoch = 0;
+
+    for (int epoch = 0; epoch < std::max(1, config.epochs); ++epoch) {
+        model->train();
+        double epochLoss = 0.0;
+        int64_t seen = 0;
+        for (int64_t start = 0; start < trainN; start += batchSize) {
+            const int64_t end = std::min<int64_t>(start + batchSize, trainN);
+            if (end - start < 2) continue;
+            optimizer.zero_grad();
+            torch::Tensor predResidual = model->forward(xTrain.slice(0, start, end));
+            torch::Tensor loss = torch::mse_loss(predResidual, residualTrain.slice(0, start, end));
+            loss.backward();
+            optimizer.step();
+            const int64_t count = end - start;
+            epochLoss += loss.item<double>() * static_cast<double>(count);
+            seen += count;
+        }
+        losses.push_back(epochLoss / static_cast<double>(std::max<int64_t>(1, seen)));
+
+        model->eval();
+        double validationMse = 0.0;
+        {
+            torch::NoGradGuard noGrad;
+            // Select on the fully-reconstructed (physics + residual)
+            // discharge against observed, not residual MSE alone - matching
+            // every other method's validation-selection criterion.
+            torch::Tensor predValidation = (baselineValidation +
+                targetScaler.inverseTransform(model->forward(xValidation))).clamp_min(0.0);
+            validationMse = torch::mse_loss(predValidation, qValidation).item<double>();
+        }
+        if (!std::isfinite(validationMse)) {
+            throw std::runtime_error("LSTM residual-hybrid validation produced a non-finite loss.");
+        }
+        validationLosses.push_back(validationMse);
+        if (validationMse < bestValidationMse) {
+            bestValidationMse = validationMse;
+            bestEpoch = epoch + 1;
+            bestParameters.clear();
+            for (const auto& parameter : model->parameters()) bestParameters.push_back(parameter.detach().clone());
+        }
+    }
+
+    if (bestParameters.empty()) throw std::runtime_error("LSTM residual-hybrid did not produce a validation-selected checkpoint.");
+    copyParameters(bestParameters, model->parameters());
+
+    result.training_loss_history = losses;
+    result.validation_loss_history = validationLosses;
+    result.best_epoch = bestEpoch;
+    result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
+    result.validation_mse = bestValidationMse;
+    result.input_scaler = inputScaler.exportState();
+    result.target_scaler = targetScaler.exportState();
+
+    {
+        const auto checkpoint = temporaryHydroCheckpointPath("hydro_lstm_residual_hybrid");
+        torch::serialize::OutputArchive archive;
+        model->save(archive);
+        archive.save_to(checkpoint.string());
+        result.model_checkpoint = readHydroCheckpoint(checkpoint);
+        result.model_checkpoint_format = "torch-module-v1";
+        std::filesystem::remove(checkpoint);
+    }
+
+    model->eval();
+    torch::NoGradGuard noGrad;
+    torch::Tensor predTest = (baselineTest + targetScaler.inverseTransform(model->forward(xTest))).clamp_min(0.0);
+    if (!predTest.defined() || !predTest.isfinite().all().item<bool>()) {
+        throw std::runtime_error("LSTM residual-hybrid prediction produced non-finite values.");
+    }
+    if (config.evaluate_metrics) {
+        populateHydroMetrics(result, tensorValues(qTest), tensorValues(predTest));
+        if (!hydroMetricsAreFinite(result)) throw std::runtime_error("LSTM residual-hybrid evaluation produced invalid core hydrology metrics.");
+    }
+
+    torch::Tensor xFullScaled = inputScaler.transform(seq.x);
+    torch::Tensor predFull = (baselineSeq + targetScaler.inverseTransform(model->forward(xFullScaled))).clamp_min(0.0);
+    fillPlotVectors(result, seq.time, qObservedSeq, predFull);
+    result.split.resize(result.x.size(), "test");
+    for (std::size_t i = 0; i < result.split.size(); ++i) {
+        if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
+        else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+    }
+    populateHydroPeakMetrics(result);
+    result.success = true;
+    result.message = "LSTM residual-correction hybrid: exact two-reservoir physics baseline + LSTM-learned residual.";
+    return result;
+}
+
 } // namespace
 
 HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     if (config.pinn_physics_profile == "two_reservoir_hybrid") {
         return trainTwoReservoirHybrid(config);
+    }
+    if (config.pinn_physics_profile == "lstm_residual_pinn_hybrid") {
+        return trainResidualHybrid(config);
     }
     if (config.pinn_physics_profile == "linear_reservoir") {
         return trainLinearReservoir(config);
