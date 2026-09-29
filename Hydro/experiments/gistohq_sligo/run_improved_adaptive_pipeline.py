@@ -370,15 +370,49 @@ def stage2(a, root, s1):
         "--pinn-flow-exponent=-0.5,0,0.5,1",
     ], stage_root / "ffn_residual_hybrid_routing")
 
+    # LSTM analog of the residual-correction hybrid above: same exact physics
+    # baseline, a plain LSTM trained only on the residual (see
+    # trainResidualHybrid in lstm_pinn_wrapper.cpp). Center on the same
+    # rolling-origin-validated routing region as the FFN version and the
+    # standalone PINN.
+    lstm_residual_arch_rows = base.run_generated(a, [
+        "--methods", "lstm_pinn",
+        "--lstm-architectures", hybrid_architectures,
+        "--lstm-sequences", "12,24,48",
+        "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
+        "--lstm-pinn-profile", "lstm_residual_pinn_hybrid",
+        "--fast-k", "0.1", "--slow-k", "0.04", "--routing-alpha", "0.3",
+        "--pinn-runoff-coefficients", "0.25",
+        "--pinn-routing-lag-hours", "0",
+        "--pinn-flow-exponent", "0.5",
+    ], stage_root / "lstm_residual_hybrid_architecture")
+    lstm_residual_winner = winner(a, lstm_residual_arch_rows, "lstm_pinn")
+
+    lstm_residual_routing_rows = base.run_generated(a, [
+        "--methods", "lstm_pinn",
+        "--lstm-architectures", base.q(lstm_residual_winner, "hidden_layers", "48"),
+        "--lstm-sequences", base.q(lstm_residual_winner, "lstm_sequence_length", "24"),
+        "--learning-rates", "0.003", "--batch-sizes", "32", "--seeds", "42",
+        "--lstm-pinn-profile", "lstm_residual_pinn_hybrid",
+        "--fast-k", "0.05,0.10,0.20,0.40",
+        "--slow-k", "0.02,0.04,0.06",
+        "--routing-alpha", "0.2,0.3,0.5",
+        "--pinn-runoff-coefficients", "0.15,0.25,0.35",
+        "--pinn-routing-lag-hours", "0",
+        "--pinn-flow-exponent=-0.5,0,0.5,1",
+    ], stage_root / "lstm_residual_hybrid_routing")
+
     rows = (legacy_rows + arch_rows + routing_rows + ffn_hybrid_arch_rows + ffn_hybrid_routing_rows +
-            pinn_hybrid_rows + ffn_residual_arch_rows + ffn_residual_routing_rows)
+            pinn_hybrid_rows + ffn_residual_arch_rows + ffn_residual_routing_rows +
+            lstm_residual_arch_rows + lstm_residual_routing_rows)
     base.write_rows(stage_root / "batch_summary.csv", rows)
     ffn_pinn_candidates = legacy_rows + ffn_hybrid_routing_rows + ffn_residual_routing_rows
     pinn_candidates = legacy_rows + pinn_hybrid_rows
+    lstm_pinn_candidates = routing_rows + lstm_residual_routing_rows
     winners = {
         "ffn_pinn": winner(a, ffn_pinn_candidates, "ffn_pinn"),
         "pinn": winner(a, pinn_candidates, "pinn"),
-        "lstm_pinn": winner(a, routing_rows, "lstm_pinn"),
+        "lstm_pinn": winner(a, lstm_pinn_candidates, "lstm_pinn"),
     }
     return rows, winners
 
@@ -408,6 +442,19 @@ def method_args_with_hybrids(mode: str, row: dict[str, str], *, lrs: str, batche
             "--ffn-architectures", base.q(row, "hidden_layers", "16,16"),
             "--ffn-activations", base.q(row, "activation", "relu"),
             "--ffn-pinn-profile", "ffn_residual_pinn_hybrid",
+            "--fast-k", base.q(row, "storage_coeff", "0.1"),
+            "--slow-k", base.q(row, "lambda_decay", "0.04"),
+            "--routing-alpha", base.q(row, "runoff_coeff", "0.3"),
+            "--pinn-runoff-coefficients", base.q(row, "forcing_gain", "0.25"),
+            "--pinn-routing-lag-hours", base.q(row, "pinn_routing_lag_hours", "0"),
+            "--pinn-flow-exponent", base.q(row, "pinn_flow_exponent", "0.5"),
+        ]
+    if mode == "lstm_pinn" and profile == "lstm_residual_pinn_hybrid":
+        return [
+            "--methods", mode, "--learning-rates", lrs, "--batch-sizes", batches, "--seeds", seeds,
+            "--lstm-architectures", base.q(row, "hidden_layers", "48"),
+            "--lstm-sequences", base.q(row, "lstm_sequence_length", "24"),
+            "--lstm-pinn-profile", "lstm_residual_pinn_hybrid",
             "--fast-k", base.q(row, "storage_coeff", "0.1"),
             "--slow-k", base.q(row, "lambda_decay", "0.04"),
             "--routing-alpha", base.q(row, "runoff_coeff", "0.3"),
