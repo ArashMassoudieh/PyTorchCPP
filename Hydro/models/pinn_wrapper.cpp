@@ -110,9 +110,6 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     if (!(fastK > 0.0 && slowK > 0.0 && fastK > slowK && alpha > 0.0 && alpha < 1.0)) {
         throw std::runtime_error("Standalone two-reservoir PINN requires fast_k>slow_k>0 and 0<routing_alpha<1.");
     }
-    if (dt * fastK > 1.0 || dt * slowK > 1.0) {
-        throw std::runtime_error("Standalone two-reservoir PINN explicit routing requires dt*k <= 1 for both stores.");
-    }
 
     const auto peff = x.slice(1, 1, 2).reshape({-1}).to(torch::kCPU).contiguous();
     const auto observed = y.reshape({-1}).to(torch::kCPU).contiguous();
@@ -142,7 +139,7 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     // WRR) makes travel time a function of the current flow state instead of
     // a constant: celerity - and so the effective rate K - scales with
     // (Q/Qref)^flowExponent. flowExponent=0 recovers the original constant-K
-    // behavior exactly (default, backward compatible); its sign and
+    // exponential-routing behavior (default); its sign and
     // magnitude are swept and validation-selected like the other reservoir
     // parameters rather than assumed a priori, since the direction of the
     // dependency (faster vs slower response at higher flow) is itself an
@@ -198,7 +195,7 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
 
     {
         // There is no trained network to checkpoint here (the prediction is an
-        // exact forward simulation of the given fast_k/slow_k/alpha), but the
+        // exponential forward simulation of the given fast_k/slow_k/alpha), but the
         // export pipeline requires a checkpoint for every approach. Encode the
         // three physical parameters into an otherwise-unused Linear(1,3) layer
         // purely so the run's exact reservoir parameters are preserved/loadable
@@ -231,7 +228,7 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     populateHydroPhysicsResidualMetrics(result);
 
     result.success = true;
-    result.message = "Standalone two-reservoir PINN completed as an exact forward simulation of the given fast/slow reservoir parameters (no training).";
+    result.message = "Standalone two-reservoir PINN completed with exponential routing (constant inflow and rates per interval; no training).";
     return result;
 }
 

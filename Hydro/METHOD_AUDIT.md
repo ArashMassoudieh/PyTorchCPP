@@ -185,3 +185,35 @@ The standalone PINN result is the key known-truth check: after switching from tr
 The strongly negative NSE/R² values in this short deterministic test tail are driven by very small target variance and should not be used alone to judge controlled-method correctness. RMSE/MAE/PBIAS, the known governing equation, and physics residual behavior are more informative for this regression.
 
 Broad sweeps should resume only after the focused synthetic regression passes and materially different `physics_weight` values produce different hybrid fits.
+
+## 9. Training and routing corrections (2026-09-30)
+
+- Reduced-reservoir LSTM checkpoint selection now uses the configured final
+  physics weight, independent of the training ramp. Eligibility still starts
+  after pretraining, when the physics normalization reference has been fixed.
+- Reduced FFN/LSTM and legacy known-state water-balance batches include one
+  preceding context row. Every observation is supervised once and every
+  adjacent training transition is constrained once, including singleton tails.
+  Context rows are excluded from supervised and nonnegativity losses.
+- A one-epoch reduced FFN run can now produce a checkpoint; its warm-up cannot
+  occupy the entire run. Empty transition sets contribute zero physics loss.
+- Two-reservoir neural routing shares an exponential affine scan. With inflow
+  constant on an interval, decay is exp(-k*dt) and inflow gain is -expm1(-k*dt).
+  Outputs represent interval-end discharge, not interval-average discharge.
+  Neural routing retains zero initial storage; the scalar baseline retains its
+  first observed discharge anchor and starts its updates at row 1.
+- Scalar two-reservoir and residual-correction baselines use the same
+  exponential update without the former 0.99/dt rate cap. For flow-dependent
+  rates this freezes the effective rate within each interval; it is not an exact
+  solution of the nonlinear ODE. The existing bounded flow multiplier remains.
+- New two-reservoir LSTM archives store a routing-scheme marker. Archives without
+  the marker retain Euler routing when loaded, preserving old predictions.
+- The controlled single-reservoir synthetic truth and backward-Euler residual
+  remain unchanged. The new routing scheme applies to two-reservoir profiles.
+
+Focused validation: run `Hydro/tests/run_scientific_core_test.sh` for batch
+coverage and `Hydro/tests/run_reservoir_routing_test.sh` (with LIBTORCH_PATH set)
+for analytic responses, gradients, scalar/tensor agreement, and checkpoint
+compatibility. Short training smoke runs check executable/export behavior, not
+improved predictive skill; numerical changes require new, separately saved
+experiments before comparison with historical results.

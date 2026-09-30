@@ -1,3 +1,4 @@
+#include "physics_batch.h"
 #include "lstm_pinn_wrapper.h"
 #include "lstmnetworkwrapper.h"
 #include "hydro_lstm_module.h"
@@ -197,9 +198,6 @@ HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
     const double alpha = config.runoff_coeff;
     if (!(fastK > 0.0 && slowK > 0.0 && fastK > slowK && alpha > 0.0 && alpha < 1.0)) {
         throw std::runtime_error("Two-reservoir LSTM-PINN requires fast_k>slow_k>0 and 0<routing_alpha<1.");
-    }
-    if (dt * fastK > 1.0 || dt * slowK > 1.0) {
-        throw std::runtime_error("Two-reservoir LSTM-PINN explicit routing requires dt*k <= 1 for both stores.");
     }
 
     const int totalEpochs = std::max(1, config.epochs);
@@ -451,15 +449,17 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
         const double effectivePhysicsWeight = config.physics_weight * rampFraction * rampFraction;
 
         for (int64_t start = 0; start < trainN; start += batchSize) {
-            const int64_t end = std::min<int64_t>(start + batchSize, trainN);
-            if (end - start < 2) continue;
-            torch::Tensor xb = xTrain.slice(0, start, end);
+            const auto batch = physicsBatch(start, trainN, batchSize);
+            const int64_t end = batch.dataEnd;
+            const int64_t contextStart = batch.contextBegin;
+            const int64_t offset = batch.offset();
+            torch::Tensor xb = xTrain.slice(0, contextStart, end);
             torch::Tensor yb = yTrain.slice(0, start, end);
-            torch::Tensor pb = pTrain.slice(0, start, end);
+            torch::Tensor pb = pTrain.slice(0, contextStart, end);
 
             optimizer.zero_grad();
             torch::Tensor predScaled = model->forward(xb);
-            torch::Tensor dataLoss = torch::mse_loss(predScaled, yb);
+            torch::Tensor dataLoss = torch::mse_loss(predScaled.slice(0, offset, predScaled.size(0)), yb);
             torch::Tensor predPhysical = targetScaler.inverseTransform(predScaled);
             torch::Tensor residual = physicalResidual(predPhysical, pb, dt, k);
             torch::Tensor physicsLoss = residual.numel() > 0
@@ -470,7 +470,7 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
             }
             const double reference = std::isfinite(physicsReference) ? physicsReference : 1.0;
             torch::Tensor normalizedPhysicsLoss = physicsLoss / reference;
-            torch::Tensor negative = torch::relu(-predPhysical);
+            torch::Tensor negative = torch::relu(-predPhysical.slice(0, offset, predPhysical.size(0)));
             torch::Tensor normalizedNonnegativeLoss = torch::mean(negative * negative) / targetVariance;
             torch::Tensor totalLoss = config.data_weight * dataLoss +
                                       effectivePhysicsWeight * (normalizedPhysicsLoss +
@@ -501,9 +501,10 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
             torch::Tensor normalizedPhysicsLoss = physicsLoss / reference;
             torch::Tensor negative = torch::relu(-predValidationPhysical);
             torch::Tensor normalizedNonnegativeLoss = torch::mean(negative * negative) / targetVariance;
+            // Compare checkpoints with a fixed objective, independent of the training ramp.
             validationObjective = (config.data_weight * dataLossScaled +
-                                   effectivePhysicsWeight * (normalizedPhysicsLoss +
-                                                             0.05 * normalizedNonnegativeLoss)).item<double>();
+                                   config.physics_weight * (normalizedPhysicsLoss +
+                                                           0.05 * normalizedNonnegativeLoss)).item<double>();
         }
         if (!std::isfinite(validationMsePhysical) || !std::isfinite(validationObjective)) {
             throw std::runtime_error("LSTM-PINN validation produced a non-finite objective.");
@@ -614,9 +615,6 @@ HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
     const double alpha = config.runoff_coeff;
     if (!(fastK > 0.0 && slowK > 0.0 && fastK > slowK && alpha > 0.0 && alpha < 1.0)) {
         throw std::runtime_error("LSTM residual-hybrid requires fast_k>slow_k>0 and 0<routing_alpha<1.");
-    }
-    if (dt * fastK > 1.0 || dt * slowK > 1.0) {
-        throw std::runtime_error("LSTM residual-hybrid explicit routing requires dt*k <= 1 for both stores.");
     }
 
     const torch::Tensor peffFull = physicsX.slice(1, 1, 2).reshape({-1}).contiguous();

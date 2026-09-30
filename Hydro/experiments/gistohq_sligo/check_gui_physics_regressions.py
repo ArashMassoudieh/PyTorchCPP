@@ -41,8 +41,8 @@ def check_two_reservoir_routing_contract() -> None:
     text = ROUTING_HEADER.read_text(encoding="utf-8")
     required = (
         "static torch::Tensor routeSingleReservoir(const torch::Tensor& runoff, double step, double fraction)",
-        "const torch::Tensor fast = routeSingleReservoir(runoff, dt_hours * fast_k, fast_fraction);",
-        "const torch::Tensor slow = routeSingleReservoir(runoff, dt_hours * slow_k, 1.0 - fast_fraction);",
+        "const torch::Tensor fast = routeReservoirTensor(runoff, dt_hours * fast_k, fast_fraction, exponential_routing);",
+        "const torch::Tensor slow = routeReservoirTensor(runoff, dt_hours * slow_k, 1.0 - fast_fraction, exponential_routing);",
         "return std::make_tuple(fast + slow, fast, slow);",
     )
     for snippet in required:
@@ -51,7 +51,7 @@ def check_two_reservoir_routing_contract() -> None:
     if "for (int64_t i = 0; i < runoff.size(0); ++i)" in text:
         raise SystemExit("FAIL: two-reservoir routing still contains a per-timestep sequential loop")
 
-    # Numerically verify the parallel-scan recurrence against the original
+    # Numerically verify the parallel-scan recurrence against the exponential
     # sequential one, and against a single-reservoir formulation matching
     # routeSingleReservoir's (a, b) affine-map convention.
     dt, fast_k, slow_k, alpha = 1.0, 0.10, 0.04, 0.85
@@ -59,13 +59,13 @@ def check_two_reservoir_routing_contract() -> None:
     qf = qs = 0.0
     original: list[tuple[float, float, float]] = []
     for r in runoff:
-        qf = qf + dt * fast_k * (alpha * r - qf)
-        qs = qs + dt * slow_k * ((1.0 - alpha) * r - qs)
+        qf = math.exp(-dt * fast_k) * qf - math.expm1(-dt * fast_k) * alpha * r
+        qs = math.exp(-dt * slow_k) * qs - math.expm1(-dt * slow_k) * (1.0 - alpha) * r
         original.append((qf + qs, qf, qs))
 
     def scan(step: float, fraction: float) -> list[float]:
-        a = [1.0 - step] * len(runoff)
-        b = [step * fraction * r for r in runoff]
+        a = [math.exp(-step)] * len(runoff)
+        b = [-math.expm1(-step) * fraction * r for r in runoff]
         offset = 1
         n = len(runoff)
         while offset < n:
@@ -85,7 +85,7 @@ def check_two_reservoir_routing_contract() -> None:
     max_abs = max(abs(a - b) for left, right in zip(original, scanned) for a, b in zip(left, right))
     if max_abs > 1.0e-12:
         raise SystemExit(f"FAIL: two-reservoir parallel-scan routing changed recurrence values: max_abs={max_abs:.3e}")
-    print("PASS: two-reservoir routing uses a parallel-scan recurrence with unchanged values")
+    print("PASS: two-reservoir routing uses a parallel-scan recurrence matching the exponential solution")
 
 
 def check_backward_euler_truth() -> None:

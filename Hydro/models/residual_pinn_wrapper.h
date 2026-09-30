@@ -53,9 +53,6 @@ public:
         if (!(fastK > 0.0 && slowK > 0.0 && fastK > slowK && alpha > 0.0 && alpha < 1.0)) {
             throw std::runtime_error("Residual-correction PINN hybrid requires fast_k>slow_k>0 and 0<routing_alpha<1.");
         }
-        if (dt * fastK > 1.0 || dt * slowK > 1.0) {
-            throw std::runtime_error("Residual-correction PINN hybrid explicit routing requires dt*k <= 1 for both stores.");
-        }
 
         const auto peff = x.slice(1, 1, 2).reshape({-1}).to(torch::kCPU).contiguous();
         const auto observed = y.reshape({-1}).to(torch::kCPU).contiguous();

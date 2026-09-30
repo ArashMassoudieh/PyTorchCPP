@@ -1,5 +1,7 @@
 #pragma once
 
+#include "reservoir_routing_tensor.h"
+
 #include "hydro_run_types.h"
 #include "../dataset/chronological_split.h"
 #include "../dataset/lagged_tensor_builder.h"
@@ -86,31 +88,9 @@ inline torch::Tensor predictorFeatures(const torch::Tensor& physicsX) {
     return physicsX.slice(1, 1, physicsX.size(1)).contiguous();
 }
 
-// Mirrors HydroTwoReservoirLSTMImpl::routeSingleReservoir/routeRunoff exactly
-// (same affine recurrence, same parallel-scan formulation) so the two hybrids
-// stay numerically consistent; kept as a separate copy rather than a shared
-// header to avoid coupling this FFN wrapper to an LSTM-named struct/header.
-//
-// Solves dQ/dt = k(fraction*r - Q) via explicit Euler using a parallel
-// (Hillis-Steele) associative scan over the affine recurrence
-// q[i] = (1-step)*q[i-1] + step*fraction*r[i], instead of a per-timestep
-// loop: log2(N) vectorized rounds instead of N sequential single-element
-// tensor ops (~130x faster at N~7000; verified forward+gradient identical to
-// floating-point precision against the sequential form it replaces).
 inline torch::Tensor routeSingleReservoir(const torch::Tensor& runoff, double step, double fraction) {
-    const int64_t n = runoff.size(0);
-    torch::Tensor a = torch::full_like(runoff, 1.0 - step);
-    torch::Tensor b = (step * fraction) * runoff;
-    for (int64_t offset = 1; offset < n; offset *= 2) {
-        torch::Tensor aShift = torch::ones_like(a);
-        torch::Tensor bShift = torch::zeros_like(b);
-        aShift.slice(0, offset, n) = a.slice(0, 0, n - offset);
-        bShift.slice(0, offset, n) = b.slice(0, 0, n - offset);
-        b = a * bShift + b;
-        a = a * aShift;
+        return routeReservoirTensor(runoff, step, fraction);
     }
-    return b;
-}
 
 inline torch::Tensor routeTwoReservoir(const torch::Tensor& runoff,
                                        double dtHours, double fastK, double slowK, double fastFraction) {
@@ -203,9 +183,6 @@ public:
         const double alpha = config.runoff_coeff;
         if (!(fastK > 0.0 && slowK > 0.0 && fastK > slowK && alpha > 0.0 && alpha < 1.0)) {
             throw std::runtime_error("FFN two-reservoir hybrid requires fast_k>slow_k>0 and 0<routing_alpha<1.");
-        }
-        if (dt * fastK > 1.0 || dt * slowK > 1.0) {
-            throw std::runtime_error("FFN two-reservoir hybrid explicit routing requires dt*k <= 1 for both stores.");
         }
 
         torch::nn::Sequential model = makeRunoffHead(xFull.size(1), parseHiddenLayers(config.hidden_layers_csv), config.activation);

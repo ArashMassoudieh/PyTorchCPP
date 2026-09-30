@@ -1,4 +1,5 @@
 #include "../dataset/chronological_split.h"
+#include "../models/physics_batch.h"
 #include "../evaluation/hydro_metrics.h"
 
 #include <cassert>
@@ -7,6 +8,24 @@
 #include <vector>
 
 int main() {
+    // Every observation and every adjacent transition is visited exactly once,
+    // including singleton tails and batches larger than the whole series.
+    for (int64_t total : {1, 2, 3, 17, 32, 33, 65}) {
+        for (int64_t size : {2, 8, 16, 32, 100}) {
+            std::vector<int> observations(total, 0), transitions(total, 0);
+            for (int64_t start = 0; start < total; start += size) {
+                const auto b = physicsBatch(start, total, size);
+                assert(b.contextBegin + b.offset() == b.dataBegin);
+                for (int64_t i = b.dataBegin; i < b.dataEnd; ++i) ++observations[i];
+                for (int64_t i = b.contextBegin + 1; i < b.dataEnd; ++i) ++transitions[i];
+            }
+            assert(transitions[0] == 0);
+            for (int64_t i = 0; i < total; ++i) {
+                assert(observations[i] == 1);
+                if (i > 0) assert(transitions[i] == 1);
+            }
+        }
+    }
     HydroRunConfig defaults;
     defaults.input_lags_csv = "24";
     assert(defaults.lstm_sequence_length == 6);

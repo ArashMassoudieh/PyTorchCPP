@@ -1,5 +1,7 @@
 #pragma once
 
+#include "reservoir_routing_tensor.h"
+
 #include <torch/torch.h>
 
 #include <algorithm>
@@ -61,26 +63,8 @@ struct HydroTwoReservoirLSTMImpl : torch::nn::Module {
         return torch::softplus(runoff_head->forward(last));
     }
 
-    // Solves dQ/dt = k(fraction*r - Q) via explicit Euler using a parallel
-    // (Hillis-Steele) associative scan over the affine recurrence
-    // q[i] = (1-step)*q[i-1] + step*fraction*r[i], instead of a per-timestep
-    // loop: log2(N) vectorized rounds instead of N sequential single-element
-    // tensor ops. Verified against the original sequential recurrence to
-    // floating-point precision, forward and gradient, at N up to 7000
-    // (~130x faster there); see check_gui_physics_regressions.py.
     static torch::Tensor routeSingleReservoir(const torch::Tensor& runoff, double step, double fraction) {
-        const int64_t n = runoff.size(0);
-        torch::Tensor a = torch::full_like(runoff, 1.0 - step);
-        torch::Tensor b = (step * fraction) * runoff;
-        for (int64_t offset = 1; offset < n; offset *= 2) {
-            torch::Tensor aShift = torch::ones_like(a);
-            torch::Tensor bShift = torch::zeros_like(b);
-            aShift.slice(0, offset, n) = a.slice(0, 0, n - offset);
-            bShift.slice(0, offset, n) = b.slice(0, 0, n - offset);
-            b = a * bShift + b;
-            a = a * aShift;
-        }
-        return b;
+        return routeReservoirTensor(runoff, step, fraction);
     }
 
     std::tuple<torch::Tensor, torch::Tensor, torch::Tensor>
@@ -92,14 +76,26 @@ struct HydroTwoReservoirLSTMImpl : torch::nn::Module {
             auto empty = torch::empty_like(runoff);
             return std::make_tuple(empty, empty, empty);
         }
-        const torch::Tensor fast = routeSingleReservoir(runoff, dt_hours * fast_k, fast_fraction);
-        const torch::Tensor slow = routeSingleReservoir(runoff, dt_hours * slow_k, 1.0 - fast_fraction);
+        const torch::Tensor fast = routeReservoirTensor(runoff, dt_hours * fast_k, fast_fraction, exponential_routing);
+        const torch::Tensor slow = routeReservoirTensor(runoff, dt_hours * slow_k, 1.0 - fast_fraction, exponential_routing);
         return std::make_tuple(fast + slow, fast, slow);
     }
 
     torch::Tensor forward(const torch::Tensor& inputs) {
         return std::get<0>(routeRunoff(runoffGeneration(inputs)));
     }
+
+    // Old archives have no scheme marker and must retain their Euler behavior.
+    void save(torch::serialize::OutputArchive& archive) const override {
+        torch::nn::Module::save(archive);
+        archive.write("routing_scheme", torch::tensor(exponential_routing ? 1 : 0));
+    }
+    void load(torch::serialize::InputArchive& archive) override {
+        torch::Tensor scheme;
+        exponential_routing = archive.try_read("routing_scheme", scheme) && scheme.item<int>() == 1;
+        torch::nn::Module::load(archive);
+    }
+    bool exponential_routing = true;
 
     torch::nn::LSTM lstm{nullptr};
     torch::nn::Linear runoff_head{nullptr};

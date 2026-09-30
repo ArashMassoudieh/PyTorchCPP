@@ -1,3 +1,4 @@
+#include "Hydro/models/physics_batch.h"
 // NeuralNetworkWrapper.cpp
 #include "neuralnetworkwrapper.h"
 #include <stdexcept>
@@ -1076,23 +1077,28 @@ std::vector<double> NeuralNetworkWrapper::trainPINNWaterBalance(int num_epochs,
         // Keep batches sequential so finite-difference dS/dt has physical meaning.
         for (int i = 0; i < num_train_samples; i += batch_size) {
             const int current_batch_size = std::min(batch_size, num_train_samples - i);
-            if (current_batch_size < 2) continue;
+            const auto batch = physicsBatch(i, num_train_samples, batch_size);
+            const int contextStart = static_cast<int>(batch.contextBegin);
+            const int offset = static_cast<int>(batch.offset());
+            const int contextCount = current_batch_size + offset;
 
-            torch::Tensor batch_inputs = train_inputs.slice(0, i, i + current_batch_size);
+            torch::Tensor batch_inputs = train_inputs.slice(0, contextStart, i + current_batch_size);
             torch::Tensor batch_targets = train_targets.slice(0, i, i + current_batch_size);
 
             optimizer.zero_grad();
             torch::Tensor predictions = this->forward_internal(batch_inputs);
-            torch::Tensor data_loss = torch::mse_loss(predictions, batch_targets);
+            torch::Tensor data_loss = torch::mse_loss(predictions.slice(0, offset, contextCount), batch_targets);
 
-            torch::Tensor rainfall = batch_inputs.slice(1, rainfall_feature_index, rainfall_feature_index + 1).slice(0, 1, current_batch_size);
-            torch::Tensor evapotranspiration = batch_inputs.slice(1, evapotranspiration_feature_index, evapotranspiration_feature_index + 1).slice(0, 1, current_batch_size);
-            torch::Tensor storage_now = batch_inputs.slice(1, storage_feature_index, storage_feature_index + 1).slice(0, 1, current_batch_size);
-            torch::Tensor storage_prev = batch_inputs.slice(1, storage_feature_index, storage_feature_index + 1).slice(0, 0, current_batch_size - 1);
-            torch::Tensor runoff = predictions.slice(0, 1, current_batch_size);
+            torch::Tensor rainfall = batch_inputs.slice(1, rainfall_feature_index, rainfall_feature_index + 1).slice(0, 1, contextCount);
+            torch::Tensor evapotranspiration = batch_inputs.slice(1, evapotranspiration_feature_index, evapotranspiration_feature_index + 1).slice(0, 1, contextCount);
+            torch::Tensor storage_now = batch_inputs.slice(1, storage_feature_index, storage_feature_index + 1).slice(0, 1, contextCount);
+            torch::Tensor storage_prev = batch_inputs.slice(1, storage_feature_index, storage_feature_index + 1).slice(0, 0, contextCount - 1);
+            torch::Tensor runoff = predictions.slice(0, 1, contextCount);
             torch::Tensor dSdt = (storage_now - storage_prev) / safe_dt;
             torch::Tensor residual = rainfall - evapotranspiration - runoff - dSdt;
-            torch::Tensor physics_loss = torch::mse_loss(residual, torch::zeros_like(residual));
+            torch::Tensor physics_loss = residual.numel() > 0
+                ? torch::mse_loss(residual, torch::zeros_like(residual))
+                : torch::zeros({}, predictions.options());
 
             const bool dataWarmup = data_weight > 0.0 && epoch < std::max(1, num_epochs / 5);
             const double effective_data_weight = dataWarmup ? std::max(1.0, data_weight) : data_weight;

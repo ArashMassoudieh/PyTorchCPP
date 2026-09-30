@@ -4,8 +4,9 @@
 #include <cmath>
 #include <cstdint>
 #include <vector>
+#include <stdexcept>
 
-// Shared exact forward-simulation of the fast/slow two-reservoir routing used
+// Shared exponential forward-simulation of the fast/slow two-reservoir routing used
 // by the standalone PINN (pinn_wrapper.cpp) and the residual-correction
 // hybrids (residual_pinn_wrapper.h), so both stay exactly consistent instead
 // of maintaining two copies of the same recurrence.
@@ -24,6 +25,14 @@ struct TwoReservoirRoutingParams {
 
 inline std::vector<double> simulateTwoReservoirBaseline(
     const std::vector<double>& peff, double q0, const TwoReservoirRoutingParams& p) {
+    if (!std::isfinite(p.dt) || p.dt <= 0.0 ||
+        !std::isfinite(p.fastK) || p.fastK <= 0.0 ||
+        !std::isfinite(p.slowK) || p.slowK <= 0.0 ||
+        !std::isfinite(p.alpha) || p.alpha < 0.0 || p.alpha > 1.0 ||
+        !std::isfinite(p.runoffCoefficient) || p.runoffCoefficient < 0.0 ||
+        !std::isfinite(p.flowExponent) || !std::isfinite(q0) || q0 < 0.0 || p.lagSteps < 0) {
+        throw std::invalid_argument("Invalid two-reservoir routing parameters.");
+    }
     const auto n = static_cast<std::int64_t>(peff.size());
     std::vector<double> qFast(static_cast<std::size_t>(n));
     std::vector<double> qSlow(static_cast<std::size_t>(n));
@@ -45,10 +54,13 @@ inline std::vector<double> simulateTwoReservoirBaseline(
             nonlinearFactor = std::pow(qPrevTotal / flowReference, p.flowExponent);
             nonlinearFactor = std::min(std::max(nonlinearFactor, 0.05), 20.0);
         }
-        const double effectiveFastK = std::min(p.fastK * nonlinearFactor, 0.99 / p.dt);
-        const double effectiveSlowK = std::min(p.slowK * nonlinearFactor, 0.99 / p.dt);
-        qFast[cur] = qFast[prev] + p.dt * effectiveFastK * (p.alpha * forcing - qFast[prev]);
-        qSlow[cur] = qSlow[prev] + p.dt * effectiveSlowK * ((1.0 - p.alpha) * forcing - qSlow[prev]);
+        // Exact for constant rates; freeze state-dependent rates per interval.
+        const double effectiveFastK = p.fastK * nonlinearFactor;
+        const double effectiveSlowK = p.slowK * nonlinearFactor;
+        qFast[cur] = std::exp(-p.dt * effectiveFastK) * qFast[prev] +
+                     (-std::expm1(-p.dt * effectiveFastK)) * p.alpha * forcing;
+        qSlow[cur] = std::exp(-p.dt * effectiveSlowK) * qSlow[prev] +
+                     (-std::expm1(-p.dt * effectiveSlowK)) * (1.0 - p.alpha) * forcing;
         predicted[cur] = qFast[cur] + qSlow[cur];
     }
     return predicted;
