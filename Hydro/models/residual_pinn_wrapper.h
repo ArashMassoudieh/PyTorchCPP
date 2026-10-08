@@ -119,6 +119,8 @@ public:
         torch::Tensor xTestRaw = x.slice(0, split.validation_end, x.size(0)).contiguous();
         torch::Tensor yTest = y.slice(0, split.validation_end, y.size(0)).contiguous();
         torch::Tensor baselineTest = baselineTensor.slice(0, split.validation_end, x.size(0)).contiguous();
+        torch::Tensor yTrainPhysical = y.slice(0, 0, split.train_end).contiguous();
+        torch::Tensor baselineTrain = baselineTensor.slice(0, 0, split.train_end).contiguous();
 
         // Fit scalers on the training split only, exactly like every other
         // wrapper in this project. inputScaler covers the *whole* feature
@@ -158,6 +160,24 @@ public:
                 optimizer.zero_grad();
                 torch::Tensor predResidual = model->forward(xTrain.slice(0, start, end));
                 torch::Tensor loss = torch::mse_loss(predResidual, rTrain.slice(0, start, end));
+                if (config.lstm_bias_weight > 0.0) {
+                    // Reuses the same bias-penalty mechanism/field proven for
+                    // LSTM(+PINN) in lstmnetworkwrapper.cpp/lstm_pinn_wrapper.cpp
+                    // (field name predates this profile; the penalty itself is
+                    // generic). Pointwise residual MSE does not penalize a
+                    // consistent reconstructed-discharge over/under-shoot, which
+                    // is how asinh_standardize's compression of the extreme-event
+                    // residual coexists with a large PBIAS. Penalize the
+                    // batch-mean bias on reconstructed physical discharge
+                    // (baseline + residual, uninverse-clamped so gradients flow
+                    // through negative predictions too).
+                    torch::Tensor predResidualPhysical =
+                        scaleResidual ? targetScaler.inverseTransform(predResidual) : predResidual;
+                    torch::Tensor predPhysical = baselineTrain.slice(0, start, end) + predResidualPhysical;
+                    torch::Tensor truthPhysical = yTrainPhysical.slice(0, start, end);
+                    torch::Tensor bias = predPhysical.mean() - truthPhysical.mean();
+                    loss = loss + config.lstm_bias_weight * bias * bias;
+                }
                 loss.backward();
                 optimizer.step();
                 const int64_t count = end - start;
