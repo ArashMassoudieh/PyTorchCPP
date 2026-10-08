@@ -5,6 +5,7 @@
 #include "two_reservoir_routing.h"
 #include "../dataset/chronological_split.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
+#include "../dataset/tensor_scaler.h"
 #include "../evaluation/hydro_metrics.h"
 #include "../evaluation/model_checkpoint.h"
 
@@ -31,8 +32,21 @@ class FFNResidualPINNWrapper {
 public:
     HydroRunResult train(const HydroRunConfig& config) {
         using namespace hydro_ffn_reservoir_detail;
-        if (config.normalization != "none") {
-            throw std::invalid_argument("Residual-correction PINN hybrid requires normalization=none (the physics baseline runs on raw physical units).");
+        // "none": raw everything, the original behavior (kept byte-identical
+        // for back-compat/control-group use). "standardize_input": scale the
+        // network's own input features only (fixes an input-scale bug - the
+        // raw [time, Peff, ...] tensor's time column grows unbounded with
+        // record length and otherwise dominates small meteorological
+        // features). "standardize": also z-score the residual *target*
+        // (fit on train only). The physics baseline itself always runs on
+        // raw physical peff/q0, regardless of this setting - only what the
+        // network itself sees/predicts is affected.
+        const bool scaleInput = config.normalization == "standardize_input" || config.normalization == "standardize";
+        const bool scaleResidual = config.normalization == "standardize";
+        if (config.normalization != "none" && !scaleInput) {
+            throw std::invalid_argument(
+                "Residual-correction PINN hybrid normalization must be one of: none, standardize_input, standardize "
+                "(log_standardize is not valid here - residuals can be negative, outside log1p's domain).");
         }
         HydroRunResult result;
         torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
@@ -86,14 +100,29 @@ public:
         // has to learn that remainder, not the whole hydrograph from scratch.
         torch::Tensor residualTarget = y - baselineTensor;
 
-        torch::Tensor xTrain = x.slice(0, 0, split.train_end).contiguous();
-        torch::Tensor rTrain = residualTarget.slice(0, 0, split.train_end).contiguous();
-        torch::Tensor xValidation = x.slice(0, split.train_end, split.validation_end).contiguous();
+        torch::Tensor xTrainRaw = x.slice(0, 0, split.train_end).contiguous();
+        torch::Tensor rTrainRaw = residualTarget.slice(0, 0, split.train_end).contiguous();
+        torch::Tensor xValidationRaw = x.slice(0, split.train_end, split.validation_end).contiguous();
         torch::Tensor yValidation = y.slice(0, split.train_end, split.validation_end).contiguous();
         torch::Tensor baselineValidation = baselineTensor.slice(0, split.train_end, split.validation_end).contiguous();
-        torch::Tensor xTest = x.slice(0, split.validation_end, x.size(0)).contiguous();
+        torch::Tensor xTestRaw = x.slice(0, split.validation_end, x.size(0)).contiguous();
         torch::Tensor yTest = y.slice(0, split.validation_end, y.size(0)).contiguous();
         torch::Tensor baselineTest = baselineTensor.slice(0, split.validation_end, x.size(0)).contiguous();
+
+        // Fit scalers on the training split only, exactly like every other
+        // wrapper in this project. inputScaler covers the *whole* feature
+        // tensor (including the time column) when scaleInput is set - that is
+        // the point, since raw elapsed time is otherwise fed to the network
+        // unscaled. targetScaler covers only the residual, never used to
+        // touch the physics baseline.
+        TensorScaler inputScaler;
+        TensorScaler targetScaler;
+        if (scaleInput) inputScaler.fit(xTrainRaw, "standardize");
+        if (scaleResidual) targetScaler.fit(rTrainRaw, "standardize");
+        torch::Tensor xTrain = scaleInput ? inputScaler.transform(xTrainRaw) : xTrainRaw;
+        torch::Tensor rTrain = scaleResidual ? targetScaler.transform(rTrainRaw) : rTrainRaw;
+        torch::Tensor xValidation = scaleInput ? inputScaler.transform(xValidationRaw) : xValidationRaw;
+        torch::Tensor xTest = scaleInput ? inputScaler.transform(xTestRaw) : xTestRaw;
 
         torch::nn::Sequential model = makeNetwork(x.size(1), parseHiddenLayers(config.hidden_layers_csv), config.activation);
         torch::optim::Adam optimizer(model->parameters(),
@@ -134,7 +163,9 @@ public:
                 // against observed, not on residual MSE alone - that is what the
                 // model is actually evaluated on, and keeps this comparable to
                 // every other method's validation-selection criterion.
-                torch::Tensor predValidation = (baselineValidation + model->forward(xValidation)).clamp_min(0.0);
+                torch::Tensor predictedResidualValidation = model->forward(xValidation);
+                if (scaleResidual) predictedResidualValidation = targetScaler.inverseTransform(predictedResidualValidation);
+                torch::Tensor predValidation = (baselineValidation + predictedResidualValidation).clamp_min(0.0);
                 validationMse = torch::mse_loss(predValidation, yValidation).item<double>();
             }
             if (!std::isfinite(validationMse)) {
@@ -161,8 +192,8 @@ public:
         result.best_epoch = bestEpoch;
         result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
         result.validation_mse = bestValidationMse;
-        result.input_scaler.method = "none";
-        result.target_scaler.method = "none";
+        result.input_scaler = scaleInput ? inputScaler.exportState() : HydroScalerState{};
+        result.target_scaler = scaleResidual ? targetScaler.exportState() : HydroScalerState{};
 
         {
             const auto checkpoint = temporaryHydroCheckpointPath("hydro_ffn_residual_pinn");
@@ -176,7 +207,9 @@ public:
 
         model->eval();
         torch::NoGradGuard noGrad;
-        torch::Tensor predTest = (baselineTest + model->forward(xTest)).clamp_min(0.0);
+        torch::Tensor predictedResidualTest = model->forward(xTest);
+        if (scaleResidual) predictedResidualTest = targetScaler.inverseTransform(predictedResidualTest);
+        torch::Tensor predTest = (baselineTest + predictedResidualTest).clamp_min(0.0);
         if (!predTest.defined() || !predTest.isfinite().all().item<bool>()) {
             throw std::runtime_error("Residual-correction PINN hybrid prediction produced non-finite values.");
         }
@@ -187,7 +220,10 @@ public:
             }
         }
 
-        torch::Tensor predFull = (baselineTensor + model->forward(x)).clamp_min(0.0);
+        torch::Tensor xFull = scaleInput ? inputScaler.transform(x) : x;
+        torch::Tensor predictedResidualFull = model->forward(xFull);
+        if (scaleResidual) predictedResidualFull = targetScaler.inverseTransform(predictedResidualFull);
+        torch::Tensor predFull = (baselineTensor + predictedResidualFull).clamp_min(0.0);
         fillPlotVectors(result, plotX, y, predFull);
         result.split.resize(result.x.size(), "test");
         for (std::size_t i = 0; i < result.split.size(); ++i) {
