@@ -187,7 +187,8 @@ void validateExportResult(const std::string& approach, const HydroRunResult& res
         if (state.offset.empty() || state.offset.size() != state.scale.size() || state.shape.empty()) {
             throw std::invalid_argument("Hydro export has incomplete " + std::string(kind) + " scaler for: " + approach);
         }
-        if (state.method != "none" && state.method != "standardize" && state.method != "minmax" && state.method != "log_standardize") {
+        if (state.method != "none" && state.method != "standardize" && state.method != "minmax" &&
+            state.method != "log_standardize" && state.method != "asinh_standardize") {
             throw std::invalid_argument("Hydro export has unsupported scaler method for: " + approach);
         }
         std::size_t expected = 1;

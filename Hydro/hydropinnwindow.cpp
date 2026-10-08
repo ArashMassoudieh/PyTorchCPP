@@ -377,7 +377,7 @@ HydroPINNWindow::HydroPINNWindow(QWidget* parent)
     momentumSpin_->setDecimals(4);
     momentumSpin_->setRange(0.0, 0.9999);
     momentumSpin_->setValue(0.9);
-    normalizationCombo_->addItems({"none", "standardize", "minmax", "log_standardize"});
+    normalizationCombo_->addItems({"none", "standardize", "minmax", "log_standardize", "asinh_standardize"});
 
     incrementalCheck_->setChecked(false);
     windowSizeSpin_->setDecimals(3);

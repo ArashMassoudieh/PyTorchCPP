@@ -14,7 +14,8 @@ class TensorScaler {
 public:
     void fit(const torch::Tensor& training, const std::string& method) {
         if (!training.defined() || training.numel() == 0) throw std::invalid_argument("Cannot fit scaler on empty training data.");
-        if (method != "none" && method != "standardize" && method != "minmax" && method != "log_standardize") {
+        if (method != "none" && method != "standardize" && method != "minmax" && method != "log_standardize" &&
+            method != "asinh_standardize") {
             throw std::invalid_argument("Unknown normalization method: " + method);
         }
         if (training.dim() != 2 && training.dim() != 3) {
@@ -36,12 +37,20 @@ public:
         // the data doesn't fit the log1p domain, instead of failing the run.
         const bool useLog = method == "log_standardize" && !(training < -1.0).any().item<bool>();
         const std::string effectiveMethod = method == "log_standardize" && !useLog ? "standardize" : method;
-        const torch::Tensor working = useLog ? torch::log1p(training) : training;
+        // asinh(x) = ln(x + sqrt(x^2+1)) is defined for every real x (no
+        // domain restriction, unlike log1p), approximately linear near 0 and
+        // approximately +-log(2|x|) for large |x| - a genuine nonlinear
+        // compression of extreme values, unlike a plain linear standardize,
+        // and usable directly on signed targets like a residual (observed -
+        // physics baseline), which log1p/log_standardize cannot handle.
+        const torch::Tensor working = useLog ? torch::log1p(training)
+                                     : effectiveMethod == "asinh_standardize" ? torch::asinh(training)
+                                     : training;
         const auto reduceDimensions = training.dim() == 3 ? std::vector<int64_t>{0, 1}
                                                            : std::vector<int64_t>{0};
         torch::Tensor offset;
         torch::Tensor scale;
-        if (effectiveMethod == "standardize" || effectiveMethod == "log_standardize") {
+        if (effectiveMethod == "standardize" || effectiveMethod == "log_standardize" || effectiveMethod == "asinh_standardize") {
             offset = working.mean(reduceDimensions, true);
             scale = working.std(reduceDimensions, false, true);
         } else if (effectiveMethod == "minmax") {
@@ -59,19 +68,24 @@ public:
 
     torch::Tensor transform(const torch::Tensor& values) const {
         ensureFitted();
-        const torch::Tensor working = method_ == "log_standardize" ? torch::log1p(values) : values;
+        const torch::Tensor working = method_ == "log_standardize" ? torch::log1p(values)
+                                     : method_ == "asinh_standardize" ? torch::asinh(values)
+                                     : values;
         return (working - offset_) / scale_;
     }
 
     torch::Tensor inverseTransform(const torch::Tensor& values) const {
         ensureFitted();
         const torch::Tensor physical = values * scale_ + offset_;
-        return method_ == "log_standardize" ? torch::expm1(physical) : physical;
+        if (method_ == "log_standardize") return torch::expm1(physical);
+        if (method_ == "asinh_standardize") return torch::sinh(physical);
+        return physical;
     }
 
     // Linear scale-factor approximation (scaledMse * scale^2): exact for
-    // standardize/minmax/none, but only approximate under log_standardize
-    // since MSE does not convert linearly through a log/expm1 transform.
+    // standardize/minmax/none, but only approximate under log_standardize or
+    // asinh_standardize since MSE does not convert linearly through either
+    // nonlinear transform.
     // Callers only use this for diagnostic loss-history curves, never for the
     // final reported NSE/R2/KGE/PBIAS metrics (those are computed by
     // inverseTransform-ing actual predictions back to physical units first).
@@ -98,7 +112,8 @@ public:
         if (state.offset.empty() || state.offset.size() != state.scale.size() || state.shape.empty()) {
             throw std::invalid_argument("Scaler state is incomplete.");
         }
-        if (state.method != "none" && state.method != "standardize" && state.method != "minmax" && state.method != "log_standardize") {
+        if (state.method != "none" && state.method != "standardize" && state.method != "minmax" &&
+            state.method != "log_standardize" && state.method != "asinh_standardize") {
             throw std::invalid_argument("Scaler state has an unsupported method.");
         }
         int64_t expected = 1;

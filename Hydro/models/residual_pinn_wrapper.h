@@ -38,15 +38,26 @@ public:
         // raw [time, Peff, ...] tensor's time column grows unbounded with
         // record length and otherwise dominates small meteorological
         // features). "standardize": also z-score the residual *target*
-        // (fit on train only). The physics baseline itself always runs on
-        // raw physical peff/q0, regardless of this setting - only what the
-        // network itself sees/predicts is affected.
-        const bool scaleInput = config.normalization == "standardize_input" || config.normalization == "standardize";
-        const bool scaleResidual = config.normalization == "standardize";
+        // linearly (fit on train only). "standardize_input_asinh_residual":
+        // input scaling as above, but the residual target is compressed with
+        // asinh first, then z-scored - unlike a plain linear standardize,
+        // asinh is a genuine nonlinear compression of extreme values and
+        // handles signed residuals natively (log_standardize cannot: its
+        // log1p has domain x>=-1, and residuals go negative whenever the
+        // physics baseline overshoots). The physics baseline itself always
+        // runs on raw physical peff/q0, regardless of this setting - only
+        // what the network itself sees/predicts is affected.
+        const bool scaleInput = config.normalization == "standardize_input" ||
+                                 config.normalization == "standardize" ||
+                                 config.normalization == "standardize_input_asinh_residual";
+        const bool scaleResidualLinear = config.normalization == "standardize";
+        const bool scaleResidualAsinh = config.normalization == "standardize_input_asinh_residual";
+        const bool scaleResidual = scaleResidualLinear || scaleResidualAsinh;
         if (config.normalization != "none" && !scaleInput) {
             throw std::invalid_argument(
-                "Residual-correction PINN hybrid normalization must be one of: none, standardize_input, standardize "
-                "(log_standardize is not valid here - residuals can be negative, outside log1p's domain).");
+                "Residual-correction PINN hybrid normalization must be one of: none, standardize_input, standardize, "
+                "standardize_input_asinh_residual (log_standardize is not valid here - residuals can be negative, "
+                "outside log1p's domain).");
         }
         HydroRunResult result;
         torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
@@ -118,7 +129,7 @@ public:
         TensorScaler inputScaler;
         TensorScaler targetScaler;
         if (scaleInput) inputScaler.fit(xTrainRaw, "standardize");
-        if (scaleResidual) targetScaler.fit(rTrainRaw, "standardize");
+        if (scaleResidual) targetScaler.fit(rTrainRaw, scaleResidualAsinh ? "asinh_standardize" : "standardize");
         torch::Tensor xTrain = scaleInput ? inputScaler.transform(xTrainRaw) : xTrainRaw;
         torch::Tensor rTrain = scaleResidual ? targetScaler.transform(rTrainRaw) : rTrainRaw;
         torch::Tensor xValidation = scaleInput ? inputScaler.transform(xValidationRaw) : xValidationRaw;

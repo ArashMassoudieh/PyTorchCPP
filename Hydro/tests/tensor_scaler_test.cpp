@@ -71,6 +71,25 @@ int main() {
         fallbackScaler.transform(signedFeature),
         plainStandardizeScaler.transform(signedFeature)));
 
+    // asinh_standardize: round-trips through asinh/sinh and, unlike
+    // log_standardize, accepts signed values natively (e.g. a residual
+    // target, which can be negative) with no domain fallback needed.
+    TensorScaler asinhScaler;
+    auto residualTrain = torch::tensor({{-0.3f}, {-0.02f}, {0.05f}, {3.2f}});
+    asinhScaler.fit(residualTrain, "asinh_standardize");
+    assert(asinhScaler.exportState().method == "asinh_standardize");
+    auto residualHeldOut = torch::tensor({{-0.15f}});
+    auto asinhTransformed = asinhScaler.transform(residualHeldOut);
+    assert(torch::allclose(asinhScaler.inverseTransform(asinhTransformed), residualHeldOut, 1e-4, 1e-4));
+    // A large training-set outlier (3.2) must not blow up a small held-out
+    // residual's transformed scale the way plain standardize would: asinh
+    // compresses the outlier's effect on the fitted offset/scale, and the
+    // round trip for a near-zero value stays accurate.
+    auto smallResidual = torch::tensor({{0.001f}});
+    assert(torch::allclose(asinhScaler.inverseTransform(asinhScaler.transform(smallResidual)), smallResidual, 1e-4, 1e-4));
+    auto negativeResidual = torch::tensor({{-1.5f}});
+    assert(torch::allclose(asinhScaler.inverseTransform(asinhScaler.transform(negativeResidual)), negativeResidual, 1e-4, 1e-4));
+
     auto regular = torch::tensor({{0.0f, 1.0f}, {0.5f, 2.0f}, {1.0f, 3.0f}});
     assert(regularPhysicalTimeStep(regular) == 0.5);
     auto physicalTime = torch::tensor({{0.0f}, {0.5f}, {1.0f}});
