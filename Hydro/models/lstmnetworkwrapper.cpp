@@ -324,6 +324,25 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         else buildSyntheticSeries(config, x, y, plotX);
     }
 
+    // Antecedent Precipitation Index: a classical (Kohler & Linsley 1951)
+    // single-column decaying-memory summary of recent effective
+    // precipitation, API_t = k*API_{t-1} + Peff_t. Gives the network an
+    // explicit long-wetness signal that a short lookback window cannot see
+    // on its own, independent of sequence length or architecture capacity.
+    if (config.antecedent_index_halflife_hours > 0.0 && x.defined() && x.dim() == 2 && x.size(1) >= 2) {
+        const double k = std::pow(0.5, 1.0 / config.antecedent_index_halflife_hours);
+        const torch::Tensor peff = x.slice(1, 1, 2).reshape({-1}).to(torch::kCPU).contiguous();
+        const int64_t n = peff.size(0);
+        std::vector<float> api(static_cast<size_t>(n));
+        double running = 0.0;
+        for (int64_t i = 0; i < n; ++i) {
+            running = k * running + peff[i].item<double>();
+            api[static_cast<size_t>(i)] = static_cast<float>(running);
+        }
+        torch::Tensor apiTensor = torch::from_blob(api.data(), {n, 1}, torch::kFloat32).clone();
+        x = torch::cat({x, apiTensor}, 1).contiguous();
+    }
+
     const bool needsForcing = physicsInformed &&
         (config.pinn_physics_profile == "linear_reservoir" ||
         config.pinn_physics_profile == "cstr_first_order" ||
@@ -373,7 +392,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     xTest = inputScaler.transform(xTest);
     yTest = targetScaler.transform(yTest);
 
-    HydroLSTM model(seq.xSeq.size(2), hiddenDim, y.size(1), numLayers);
+    HydroLSTM model(seq.xSeq.size(2), hiddenDim, y.size(1), numLayers, config.lstm_dropout);
     torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
 
     std::vector<double> losses;

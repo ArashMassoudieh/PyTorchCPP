@@ -10,8 +10,8 @@
 #include <vector>
 
 struct HydroLSTMImpl : torch::nn::Module {
-    HydroLSTMImpl(int64_t inputDim, int64_t hiddenDim, int64_t outputDim, int64_t numLayers)
-        : lstm(torch::nn::LSTMOptions(inputDim, hiddenDim).num_layers(numLayers).batch_first(true)),
+    HydroLSTMImpl(int64_t inputDim, int64_t hiddenDim, int64_t outputDim, int64_t numLayers, double dropout = 0.0)
+        : lstm(torch::nn::LSTMOptions(inputDim, hiddenDim).num_layers(numLayers).batch_first(true).dropout(dropout)),
           fc(hiddenDim, outputDim) {
         register_module("lstm", lstm);
         register_module("fc", fc);

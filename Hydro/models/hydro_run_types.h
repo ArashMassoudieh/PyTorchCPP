@@ -117,6 +117,20 @@ struct HydroRunConfig {
     // long as pointwise error stays low. 0.0 (default) recovers prior
     // behavior exactly.
     double lstm_bias_weight = 0.0;
+
+    // Plain LSTM only: inter-layer dropout passed to torch::nn::LSTMOptions.
+    // Only has an effect when hidden_layers specifies 2+ layers (torch does
+    // not apply dropout after the last layer). 0.0 (default) recovers prior
+    // behavior exactly.
+    double lstm_dropout = 0.0;
+
+    // Plain LSTM only: appends an Antecedent Precipitation Index column
+    // (API_t = k*API_{t-1} + Peff_t, k chosen so API decays to half its
+    // value after this many hours) as an extra input feature, giving the
+    // network an explicit long-memory wetness signal beyond whatever its
+    // own recurrence/lookback window already sees. 0.0 (default) disables
+    // this and recovers prior behavior exactly.
+    double antecedent_index_halflife_hours = 0.0;
 };
 
 struct HydroRunResult {
