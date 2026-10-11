@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <vector>
@@ -138,7 +139,23 @@ public:
         torch::Tensor xTest = scaleInput ? inputScaler.transform(xTestRaw) : xTestRaw;
 
         torch::nn::Sequential model = makeNetwork(x.size(1), parseHiddenLayers(config.hidden_layers_csv), config.activation);
-        torch::optim::Adam optimizer(model->parameters(),
+
+        // Kendall et al. (2017) homoscedastic uncertainty weighting: the
+        // bias-penalty weight becomes a learned log-variance scalar instead
+        // of a fixed constant, trained jointly by the same optimizer.
+        // Initialized so the *initial* effective weight matches
+        // config.lstm_bias_weight (0.5*exp(-logSigmaBias) at logSigmaBias=0
+        // would be 0.5, so logSigmaBias is set to land on the requested
+        // starting weight exactly): effective_weight = 0.5*exp(-logSigmaBias).
+        const bool adaptiveBiasWeight = config.lstm_bias_weight_adaptive && config.lstm_bias_weight > 0.0;
+        torch::Tensor logSigmaBias;
+        std::vector<torch::Tensor> optimizerParams = model->parameters();
+        if (adaptiveBiasWeight) {
+            const double initialLogSigma = -std::log(2.0 * config.lstm_bias_weight);
+            logSigmaBias = torch::full({1}, initialLogSigma, torch::TensorOptions().requires_grad(true));
+            optimizerParams.push_back(logSigmaBias);
+        }
+        torch::optim::Adam optimizer(optimizerParams,
                                      torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
 
         const int64_t trainN = xTrain.size(0);
@@ -176,7 +193,11 @@ public:
                     torch::Tensor predPhysical = baselineTrain.slice(0, start, end) + predResidualPhysical;
                     torch::Tensor truthPhysical = yTrainPhysical.slice(0, start, end);
                     torch::Tensor bias = predPhysical.mean() - truthPhysical.mean();
-                    loss = loss + config.lstm_bias_weight * bias * bias;
+                    if (adaptiveBiasWeight) {
+                        loss = loss + 0.5 * torch::exp(-logSigmaBias) * bias * bias + 0.5 * logSigmaBias;
+                    } else {
+                        loss = loss + config.lstm_bias_weight * bias * bias;
+                    }
                 }
                 loss.backward();
                 optimizer.step();
@@ -225,6 +246,11 @@ public:
         result.validation_mse = bestValidationMse;
         result.input_scaler = scaleInput ? inputScaler.exportState() : HydroScalerState{};
         result.target_scaler = scaleResidual ? targetScaler.exportState() : HydroScalerState{};
+        if (adaptiveBiasWeight) {
+            const double finalEffectiveWeight = 0.5 * std::exp(-logSigmaBias.item<double>());
+            std::cout << "[residual_pinn] adaptive bias weight: started at " << config.lstm_bias_weight
+                      << ", learned final effective weight = " << finalEffectiveWeight << std::endl;
+        }
 
         {
             const auto checkpoint = temporaryHydroCheckpointPath("hydro_ffn_residual_pinn");

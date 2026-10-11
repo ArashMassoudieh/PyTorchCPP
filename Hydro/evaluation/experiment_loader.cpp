@@ -161,6 +161,14 @@ bool boolValue(const std::string& json, const std::string& key) {
     if (!std::regex_search(json, match, pattern)) throw std::runtime_error("Experiment configuration is missing boolean: " + key);
     return match[1].str() == "true";
 }
+
+bool optionalBoolValue(const std::string& json, const std::string& key, bool fallback) {
+    rejectDuplicateField(json, key);
+    std::smatch match;
+    const std::regex pattern("\\\"" + key + "\\\"\\s*:\\s*(true|false)\\s*[,}]");
+    if (!std::regex_search(json, match, pattern)) return fallback;
+    return match[1].str() == "true";
+}
 }
 
 LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& configPath) const {
@@ -198,6 +206,7 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.pinn_routing_lag_hours = optionalNumberValue(json, "pinn_routing_lag_hours", 0.0);
     c.pinn_flow_exponent = optionalNumberValue(json, "pinn_flow_exponent", 0.0);
     c.lstm_bias_weight = optionalNumberValue(json, "lstm_bias_weight", 0.0);
+    c.lstm_bias_weight_adaptive = optionalBoolValue(json, "lstm_bias_weight_adaptive", false);
     c.lstm_dropout = optionalNumberValue(json, "lstm_dropout", 0.0);
     c.antecedent_index_halflife_hours = optionalNumberValue(json, "antecedent_index_halflife_hours", 0.0);
     c.use_hydro_package = boolValue(json, "use_hydro_package");

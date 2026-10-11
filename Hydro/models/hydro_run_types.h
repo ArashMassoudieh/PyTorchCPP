@@ -118,6 +118,17 @@ struct HydroRunConfig {
     // behavior exactly.
     double lstm_bias_weight = 0.0;
 
+    // FFN residual hybrid only: when true, lstm_bias_weight is used only as
+    // the *initial* bias-penalty weight; the actual weight becomes a learned
+    // parameter (Kendall et al. 2017 homoscedastic uncertainty weighting: a
+    // log-variance scalar, trained jointly with the network by the same
+    // optimizer) instead of a fixed constant. Motivated by the bias-penalty
+    // scale probe (results/residual_hybrid_bias_penalty_20261008) needing a
+    // manual search across weights 10/100/1000 with high seed-to-seed
+    // variance in how well any single fixed weight worked. false (default)
+    // recovers prior fixed-weight behavior exactly.
+    bool lstm_bias_weight_adaptive = false;
+
     // Plain LSTM only: inter-layer dropout passed to torch::nn::LSTMOptions.
     // Only has an effect when hidden_layers specifies 2+ layers (torch does
     // not apply dropout after the last layer). 0.0 (default) recovers prior
