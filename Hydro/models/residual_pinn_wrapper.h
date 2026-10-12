@@ -122,6 +122,11 @@ public:
         torch::Tensor baselineTest = baselineTensor.slice(0, split.validation_end, x.size(0)).contiguous();
         torch::Tensor yTrainPhysical = y.slice(0, 0, split.train_end).contiguous();
         torch::Tensor baselineTrain = baselineTensor.slice(0, 0, split.train_end).contiguous();
+        // Training-split discharge std, fit on train only like every other
+        // scaler here - normalizes the optional physical_error_weight term
+        // (see HydroRunConfig::physical_error_weight) so it is commensurate
+        // with the standardized transformed-space loss.
+        const double physicalScale = std::max(1.0e-6, yTrainPhysical.std().item<double>());
 
         // Fit scalers on the training split only, exactly like every other
         // wrapper in this project. inputScaler covers the *whole* feature
@@ -198,6 +203,20 @@ public:
                     } else {
                         loss = loss + config.lstm_bias_weight * bias * bias;
                     }
+                }
+                if (config.physical_error_weight > 0.0) {
+                    // Pointwise physical-space error term, independent of the
+                    // batch-mean-only bias penalty above. See
+                    // HydroRunConfig::physical_error_weight.
+                    torch::Tensor predResidualPhysicalForPhysTerm =
+                        scaleResidual ? targetScaler.inverseTransform(predResidual) : predResidual;
+                    torch::Tensor predPhysicalForPhysTerm =
+                        baselineTrain.slice(0, start, end) + predResidualPhysicalForPhysTerm;
+                    torch::Tensor truthPhysicalForPhysTerm = yTrainPhysical.slice(0, start, end);
+                    torch::Tensor normalizedPhysicalResidual =
+                        (predPhysicalForPhysTerm - truthPhysicalForPhysTerm) / physicalScale;
+                    torch::Tensor physicalTerm = (normalizedPhysicalResidual * normalizedPhysicalResidual).mean();
+                    loss = loss + config.physical_error_weight * physicalTerm;
                 }
                 loss.backward();
                 optimizer.step();

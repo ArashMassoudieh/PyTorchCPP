@@ -129,6 +129,27 @@ struct HydroRunConfig {
     // recovers prior fixed-weight behavior exactly.
     bool lstm_bias_weight_adaptive = false;
 
+    // FFN residual hybrid and plain LSTM: adds
+    // weight*mean(((pred_physical-observed_physical)/train_discharge_std)^2)
+    // to each mini-batch's loss, alongside (not replacing) the existing
+    // transformed-space loss (asinh-residual for the hybrid, log1p for the
+    // LSTM). Motivated by a loss/gradient-contribution audit
+    // (results/precipitation_unit_fix_20261012/) finding that the
+    // transformed-space loss under-weights flood hours relative to their
+    // true physical error: flood peak hours were ~0.04% of training hours
+    // but ~64-70% of total physical squared error, yet only ~20-30% of
+    // total transformed-space loss mass - a real, measured compression
+    // effect (not total suppression: floods were not literally ignored).
+    // The physical term is normalized by the training split's own
+    // discharge standard deviation (fit on train only, like every other
+    // scaler in this project) so it is commensurate with the standardized
+    // transformed-space term rather than dominating by raw mm/h scale.
+    // Deliberately unweighted (1.0) when enabled, not swept, to isolate
+    // "does adding this term help at all" from "what weight is optimal" -
+    // the latter is a separate question. 0.0 (default) recovers prior
+    // behavior exactly.
+    double physical_error_weight = 0.0;
+
     // Plain LSTM only: inter-layer dropout passed to torch::nn::LSTMOptions.
     // Only has an effect when hidden_layers specifies 2+ layers (torch does
     // not apply dropout after the last layer). 0.0 (default) recovers prior

@@ -212,6 +212,7 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.pinn_routing_lag_hours = optionalNumberValue(json, "pinn_routing_lag_hours", 0.0);
     c.pinn_flow_exponent = optionalNumberValue(json, "pinn_flow_exponent", 0.0);
     c.lstm_bias_weight = optionalNumberValue(json, "lstm_bias_weight", 0.0);
+    c.physical_error_weight = optionalNumberValue(json, "physical_error_weight", 0.0);
     c.lstm_bias_weight_adaptive = optionalBoolValue(json, "lstm_bias_weight_adaptive", false);
     c.lstm_warm_start_checkpoint_path = optionalStringValue(json, "lstm_warm_start_checkpoint_path", "");
     c.lstm_dropout = optionalNumberValue(json, "lstm_dropout", 0.0);

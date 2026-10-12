@@ -374,6 +374,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
 
     torch::Tensor xTrain = seq.xSeq.slice(0, 0, nTrain).contiguous();
     torch::Tensor yTrain = seq.ySeq.slice(0, 0, nTrain).contiguous();
+    torch::Tensor yTrainPhysical = yTrain.clone();
     torch::Tensor xValidation = seq.xSeq.slice(0, nTrain, split.validation_end).contiguous();
     torch::Tensor yValidation = seq.ySeq.slice(0, nTrain, split.validation_end).contiguous();
     torch::Tensor xTest = seq.xSeq.slice(0, split.validation_end, totalSeq).contiguous();
@@ -391,6 +392,11 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     yValidation = targetScaler.transform(yValidation);
     xTest = inputScaler.transform(xTest);
     yTest = targetScaler.transform(yTest);
+    // Training-split discharge std, fit on train only - normalizes the
+    // optional physical_error_weight term (see
+    // HydroRunConfig::physical_error_weight) so it is commensurate with the
+    // standardized/transformed-space data loss.
+    const double physicalScale = std::max(1.0e-6, yTrainPhysical.std().item<double>());
 
     HydroLSTM model(seq.xSeq.size(2), hiddenDim, y.size(1), numLayers, config.lstm_dropout);
     if (!config.lstm_warm_start_checkpoint_path.empty()) {
@@ -481,6 +487,17 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
                 torch::Tensor truthPhysical = targetScaler.inverseTransform(yb);
                 torch::Tensor bias = predPhysical.mean() - truthPhysical.mean();
                 loss = loss + config.lstm_bias_weight * bias * bias;
+            }
+            if (config.physical_error_weight > 0.0) {
+                // Pointwise physical-space error term, independent of the
+                // batch-mean-only bias penalty above. See
+                // HydroRunConfig::physical_error_weight.
+                torch::Tensor predPhysicalForPhysTerm = targetScaler.inverseTransform(pred);
+                torch::Tensor truthPhysicalForPhysTerm = yTrainPhysical.index_select(0, idx);
+                torch::Tensor normalizedPhysicalResidual =
+                    (predPhysicalForPhysTerm - truthPhysicalForPhysTerm) / physicalScale;
+                torch::Tensor physicalTerm = (normalizedPhysicalResidual * normalizedPhysicalResidual).mean();
+                loss = loss + config.physical_error_weight * physicalTerm;
             }
             loss.backward();
             optimizer.step();
