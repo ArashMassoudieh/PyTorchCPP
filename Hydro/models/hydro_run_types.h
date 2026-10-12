@@ -135,6 +135,19 @@ struct HydroRunConfig {
     // behavior exactly.
     double lstm_dropout = 0.0;
 
+    // Plain LSTM only: if non-empty, loads this checkpoint file (same .pt
+    // format HydroBatch already exports to <output>/models/<approach>.pt)
+    // as the model's initial weights instead of random initialization -
+    // a warm start, for staged coarse-to-fine temporal-resolution training
+    // (e.g. pretrain on monthly data, warm-start on daily, warm-start on
+    // hourly). Architecture (hidden_layers, input/output dims) must match
+    // the checkpoint's; only has an effect when input_lags/features and the
+    // resulting tensor shapes are identical across stages - this project's
+    // 6-column forcing contract is unchanged across temporal resolutions, so
+    // shapes are compatible, but what an LSTM "step" represents differs
+    // between resolutions. "" (default) recovers random initialization.
+    std::string lstm_warm_start_checkpoint_path = "";
+
     // Plain LSTM only: appends an Antecedent Precipitation Index column
     // (API_t = k*API_{t-1} + Peff_t, k chosen so API decays to half its
     // value after this many hours) as an extra input feature, giving the

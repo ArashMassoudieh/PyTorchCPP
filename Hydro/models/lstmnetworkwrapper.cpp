@@ -393,6 +393,16 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     yTest = targetScaler.transform(yTest);
 
     HydroLSTM model(seq.xSeq.size(2), hiddenDim, y.size(1), numLayers, config.lstm_dropout);
+    if (!config.lstm_warm_start_checkpoint_path.empty()) {
+        // Coarse-to-fine staged training: load a checkpoint from a prior
+        // stage (e.g. monthly-resolution training) as this stage's initial
+        // weights instead of random initialization. Architecture must match
+        // exactly (same hidden_layers/num_layers/input-output dims) - torch
+        // throws on a real mismatch rather than silently partial-loading.
+        torch::serialize::InputArchive archive;
+        archive.load_from(config.lstm_warm_start_checkpoint_path);
+        model->load(archive);
+    }
     torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
 
     std::vector<double> losses;

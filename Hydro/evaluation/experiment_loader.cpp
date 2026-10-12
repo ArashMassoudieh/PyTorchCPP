@@ -169,6 +169,12 @@ bool optionalBoolValue(const std::string& json, const std::string& key, bool fal
     if (!std::regex_search(json, match, pattern)) return fallback;
     return match[1].str() == "true";
 }
+
+std::string optionalStringValue(const std::string& json, const std::string& key, const std::string& fallback) {
+    const std::regex presence("\\\"" + key + "\\\"\\s*:\\s*\\\"(?:\\\\.|[^\\\"])*\\\"\\s*[,}]");
+    if (!std::regex_search(json, presence)) return fallback;
+    return stringValue(json, key);
+}
 }
 
 LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& configPath) const {
@@ -207,6 +213,7 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.pinn_flow_exponent = optionalNumberValue(json, "pinn_flow_exponent", 0.0);
     c.lstm_bias_weight = optionalNumberValue(json, "lstm_bias_weight", 0.0);
     c.lstm_bias_weight_adaptive = optionalBoolValue(json, "lstm_bias_weight_adaptive", false);
+    c.lstm_warm_start_checkpoint_path = optionalStringValue(json, "lstm_warm_start_checkpoint_path", "");
     c.lstm_dropout = optionalNumberValue(json, "lstm_dropout", 0.0);
     c.antecedent_index_halflife_hours = optionalNumberValue(json, "antecedent_index_halflife_hours", 0.0);
     c.use_hydro_package = boolValue(json, "use_hydro_package");
