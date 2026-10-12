@@ -128,10 +128,17 @@ bool acceptedUnit(const std::string& variable, const std::string& unit) {
         // current live metadata; verified against the API directly), not the
         // "mm/day" this package originally shipped with - GIStoOHQ's own
         // acceptance list (ohqbuilder/watershed_data/temporal.py) already
-        // treats both as valid for the same reason. No conversion factor is
-        // applied to the value here regardless of which unit string is
-        // present, so accepting both is safe: an hourly-cadence depth means
-        // the same thing under either label.
+        // treats both as valid for the same reason. This function only
+        // validates that the unit string is one it recognizes; it does NOT
+        // mean the two units are interchangeable downstream. The harmonizer
+        // (gistohq_hourly_harmonizer.cpp, via
+        // GisToOhqHourlyConfig::precipitation_is_daily_total, set below from
+        // this same unit string) divides by 24 for a true "mm/day" total
+        // and leaves "mm/hour" values untouched. A prior version of this
+        // comment incorrectly claimed no conversion was needed either way -
+        // that was wrong and silently shrank every real storm 24x; see
+        // results/flood_rainfall_alignment_20261011/ in the paper's Dropbox
+        // folder for the investigation that found it.
         {"PRECTOTCORR", {"mm/day", "mm/d", "mm/hour", "mm/hr"}}, {"T2M", {"degC", "°C", "C"}},
         {"RH2M", {"%", "percent"}}, {"WS2M", {"m/s"}},
         {"ALLSKY_SFC_SW_DWN", {"MJ/m2/h", "MJ/m²/h", "MJ/m^2/h", "MJ/hr"}},
@@ -191,6 +198,14 @@ GisToOhqPreparedPackage prepareGisToOhqPackage(
     hourlyConfig.discharge_sample_support_seconds = config.discharge_sample_support_seconds;
     hourlyConfig.minimum_discharge_coverage = config.minimum_discharge_coverage;
     hourlyConfig.latent_heat_mj_per_kg = config.latent_heat_mj_per_kg;
+    // Derive from the package's own declared PRECTOTCORR unit (already
+    // validated above against variables.json), never from timestamp
+    // cadence - a legacy "mm/day" package and a current "mm/hour" package
+    // can both report hourly-spaced timestamps, so cadence alone cannot
+    // distinguish a genuine daily total from an hourly depth.
+    const std::string& precipitationUnit = units.at("PRECTOTCORR");
+    hourlyConfig.precipitation_is_daily_total =
+        (precipitationUnit == "mm/day" || precipitationUnit == "mm/d");
     auto hourly = harmonizeGisToOhqHourly(inputs, hourlyConfig);
     auto modelRows = buildGisToOhqModelRows(hourly, config.require_observed_discharge);
     return {std::move(hourly), std::move(modelRows), hasDischarge};

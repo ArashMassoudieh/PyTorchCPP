@@ -32,6 +32,7 @@ int main() {
     config.start_epoch_seconds = 0;
     config.end_epoch_seconds = 3 * 3600;
     config.catchment_area_m2 = 1.0e6;
+    config.precipitation_is_daily_total = true; // legacy daily-total source: 24.0 mm/day -> 1.0 mm/hour
     const auto rows = harmonizeGisToOhqHourly(inputs, config);
     assert(rows.size() == 3);
     assert(close(rows[0].precipitation_mm_per_hour, 1.0));
@@ -88,6 +89,7 @@ int main() {
     gapConfig.start_epoch_seconds = 0;
     gapConfig.end_epoch_seconds = 8 * 3600;
     gapConfig.catchment_area_m2 = 1.0e6;
+    gapConfig.precipitation_is_daily_total = true;
     const auto gapRows = harmonizeGisToOhqHourly(gapInputs, gapConfig);
     assert(gapRows.size() == 8);
     assert(gapRows[0].discharge_valid && close(gapRows[0].discharge_coverage, 1.0));
@@ -100,5 +102,37 @@ int main() {
     assert(!gapRows[4].discharge_valid);
     assert(!gapRows[5].discharge_valid);
     assert(!gapRows[6].discharge_valid);
+
+    // Producer-to-consumer regression test: a package whose PRECTOTCORR is
+    // already hourly-cadence (NASA POWER's hourly endpoint, native_unit
+    // "mm/hour") must reach the model as-is. An input of 24.0 mm/hour must
+    // produce 24.0, not 1.0 - the bug this guards against divided every
+    // real storm by 24 (see
+    // results/flood_rainfall_alignment_20261011/peak_response_audit_addendum.md
+    // in the paper's Dropbox folder for how this was found).
+    GisToOhqHourlyInputs hourlyUnitInputs;
+    for (std::int64_t hour = 0; hour < 3; ++hour) {
+        const auto time = hour * 3600;
+        hourlyUnitInputs.precipitation_mm_per_day.push_back({time, 24.0});
+        hourlyUnitInputs.temperature_c.push_back({time, 10.0});
+        hourlyUnitInputs.relative_humidity_percent.push_back({time, 50.0});
+        hourlyUnitInputs.wind_speed_m_per_second.push_back({time, 2.0});
+        hourlyUnitInputs.solar_energy_mj_per_m2.push_back({time, 0.5});
+    }
+    hourlyUnitInputs.pet_energy_mj_per_m2_per_day.push_back({0, 58.8});
+    GisToOhqHourlyConfig hourlyUnitConfig;
+    hourlyUnitConfig.start_epoch_seconds = 0;
+    hourlyUnitConfig.end_epoch_seconds = 3 * 3600;
+    hourlyUnitConfig.catchment_area_m2 = 1.0e6;
+    hourlyUnitConfig.precipitation_is_daily_total = false; // native_unit was "mm/hour"
+    const auto hourlyUnitRows = harmonizeGisToOhqHourly(hourlyUnitInputs, hourlyUnitConfig);
+    assert(hourlyUnitRows.size() == 3);
+    assert(close(hourlyUnitRows[0].precipitation_mm_per_hour, 24.0));
+    assert(close(hourlyUnitRows[1].precipitation_mm_per_hour, 24.0));
+    assert(close(hourlyUnitRows[2].precipitation_mm_per_hour, 24.0));
+    // PET's separate daily->hourly conversion (EVPTRNS / latent_heat / 24)
+    // must stay intact regardless of the precipitation unit flag.
+    assert(close(hourlyUnitRows[0].pet_mm_per_hour, 1.0));
+
     return 0;
 }

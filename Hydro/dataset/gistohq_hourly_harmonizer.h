@@ -9,6 +9,14 @@ struct GisToOhqTimedValue {
 };
 
 struct GisToOhqHourlyInputs {
+    // Despite the field name (kept for compatibility), the unit of these
+    // values is NOT assumed here - it is governed by
+    // GisToOhqHourlyConfig::precipitation_is_daily_total, set by the caller
+    // from each package's own declared PRECTOTCORR unit (see
+    // gistohq_package_adapter.cpp). Never infer the unit from timestamp
+    // cadence: a legacy package can carry a genuine daily total at
+    // hourly-repeated timestamps, and an hourly-endpoint package reports
+    // mm/hour at the same cadence - cadence alone cannot tell them apart.
     std::vector<GisToOhqTimedValue> precipitation_mm_per_day;
     std::vector<GisToOhqTimedValue> temperature_c;
     std::vector<GisToOhqTimedValue> relative_humidity_percent;
@@ -25,6 +33,17 @@ struct GisToOhqHourlyConfig {
     double discharge_sample_support_seconds = 300.0;
     double minimum_discharge_coverage = 0.75;
     double latent_heat_mj_per_kg = 2.45;
+    // Whether precipitation_mm_per_day values are a true daily total needing
+    // /24 disaggregation to hourly, vs. already an hourly-cadence depth.
+    // NASA POWER's hourly PRECTOTCORR endpoint reports mm/hour; only its
+    // daily endpoint reports a true daily total (this package's legacy
+    // default source). Must be derived from the package's own declared unit
+    // (variables.json's native_unit for PRECTOTCORR), never from timestamp
+    // spacing - a legacy daily total can still arrive at hourly-repeated
+    // timestamps. Defaults to true (the legacy/original behavior) so any
+    // caller that does not explicitly classify the unit keeps prior
+    // behavior rather than silently changing under it.
+    bool precipitation_is_daily_total = true;
     // USGS discharge telemetry occasionally drops out for a few hours for reasons
     // unrelated to the hydrologic process (radio/logger hiccups); linearly
     // interpolating across gaps at or below this bound is standard provisional-data

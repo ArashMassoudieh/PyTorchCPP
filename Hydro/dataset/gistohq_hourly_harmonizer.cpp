@@ -121,7 +121,11 @@ std::vector<GisToOhqHourlyRow> harmonizeGisToOhqHourly(
             row.observed_discharge_m3_per_second = row.observed_runoff_mm_per_hour = missing();
         if (precipitation[i].count) {
             requireRange(precipitation[i].value, 0.0, std::numeric_limits<double>::max(), "PRECTOTCORR");
-            row.precipitation_mm_per_hour = precipitation[i].value / 24.0;
+            // See GisToOhqHourlyConfig::precipitation_is_daily_total - this
+            // must reflect the package's declared unit, not an assumption.
+            row.precipitation_mm_per_hour = config.precipitation_is_daily_total
+                ? precipitation[i].value / 24.0
+                : precipitation[i].value;
             row.precipitation_valid = true;
         }
         if (temperature[i].count) { row.temperature_c = temperature[i].value; row.temperature_valid = true; }
