@@ -5,6 +5,7 @@
 #include <torch/torch.h>
 
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -28,6 +29,22 @@ inline std::vector<int> parseHiddenLayers(const std::string& csv) {
     return layers;
 }
 
+// Hidden-layer activation only - the output layer stays a plain Linear(in,1)
+// with no activation, regardless of this choice, so residual corrections can
+// add or subtract flow (a bounded or nonnegative-only hidden activation here
+// would not change that - this fires per hidden layer, before the final
+// Linear - but note Softplus/Sigmoid would be wrong choices for a hidden
+// activation that must pass signed gradients through for an unbounded,
+// signed residual target).
+// leaky_relu: retains a small gradient for negative inputs (fixed 0.01
+// slope, PyTorch's default) - the simplest fix if ReLU units are dying.
+// silu: smooth, unbounded-above x*sigmoid(x) ("Swish") - the more general
+// alternative; literature (Ramachandran et al. 2017) reports it
+// outperforming ReLU on several deep-network benchmarks, which motivates
+// testing it here but does not establish an advantage for this watershed.
+// Unrecognized names throw rather than silently falling back to tanh -
+// that silent fallback previously meant a config typo (e.g. "silu" before
+// this was implemented) would quietly run the wrong experiment.
 inline torch::nn::Sequential makeNetwork(int64_t inputDim,
                                          const std::vector<int>& hidden,
                                          const std::string& activation) {
@@ -37,7 +54,14 @@ inline torch::nn::Sequential makeNetwork(int64_t inputDim,
         model->push_back(torch::nn::Linear(in, width));
         if (activation == "relu") model->push_back(torch::nn::ReLU());
         else if (activation == "sigmoid") model->push_back(torch::nn::Sigmoid());
-        else model->push_back(torch::nn::Tanh());
+        else if (activation == "tanh") model->push_back(torch::nn::Tanh());
+        else if (activation == "leaky_relu") model->push_back(torch::nn::LeakyReLU());
+        else if (activation == "silu") model->push_back(torch::nn::SiLU());
+        else {
+            throw std::invalid_argument(
+                "Unknown FFN activation '" + activation +
+                "' (expected one of: relu, sigmoid, tanh, leaky_relu, silu).");
+        }
         in = width;
     }
     model->push_back(torch::nn::Linear(in, 1));
