@@ -785,6 +785,220 @@ HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
     return result;
 }
 
+// Controlled ablation isolating the physics baseline's causal contribution:
+// identical architecture/inputs/seed/optimizer/epochs/checkpoint rule as
+// trainResidualHybrid, but BOTH arms share one common linear discharge scale
+// fit from training Q_obs only (no centering, so there is nothing for the
+// two arms' centering conventions to disagree on), instead of each
+// independently fitting its own target scaler. zeroBaseline=false is the
+// physics arm (baseline=Q_physics, target=Q_obs-Q_physics); zeroBaseline=true
+// is the control arm (baseline=0, target=Q_obs). This is a new, additive
+// function - trainResidualHybrid and the lstm_residual_pinn_hybrid profile
+// above are untouched, so every prior result built on that profile still
+// reproduces exactly.
+HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroBaseline) {
+    HydroRunResult result;
+    torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
+
+    torch::Tensor physicsX, y, plotX;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX)) {
+        throw std::runtime_error("Unable to construct reduced-reservoir LSTM shared-scale-ablation tensors.");
+    }
+    if (physicsX.dim() != 2 || physicsX.size(1) < 2) {
+        throw std::runtime_error("LSTM shared-scale ablation requires [time, I*, ...] input features.");
+    }
+
+    const double dt = regularPhysicalTimeStepFromTime(plotX);
+    const torch::Tensor peffFull = physicsX.slice(1, 1, 2).reshape({-1}).contiguous();
+    const torch::Tensor observedFull = y.reshape({-1}).contiguous();
+    const int64_t n = peffFull.size(0);
+
+    torch::Tensor baselineFull;
+    if (zeroBaseline) {
+        baselineFull = torch::zeros({n, 1}, torch::kFloat32);
+    } else {
+        const double fastK = config.storage_coeff;
+        const double slowK = config.lambda_decay;
+        const double alpha = config.runoff_coeff;
+        if (!(fastK > 0.0 && slowK > 0.0 && fastK > slowK && alpha > 0.0 && alpha < 1.0)) {
+            throw std::runtime_error("LSTM shared-scale ablation (physics arm) requires fast_k>slow_k>0 and 0<routing_alpha<1.");
+        }
+        const double q0 = observedFull[0].item<double>();
+        const double runoffCoefficient = std::max(1.0e-6, config.forcing_gain);
+        const int64_t lagSteps = dt > 0.0
+            ? static_cast<int64_t>(std::llround(std::max(0.0, config.pinn_routing_lag_hours) / dt))
+            : 0;
+        std::vector<double> peffVec(static_cast<std::size_t>(n));
+        for (int64_t i = 0; i < n; ++i) peffVec[static_cast<std::size_t>(i)] = peffFull[i].item<double>();
+        TwoReservoirRoutingParams routingParams;
+        routingParams.fastK = fastK;
+        routingParams.slowK = slowK;
+        routingParams.alpha = alpha;
+        routingParams.runoffCoefficient = runoffCoefficient;
+        routingParams.dt = dt;
+        routingParams.lagSteps = lagSteps;
+        routingParams.flowExponent = config.pinn_flow_exponent;
+        const std::vector<double> baselineVec = simulateTwoReservoirBaseline(peffVec, q0, routingParams);
+        if (std::any_of(baselineVec.begin(), baselineVec.end(), [](double v) { return !std::isfinite(v); })) {
+            throw std::runtime_error("LSTM shared-scale ablation physics baseline produced non-finite values.");
+        }
+        baselineFull = torch::from_blob(const_cast<double*>(baselineVec.data()), {n}, torch::kDouble)
+                           .clone().to(torch::kFloat32).reshape({n, 1});
+    }
+
+    // = y when zeroBaseline (baselineFull is all zeros).
+    torch::Tensor targetFull = y - baselineFull;
+
+    const torch::Tensor modelX = predictorFeatures(physicsX);
+    const torch::Tensor precipitation = physicsX.size(1) >= 3
+        ? physicsX.slice(1, 2, 3).contiguous()
+        : peffFull.reshape({-1, 1});
+    SequenceData seq = makeSequences(modelX, targetFull, plotX, peffFull.reshape({-1, 1}), precipitation,
+                                     config.lstm_sequence_length);
+    const int sequenceLength = std::max(2, config.lstm_sequence_length);
+    const torch::Tensor qObservedSeq = observedFull.reshape({-1, 1})
+        .slice(0, sequenceLength - 1, observedFull.numel()).contiguous();
+    const torch::Tensor baselineSeq = baselineFull.slice(0, sequenceLength - 1, baselineFull.size(0)).contiguous();
+
+    const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
+                                                            config.train_split_ratio,
+                                                            config.validation_split_ratio);
+    const int64_t nTrain = split.train_end;
+    torch::Tensor xTrainPhysical = seq.x.slice(0, 0, nTrain).contiguous();
+    torch::Tensor targetTrainPhysical = seq.y.slice(0, 0, nTrain).contiguous();
+    torch::Tensor xValidationPhysical = seq.x.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor xTestPhysical = seq.x.slice(0, split.validation_end, seq.x.size(0)).contiguous();
+    torch::Tensor qValidation = qObservedSeq.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor qTest = qObservedSeq.slice(0, split.validation_end, qObservedSeq.size(0)).contiguous();
+    torch::Tensor baselineValidation = baselineSeq.slice(0, nTrain, split.validation_end).contiguous();
+    torch::Tensor baselineTest = baselineSeq.slice(0, split.validation_end, baselineSeq.size(0)).contiguous();
+
+    TensorScaler inputScaler;
+    inputScaler.fit(xTrainPhysical, "standardize");
+    torch::Tensor xTrain = inputScaler.transform(xTrainPhysical);
+    torch::Tensor xValidation = inputScaler.transform(xValidationPhysical);
+    torch::Tensor xTest = inputScaler.transform(xTestPhysical);
+
+    // One common linear discharge scale, fit from training Q_obs only (never
+    // from the target/residual itself) - the std of training Q_obs, no
+    // centering (offset=0), so the same scale is reused verbatim by both
+    // arms via targetScaler.transform/inverseTransform below, per the
+    // approved ablation design ("do not fit a separate residual scaler").
+    torch::Tensor qTrainPhysical = qObservedSeq.slice(0, 0, nTrain).contiguous();
+    const double commonScale = std::max(1.0e-6, qTrainPhysical.std().item<double>());
+    HydroScalerState commonScaleState;
+    commonScaleState.method = "standardize";
+    commonScaleState.shape = {1};
+    commonScaleState.offset = {0.0};
+    commonScaleState.scale = {commonScale};
+    TensorScaler targetScaler;
+    targetScaler.importState(commonScaleState);
+    torch::Tensor targetTrain = targetScaler.transform(targetTrainPhysical);
+
+    const std::vector<int> hiddenLayers = parseHiddenLayers(config.hidden_layers_csv);
+    const int64_t hiddenDim = static_cast<int64_t>(hiddenLayers.front());
+    const int64_t numLayers = static_cast<int64_t>(std::max<std::size_t>(1, hiddenLayers.size()));
+    HydroLSTM model(seq.x.size(2), hiddenDim, 1, numLayers);
+    torch::optim::Adam optimizer(model->parameters(),
+                                 torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
+
+    const int64_t trainN = xTrain.size(0);
+    const int batchSize = std::max(2, config.batch_size);
+    std::vector<torch::Tensor> bestParameters;
+    std::vector<double> losses;
+    std::vector<double> validationLosses;
+    double bestValidationMse = std::numeric_limits<double>::infinity();
+    int bestEpoch = 0;
+
+    for (int epoch = 0; epoch < std::max(1, config.epochs); ++epoch) {
+        model->train();
+        double epochLoss = 0.0;
+        int64_t seen = 0;
+        for (int64_t start = 0; start < trainN; start += batchSize) {
+            const int64_t end = std::min<int64_t>(start + batchSize, trainN);
+            if (end - start < 2) continue;
+            optimizer.zero_grad();
+            torch::Tensor predTarget = model->forward(xTrain.slice(0, start, end));
+            torch::Tensor loss = torch::mse_loss(predTarget, targetTrain.slice(0, start, end));
+            loss.backward();
+            optimizer.step();
+            const int64_t count = end - start;
+            epochLoss += loss.item<double>() * static_cast<double>(count);
+            seen += count;
+        }
+        losses.push_back(epochLoss / static_cast<double>(std::max<int64_t>(1, seen)));
+
+        model->eval();
+        double validationMse = 0.0;
+        {
+            torch::NoGradGuard noGrad;
+            // Validation-selection scoring in physical discharge space,
+            // identical between both arms (and identical to
+            // trainResidualHybrid's convention above).
+            torch::Tensor predValidation = (baselineValidation +
+                targetScaler.inverseTransform(model->forward(xValidation))).clamp_min(0.0);
+            validationMse = torch::mse_loss(predValidation, qValidation).item<double>();
+        }
+        if (!std::isfinite(validationMse)) {
+            throw std::runtime_error("LSTM shared-scale ablation validation produced a non-finite loss.");
+        }
+        validationLosses.push_back(validationMse);
+        if (validationMse < bestValidationMse) {
+            bestValidationMse = validationMse;
+            bestEpoch = epoch + 1;
+            bestParameters.clear();
+            for (const auto& parameter : model->parameters()) bestParameters.push_back(parameter.detach().clone());
+        }
+    }
+
+    if (bestParameters.empty()) throw std::runtime_error("LSTM shared-scale ablation did not produce a validation-selected checkpoint.");
+    copyParameters(bestParameters, model->parameters());
+
+    result.training_loss_history = losses;
+    result.validation_loss_history = validationLosses;
+    result.best_epoch = bestEpoch;
+    result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
+    result.validation_mse = bestValidationMse;
+    result.input_scaler = inputScaler.exportState();
+    result.target_scaler = targetScaler.exportState();
+
+    {
+        const auto checkpoint = temporaryHydroCheckpointPath("hydro_lstm_shared_scale_ablation");
+        torch::serialize::OutputArchive archive;
+        model->save(archive);
+        archive.save_to(checkpoint.string());
+        result.model_checkpoint = readHydroCheckpoint(checkpoint);
+        result.model_checkpoint_format = "torch-module-v1";
+        std::filesystem::remove(checkpoint);
+    }
+
+    model->eval();
+    torch::NoGradGuard noGrad;
+    torch::Tensor predTest = (baselineTest + targetScaler.inverseTransform(model->forward(xTest))).clamp_min(0.0);
+    if (!predTest.defined() || !predTest.isfinite().all().item<bool>()) {
+        throw std::runtime_error("LSTM shared-scale ablation prediction produced non-finite values.");
+    }
+    if (config.evaluate_metrics) {
+        populateHydroMetrics(result, tensorValues(qTest), tensorValues(predTest));
+        if (!hydroMetricsAreFinite(result)) throw std::runtime_error("LSTM shared-scale ablation evaluation produced invalid core hydrology metrics.");
+    }
+
+    torch::Tensor xFullScaled = inputScaler.transform(seq.x);
+    torch::Tensor predFull = (baselineSeq + targetScaler.inverseTransform(model->forward(xFullScaled))).clamp_min(0.0);
+    fillPlotVectors(result, seq.time, qObservedSeq, predFull);
+    result.split.resize(result.x.size(), "test");
+    for (std::size_t i = 0; i < result.split.size(); ++i) {
+        if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
+        else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+    }
+    populateHydroPeakMetrics(result);
+    result.success = true;
+    result.message = zeroBaseline
+        ? "LSTM shared-scale ablation, control arm: zero baseline, common Q_obs-derived discharge scale."
+        : "LSTM shared-scale ablation, physics arm: frozen two-reservoir baseline, common Q_obs-derived discharge scale.";
+    return result;
+}
+
 } // namespace
 
 HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
@@ -793,6 +1007,12 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
     }
     if (config.pinn_physics_profile == "lstm_residual_pinn_hybrid") {
         return trainResidualHybrid(config);
+    }
+    if (config.pinn_physics_profile == "lstm_shared_scale_ablation_physics") {
+        return trainSharedScaleAblation(config, /*zeroBaseline=*/false);
+    }
+    if (config.pinn_physics_profile == "lstm_shared_scale_ablation_zero") {
+        return trainSharedScaleAblation(config, /*zeroBaseline=*/true);
     }
     if (config.pinn_physics_profile == "linear_reservoir") {
         return trainLinearReservoir(config);
