@@ -74,37 +74,99 @@ struct SequenceData {
     torch::Tensor precipitation;
 };
 
+// segmentId: one int64 per row of modelX/y/time/peff/precipitation (see
+// loadHydroPackageTensors in hydro_tensor_builder.h) - a window is only kept
+// if every row inside it shares the same segment id, i.e. sequences are
+// built only within a contiguous GIStoOHQ block and never bridge a gap
+// between blocks. Mirrors the already-tested per-segment walk in
+// buildGisToOhqSequenceTensors (gistohq_tensor_builder.h) - this function
+// previously had no gap awareness at all (it built every window
+// unconditionally), which never mattered while loadHydroPackageTensors
+// silently discarded every block but the longest one, but would have
+// silently spliced pre-gap and post-gap rows into one "sequence" the moment
+// that discarding stopped (NSE>=0.8 recovery program, Phase 2 Step 2).
+// Row indices kept as sequence-window endpoints when windows are built only
+// within each contiguous segment (never bridging a boundary) - exposed
+// separately from makeSequences so any OTHER per-row series aligned with the
+// same original rows (e.g. the raw observed discharge or a physics baseline
+// computed once over the full, possibly multi-segment series) can be
+// reduced to the identical endpoint set via index_select, instead of each
+// caller re-deriving its own slice and silently drifting out of alignment
+// with seq.x/seq.y the moment there is more than one segment.
+torch::Tensor sequenceEndpointIndices(const torch::Tensor& segmentId, int64_t sequenceLength) {
+    const auto segments = segmentId.reshape({-1}).contiguous();
+    const int64_t n = segments.size(0);
+    std::vector<int64_t> endpoints;
+    int64_t begin = 0;
+    while (begin < n) {
+        const int64_t segment = segments[begin].item<int64_t>();
+        int64_t end = begin + 1;
+        while (end < n && segments[end].item<int64_t>() == segment) ++end;
+        if (end - begin >= sequenceLength) {
+            for (int64_t windowEnd = begin + sequenceLength - 1; windowEnd < end; ++windowEnd) {
+                endpoints.push_back(windowEnd);
+            }
+        }
+        begin = end;
+    }
+    return torch::tensor(endpoints, torch::kInt64);
+}
+
 SequenceData makeSequences(const torch::Tensor& modelX,
                            const torch::Tensor& y,
                            const torch::Tensor& time,
                            const torch::Tensor& peff,
                            const torch::Tensor& precipitation,
-                           int sequenceLength) {
+                           int sequenceLength,
+                           const torch::Tensor& segmentId) {
     if (!modelX.defined() || !y.defined() || !time.defined() || !peff.defined() ||
-        !precipitation.defined() || modelX.dim() != 2 || y.dim() != 2 ||
+        !precipitation.defined() || !segmentId.defined() || modelX.dim() != 2 || y.dim() != 2 ||
         modelX.size(0) != y.size(0) || time.numel() != modelX.size(0) ||
-        peff.numel() != modelX.size(0) || precipitation.numel() != modelX.size(0)) {
-        throw std::runtime_error("LSTM-PINN sequence builder expects aligned model inputs, target, time, I*, and precipitation.");
+        peff.numel() != modelX.size(0) || precipitation.numel() != modelX.size(0) ||
+        segmentId.numel() != modelX.size(0)) {
+        throw std::runtime_error("LSTM-PINN sequence builder expects aligned model inputs, target, time, I*, precipitation, and segment id.");
     }
     sequenceLength = std::max(2, sequenceLength);
     if (modelX.size(0) < sequenceLength + 3) {
         throw std::runtime_error("Too few samples for requested LSTM-PINN sequence length.");
     }
 
-    regularPhysicalTimeStepFromTime(time);
-    std::vector<torch::Tensor> sequences;
-    sequences.reserve(static_cast<std::size_t>(modelX.size(0) - sequenceLength + 1));
-    for (int64_t end = sequenceLength - 1; end < modelX.size(0); ++end) {
-        sequences.push_back(modelX.slice(0, end - sequenceLength + 1, end + 1));
+    const auto segments = segmentId.reshape({-1}).contiguous();
+    const int64_t n = modelX.size(0);
+    // regularPhysicalTimeStepFromTime throws on irregular timestamps - within
+    // one GIStoOHQ segment the hourly grid is already guaranteed regular by
+    // construction (buildGisToOhqModelRows), so this is a defensive check on
+    // that invariant, not a gap-detection mechanism; CSV/synthetic callers
+    // (single all-zero segment, see loadReservoirPhysicsTensors) must also
+    // already be regular to reach here at all.
+    {
+        int64_t begin = 0;
+        while (begin < n) {
+            const int64_t segment = segments[begin].item<int64_t>();
+            int64_t end = begin + 1;
+            while (end < n && segments[end].item<int64_t>() == segment) ++end;
+            if (end - begin >= sequenceLength) regularPhysicalTimeStepFromTime(time.slice(0, begin, end));
+            begin = end;
+        }
+    }
+
+    const torch::Tensor endpoints = sequenceEndpointIndices(segmentId, sequenceLength);
+    if (endpoints.numel() == 0) {
+        throw std::runtime_error("No GIStoOHQ segment is long enough for the requested LSTM-PINN sequence length.");
+    }
+    std::vector<torch::Tensor> blockSequences;
+    blockSequences.reserve(static_cast<std::size_t>(endpoints.numel()));
+    for (int64_t i = 0; i < endpoints.numel(); ++i) {
+        const int64_t windowEnd = endpoints[i].item<int64_t>();
+        blockSequences.push_back(modelX.slice(0, windowEnd - sequenceLength + 1, windowEnd + 1));
     }
 
     SequenceData result;
-    result.x = torch::stack(sequences, 0).contiguous();
-    result.y = y.slice(0, sequenceLength - 1, y.size(0)).contiguous();
-    result.time = time.reshape({-1, 1}).slice(0, sequenceLength - 1, time.numel()).contiguous();
-    result.peff = peff.reshape({-1, 1}).slice(0, sequenceLength - 1, peff.numel()).contiguous();
-    result.precipitation = precipitation.reshape({-1, 1})
-                               .slice(0, sequenceLength - 1, precipitation.numel()).contiguous();
+    result.x = torch::stack(blockSequences, 0).contiguous();
+    result.y = y.index_select(0, endpoints).contiguous();
+    result.time = time.reshape({-1, 1}).index_select(0, endpoints).contiguous();
+    result.peff = peff.reshape({-1, 1}).index_select(0, endpoints).contiguous();
+    result.precipitation = precipitation.reshape({-1, 1}).index_select(0, endpoints).contiguous();
     return result;
 }
 
@@ -123,6 +185,49 @@ void fillPlotVectors(HydroRunResult& result,
         result.y_true.push_back(yc[i].item<double>());
         result.y_pred.push_back(pc[i].item<double>());
     }
+}
+
+// Runs the two-reservoir baseline separately within each contiguous
+// GIStoOHQ block (segmentId), restarting storage state from that block's
+// own first observed value rather than letting state (and the lagSteps
+// routing delay) carry across a real gap as if it were a single uninterrupted
+// timestep - simulateTwoReservoirBaseline is a genuinely stateful recurrence
+// dt is a single global scalar (the common hourly timestep, identical across
+// every GIStoOHQ segment by construction) - infer it from just the first
+// segment rather than the full (possibly multi-segment) time series, which
+// would otherwise throw on the time jump at any segment boundary.
+inline double firstSegmentDt(const torch::Tensor& time, const torch::Tensor& segmentId) {
+    const auto segments = segmentId.reshape({-1}).contiguous();
+    int64_t end = 1;
+    while (end < segments.size(0) && segments[end].item<int64_t>() == segments[0].item<int64_t>()) ++end;
+    return regularPhysicalTimeStepFromTime(time.reshape({-1, 1}).slice(0, 0, end));
+}
+
+// (qFast/qSlow evolve hour to hour), so calling it once across multiple
+// blocks concatenated back-to-back would silently treat a multi-month gap as
+// adjacent hours. observedVec supplies each block's own q0 (same convention
+// the single-block call already used: q0 = observedFull[0]).
+inline std::vector<double> simulateTwoReservoirBaselinePerSegment(
+    const std::vector<double>& peffVec,
+    const std::vector<double>& observedVec,
+    const torch::Tensor& segmentId,
+    const TwoReservoirRoutingParams& routingParams) {
+    const auto segments = segmentId.reshape({-1}).contiguous();
+    const int64_t n = static_cast<int64_t>(peffVec.size());
+    std::vector<double> baseline(static_cast<std::size_t>(n));
+    int64_t begin = 0;
+    while (begin < n) {
+        const int64_t segment = segments[begin].item<int64_t>();
+        int64_t end = begin + 1;
+        while (end < n && segments[end].item<int64_t>() == segment) ++end;
+        const std::vector<double> segmentPeff(peffVec.begin() + begin, peffVec.begin() + end);
+        const double segmentQ0 = observedVec[static_cast<std::size_t>(begin)];
+        const std::vector<double> segmentBaseline =
+            simulateTwoReservoirBaseline(segmentPeff, segmentQ0, routingParams);
+        std::copy(segmentBaseline.begin(), segmentBaseline.end(), baseline.begin() + begin);
+        begin = end;
+    }
+    return baseline;
 }
 
 torch::Tensor physicalResidual(const torch::Tensor& predPhysical,
@@ -155,8 +260,8 @@ HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
     HydroRunResult result;
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
-    torch::Tensor physicsX, y, plotX;
-    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX)) {
+    torch::Tensor physicsX, y, plotX, segmentId;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX, segmentId)) {
         throw std::runtime_error("Unable to construct process-aware LSTM-PINN tensors.");
     }
     if (physicsX.dim() != 2 || physicsX.size(1) < 4) {
@@ -167,7 +272,7 @@ HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
     const torch::Tensor peff = physicsX.slice(1, 1, 2).contiguous();
     const torch::Tensor precipitation = physicsX.slice(1, 2, 3).contiguous();
     SequenceData seq = makeSequences(modelX, y, plotX, peff, precipitation,
-                                     config.lstm_sequence_length);
+                                     config.lstm_sequence_length, segmentId);
     const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
                                                             config.train_split_ratio,
                                                             config.validation_split_ratio);
@@ -192,7 +297,7 @@ HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
     const std::vector<int> hiddenLayers = parseHiddenLayers(config.hidden_layers_csv);
     const int64_t hiddenDim = static_cast<int64_t>(hiddenLayers.front());
     const int64_t numLayers = static_cast<int64_t>(std::max<std::size_t>(1, hiddenLayers.size()));
-    const double dt = regularPhysicalTimeStepFromTime(seq.time);
+    const double dt = firstSegmentDt(plotX, segmentId);
     const double fastK = config.storage_coeff;
     const double slowK = config.lambda_decay;
     const double alpha = config.runoff_coeff;
@@ -371,8 +476,8 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
     HydroRunResult result;
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
-    torch::Tensor physicsX, y, plotX;
-    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX)) {
+    torch::Tensor physicsX, y, plotX, segmentId;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX, segmentId)) {
         throw std::runtime_error("Unable to construct reduced-reservoir LSTM-PINN tensors.");
     }
     if (physicsX.dim() != 2 || physicsX.size(1) < 2) {
@@ -385,7 +490,7 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
         ? physicsX.slice(1, 2, 3).contiguous()
         : peff;
     SequenceData seq = makeSequences(modelX, y, plotX, peff, precipitation,
-                                     config.lstm_sequence_length);
+                                     config.lstm_sequence_length, segmentId);
     const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
                                                             config.train_split_ratio,
                                                             config.validation_split_ratio);
@@ -416,7 +521,7 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
     torch::optim::Adam optimizer(model->parameters(),
                                  torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
 
-    const double dt = regularPhysicalTimeStepFromTime(seq.time);
+    const double dt = firstSegmentDt(plotX, segmentId);
     const double k = std::max(1.0e-8, config.latent_storage_recession_per_hour > 0.0
                                        ? config.latent_storage_recession_per_hour
                                        : config.lambda_decay);
@@ -601,15 +706,15 @@ HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
     HydroRunResult result;
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
-    torch::Tensor physicsX, y, plotX;
-    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX)) {
+    torch::Tensor physicsX, y, plotX, segmentId;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX, segmentId)) {
         throw std::runtime_error("Unable to construct reduced-reservoir LSTM residual-hybrid tensors.");
     }
     if (physicsX.dim() != 2 || physicsX.size(1) < 2) {
         throw std::runtime_error("LSTM residual-hybrid requires [time, I*, ...] input features.");
     }
 
-    const double dt = regularPhysicalTimeStepFromTime(plotX);
+    const double dt = firstSegmentDt(plotX, segmentId);
     const double fastK = config.storage_coeff;
     const double slowK = config.lambda_decay;
     const double alpha = config.runoff_coeff;
@@ -620,14 +725,17 @@ HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
     const torch::Tensor peffFull = physicsX.slice(1, 1, 2).reshape({-1}).contiguous();
     const torch::Tensor observedFull = y.reshape({-1}).contiguous();
     const int64_t n = peffFull.size(0);
-    const double q0 = observedFull[0].item<double>();
     const double runoffCoefficient = std::max(1.0e-6, config.forcing_gain);
     const int64_t lagSteps = dt > 0.0
         ? static_cast<int64_t>(std::llround(std::max(0.0, config.pinn_routing_lag_hours) / dt))
         : 0;
 
     std::vector<double> peffVec(static_cast<std::size_t>(n));
-    for (int64_t i = 0; i < n; ++i) peffVec[static_cast<std::size_t>(i)] = peffFull[i].item<double>();
+    std::vector<double> observedVec(static_cast<std::size_t>(n));
+    for (int64_t i = 0; i < n; ++i) {
+        peffVec[static_cast<std::size_t>(i)] = peffFull[i].item<double>();
+        observedVec[static_cast<std::size_t>(i)] = observedFull[i].item<double>();
+    }
     TwoReservoirRoutingParams routingParams;
     routingParams.fastK = fastK;
     routingParams.slowK = slowK;
@@ -636,7 +744,11 @@ HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
     routingParams.dt = dt;
     routingParams.lagSteps = lagSteps;
     routingParams.flowExponent = config.pinn_flow_exponent;
-    const std::vector<double> baselineVec = simulateTwoReservoirBaseline(peffVec, q0, routingParams);
+    // Restarts storage state at each segment boundary - see
+    // simulateTwoReservoirBaselinePerSegment's comment: this is a stateful
+    // hour-to-hour recurrence, so it must not carry state across a real gap.
+    const std::vector<double> baselineVec =
+        simulateTwoReservoirBaselinePerSegment(peffVec, observedVec, segmentId, routingParams);
     if (std::any_of(baselineVec.begin(), baselineVec.end(), [](double v) { return !std::isfinite(v); })) {
         throw std::runtime_error("LSTM residual-hybrid physics baseline produced non-finite values.");
     }
@@ -651,15 +763,19 @@ HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
         ? physicsX.slice(1, 2, 3).contiguous()
         : peffFull.reshape({-1, 1});
     SequenceData seq = makeSequences(modelX, residualFull, plotX, peffFull.reshape({-1, 1}), precipitation,
-                                     config.lstm_sequence_length);
+                                     config.lstm_sequence_length, segmentId);
     const int sequenceLength = std::max(2, config.lstm_sequence_length);
     // Same alignment rule makeSequences uses internally: a sequence ending at
-    // index `end` predicts the target at `end`, so slice the raw observed
-    // discharge and baseline series the same way to reconstruct physical
-    // predictions after the network only ever sees/learns the residual.
-    const torch::Tensor qObservedSeq = observedFull.reshape({-1, 1})
-        .slice(0, sequenceLength - 1, observedFull.numel()).contiguous();
-    const torch::Tensor baselineSeq = baselineFull.slice(0, sequenceLength - 1, baselineFull.size(0)).contiguous();
+    // index `end` predicts the target at `end`. Reduce the raw observed
+    // discharge and baseline series to the IDENTICAL endpoint set makeSequences
+    // kept for seq.x/seq.y (sequenceEndpointIndices, not a naive single slice)
+    // - with more than one GIStoOHQ segment, each segment loses its own
+    // leading sequenceLength-1 rows, not just one global loss at the very
+    // start, so a plain slice(sequenceLength-1, end) would silently
+    // desynchronize from seq.y the moment there is more than one segment.
+    const torch::Tensor sequenceEndpoints = sequenceEndpointIndices(segmentId, sequenceLength);
+    const torch::Tensor qObservedSeq = observedFull.reshape({-1, 1}).index_select(0, sequenceEndpoints).contiguous();
+    const torch::Tensor baselineSeq = baselineFull.index_select(0, sequenceEndpoints).contiguous();
 
     const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
                                                             config.train_split_ratio,
@@ -800,15 +916,15 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
     HydroRunResult result;
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
-    torch::Tensor physicsX, y, plotX;
-    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX)) {
+    torch::Tensor physicsX, y, plotX, segmentId;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX, segmentId)) {
         throw std::runtime_error("Unable to construct reduced-reservoir LSTM shared-scale-ablation tensors.");
     }
     if (physicsX.dim() != 2 || physicsX.size(1) < 2) {
         throw std::runtime_error("LSTM shared-scale ablation requires [time, I*, ...] input features.");
     }
 
-    const double dt = regularPhysicalTimeStepFromTime(plotX);
+    const double dt = firstSegmentDt(plotX, segmentId);
     const torch::Tensor peffFull = physicsX.slice(1, 1, 2).reshape({-1}).contiguous();
     const torch::Tensor observedFull = y.reshape({-1}).contiguous();
     const int64_t n = peffFull.size(0);
@@ -823,13 +939,16 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
         if (!(fastK > 0.0 && slowK > 0.0 && fastK > slowK && alpha > 0.0 && alpha < 1.0)) {
             throw std::runtime_error("LSTM shared-scale ablation (physics arm) requires fast_k>slow_k>0 and 0<routing_alpha<1.");
         }
-        const double q0 = observedFull[0].item<double>();
         const double runoffCoefficient = std::max(1.0e-6, config.forcing_gain);
         const int64_t lagSteps = dt > 0.0
             ? static_cast<int64_t>(std::llround(std::max(0.0, config.pinn_routing_lag_hours) / dt))
             : 0;
         std::vector<double> peffVec(static_cast<std::size_t>(n));
-        for (int64_t i = 0; i < n; ++i) peffVec[static_cast<std::size_t>(i)] = peffFull[i].item<double>();
+        std::vector<double> observedVec(static_cast<std::size_t>(n));
+        for (int64_t i = 0; i < n; ++i) {
+            peffVec[static_cast<std::size_t>(i)] = peffFull[i].item<double>();
+            observedVec[static_cast<std::size_t>(i)] = observedFull[i].item<double>();
+        }
         TwoReservoirRoutingParams routingParams;
         routingParams.fastK = fastK;
         routingParams.slowK = slowK;
@@ -838,7 +957,8 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
         routingParams.dt = dt;
         routingParams.lagSteps = lagSteps;
         routingParams.flowExponent = config.pinn_flow_exponent;
-        const std::vector<double> baselineVec = simulateTwoReservoirBaseline(peffVec, q0, routingParams);
+        const std::vector<double> baselineVec =
+            simulateTwoReservoirBaselinePerSegment(peffVec, observedVec, segmentId, routingParams);
         if (std::any_of(baselineVec.begin(), baselineVec.end(), [](double v) { return !std::isfinite(v); })) {
             throw std::runtime_error("LSTM shared-scale ablation physics baseline produced non-finite values.");
         }
@@ -854,11 +974,13 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
         ? physicsX.slice(1, 2, 3).contiguous()
         : peffFull.reshape({-1, 1});
     SequenceData seq = makeSequences(modelX, targetFull, plotX, peffFull.reshape({-1, 1}), precipitation,
-                                     config.lstm_sequence_length);
+                                     config.lstm_sequence_length, segmentId);
     const int sequenceLength = std::max(2, config.lstm_sequence_length);
-    const torch::Tensor qObservedSeq = observedFull.reshape({-1, 1})
-        .slice(0, sequenceLength - 1, observedFull.numel()).contiguous();
-    const torch::Tensor baselineSeq = baselineFull.slice(0, sequenceLength - 1, baselineFull.size(0)).contiguous();
+    // See the identical comment in trainResidualHybrid above - must use the
+    // same per-segment endpoint set as seq.x/seq.y, not a naive single slice.
+    const torch::Tensor sequenceEndpoints = sequenceEndpointIndices(segmentId, sequenceLength);
+    const torch::Tensor qObservedSeq = observedFull.reshape({-1, 1}).index_select(0, sequenceEndpoints).contiguous();
+    const torch::Tensor baselineSeq = baselineFull.index_select(0, sequenceEndpoints).contiguous();
 
     const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
                                                             config.train_split_ratio,

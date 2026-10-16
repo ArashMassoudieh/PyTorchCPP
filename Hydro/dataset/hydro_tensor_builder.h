@@ -16,7 +16,29 @@
 inline bool loadHydroPackageTensors(const HydroRunConfig& config,
                                     torch::Tensor& x,
                                     torch::Tensor& y,
+                                    torch::Tensor& plotX,
+                                    torch::Tensor& segmentId);
+
+inline bool loadHydroPackageTensors(const HydroRunConfig& config,
+                                    torch::Tensor& x,
+                                    torch::Tensor& y,
                                     torch::Tensor& plotX) {
+    torch::Tensor segmentId;
+    return loadHydroPackageTensors(config, x, y, plotX, segmentId);
+}
+
+// segmentId is an int64 [N] tensor, one entry per row of x/y/plotX, equal to
+// the originating GIStoOHQ contiguous-block id (0, 1, 2, ...) - rows from
+// different blocks are never implicitly adjacent even though they sit next
+// to each other in the concatenated tensor. Sequence/lag builders MUST use
+// it to avoid bridging a gap (see makeSequences in lstm_pinn_wrapper.cpp for
+// the reference implementation; the already-tested, already-correct pattern
+// this mirrors is buildGisToOhqSequenceTensors in gistohq_tensor_builder.h).
+inline bool loadHydroPackageTensors(const HydroRunConfig& config,
+                                    torch::Tensor& x,
+                                    torch::Tensor& y,
+                                    torch::Tensor& plotX,
+                                    torch::Tensor& segmentId) {
     if (!config.use_hydro_package) return false;
     if (config.hydro_package_path.empty()) throw std::runtime_error("Hydro package path is empty.");
     const bool waterBalance = config.hydro_package_profile == "water-balance";
@@ -30,46 +52,35 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
             throw std::runtime_error("GIStoOHQ temporal exports do not contain forecast assets.");
         }
         const auto prepared = prepareGisToOhqPackage(packageRoot, true);
+        if (prepared.model_rows.empty()) throw std::runtime_error("GIStoOHQ package has no contiguous model segment.");
         std::vector<float> features, targets, times;
+        std::vector<std::int64_t> segments;
 
-        // All five paper methods must be evaluated over the SAME uninterrupted
-        // GIStoOHQ hourly domain.  Previously the physics-informed methods used
-        // the longest contiguous segment while supervised FFN/LSTM concatenated
-        // all forcing-valid segments.  That allowed sequence models to bridge
-        // gaps and produced different held-out time windows, invalidating direct
-        // method/figure comparisons.  Select the longest contiguous segment once
-        // here and use it for both supervised and physics-informed layouts.
-        std::map<std::size_t, std::size_t> segmentCounts;
-        for (const auto& row : prepared.model_rows) ++segmentCounts[row.segment_id];
-        if (segmentCounts.empty()) throw std::runtime_error("GIStoOHQ package has no contiguous model segment.");
-        const auto longest = std::max_element(
-            segmentCounts.begin(), segmentCounts.end(),
-            [](const auto& a, const auto& b) { return a.second < b.second; });
-        const std::size_t selectedSegment = longest->first;
-        const std::size_t selectedCount = longest->second;
-        if (selectedCount < 4) throw std::runtime_error("GIStoOHQ longest contiguous model segment is too short.");
-
-        // Plain FFN/LSTM keep the six-forcing contract [P,T,RH,wind,solar,PET].
-        // Physics-informed methods use [time,I*,P,PET,T,RH,wind,solar] with
-        // I*=max(P-PET,0).  The feature layouts differ by method, but rows,
-        // timestamps, targets, and chronological split domain are common.
+        // Every valid row from every contiguous block is kept - NOT just the
+        // single longest block (the prior behavior here, which matched the
+        // original "all five paper methods use the same uninterrupted domain"
+        // intent but did so by discarding every row outside the longest block,
+        // silently dropping any other usable year whenever a real forcing or
+        // discharge gap split the record - exactly what the NSE>=0.8 recovery
+        // program's Phase 2 Step 2 flags as disallowed. Sequence/lag builders
+        // downstream use segmentId to keep never bridging a block boundary, so
+        // "same uninterrupted domain per block" is preserved without discarding
+        // any block.
         if (config.use_latent_storage_physics) {
-            features.reserve(selectedCount * 8);
-            targets.reserve(selectedCount);
-            times.reserve(selectedCount);
-            double previousTime = 0.0;
-            bool first = true;
-            for (const auto& row : prepared.model_rows) {
-                if (row.segment_id != selectedSegment) continue;
-                const double time = row.elapsed_hours;
-                const double dt = first ? 1.0 : time - previousTime;
-                if (!first && std::abs(dt - 1.0) > 1.0e-6) {
-                    throw std::runtime_error("Selected GIStoOHQ model segment is not hourly contiguous.");
-                }
+            features.reserve(prepared.model_rows.size() * 8);
+        } else {
+            features.reserve(prepared.model_rows.size() * 6);
+        }
+        targets.reserve(prepared.model_rows.size());
+        times.reserve(prepared.model_rows.size());
+        segments.reserve(prepared.model_rows.size());
+        const std::int64_t featureWidth = config.use_latent_storage_physics ? 8 : 6;
+        for (const auto& row : prepared.model_rows) {
+            const double time = row.elapsed_hours;
+            if (config.use_latent_storage_physics) {
                 const double precipitation = std::max(0.0, row.features[0]);
                 const double pet = std::max(0.0, row.features[5]);
                 const double effectiveInput = std::max(0.0, precipitation - pet);
-
                 features.push_back(static_cast<float>(time));
                 features.push_back(static_cast<float>(effectiveInput));
                 features.push_back(static_cast<float>(precipitation));
@@ -78,41 +89,19 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
                 features.push_back(static_cast<float>(row.features[2]));
                 features.push_back(static_cast<float>(row.features[3]));
                 features.push_back(static_cast<float>(row.features[4]));
-                targets.push_back(static_cast<float>(row.target_runoff_mm_per_hour));
-                times.push_back(static_cast<float>(time));
-                previousTime = time;
-                first = false;
+            } else {
+                for (const auto value : row.features) features.push_back(static_cast<float>(value));
             }
-            const auto n = static_cast<int64_t>(targets.size());
-            x = torch::from_blob(features.data(), {n, 8}, torch::kFloat32).clone();
-            y = torch::from_blob(targets.data(), {n, 1}, torch::kFloat32).clone();
-            plotX = torch::from_blob(times.data(), {n, 1}, torch::kFloat32).clone();
-            return true;
-        }
-
-        features.reserve(selectedCount * 6);
-        targets.reserve(selectedCount);
-        times.reserve(selectedCount);
-        double previousTime = 0.0;
-        bool first = true;
-        for (const auto& row : prepared.model_rows) {
-            if (row.segment_id != selectedSegment) continue;
-            const double time = row.elapsed_hours;
-            const double dt = first ? 1.0 : time - previousTime;
-            if (!first && std::abs(dt - 1.0) > 1.0e-6) {
-                throw std::runtime_error("Selected GIStoOHQ supervised segment is not hourly contiguous.");
-            }
-            for (const auto value : row.features) features.push_back(static_cast<float>(value));
             targets.push_back(static_cast<float>(row.target_runoff_mm_per_hour));
             times.push_back(static_cast<float>(time));
-            previousTime = time;
-            first = false;
+            segments.push_back(static_cast<std::int64_t>(row.segment_id));
         }
-        if (targets.empty()) throw std::runtime_error("GIStoOHQ package contains no supervised rows in selected contiguous segment.");
+        if (targets.empty()) throw std::runtime_error("GIStoOHQ package contains no usable supervised rows.");
         const auto n = static_cast<int64_t>(targets.size());
-        x = torch::from_blob(features.data(), {n, 6}, torch::kFloat32).clone();
+        x = torch::from_blob(features.data(), {n, featureWidth}, torch::kFloat32).clone();
         y = torch::from_blob(targets.data(), {n, 1}, torch::kFloat32).clone();
         plotX = torch::from_blob(times.data(), {n, 1}, torch::kFloat32).clone();
+        segmentId = torch::from_blob(segments.data(), {n}, torch::kInt64).clone();
         return true;
     }
     const auto dataset = loader.loadPackageDirectory(
@@ -158,6 +147,11 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
     x = torch::from_blob(features.data(), {n, featureCount}, torch::kFloat32).clone();
     y = torch::from_blob(targets.data(), {n, 1}, torch::kFloat32).clone();
     plotX = torch::from_blob(times.data(), {n, 1}, torch::kFloat32).clone();
+    // The generic DDRR loader path has no multi-block concept of its own
+    // (unlike the GIStoOHQ path above) - a single segment preserves its
+    // existing behavior exactly rather than silently asserting a gap-free
+    // guarantee this path has never actually checked.
+    segmentId = torch::zeros({n}, torch::kInt64);
     return true;
 }
 

@@ -153,9 +153,28 @@ inline void buildReducedReservoirSyntheticTensors(const HydroRunConfig& config,
 inline bool loadReservoirPhysicsTensors(const HydroRunConfig& config,
                                         torch::Tensor& x,
                                         torch::Tensor& y,
+                                        torch::Tensor& plotX,
+                                        torch::Tensor& segmentId);
+
+inline bool loadReservoirPhysicsTensors(const HydroRunConfig& config,
+                                        torch::Tensor& x,
+                                        torch::Tensor& y,
                                         torch::Tensor& plotX) {
+    torch::Tensor segmentId;
+    return loadReservoirPhysicsTensors(config, x, y, plotX, segmentId);
+}
+
+// segmentId: see loadHydroPackageTensors in hydro_tensor_builder.h - one
+// int64 per row, equal across a contiguous GIStoOHQ block, distinct across
+// blocks. Always present (CSV/synthetic paths emit all-zero, single-segment
+// ids - those loaders have no multi-block data to represent).
+inline bool loadReservoirPhysicsTensors(const HydroRunConfig& config,
+                                        torch::Tensor& x,
+                                        torch::Tensor& y,
+                                        torch::Tensor& plotX,
+                                        torch::Tensor& segmentId) {
     if (config.use_hydro_package) {
-        if (!loadHydroPackageTensors(config, x, y, plotX)) return false;
+        if (!loadHydroPackageTensors(config, x, y, plotX, segmentId)) return false;
         if (x.dim() != 2 || x.size(1) < 2) {
             throw std::runtime_error("Hydro physics input requires at least [time, forcing].");
         }
@@ -169,14 +188,21 @@ inline bool loadReservoirPhysicsTensors(const HydroRunConfig& config,
                     ? torch::cat({time, peff, precipitation, pet, remainder}, 1).contiguous()
                     : torch::cat({time, peff, precipitation, pet}, 1).contiguous();
         }
-        regularPhysicalTimeStepFromTime(plotX);
+        // No longer asserts global regularity across the whole (possibly
+        // multi-block) plotX - regularity is guaranteed WITHIN each block by
+        // construction (buildGisToOhqModelRows requires a strictly regular
+        // hourly grid before splitting into segments), and sequence/lag
+        // builders downstream use segmentId to never bridge a block boundary.
+        // A multi-block package is therefore no longer rejected outright here.
         return true;
     }
     if (config.use_csv_data) {
         loadReservoirPhysicsCsvTensors(config, x, y, plotX);
+        segmentId = torch::zeros({x.size(0)}, torch::kInt64);
         return true;
     }
 
     buildReducedReservoirSyntheticTensors(config, x, y, plotX);
+    segmentId = torch::zeros({x.size(0)}, torch::kInt64);
     return true;
 }
