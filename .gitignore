@@ -89,3 +89,11 @@ build-hydrobatch-dev/
 # _residual_sweep/, _ensemble/) - normally deleted once their results are
 # copied out, but ignored too in case one is left behind.
 Hydro/experiments/**/_*/
+
+# Ad-hoc scratch directories dropped at the repo root during manual batch
+# generation/testing (e.g. .scratch_lstm_comparison/, .scratch_decision_gate_b/,
+# .scratch_gate_b_smoke/) - config/batch files generated for a HydroBatch run,
+# with real results copied out to Dropbox afterward. Same throwaway intent as
+# the underscore convention above, just at the repo root instead of under
+# Hydro/experiments/.
+/.scratch_*/
