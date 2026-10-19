@@ -187,48 +187,9 @@ void fillPlotVectors(HydroRunResult& result,
     }
 }
 
-// Runs the two-reservoir baseline separately within each contiguous
-// GIStoOHQ block (segmentId), restarting storage state from that block's
-// own first observed value rather than letting state (and the lagSteps
-// routing delay) carry across a real gap as if it were a single uninterrupted
-// timestep - simulateTwoReservoirBaseline is a genuinely stateful recurrence
-// dt is a single global scalar (the common hourly timestep, identical across
-// every GIStoOHQ segment by construction) - infer it from just the first
-// segment rather than the full (possibly multi-segment) time series, which
-// would otherwise throw on the time jump at any segment boundary.
-inline double firstSegmentDt(const torch::Tensor& time, const torch::Tensor& segmentId) {
-    const auto segments = segmentId.reshape({-1}).contiguous();
-    int64_t end = 1;
-    while (end < segments.size(0) && segments[end].item<int64_t>() == segments[0].item<int64_t>()) ++end;
-    return regularPhysicalTimeStepFromTime(time.reshape({-1, 1}).slice(0, 0, end));
-}
-
-// (qFast/qSlow evolve hour to hour), so calling it once across multiple
-// blocks concatenated back-to-back would silently treat a multi-month gap as
-// adjacent hours. observedVec supplies each block's own q0 (same convention
-// the single-block call already used: q0 = observedFull[0]).
-inline std::vector<double> simulateTwoReservoirBaselinePerSegment(
-    const std::vector<double>& peffVec,
-    const std::vector<double>& observedVec,
-    const torch::Tensor& segmentId,
-    const TwoReservoirRoutingParams& routingParams) {
-    const auto segments = segmentId.reshape({-1}).contiguous();
-    const int64_t n = static_cast<int64_t>(peffVec.size());
-    std::vector<double> baseline(static_cast<std::size_t>(n));
-    int64_t begin = 0;
-    while (begin < n) {
-        const int64_t segment = segments[begin].item<int64_t>();
-        int64_t end = begin + 1;
-        while (end < n && segments[end].item<int64_t>() == segment) ++end;
-        const std::vector<double> segmentPeff(peffVec.begin() + begin, peffVec.begin() + end);
-        const double segmentQ0 = observedVec[static_cast<std::size_t>(begin)];
-        const std::vector<double> segmentBaseline =
-            simulateTwoReservoirBaseline(segmentPeff, segmentQ0, routingParams);
-        std::copy(segmentBaseline.begin(), segmentBaseline.end(), baseline.begin() + begin);
-        begin = end;
-    }
-    return baseline;
-}
+// firstSegmentDt / simulateTwoReservoirBaselinePerSegment now live in
+// two_reservoir_routing.h (shared with pinn_wrapper.cpp's standalone
+// two-reservoir baseline, which has the identical multi-segment problem).
 
 torch::Tensor physicalResidual(const torch::Tensor& predPhysical,
                                const torch::Tensor& peff,

@@ -94,8 +94,8 @@ namespace {
 // exactly like the FFN/LSTM two-reservoir hybrids.
 HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     HydroRunResult result;
-    torch::Tensor x, y, plotX;
-    if (!loadReservoirPhysicsTensors(config, x, y, plotX)) {
+    torch::Tensor x, y, plotX, segmentId;
+    if (!loadReservoirPhysicsTensors(config, x, y, plotX, segmentId)) {
         throw std::runtime_error("Unable to construct standalone two-reservoir PINN tensors.");
     }
     if (x.dim() != 2 || x.size(1) < 2 || y.dim() != 2 || y.size(1) != 1) {
@@ -103,7 +103,12 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     }
 
     const ChronologicalSplit split = makeChronologicalSplit(x.size(0), config.train_split_ratio, config.validation_split_ratio);
-    const double dt = regularPhysicalTimeStepFromTime(plotX);
+    // dt is a single global scalar (common hourly timestep); infer it from
+    // just the first segment - a multi-block package (loadHydroPackageTensors
+    // keeps every valid segment, see hydro_tensor_builder.h) has real time
+    // jumps at block boundaries that would make a whole-series regularity
+    // check throw. See two_reservoir_routing.h's firstSegmentDt.
+    const double dt = firstSegmentDt(plotX, segmentId);
     const double fastK = config.storage_coeff;
     const double slowK = config.lambda_decay;
     const double alpha = config.runoff_coeff;
@@ -115,7 +120,6 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     const auto observed = y.reshape({-1}).to(torch::kCPU).contiguous();
     const auto time = plotX.reshape({-1}).to(torch::kCPU).contiguous();
     const int64_t n = peff.size(0);
-    const double q0 = observed[0].item<double>();
     // Feeding raw Peff=max(P-PET,0) straight into the reservoirs implicitly
     // assumes a runoff coefficient of 1 (all effective rainfall reaches the
     // gauge); real catchments lose most of it to deep percolation/underflow.
@@ -156,7 +160,13 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     routingParams.dt = dt;
     routingParams.lagSteps = lagSteps;
     routingParams.flowExponent = flowExponent;
-    const std::vector<double> predicted = simulateTwoReservoirBaseline(peffVec, q0, routingParams);
+    std::vector<double> observedVec(static_cast<std::size_t>(n));
+    for (int64_t i = 0; i < n; ++i) observedVec[static_cast<std::size_t>(i)] = observed[i].item<double>();
+    // Restart storage state (and q0) at each segment boundary rather than
+    // letting a stateful hour-to-hour recurrence treat a real multi-month gap
+    // between GIStoOHQ blocks as a single adjacent timestep.
+    const std::vector<double> predicted =
+        simulateTwoReservoirBaselinePerSegment(peffVec, observedVec, segmentId, routingParams);
     if (std::any_of(predicted.begin(), predicted.end(), [](double v) { return !std::isfinite(v); })) {
         throw std::runtime_error("Standalone two-reservoir PINN simulation produced non-finite values.");
     }
