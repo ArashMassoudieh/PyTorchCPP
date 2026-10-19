@@ -134,5 +134,56 @@ int main() {
     // must stay intact regardless of the precipitation unit flag.
     assert(close(hourlyUnitRows[0].pet_mm_per_hour, 1.0));
 
+    // PRECIP_MRMS_BASIN_AVG, when present for an hour, is preferred over
+    // PRECTOTCORR for that hour (NSE>=0.8 recovery program, Phase 2 -
+    // MRMS adopted as primary forcing, PRECTOTCORR retained as fallback,
+    // not discarded). An hour where MRMS is absent falls back to
+    // PRECTOTCORR unchanged - this is what lets a package carry MRMS for
+    // only part of its span (its real coverage window) without losing
+    // PRECTOTCORR coverage for the rest.
+    GisToOhqHourlyInputs mrmsInputs;
+    for (std::int64_t hour = 0; hour < 3; ++hour) {
+        const auto time = hour * 3600;
+        mrmsInputs.precipitation_mm_per_day.push_back({time, 24.0}); // -> 1.0 mm/h if used
+        mrmsInputs.temperature_c.push_back({time, 10.0});
+        mrmsInputs.relative_humidity_percent.push_back({time, 50.0});
+        mrmsInputs.wind_speed_m_per_second.push_back({time, 2.0});
+        mrmsInputs.solar_energy_mj_per_m2.push_back({time, 0.5});
+    }
+    mrmsInputs.pet_energy_mj_per_m2_per_day.push_back({0, 58.8});
+    // MRMS present for hours 0 and 1 only (a realistic partial-coverage
+    // window), absent for hour 2.
+    mrmsInputs.precipitation_mrms_mm_per_hour.push_back({0, 5.0});
+    mrmsInputs.precipitation_mrms_mm_per_hour.push_back({3600, 0.0});
+    GisToOhqHourlyConfig mrmsConfig;
+    mrmsConfig.start_epoch_seconds = 0;
+    mrmsConfig.end_epoch_seconds = 3 * 3600;
+    mrmsConfig.catchment_area_m2 = 1.0e6;
+    mrmsConfig.precipitation_is_daily_total = true;
+    const auto mrmsRows = harmonizeGisToOhqHourly(mrmsInputs, mrmsConfig);
+    assert(mrmsRows.size() == 3);
+    assert(close(mrmsRows[0].precipitation_mm_per_hour, 5.0) && mrmsRows[0].precipitation_from_mrms);
+    assert(close(mrmsRows[1].precipitation_mm_per_hour, 0.0) && mrmsRows[1].precipitation_from_mrms);
+    assert(close(mrmsRows[2].precipitation_mm_per_hour, 1.0) && !mrmsRows[2].precipitation_from_mrms);
+    assert(mrmsRows[0].precipitation_valid && mrmsRows[1].precipitation_valid && mrmsRows[2].precipitation_valid);
+
+    // A package with no MRMS data at all (the common case today) must
+    // behave exactly as if the field didn't exist.
+    auto noMrmsInputs = mrmsInputs;
+    noMrmsInputs.precipitation_mrms_mm_per_hour.clear();
+    const auto noMrmsRows = harmonizeGisToOhqHourly(noMrmsInputs, mrmsConfig);
+    for (const auto& row : noMrmsRows) {
+        assert(close(row.precipitation_mm_per_hour, 1.0) && !row.precipitation_from_mrms);
+    }
+
+    // A bad MRMS value (negative) must be rejected the same way a bad
+    // PRECTOTCORR value already is.
+    auto invalidMrms = mrmsInputs;
+    invalidMrms.precipitation_mrms_mm_per_hour[0].value = -1.0;
+    bool rejectedMrms = false;
+    try { (void)harmonizeGisToOhqHourly(invalidMrms, mrmsConfig); }
+    catch (const std::invalid_argument&) { rejectedMrms = true; }
+    assert(rejectedMrms);
+
     return 0;
 }

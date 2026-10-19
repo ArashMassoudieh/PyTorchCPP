@@ -139,7 +139,13 @@ bool acceptedUnit(const std::string& variable, const std::string& unit) {
         // that was wrong and silently shrank every real storm 24x; see
         // results/flood_rainfall_alignment_20261011/ in the paper's Dropbox
         // folder for the investigation that found it.
-        {"PRECTOTCORR", {"mm/day", "mm/d", "mm/hour", "mm/hr"}}, {"T2M", {"degC", "°C", "C"}},
+        {"PRECTOTCORR", {"mm/day", "mm/d", "mm/hour", "mm/hr"}},
+        // Basin-area-weighted MRMS precipitation (NSE>=0.8 recovery program,
+        // Phase 2) - always hourly by construction (no daily-total variant
+        // exists for this source), so only one accepted unit, unlike
+        // PRECTOTCORR above.
+        {"PRECIP_MRMS_BASIN_AVG", {"mm/hour", "mm/hr"}},
+        {"T2M", {"degC", "°C", "C"}},
         {"RH2M", {"%", "percent"}}, {"WS2M", {"m/s"}},
         {"ALLSKY_SFC_SW_DWN", {"MJ/m2/h", "MJ/m²/h", "MJ/m^2/h", "MJ/hr"}},
         {"EVPTRNS", {"MJ/m2/day", "MJ/m²/day", "MJ/m^2/day"}},
@@ -170,6 +176,15 @@ GisToOhqPreparedPackage prepareGisToOhqPackage(
     const bool hasDischarge = units.count("00060") != 0;
     if (hasDischarge && !acceptedUnit("00060", units.at("00060"))) {
         throw std::runtime_error("GIStoOHQ variable 00060 has unsupported unit: " + units.at("00060"));
+    }
+    // PRECIP_MRMS_BASIN_AVG is optional (packages without it fall back to
+    // PRECTOTCORR entirely, unchanged) - but if a package declares it, its
+    // unit is still validated so a future mistake there is caught the same
+    // way as every other variable, not silently trusted.
+    if (units.count("PRECIP_MRMS_BASIN_AVG") &&
+        !acceptedUnit("PRECIP_MRMS_BASIN_AVG", units.at("PRECIP_MRMS_BASIN_AVG"))) {
+        throw std::runtime_error("GIStoOHQ variable PRECIP_MRMS_BASIN_AVG has unsupported unit: " +
+                                 units.at("PRECIP_MRMS_BASIN_AVG"));
     }
     if (config.require_observed_discharge && !hasDischarge) {
         throw std::runtime_error("GIStoOHQ weather-only package cannot be used for supervised training.");

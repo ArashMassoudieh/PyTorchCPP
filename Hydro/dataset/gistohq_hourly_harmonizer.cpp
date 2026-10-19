@@ -99,6 +99,7 @@ std::vector<GisToOhqHourlyRow> harmonizeGisToOhqHourly(
         throw std::invalid_argument("GIStoOHQ hourly harmonization configuration is invalid.");
     }
     validateSeries(inputs.precipitation_mm_per_day, "PRECTOTCORR");
+    validateSeries(inputs.precipitation_mrms_mm_per_hour, "PRECIP_MRMS_BASIN_AVG");
     validateSeries(inputs.temperature_c, "T2M");
     validateSeries(inputs.relative_humidity_percent, "RH2M");
     validateSeries(inputs.wind_speed_m_per_second, "WS2M");
@@ -107,6 +108,7 @@ std::vector<GisToOhqHourlyRow> harmonizeGisToOhqHourly(
     validateSeries(inputs.discharge_ft3_per_second, "00060");
 
     const auto precipitation = aggregateSamples(inputs.precipitation_mm_per_day, config, false);
+    const auto precipitationMrms = aggregateSamples(inputs.precipitation_mrms_mm_per_hour, config, false);
     const auto temperature = aggregateSamples(inputs.temperature_c, config, false);
     const auto humidity = aggregateSamples(inputs.relative_humidity_percent, config, false);
     const auto wind = aggregateSamples(inputs.wind_speed_m_per_second, config, false);
@@ -119,7 +121,14 @@ std::vector<GisToOhqHourlyRow> harmonizeGisToOhqHourly(
         row.precipitation_mm_per_hour = row.temperature_c = row.relative_humidity_percent =
             row.wind_speed_m_per_second = row.solar_energy_mj_per_m2_per_hour = row.pet_mm_per_hour =
             row.observed_discharge_m3_per_second = row.observed_runoff_mm_per_hour = missing();
-        if (precipitation[i].count) {
+        if (precipitationMrms[i].count) {
+            // Preferred source for this hour - already hourly mm, no
+            // daily/hourly ambiguity to resolve (unlike PRECTOTCORR).
+            requireRange(precipitationMrms[i].value, 0.0, std::numeric_limits<double>::max(), "PRECIP_MRMS_BASIN_AVG");
+            row.precipitation_mm_per_hour = precipitationMrms[i].value;
+            row.precipitation_valid = true;
+            row.precipitation_from_mrms = true;
+        } else if (precipitation[i].count) {
             requireRange(precipitation[i].value, 0.0, std::numeric_limits<double>::max(), "PRECTOTCORR");
             // See GisToOhqHourlyConfig::precipitation_is_daily_total - this
             // must reflect the package's declared unit, not an assumption.

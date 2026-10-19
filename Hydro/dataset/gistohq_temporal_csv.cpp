@@ -78,6 +78,7 @@ double parseValue(const std::string& text, const std::string& variable, std::siz
 
 std::vector<GisToOhqTimedValue>* series(GisToOhqHourlyInputs& inputs, const std::string& variable) {
     if (variable == "PRECTOTCORR") return &inputs.precipitation_mm_per_day;
+    if (variable == "PRECIP_MRMS_BASIN_AVG") return &inputs.precipitation_mrms_mm_per_hour;
     if (variable == "T2M") return &inputs.temperature_c;
     if (variable == "RH2M") return &inputs.relative_humidity_percent;
     if (variable == "WS2M") return &inputs.wind_speed_m_per_second;
@@ -149,6 +150,7 @@ GisToOhqHourlyInputs loadGisToOhqTemporalCsvFiles(const std::vector<std::string>
         if (file.bad()) throw std::runtime_error("Unable to read GIStoOHQ temporal CSV: " + path);
     }
     sortAndRejectDuplicates(inputs.precipitation_mm_per_day, "PRECTOTCORR");
+    sortAndRejectDuplicates(inputs.precipitation_mrms_mm_per_hour, "PRECIP_MRMS_BASIN_AVG");
     sortAndRejectDuplicates(inputs.temperature_c, "T2M");
     sortAndRejectDuplicates(inputs.relative_humidity_percent, "RH2M");
     sortAndRejectDuplicates(inputs.wind_speed_m_per_second, "WS2M");

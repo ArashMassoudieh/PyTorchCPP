@@ -18,6 +18,19 @@ struct GisToOhqHourlyInputs {
     // hourly-repeated timestamps, and an hourly-endpoint package reports
     // mm/hour at the same cadence - cadence alone cannot tell them apart.
     std::vector<GisToOhqTimedValue> precipitation_mm_per_day;
+    // Optional: basin-area-weighted MRMS hourly precipitation (mm/hour,
+    // never a daily total - no unit ambiguity like PRECTOTCORR's legacy
+    // daily-vs-hourly confusion, so no companion "is_daily_total" flag is
+    // needed). When present for an hour, harmonizeGisToOhqHourly prefers
+    // it over the PRECTOTCORR-derived value for that hour (NSE>=0.8
+    // recovery program, Phase 2: adopted as the primary precipitation
+    // forcing per the decisive multi-flood comparison in
+    // phase1_forcing_audit/06_full_battery_and_gate_a_decision.md -
+    // PRECTOTCORR/NASA POWER is retained, not discarded, as the fallback
+    // for hours outside MRMS's coverage). Empty for any package that
+    // does not carry this optional variable - PRECTOTCORR-only behavior
+    // is then unchanged from before this field existed.
+    std::vector<GisToOhqTimedValue> precipitation_mrms_mm_per_hour;
     std::vector<GisToOhqTimedValue> temperature_c;
     std::vector<GisToOhqTimedValue> relative_humidity_percent;
     std::vector<GisToOhqTimedValue> wind_speed_m_per_second;
@@ -65,6 +78,10 @@ struct GisToOhqHourlyRow {
     double observed_runoff_mm_per_hour = 0.0;
     double discharge_coverage = 0.0;
     bool precipitation_valid = false;
+    // True when precipitation_mm_per_hour for this row came from the
+    // optional MRMS series rather than PRECTOTCORR - provenance, not a
+    // separate validity signal (precipitation_valid covers both sources).
+    bool precipitation_from_mrms = false;
     bool temperature_valid = false;
     bool relative_humidity_valid = false;
     bool wind_valid = false;
