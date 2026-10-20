@@ -310,7 +310,8 @@ std::map<std::string, HydroRunResult> HydroArtifactLoader::loadPredictions(
         if (line.empty()) continue;
         const auto fields = splitCsv(line);
         if (fields.size() != 7 || fields[0].empty() ||
-            (fields[2] != "train" && fields[2] != "validation" && fields[2] != "test")) {
+            (fields[2] != "train" && fields[2] != "validation" && fields[2] != "test" &&
+             fields[2] != "beyond_test_end")) {
             throw std::runtime_error("Invalid predictions.csv row " + std::to_string(row) + ".");
         }
         auto& result = results[fields[0]];
@@ -414,7 +415,8 @@ std::map<std::string, HydroPhysicsResidualArtifact> HydroArtifactLoader::loadPhy
         if (line.empty()) continue;
         const auto fields = splitCsv(line);
         if (fields.size() != 5 || fields[0].empty() ||
-            (fields[2] != "train" && fields[2] != "validation" && fields[2] != "test")) {
+            (fields[2] != "train" && fields[2] != "validation" && fields[2] != "test" &&
+             fields[2] != "beyond_test_end")) {
             throw std::runtime_error("Invalid physics_residuals.csv row " + std::to_string(row) + ".");
         }
         auto& artifact = residuals[fields[0]];

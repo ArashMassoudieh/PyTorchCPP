@@ -172,8 +172,13 @@ void validateExportResult(const std::string& approach, const HydroRunResult& res
         throw std::invalid_argument("Hydro export prediction series are empty or misaligned for: " + approach);
     }
     for (std::size_t i = 0; i < result.x.size(); ++i) {
+        // "beyond_test_end" marks rows past a caller-requested bounded test
+        // window (chronological_split.h's testEndRatio) - legitimate,
+        // deliberately excluded from "test" rather than invalid data. See
+        // that header's doc comment for why a bounded test window exists.
         if (!std::isfinite(result.x[i]) || !std::isfinite(result.y_true[i]) || !std::isfinite(result.y_pred[i]) ||
-            (result.split[i] != "train" && result.split[i] != "validation" && result.split[i] != "test")) {
+            (result.split[i] != "train" && result.split[i] != "validation" && result.split[i] != "test" &&
+             result.split[i] != "beyond_test_end")) {
             throw std::invalid_argument("Hydro export contains invalid prediction data for: " + approach);
         }
     }

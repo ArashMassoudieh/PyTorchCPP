@@ -1,6 +1,7 @@
 #include "lstmnetworkwrapper.h"
 #include "hydro_lstm_module.h"
 #include "../dataset/chronological_split.h"
+#include "../dataset/resolve_test_end_x_tensor.h"
 #include "../dataset/tensor_scaler.h"
 #include "../dataset/hydro_tensor_builder.h"
 #include "../dataset/csv_tensor_builder.h"
@@ -367,9 +368,14 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
 
     SequenceData seq = makeSequences(x, y, plotX, sequenceLength, config.use_hydro_package);
     const int64_t totalSeq = seq.xSeq.size(0);
+    // config.test_end_x is in exported-x space, not sequence-index space -
+    // resolve it against this model's actual sequence endpoints (gap-aware)
+    // rather than assuming a constant offset. See resolve_test_end_x.h.
+    const int64_t testEndSeqCount = resolveTestEndSequenceCount(seq.plotSeq, config.test_end_x);
     const ChronologicalSplit split = makeChronologicalSplit(totalSeq,
                                                             config.train_split_ratio,
-                                                            config.validation_split_ratio);
+                                                            config.validation_split_ratio,
+                                                            config.test_end_split_ratio, testEndSeqCount);
     const int64_t nTrain = split.train_end;
 
     torch::Tensor xTrain = seq.xSeq.slice(0, 0, nTrain).contiguous();
@@ -377,8 +383,8 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     torch::Tensor yTrainPhysical = yTrain.clone();
     torch::Tensor xValidation = seq.xSeq.slice(0, nTrain, split.validation_end).contiguous();
     torch::Tensor yValidation = seq.ySeq.slice(0, nTrain, split.validation_end).contiguous();
-    torch::Tensor xTest = seq.xSeq.slice(0, split.validation_end, totalSeq).contiguous();
-    torch::Tensor yTest = seq.ySeq.slice(0, split.validation_end, totalSeq).contiguous();
+    torch::Tensor xTest = seq.xSeq.slice(0, split.validation_end, split.test_end).contiguous();
+    torch::Tensor yTest = seq.ySeq.slice(0, split.validation_end, split.test_end).contiguous();
     torch::Tensor yValidationPhysical = yValidation.clone();
     torch::Tensor yTestPhysical = yTest.clone();
 
@@ -582,10 +588,16 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
         throw std::runtime_error(physicsInformed ? "Full-series LSTM-PINN prediction for plotting failed or produced non-finite values." : "Full-series LSTM prediction for plotting failed or produced non-finite values.");
     }
     fillPlotVectors(result, seq.plotSeq, seq.ySeq, predFull);
-    result.split.resize(result.x.size(), "test");
+    // predFull/result.x cover the entire series regardless of any bounded
+    // test_end (deliberately - this is what lets a bounded window be
+    // recomputed after the fact from predictions.csv without retraining).
+    // The split label must still reflect the bound honestly: rows at or
+    // past test_end were not part of what metrics.csv actually scored.
+    result.split.resize(result.x.size(), "beyond_test_end");
     for (size_t i = 0; i < result.split.size(); ++i) {
         if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
         else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+        else if (static_cast<int64_t>(i) < split.test_end) result.split[i] = "test";
     }
     populateHydroPeakMetrics(result);
     if (physicsInformed && config.pinn_physics_profile == "water_balance" && seq.xSeq.size(0) >= 2 && seq.xSeq.size(2) >= 5) {

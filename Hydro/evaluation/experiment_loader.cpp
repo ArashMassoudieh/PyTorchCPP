@@ -192,6 +192,16 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.random_seed = integerValue(json, "random_seed");
     c.train_split_ratio = numberValue(json, "train_fraction");
     c.validation_split_ratio = numberValue(json, "validation_fraction");
+    // Optional - absent in every config predating this field, which must
+    // keep working unchanged (-1.0 = unbounded test partition). Prefer
+    // test_end_x below when the exact row index is known - see
+    // hydro_run_types.h's doc comment on why the ratio form is retained
+    // only as a fallback.
+    c.test_end_split_ratio = optionalNumberValue(json, "test_end_fraction", -1.0);
+    // Optional exact row index, absent in every config predating this
+    // field (-1 = unset, takes priority over test_end_split_ratio when
+    // both are present - see chronological_split.h's testEndX doc comment).
+    c.test_end_x = static_cast<int64_t>(optionalNumberValue(json, "test_end_x", -1.0));
     c.shuffle_training = boolValue(json, "shuffle_training");
     c.evaluate_metrics = boolValue(json, "evaluate_metrics");
     c.normalization = stringValue(json, "normalization");

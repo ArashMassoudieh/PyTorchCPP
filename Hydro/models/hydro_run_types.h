@@ -97,6 +97,41 @@ struct HydroRunConfig {
     bool evaluate_metrics = true;
     double train_split_ratio = 0.8;
     double validation_split_ratio = 0.1;
+    // Optional: bounds the test partition's end as a fraction of total rows,
+    // instead of letting it run to the literal end of the loaded series -
+    // see chronological_split.h's makeChronologicalSplit doc comment for why
+    // this exists. -1.0 (default) = unbounded, identical to this field never
+    // having existed. Prefer test_end_x below when the exact row index is
+    // known: this ratio-based field was found to silently land at a
+    // different absolute row per model family (different input-sequence
+    // lengths consume different warm-up row counts for the same `total`),
+    // which caused a validation-row-contamination bug in the Sligo Creek
+    // program - see chronological_split.h's doc comment on testEndX.
+    double test_end_split_ratio = -1.0;
+    // Optional: bounds the test partition's end at an exact x coordinate,
+    // taking priority over test_end_split_ratio when both are set. -1
+    // (default) = unset. Prefer this over the ratio field whenever the
+    // caller knows the exact intended bound (e.g. a named flood window's
+    // end) - see chronological_split.h's testEndX doc comment.
+    //
+    // IMPORTANT: this value is in the same exported-x coordinate space as
+    // predictions.csv's own "x" column (the canonical, gap-aware hour-index
+    // convention used throughout this program, see seal_guard.py) - NOT a
+    // raw sequence-index or array position. A windowed sequence builder
+    // (LSTM, LSTM-PINN) skips windows across a time/segment gap, and even a
+    // non-windowed model's raw tensor can have upstream-filtered gaps, so
+    // array position is not the same as x. Every wrapper must resolve this
+    // value against its own actual per-sequence/per-row endpoint x values
+    // via resolve_test_end_x.h's resolveTestEndSequenceCount() BEFORE
+    // passing the result to makeChronologicalSplit - never pass this field
+    // straight through. Confirmed necessary directly: a first attempt at
+    // this feature passed it straight through for one model family and
+    // produced a test partition 951 x-units longer than intended, traced to
+    // 928 x-units of cumulative drift from 8 time gaps earlier in the
+    // series - see
+    // results/nse08_recovery_20261015/phase3_regional/00_phase3_design.md's
+    // "Status update" section for the full account.
+    int64_t test_end_x = -1;
     bool shuffle_training = true;
     int random_seed = 42;
     std::string optimizer = "adam";

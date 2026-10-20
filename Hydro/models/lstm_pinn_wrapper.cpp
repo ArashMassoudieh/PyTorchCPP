@@ -5,6 +5,7 @@
 #include "two_reservoir_routing.h"
 
 #include "../dataset/chronological_split.h"
+#include "../dataset/resolve_test_end_x_tensor.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
 #include "../dataset/tensor_scaler.h"
 #include "../evaluation/hydro_metrics.h"
@@ -234,9 +235,14 @@ HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
     const torch::Tensor precipitation = physicsX.slice(1, 2, 3).contiguous();
     SequenceData seq = makeSequences(modelX, y, plotX, peff, precipitation,
                                      config.lstm_sequence_length, segmentId);
+    // config.test_end_x is in exported-x space, not sequence-index space -
+    // resolve it against this model's actual sequence endpoints (gap-aware)
+    // rather than assuming a constant offset. See resolve_test_end_x.h.
+    const int64_t testEndSeqCount = resolveTestEndSequenceCount(seq.time, config.test_end_x);
     const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
                                                             config.train_split_ratio,
-                                                            config.validation_split_ratio);
+                                                            config.validation_split_ratio,
+                                                            config.test_end_split_ratio, testEndSeqCount);
     const int64_t nTrain = split.train_end;
     const int64_t nValidationEnd = split.validation_end;
 
@@ -402,8 +408,8 @@ HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
     model->eval();
     torch::NoGradGuard noGrad;
     const torch::Tensor predFullPhysical = model->forward(xFull);
-    const torch::Tensor yTestPhysical = seq.y.slice(0, nValidationEnd, seq.y.size(0)).contiguous();
-    const torch::Tensor predTestPhysical = predFullPhysical.slice(0, nValidationEnd, predFullPhysical.size(0));
+    const torch::Tensor yTestPhysical = seq.y.slice(0, nValidationEnd, split.test_end).contiguous();
+    const torch::Tensor predTestPhysical = predFullPhysical.slice(0, nValidationEnd, split.test_end);
     if (!predFullPhysical.defined() || !predFullPhysical.isfinite().all().item<bool>()) {
         throw std::runtime_error("Two-reservoir LSTM-PINN produced non-finite runoff.");
     }
@@ -415,10 +421,11 @@ HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
     }
 
     fillPlotVectors(result, seq.time, seq.y, predFullPhysical);
-    result.split.resize(result.x.size(), "test");
+    result.split.resize(result.x.size(), "beyond_test_end");
     for (std::size_t i = 0; i < result.split.size(); ++i) {
         if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
         else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+        else if (static_cast<int64_t>(i) < split.test_end) result.split[i] = "test";
     }
     populateHydroPeakMetrics(result);
 
@@ -452,9 +459,14 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
         : peff;
     SequenceData seq = makeSequences(modelX, y, plotX, peff, precipitation,
                                      config.lstm_sequence_length, segmentId);
+    // config.test_end_x is in exported-x space, not sequence-index space -
+    // resolve it against this model's actual sequence endpoints (gap-aware)
+    // rather than assuming a constant offset. See resolve_test_end_x.h.
+    const int64_t testEndSeqCount = resolveTestEndSequenceCount(seq.time, config.test_end_x);
     const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
                                                             config.train_split_ratio,
-                                                            config.validation_split_ratio);
+                                                            config.validation_split_ratio,
+                                                            config.test_end_split_ratio, testEndSeqCount);
     const int64_t nTrain = split.train_end;
     torch::Tensor xTrainPhysical = seq.x.slice(0, 0, nTrain).contiguous();
     torch::Tensor yTrainPhysical = seq.y.slice(0, 0, nTrain).contiguous();
@@ -462,8 +474,8 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
     torch::Tensor xValidationPhysical = seq.x.slice(0, nTrain, split.validation_end).contiguous();
     torch::Tensor yValidationPhysical = seq.y.slice(0, nTrain, split.validation_end).contiguous();
     torch::Tensor pValidation = seq.peff.slice(0, nTrain, split.validation_end).contiguous();
-    torch::Tensor xTestPhysical = seq.x.slice(0, split.validation_end, seq.x.size(0)).contiguous();
-    torch::Tensor yTestPhysical = seq.y.slice(0, split.validation_end, seq.y.size(0)).contiguous();
+    torch::Tensor xTestPhysical = seq.x.slice(0, split.validation_end, split.test_end).contiguous();
+    torch::Tensor yTestPhysical = seq.y.slice(0, split.validation_end, split.test_end).contiguous();
 
     TensorScaler inputScaler;
     TensorScaler targetScaler;
@@ -626,10 +638,11 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
     torch::Tensor xFull = inputScaler.transform(seq.x);
     torch::Tensor predFullPhysical = targetScaler.inverseTransform(model->forward(xFull)).clamp_min(0.0);
     fillPlotVectors(result, seq.time, seq.y, predFullPhysical);
-    result.split.resize(result.x.size(), "test");
+    result.split.resize(result.x.size(), "beyond_test_end");
     for (std::size_t i = 0; i < result.split.size(); ++i) {
         if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
         else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+        else if (static_cast<int64_t>(i) < split.test_end) result.split[i] = "test";
     }
     populateHydroPeakMetrics(result);
 
@@ -738,18 +751,23 @@ HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
     const torch::Tensor qObservedSeq = observedFull.reshape({-1, 1}).index_select(0, sequenceEndpoints).contiguous();
     const torch::Tensor baselineSeq = baselineFull.index_select(0, sequenceEndpoints).contiguous();
 
+    // config.test_end_x is in exported-x space, not sequence-index space -
+    // resolve it against this model's actual sequence endpoints (gap-aware)
+    // rather than assuming a constant offset. See resolve_test_end_x.h.
+    const int64_t testEndSeqCount = resolveTestEndSequenceCount(seq.time, config.test_end_x);
     const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
                                                             config.train_split_ratio,
-                                                            config.validation_split_ratio);
+                                                            config.validation_split_ratio,
+                                                            config.test_end_split_ratio, testEndSeqCount);
     const int64_t nTrain = split.train_end;
     torch::Tensor xTrainPhysical = seq.x.slice(0, 0, nTrain).contiguous();
     torch::Tensor residualTrainPhysical = seq.y.slice(0, 0, nTrain).contiguous();
     torch::Tensor xValidationPhysical = seq.x.slice(0, nTrain, split.validation_end).contiguous();
-    torch::Tensor xTestPhysical = seq.x.slice(0, split.validation_end, seq.x.size(0)).contiguous();
+    torch::Tensor xTestPhysical = seq.x.slice(0, split.validation_end, split.test_end).contiguous();
     torch::Tensor qValidation = qObservedSeq.slice(0, nTrain, split.validation_end).contiguous();
-    torch::Tensor qTest = qObservedSeq.slice(0, split.validation_end, qObservedSeq.size(0)).contiguous();
+    torch::Tensor qTest = qObservedSeq.slice(0, split.validation_end, split.test_end).contiguous();
     torch::Tensor baselineValidation = baselineSeq.slice(0, nTrain, split.validation_end).contiguous();
-    torch::Tensor baselineTest = baselineSeq.slice(0, split.validation_end, baselineSeq.size(0)).contiguous();
+    torch::Tensor baselineTest = baselineSeq.slice(0, split.validation_end, split.test_end).contiguous();
 
     TensorScaler inputScaler;
     TensorScaler targetScaler;
@@ -851,10 +869,11 @@ HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
     torch::Tensor xFullScaled = inputScaler.transform(seq.x);
     torch::Tensor predFull = (baselineSeq + targetScaler.inverseTransform(model->forward(xFullScaled))).clamp_min(0.0);
     fillPlotVectors(result, seq.time, qObservedSeq, predFull);
-    result.split.resize(result.x.size(), "test");
+    result.split.resize(result.x.size(), "beyond_test_end");
     for (std::size_t i = 0; i < result.split.size(); ++i) {
         if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
         else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+        else if (static_cast<int64_t>(i) < split.test_end) result.split[i] = "test";
     }
     populateHydroPeakMetrics(result);
     result.success = true;
@@ -943,18 +962,23 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
     const torch::Tensor qObservedSeq = observedFull.reshape({-1, 1}).index_select(0, sequenceEndpoints).contiguous();
     const torch::Tensor baselineSeq = baselineFull.index_select(0, sequenceEndpoints).contiguous();
 
+    // config.test_end_x is in exported-x space, not sequence-index space -
+    // resolve it against this model's actual sequence endpoints (gap-aware)
+    // rather than assuming a constant offset. See resolve_test_end_x.h.
+    const int64_t testEndSeqCount = resolveTestEndSequenceCount(seq.time, config.test_end_x);
     const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
                                                             config.train_split_ratio,
-                                                            config.validation_split_ratio);
+                                                            config.validation_split_ratio,
+                                                            config.test_end_split_ratio, testEndSeqCount);
     const int64_t nTrain = split.train_end;
     torch::Tensor xTrainPhysical = seq.x.slice(0, 0, nTrain).contiguous();
     torch::Tensor targetTrainPhysical = seq.y.slice(0, 0, nTrain).contiguous();
     torch::Tensor xValidationPhysical = seq.x.slice(0, nTrain, split.validation_end).contiguous();
-    torch::Tensor xTestPhysical = seq.x.slice(0, split.validation_end, seq.x.size(0)).contiguous();
+    torch::Tensor xTestPhysical = seq.x.slice(0, split.validation_end, split.test_end).contiguous();
     torch::Tensor qValidation = qObservedSeq.slice(0, nTrain, split.validation_end).contiguous();
-    torch::Tensor qTest = qObservedSeq.slice(0, split.validation_end, qObservedSeq.size(0)).contiguous();
+    torch::Tensor qTest = qObservedSeq.slice(0, split.validation_end, split.test_end).contiguous();
     torch::Tensor baselineValidation = baselineSeq.slice(0, nTrain, split.validation_end).contiguous();
-    torch::Tensor baselineTest = baselineSeq.slice(0, split.validation_end, baselineSeq.size(0)).contiguous();
+    torch::Tensor baselineTest = baselineSeq.slice(0, split.validation_end, split.test_end).contiguous();
 
     TensorScaler inputScaler;
     inputScaler.fit(xTrainPhysical, "standardize");
@@ -1069,10 +1093,11 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
     torch::Tensor xFullScaled = inputScaler.transform(seq.x);
     torch::Tensor predFull = (baselineSeq + targetScaler.inverseTransform(model->forward(xFullScaled))).clamp_min(0.0);
     fillPlotVectors(result, seq.time, qObservedSeq, predFull);
-    result.split.resize(result.x.size(), "test");
+    result.split.resize(result.x.size(), "beyond_test_end");
     for (std::size_t i = 0; i < result.split.size(); ++i) {
         if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
         else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+        else if (static_cast<int64_t>(i) < split.test_end) result.split[i] = "test";
     }
     populateHydroPeakMetrics(result);
     result.success = true;

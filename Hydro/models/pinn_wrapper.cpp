@@ -3,6 +3,7 @@
 #include "ffn_pinn_wrapper.h"
 #include "two_reservoir_routing.h"
 #include "../dataset/chronological_split.h"
+#include "../dataset/resolve_test_end_x_tensor.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
 #include "../evaluation/model_checkpoint.h"
@@ -102,7 +103,15 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
         throw std::runtime_error("Standalone two-reservoir PINN expects [time, Peff, ...] inputs and scalar runoff targets.");
     }
 
-    const ChronologicalSplit split = makeChronologicalSplit(x.size(0), config.train_split_ratio, config.validation_split_ratio);
+    // config.test_end_x is in exported-x space, not raw array position -
+    // resolve it against this model's own plotX rather than assuming
+    // array position equals x (upstream missing-data filtering leaves
+    // gaps here too, confirmed directly: 744 x-units across 8 gaps on the
+    // Sligo Creek package - not safe to assume away just because this
+    // function has no separate windowing step). See resolve_test_end_x.h.
+    const int64_t testEndSeqCount = resolveTestEndSequenceCount(plotX, config.test_end_x);
+    const ChronologicalSplit split = makeChronologicalSplit(x.size(0), config.train_split_ratio, config.validation_split_ratio,
+                                                             config.test_end_split_ratio, testEndSeqCount);
     // dt is a single global scalar (common hourly timestep); infer it from
     // just the first segment - a multi-block package (loadHydroPackageTensors
     // keeps every valid segment, see hydro_tensor_builder.h) has real time
@@ -174,7 +183,7 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     result.x.resize(static_cast<std::size_t>(n));
     result.y_true.resize(static_cast<std::size_t>(n));
     result.y_pred.resize(static_cast<std::size_t>(n));
-    result.split.assign(static_cast<std::size_t>(n), "test");
+    result.split.assign(static_cast<std::size_t>(n), "beyond_test_end");
     for (int64_t i = 0; i < n; ++i) {
         const auto idx = static_cast<std::size_t>(i);
         result.x[idx] = time[i].item<double>();
@@ -182,6 +191,7 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
         result.y_pred[idx] = predicted[idx];
         if (i < split.train_end) result.split[idx] = "train";
         else if (i < split.validation_end) result.split[idx] = "validation";
+        else if (i < split.test_end) result.split[idx] = "test";
     }
 
     std::vector<double> testObserved, testPredicted, validationObserved, validationPredicted;
