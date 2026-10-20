@@ -98,6 +98,7 @@ SOURCES += \
     Hydro/models/ffn_pinn_wrapper.cpp \
     Hydro/models/lstm_wrapper.cpp \
     Hydro/models/lstm_pinn_wrapper.cpp \
+    Hydro/models/lstm_regional_pretrain.cpp \
     $$GENERATED_LSTM_NETWORK_WRAPPER
 
 HEADERS += \
@@ -115,9 +116,12 @@ HEADERS += \
     Hydro/dataset/hydro_tensor_builder.h Hydro/dataset/csv_tensor_builder.h Hydro/dataset/reservoir_physics_tensor_builder.h \
     Hydro/dataset/lag_builder.h Hydro/dataset/lagged_tensor_builder.h \
     Hydro/dataset/sequence_builder.h Hydro/dataset/chronological_split.h Hydro/dataset/tensor_scaler.h \
+    Hydro/dataset/resolve_test_end_x.h Hydro/dataset/resolve_test_end_x_tensor.h \
+    Hydro/dataset/lstm_sequence_builder.h Hydro/dataset/multi_basin_sampling.h Hydro/dataset/basin_runoff_depth.h \
     Hydro/evaluation/hydro_metrics.h Hydro/evaluation/experiment_exporter.h Hydro/evaluation/experiment_loader.h \
     Hydro/physics/physics_config.h Hydro/physics/rr_physics.h \
     Hydro/models/hydro_run_types.h Hydro/models/hydro_lstm_module.h \
     Hydro/models/physics_batch.h Hydro/models/reservoir_routing_tensor.h \
     Hydro/models/ffn_wrapper.h Hydro/models/ffn_pinn_wrapper.h Hydro/models/ffn_reservoir_pinn_wrapper.h Hydro/models/ffn_two_reservoir_pinn_wrapper.h Hydro/models/pinn_wrapper.h \
-    Hydro/models/lstm_wrapper.h Hydro/models/lstm_pinn_wrapper.h Hydro/models/lstmnetworkwrapper.h
+    Hydro/models/lstm_wrapper.h Hydro/models/lstm_pinn_wrapper.h Hydro/models/lstmnetworkwrapper.h \
+    Hydro/models/lstm_regional_pretrain.h

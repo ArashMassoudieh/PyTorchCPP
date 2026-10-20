@@ -227,6 +227,11 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.lstm_warm_start_checkpoint_path = optionalStringValue(json, "lstm_warm_start_checkpoint_path", "");
     c.lstm_dropout = optionalNumberValue(json, "lstm_dropout", 0.0);
     c.antecedent_index_halflife_hours = optionalNumberValue(json, "antecedent_index_halflife_hours", 0.0);
+    c.regional_training_basin_list_path = optionalStringValue(json, "regional_training_basin_list_path", "");
+    c.regional_validation_basin_list_path = optionalStringValue(json, "regional_validation_basin_list_path", "");
+    c.regional_per_basin_sequence_count = static_cast<int64_t>(optionalNumberValue(json, "regional_per_basin_sequence_count", -1.0));
+    c.regional_window_start = optionalStringValue(json, "regional_window_start", "");
+    c.regional_window_end = optionalStringValue(json, "regional_window_end", "");
     c.use_hydro_package = boolValue(json, "use_hydro_package");
     c.use_csv_data = boolValue(json, "use_csv_data");
     c.csv_path = stringValue(json, "csv_path");

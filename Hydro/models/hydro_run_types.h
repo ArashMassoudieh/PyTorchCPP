@@ -211,6 +211,32 @@ struct HydroRunConfig {
     // own recurrence/lookback window already sees. 0.0 (default) disables
     // this and recovers prior behavior exactly.
     double antecedent_index_halflife_hours = 0.0;
+
+    // Regional multi-basin pretraining mode only (lstm_regional_pretrain,
+    // see lstm_regional_pretrain.h): paths to plain text files, one
+    // GIStoOHQ package directory per line, listing the basins pooled for
+    // training and the basins entirely held out for checkpoint-selection
+    // validation respectively - the same one-per-line convention already
+    // used by urban_tier.txt/all_candidates.txt, not a JSON array (this
+    // config format has no array support). "" (default) disables this mode.
+    std::string regional_training_basin_list_path = "";
+    std::string regional_validation_basin_list_path = "";
+    // <= 0 (default) means "auto" - see RegionalPretrainConfig's doc
+    // comment in lstm_regional_pretrain.h for what auto picks.
+    int64_t regional_per_basin_sequence_count = -1;
+    // Optional exact calendar window [start, end) applied to EVERY basin
+    // (training and validation alike) before sequencing - UTC ISO8601
+    // "YYYY-MM-DDTHH:MM:SSZ". "" (default, either field) = unbounded, i.e.
+    // every row the package contains is used, identical to this field
+    // never having existed. Required for this program's pilot manifest
+    // (2015-01-01 through 2022-12-31 inclusive): CAMELSH-ingested packages
+    // span 1980 through the 2023-10-15 seal, far more than the declared
+    // pretraining window, and loadHydroPackageTensors has no date-range
+    // concept of its own - confirmed as a real gap (not just a theoretical
+    // one) when a first pilot attempt silently loaded every available row
+    // instead of the declared window. See regional_window_filter.h.
+    std::string regional_window_start = "";
+    std::string regional_window_end = "";
 };
 
 struct HydroRunResult {

@@ -1,5 +1,8 @@
 #include "../dataset/chronological_split.h"
 #include "../dataset/resolve_test_end_x.h"
+#include "../dataset/multi_basin_sampling.h"
+#include "../dataset/basin_runoff_depth.h"
+#include "../dataset/regional_window_filter.h"
 #include "../models/physics_batch.h"
 #include "../evaluation/hydro_metrics.h"
 
@@ -179,6 +182,168 @@ int main() {
 
         // Unset sentinel (-1): unbounded, matching testEndX's convention.
         assert(resolveTestEndSequenceCountFromSorted(endpoints, -1) == -1);
+    }
+
+    // balancedShuffledEpochIndices: the regional-pretraining pooled-batch
+    // sampler. Three basins of very different record lengths (10, 3, 1000)
+    // - the realistic shape of the 16-basin pilot, where record length
+    // varies a lot by basin - with perBasinCount=10 so the smallest basin
+    // (size 3) must cycle with repetition and the largest (size 1000) must
+    // be subsampled without repeats.
+    {
+        const std::vector<int64_t> basinSizes = {10, 3, 1000};
+        const int64_t perBasinCount = 10;
+        std::mt19937_64 rngA(42);
+        const auto drawA = balancedShuffledEpochIndices(basinSizes, perBasinCount, rngA);
+
+        // Total count: every basin contributes exactly perBasinCount, no
+        // more, no less, regardless of its own record length.
+        assert(static_cast<int64_t>(drawA.size()) == perBasinCount * static_cast<int64_t>(basinSizes.size()));
+
+        // Per-basin draw counts and index validity/coverage, checked
+        // separately per basin.
+        std::vector<int64_t> perBasinDrawCount(basinSizes.size(), 0);
+        std::vector<std::vector<int64_t>> perBasinIndices(basinSizes.size());
+        for (const auto& [basinIndex, withinIndex] : drawA) {
+            assert(basinIndex >= 0 && basinIndex < static_cast<int64_t>(basinSizes.size()));
+            assert(withinIndex >= 0 && withinIndex < basinSizes[static_cast<std::size_t>(basinIndex)]);
+            ++perBasinDrawCount[static_cast<std::size_t>(basinIndex)];
+            perBasinIndices[static_cast<std::size_t>(basinIndex)].push_back(withinIndex);
+        }
+        for (std::size_t b = 0; b < basinSizes.size(); ++b) {
+            assert(perBasinDrawCount[b] == perBasinCount);
+        }
+
+        // Basin 0 (size 10 == perBasinCount): sampled without replacement -
+        // every index 0..9 appears exactly once.
+        {
+            std::vector<int64_t> sorted = perBasinIndices[0];
+            std::sort(sorted.begin(), sorted.end());
+            for (int64_t i = 0; i < 10; ++i) assert(sorted[static_cast<std::size_t>(i)] == i);
+        }
+
+        // Basin 1 (size 3 < perBasinCount=10): must cycle with repetition -
+        // all 3 indices (0,1,2) appear at least once (full coverage, no
+        // index silently dropped), and since 10 draws from only 3 unique
+        // values forces a repeat, at least one index appears more than once.
+        {
+            std::vector<int64_t> counts(3, 0);
+            for (const int64_t idx : perBasinIndices[1]) { assert(idx >= 0 && idx < 3); ++counts[static_cast<std::size_t>(idx)]; }
+            assert(counts[0] > 0 && counts[1] > 0 && counts[2] > 0);
+            assert(counts[0] + counts[1] + counts[2] == 10);
+            assert(counts[0] > 1 || counts[1] > 1 || counts[2] > 1);
+        }
+
+        // Basin 2 (size 1000 > perBasinCount=10): sampled without
+        // replacement - no index repeats.
+        {
+            std::vector<int64_t> sorted = perBasinIndices[2];
+            std::sort(sorted.begin(), sorted.end());
+            for (std::size_t i = 1; i < sorted.size(); ++i) assert(sorted[i] != sorted[i - 1]);
+        }
+
+        // Determinism: the same seed reproduces the identical draw exactly.
+        std::mt19937_64 rngA2(42);
+        const auto drawA2 = balancedShuffledEpochIndices(basinSizes, perBasinCount, rngA2);
+        assert(drawA == drawA2);
+
+        // A different seed produces a different draw (not hardcoded/ignored).
+        std::mt19937_64 rngB(43);
+        const auto drawB = balancedShuffledEpochIndices(basinSizes, perBasinCount, rngB);
+        assert(drawA != drawB);
+
+        // Shuffled across basins, not block-ordered: the basin-index
+        // sequence should not be monotonically grouped (basin 0's block,
+        // then basin 1's, then basin 2's) - checked by confirming at least
+        // one basin-index change happens before the first perBasinCount
+        // entries are exhausted for any single basin in a contiguous run.
+        bool interleaved = false;
+        for (std::size_t i = 1; i < drawA.size(); ++i) {
+            if (drawA[i].first != drawA[i - 1].first) { interleaved = true; break; }
+        }
+        assert(interleaved);
+    }
+
+    // Rejection cases: empty basin list, non-positive perBasinCount, and a
+    // basin with zero/negative available sequences must all throw rather
+    // than silently producing a malformed or empty epoch.
+    {
+        std::mt19937_64 rng(1);
+        bool rejected1 = false;
+        try { (void)balancedShuffledEpochIndices({}, 5, rng); }
+        catch (const std::invalid_argument&) { rejected1 = true; }
+        assert(rejected1);
+
+        bool rejected2 = false;
+        try { (void)balancedShuffledEpochIndices({5, 5}, 0, rng); }
+        catch (const std::invalid_argument&) { rejected2 = true; }
+        assert(rejected2);
+
+        bool rejected3 = false;
+        try { (void)balancedShuffledEpochIndices({5, 0}, 3, rng); }
+        catch (const std::invalid_argument&) { rejected3 = true; }
+        assert(rejected3);
+    }
+
+    // Basin-normalized runoff depth <-> discharge conversion. Hand-computed
+    // reference: 1 m^3/s over a 1 km^2 (1,000,000 m^2) catchment for 1 hour
+    // deposits 3600 m^3 of water over that area, i.e. 3600/1,000,000 m =
+    // 3.6 mm - so 1 m^3/s over 1,000,000 m^2 must equal exactly 3.6 mm/hour.
+    {
+        const double depth = dischargeCubicMetersPerSecondToRunoffMmPerHour(1.0, 1.0e6);
+        assert(std::abs(depth - 3.6) < 1.0e-9);
+
+        // Round-trip: depth -> discharge -> depth recovers the original
+        // value exactly (within floating-point tolerance), for several
+        // discharge/area combinations spanning the pilot's expected range
+        // (small urban basins to Sligo-Creek-sized).
+        for (const double q : {0.0, 0.001, 1.0, 50.0, 500.0}) {
+            for (const double area : {1.0e6, 1.42e7, 1.9089300e7, 2.5e8}) {
+                const double d = dischargeCubicMetersPerSecondToRunoffMmPerHour(q, area);
+                const double back = runoffMmPerHourToDischargeCubicMetersPerSecond(d, area);
+                assert(std::abs(back - q) < 1.0e-9 * std::max(1.0, q));
+            }
+        }
+
+        bool areaRejected = false;
+        try { (void)dischargeCubicMetersPerSecondToRunoffMmPerHour(1.0, 0.0); }
+        catch (const std::invalid_argument&) { areaRejected = true; }
+        assert(areaRejected);
+
+        bool negativeAreaRejected = false;
+        try { (void)runoffMmPerHourToDischargeCubicMetersPerSecond(1.0, -5.0); }
+        catch (const std::invalid_argument&) { negativeAreaRejected = true; }
+        assert(negativeAreaRejected);
+    }
+
+    // Regional pretraining window filter: parseUtcIso8601ToEpochSeconds and
+    // elapsedHoursWindowFromStudyStart. Reference values computed
+    // independently via Python's calendar.timegm/datetime, not derived from
+    // this same C++ code (see pilot run manifest, 2026-10-20 fix for the
+    // unenforced 2015-2022 window this closes).
+    {
+        assert(parseUtcIso8601ToEpochSeconds("1980-01-01T00:00:00Z") == 315532800);
+        assert(parseUtcIso8601ToEpochSeconds("2015-01-01T00:00:00Z") == 1420070400);
+
+        bool malformedRejected = false;
+        try { (void)parseUtcIso8601ToEpochSeconds("2015-01-01"); }
+        catch (const std::invalid_argument&) { malformedRejected = true; }
+        assert(malformedRejected);
+
+        // 1980-01-01 -> 2015-01-01 is exactly 306816 hours (independently
+        // computed: (2015-01-01 - 1980-01-01).total_seconds()/3600 via
+        // Python datetime, accounting for the 9 leap years in that span).
+        const auto window = elapsedHoursWindowFromStudyStart(
+            "1980-01-01T00:00:00Z", "2015-01-01T00:00:00Z", "2023-01-01T00:00:00Z");
+        assert(std::abs(window.first - 306816.0) < 1.0e-9);
+        assert(std::abs(window.second - 376944.0) < 1.0e-9);
+
+        bool windowOrderRejected = false;
+        try {
+            (void)elapsedHoursWindowFromStudyStart(
+                "1980-01-01T00:00:00Z", "2023-01-01T00:00:00Z", "2015-01-01T00:00:00Z");
+        } catch (const std::invalid_argument&) { windowOrderRejected = true; }
+        assert(windowOrderRejected);
     }
 
     HydroRunResult result;

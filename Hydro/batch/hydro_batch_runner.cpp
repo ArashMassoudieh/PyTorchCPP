@@ -7,6 +7,7 @@
 #include "../models/pinn_wrapper.h"
 #include "../models/lstm_wrapper.h"
 #include "../models/lstm_pinn_wrapper.h"
+#include "../models/lstm_regional_pretrain.h"
 
 #include <torch/torch.h>
 
@@ -79,6 +80,16 @@ void resolveConfigPaths(HydroRunConfig& config, const fs::path& repository_root)
         fs::path p(config.csv_path);
         if (p.is_relative()) p = repository_root / p;
         config.csv_path = fs::weakly_canonical(p).string();
+    }
+    if (!config.regional_training_basin_list_path.empty()) {
+        fs::path p(config.regional_training_basin_list_path);
+        if (p.is_relative()) p = repository_root / p;
+        config.regional_training_basin_list_path = fs::weakly_canonical(p).string();
+    }
+    if (!config.regional_validation_basin_list_path.empty()) {
+        fs::path p(config.regional_validation_basin_list_path);
+        if (p.is_relative()) p = repository_root / p;
+        config.regional_validation_basin_list_path = fs::weakly_canonical(p).string();
     }
 }
 
@@ -157,7 +168,7 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
                                      std::to_string(line_number) + "; line='" + stripped + "'");
         }
         if (mode != "ffn" && mode != "ffn_pinn" && mode != "lstm" &&
-            mode != "lstm_pinn" && mode != "pinn") {
+            mode != "lstm_pinn" && mode != "pinn" && mode != "lstm_regional_pretrain") {
             throw std::runtime_error("Unsupported Hydro batch mode at line " + std::to_string(line_number) + ": " + mode);
         }
         fs::path config_path(config);
@@ -178,6 +189,7 @@ HydroRunResult runJob(const std::string& mode, const HydroRunConfig& config) {
     if (mode == "lstm") { LSTMWrapper runner; return runner.train(config); }
     if (mode == "lstm_pinn") { LSTMPINNWrapper runner; return runner.train(config); }
     if (mode == "pinn") { PINNWrapper runner; return runner.train(config); }
+    if (mode == "lstm_regional_pretrain") { return trainLstmRegionalPretrainFromConfig(config); }
     throw std::runtime_error("Unsupported Hydro batch mode: " + mode);
 }
 
@@ -269,6 +281,34 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
         << r.physics_residual_mean << ',' << r.physics_residual_rmse << ',' << r.cumulative_physics_residual << '\n';
 }
 
+// lstm_regional_pretrain produces a reusable checkpoint, not a forecast
+// series - its HydroRunResult has no x/y_true/y_pred/split (there is no
+// single time axis to report for a basin-pooled run), so it cannot go
+// through HydroExperimentExporter::exportRun, which requires exactly that.
+// Writes the checkpoint directly plus a small per-epoch loss-history CSV
+// for provenance, instead.
+void exportRegionalPretrainRun(const fs::path& output_root, const std::string& experiment_id,
+                               const HydroRunResult& result) {
+    const fs::path dir = output_root / experiment_id;
+    fs::create_directories(dir / "models");
+    if (!result.success) return;
+    {
+        std::ofstream model_file(dir / "models" / "lstm_regional_pretrain.pt", std::ios::binary);
+        if (!model_file) throw std::runtime_error("Unable to write regional pretrain checkpoint for: " + experiment_id);
+        model_file.write(reinterpret_cast<const char*>(result.model_checkpoint.data()),
+                          static_cast<std::streamsize>(result.model_checkpoint.size()));
+    }
+    std::ofstream summary(dir / "regional_pretrain_summary.csv");
+    summary << "epoch,training_loss,validation_loss\n" << std::setprecision(12);
+    for (std::size_t i = 0; i < result.training_loss_history.size(); ++i) {
+        summary << (i + 1) << ',' << result.training_loss_history[i] << ','
+                << (i < result.validation_loss_history.size()
+                        ? result.validation_loss_history[i]
+                        : std::numeric_limits<double>::quiet_NaN())
+                << '\n';
+    }
+}
+
 fs::path archiveExistingExperiment(const fs::path& output_root, const std::string& experiment_id) {
     const fs::path current = output_root / experiment_id;
     if (!fs::exists(current)) return {};
@@ -285,7 +325,7 @@ int main(int argc, char** argv) {
     try {
         if (argc != 3) {
             std::cerr << "Usage: HydroBatch <batch-file> <output-directory>\n"
-                      << "Batch format: one '<ffn|ffn_pinn|lstm|lstm_pinn|pinn> <config.json>' entry per line.\n";
+                      << "Batch format: one '<ffn|ffn_pinn|lstm|lstm_pinn|pinn|lstm_regional_pretrain> <config.json>' entry per line.\n";
             return 2;
         }
         torch::set_num_threads(1);
@@ -317,12 +357,19 @@ int main(int argc, char** argv) {
                 HydroRunResult result = runJob(job.mode, config);
                 printMetrics(loaded.experiment_id, job.mode, config, result);
 
-                std::map<std::string, HydroRunResult> results;
-                results.emplace(job.mode, result);
                 const fs::path archived = archiveExistingExperiment(output_root, loaded.experiment_id);
                 if (!archived.empty()) std::cout << "[batch] archived existing experiment=" << archived << '\n';
-                HydroExperimentExporter().exportRun(output_root.string(), loaded.experiment_id, config, results);
-                appendSummary(summary_path, loaded.experiment_id, job.mode, config, result);
+                if (job.mode == "lstm_regional_pretrain") {
+                    // No x/y_true/y_pred/split series to validate - a
+                    // basin-pooled run has no single time axis to report.
+                    // See exportRegionalPretrainRun's doc comment.
+                    exportRegionalPretrainRun(output_root, loaded.experiment_id, result);
+                } else {
+                    std::map<std::string, HydroRunResult> results;
+                    results.emplace(job.mode, result);
+                    HydroExperimentExporter().exportRun(output_root.string(), loaded.experiment_id, config, results);
+                    appendSummary(summary_path, loaded.experiment_id, job.mode, config, result);
+                }
                 if (!result.success) ++failures;
             } catch (const std::exception& error) {
                 ++failures;

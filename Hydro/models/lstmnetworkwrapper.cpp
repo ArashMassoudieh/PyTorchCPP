@@ -2,6 +2,7 @@
 #include "hydro_lstm_module.h"
 #include "../dataset/chronological_split.h"
 #include "../dataset/resolve_test_end_x_tensor.h"
+#include "../dataset/lstm_sequence_builder.h"
 #include "../dataset/tensor_scaler.h"
 #include "../dataset/hydro_tensor_builder.h"
 #include "../dataset/csv_tensor_builder.h"
@@ -228,55 +229,14 @@ void buildSyntheticSeries(const HydroRunConfig& config,
     else y = torch::exp(-0.8 * t);
 }
 
-struct SequenceData {
-    torch::Tensor xSeq;
-    torch::Tensor ySeq;
-    torch::Tensor plotSeq;
-};
+using SequenceData = LstmSequenceData;
 
-SequenceData makeSequences(const torch::Tensor& x,
-                           const torch::Tensor& y,
-                           const torch::Tensor& plotX,
-                           int sequenceLength,
-                           const bool enforceRegularTime) {
-    if (!x.defined() || !y.defined() || !plotX.defined() || x.dim() != 2 || y.dim() != 2 ||
-        plotX.numel() != x.size(0) || y.size(0) != x.size(0)) {
-        throw std::runtime_error("LSTM sequence builder expects 2-D x/y tensors.");
-    }
-    sequenceLength = std::max(2, sequenceLength);
-    const int64_t n = x.size(0);
-    const int64_t inputDim = x.size(1);
-    const int64_t m = n - sequenceLength + 1;
-    if (m < 4) throw std::runtime_error("Too few samples for requested LSTM sequence length.");
-
-    std::vector<torch::Tensor> windows, targets, endpoints;
-    windows.reserve(static_cast<size_t>(m));
-    double expectedDt = 0.0;
-    if (enforceRegularTime) {
-        const auto flatTime = plotX.reshape({-1});
-        auto intervals = flatTime.slice(0, 1, n) - flatTime.slice(0, 0, n - 1);
-        const auto positive = intervals.index({intervals > 0});
-        if (positive.numel() == 0) throw std::runtime_error("LSTM package timestamps are not increasing.");
-        expectedDt = positive.min().item<double>();
-    }
-    for (int64_t i = 0; i < m; ++i) {
-        if (enforceRegularTime) {
-            const auto time = plotX.slice(0, i, i + sequenceLength).reshape({-1});
-            const auto intervals = time.slice(0, 1, sequenceLength) - time.slice(0, 0, sequenceLength - 1);
-            const double tolerance = std::max(1.0e-12, std::abs(expectedDt) * 1.0e-6);
-            if ((torch::abs(intervals - expectedDt) > tolerance).any().item<bool>()) continue;
-        }
-        windows.push_back(x.slice(0, i, i + sequenceLength).unsqueeze(0));
-        targets.push_back(y.slice(0, i + sequenceLength - 1, i + sequenceLength));
-        endpoints.push_back(plotX.slice(0, i + sequenceLength - 1, i + sequenceLength));
-    }
-    if (windows.size() < 4) throw std::runtime_error("Too few contiguous samples for requested LSTM sequence length.");
-
-    SequenceData seq;
-    seq.xSeq = torch::cat(windows, 0).contiguous().view({static_cast<int64_t>(windows.size()), sequenceLength, inputDim});
-    seq.ySeq = torch::cat(targets, 0).contiguous();
-    seq.plotSeq = torch::cat(endpoints, 0).contiguous();
-    return seq;
+inline SequenceData makeSequences(const torch::Tensor& x,
+                                  const torch::Tensor& y,
+                                  const torch::Tensor& plotX,
+                                  int sequenceLength,
+                                  const bool enforceRegularTime) {
+    return makeLstmSequences(x, y, plotX, sequenceLength, enforceRegularTime);
 }
 
 double tensorMSEValue(const torch::Tensor& pred, const torch::Tensor& truth) {
