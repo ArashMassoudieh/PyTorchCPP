@@ -145,6 +145,7 @@ bool acceptedUnit(const std::string& variable, const std::string& unit) {
         // exists for this source), so only one accepted unit, unlike
         // PRECTOTCORR above.
         {"PRECIP_MRMS_BASIN_AVG", {"mm/hour", "mm/hr"}},
+        {"PRECIP_MRMS_SPATIAL_CV", {"1", "dimensionless"}},
         {"T2M", {"degC", "°C", "C"}},
         {"RH2M", {"%", "percent"}}, {"WS2M", {"m/s"}},
         {"ALLSKY_SFC_SW_DWN", {"MJ/m2/h", "MJ/m²/h", "MJ/m^2/h", "MJ/hr"}},
@@ -185,6 +186,11 @@ GisToOhqPreparedPackage prepareGisToOhqPackage(
         !acceptedUnit("PRECIP_MRMS_BASIN_AVG", units.at("PRECIP_MRMS_BASIN_AVG"))) {
         throw std::runtime_error("GIStoOHQ variable PRECIP_MRMS_BASIN_AVG has unsupported unit: " +
                                  units.at("PRECIP_MRMS_BASIN_AVG"));
+    }
+    if (units.count("PRECIP_MRMS_SPATIAL_CV") &&
+        !acceptedUnit("PRECIP_MRMS_SPATIAL_CV", units.at("PRECIP_MRMS_SPATIAL_CV"))) {
+        throw std::runtime_error("GIStoOHQ variable PRECIP_MRMS_SPATIAL_CV has unsupported unit: " +
+                                 units.at("PRECIP_MRMS_SPATIAL_CV"));
     }
     if (config.require_observed_discharge && !hasDischarge) {
         throw std::runtime_error("GIStoOHQ weather-only package cannot be used for supervised training.");

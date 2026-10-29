@@ -11,6 +11,7 @@ struct GisToOhqModelRow {
     double elapsed_hours = 0.0;
     // Stable feature order: P, T, RH, wind, solar, PET.
     std::array<double, 6> features{};
+    double mrms_spatial_cv = 0.0;
     double target_runoff_mm_per_hour = 0.0;
     bool target_valid = false;
     std::size_t segment_id = 0;

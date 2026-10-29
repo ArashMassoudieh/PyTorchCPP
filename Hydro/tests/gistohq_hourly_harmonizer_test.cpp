@@ -155,6 +155,7 @@ int main() {
     // window), absent for hour 2.
     mrmsInputs.precipitation_mrms_mm_per_hour.push_back({0, 5.0});
     mrmsInputs.precipitation_mrms_mm_per_hour.push_back({3600, 0.0});
+    mrmsInputs.precipitation_mrms_spatial_cv.push_back({0, 0.25});
     GisToOhqHourlyConfig mrmsConfig;
     mrmsConfig.start_epoch_seconds = 0;
     mrmsConfig.end_epoch_seconds = 3 * 3600;
@@ -166,6 +167,10 @@ int main() {
     assert(close(mrmsRows[1].precipitation_mm_per_hour, 0.0) && mrmsRows[1].precipitation_from_mrms);
     assert(close(mrmsRows[2].precipitation_mm_per_hour, 1.0) && !mrmsRows[2].precipitation_from_mrms);
     assert(mrmsRows[0].precipitation_valid && mrmsRows[1].precipitation_valid && mrmsRows[2].precipitation_valid);
+    assert(mrmsRows[0].precipitation_mrms_spatial_cv_valid);
+    assert(close(mrmsRows[0].precipitation_mrms_spatial_cv, 0.25));
+    assert(!mrmsRows[1].precipitation_mrms_spatial_cv_valid);
+    assert(close(mrmsRows[1].precipitation_mrms_spatial_cv, 0.0));
 
     // A package with no MRMS data at all (the common case today) must
     // behave exactly as if the field didn't exist.
@@ -184,6 +189,13 @@ int main() {
     try { (void)harmonizeGisToOhqHourly(invalidMrms, mrmsConfig); }
     catch (const std::invalid_argument&) { rejectedMrms = true; }
     assert(rejectedMrms);
+
+    auto invalidSpatialCv = mrmsInputs;
+    invalidSpatialCv.precipitation_mrms_spatial_cv[0].value = -0.1;
+    bool rejectedSpatialCv = false;
+    try { (void)harmonizeGisToOhqHourly(invalidSpatialCv, mrmsConfig); }
+    catch (const std::invalid_argument&) { rejectedSpatialCv = true; }
+    assert(rejectedSpatialCv);
 
     return 0;
 }

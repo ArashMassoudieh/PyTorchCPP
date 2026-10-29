@@ -11,6 +11,7 @@ int main() {
     const auto weather = root / "temporal_1.csv";
     const auto pet = root / "temporal_2.csv";
     const auto discharge = root / "temporal_3.csv";
+    const auto mrmsSpatial = root / "temporal_4.csv";
     {
         std::ofstream out(weather, std::ios::binary);
         out << "timestamp,PRECTOTCORR,T2M,RH2M,WS2M,ALLSKY_SFC_SW_DWN\r\n"
@@ -28,13 +29,20 @@ int main() {
             << "2024-01-01T01:00:00Z,00060,100,ft3/s,A\n"
             << "2024-01-01T01:05:00Z,00060,101,ft3/s,A\n";
     }
+    {
+        std::ofstream out(mrmsSpatial);
+        out << "timestamp_utc,variable,value,native_unit,provider_qualifiers\n"
+            << "2024-01-01T00:00:00Z,PRECIP_MRMS_SPATIAL_CV,0.25,1,MRMS_CELL_CV\n";
+    }
     const auto inputs = loadGisToOhqTemporalCsvFiles(
-        {discharge.string(), weather.string(), pet.string()});
+        {discharge.string(), weather.string(), pet.string(), mrmsSpatial.string()});
     assert(inputs.precipitation_mm_per_day.size() == 2);
     assert(inputs.temperature_c.size() == 2);
     assert(inputs.relative_humidity_percent.size() == 1); // empty value remains missing
     assert(inputs.pet_energy_mj_per_m2_per_day.size() == 1);
     assert(inputs.discharge_ft3_per_second.size() == 2);
+    assert(inputs.precipitation_mrms_spatial_cv.size() == 1);
+    assert(inputs.precipitation_mrms_spatial_cv.front().value == 0.25);
     assert(inputs.discharge_ft3_per_second.front().value == 100.0);
 
     {

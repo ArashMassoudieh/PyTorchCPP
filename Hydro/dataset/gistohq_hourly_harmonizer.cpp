@@ -100,6 +100,7 @@ std::vector<GisToOhqHourlyRow> harmonizeGisToOhqHourly(
     }
     validateSeries(inputs.precipitation_mm_per_day, "PRECTOTCORR");
     validateSeries(inputs.precipitation_mrms_mm_per_hour, "PRECIP_MRMS_BASIN_AVG");
+    validateSeries(inputs.precipitation_mrms_spatial_cv, "PRECIP_MRMS_SPATIAL_CV");
     validateSeries(inputs.temperature_c, "T2M");
     validateSeries(inputs.relative_humidity_percent, "RH2M");
     validateSeries(inputs.wind_speed_m_per_second, "WS2M");
@@ -109,6 +110,7 @@ std::vector<GisToOhqHourlyRow> harmonizeGisToOhqHourly(
 
     const auto precipitation = aggregateSamples(inputs.precipitation_mm_per_day, config, false);
     const auto precipitationMrms = aggregateSamples(inputs.precipitation_mrms_mm_per_hour, config, false);
+    const auto precipitationMrmsSpatialCv = aggregateSamples(inputs.precipitation_mrms_spatial_cv, config, false);
     const auto temperature = aggregateSamples(inputs.temperature_c, config, false);
     const auto humidity = aggregateSamples(inputs.relative_humidity_percent, config, false);
     const auto wind = aggregateSamples(inputs.wind_speed_m_per_second, config, false);
@@ -121,6 +123,7 @@ std::vector<GisToOhqHourlyRow> harmonizeGisToOhqHourly(
         row.precipitation_mm_per_hour = row.temperature_c = row.relative_humidity_percent =
             row.wind_speed_m_per_second = row.solar_energy_mj_per_m2_per_hour = row.pet_mm_per_hour =
             row.observed_discharge_m3_per_second = row.observed_runoff_mm_per_hour = missing();
+        row.precipitation_mrms_spatial_cv = 0.0;
         if (precipitationMrms[i].count) {
             // Preferred source for this hour - already hourly mm, no
             // daily/hourly ambiguity to resolve (unlike PRECTOTCORR).
@@ -136,6 +139,12 @@ std::vector<GisToOhqHourlyRow> harmonizeGisToOhqHourly(
                 ? precipitation[i].value / 24.0
                 : precipitation[i].value;
             row.precipitation_valid = true;
+        }
+        if (precipitationMrmsSpatialCv[i].count) {
+            requireRange(precipitationMrmsSpatialCv[i].value, 0.0,
+                         std::numeric_limits<double>::max(), "PRECIP_MRMS_SPATIAL_CV");
+            row.precipitation_mrms_spatial_cv = precipitationMrmsSpatialCv[i].value;
+            row.precipitation_mrms_spatial_cv_valid = true;
         }
         if (temperature[i].count) { row.temperature_c = temperature[i].value; row.temperature_valid = true; }
         if (humidity[i].count) {

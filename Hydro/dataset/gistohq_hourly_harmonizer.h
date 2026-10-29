@@ -31,6 +31,9 @@ struct GisToOhqHourlyInputs {
     // does not carry this optional variable - PRECTOTCORR-only behavior
     // is then unchanged from before this field existed.
     std::vector<GisToOhqTimedValue> precipitation_mrms_mm_per_hour;
+    // Optional within-basin coefficient of variation for the same MRMS grid
+    // hour. Dimensionless and used only when explicitly requested by a model.
+    std::vector<GisToOhqTimedValue> precipitation_mrms_spatial_cv;
     std::vector<GisToOhqTimedValue> temperature_c;
     std::vector<GisToOhqTimedValue> relative_humidity_percent;
     std::vector<GisToOhqTimedValue> wind_speed_m_per_second;
@@ -69,6 +72,7 @@ struct GisToOhqHourlyConfig {
 struct GisToOhqHourlyRow {
     std::int64_t epoch_seconds = 0;
     double precipitation_mm_per_hour = 0.0;
+    double precipitation_mrms_spatial_cv = 0.0;
     double temperature_c = 0.0;
     double relative_humidity_percent = 0.0;
     double wind_speed_m_per_second = 0.0;
@@ -82,6 +86,7 @@ struct GisToOhqHourlyRow {
     // optional MRMS series rather than PRECTOTCORR - provenance, not a
     // separate validity signal (precipitation_valid covers both sources).
     bool precipitation_from_mrms = false;
+    bool precipitation_mrms_spatial_cv_valid = false;
     bool temperature_valid = false;
     bool relative_humidity_valid = false;
     bool wind_valid = false;

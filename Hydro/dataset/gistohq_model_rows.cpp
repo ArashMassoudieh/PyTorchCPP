@@ -57,6 +57,8 @@ std::vector<GisToOhqModelRow> buildGisToOhqModelRows(
         selected.elapsed_hours = static_cast<double>(row.epoch_seconds - hourly.front().epoch_seconds) /
                                  static_cast<double>(kHourSeconds);
         selected.features = features;
+        selected.mrms_spatial_cv = row.precipitation_mrms_spatial_cv_valid
+            ? row.precipitation_mrms_spatial_cv : 0.0;
         selected.target_runoff_mm_per_hour = row.discharge_valid
             ? row.observed_runoff_mm_per_hour : std::numeric_limits<double>::quiet_NaN();
         selected.target_valid = row.discharge_valid;
