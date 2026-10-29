@@ -179,16 +179,16 @@ void showQuickSweep(QMainWindow* w)
         QString label;
         if (baseline->isChecked()) {
             label = "five_method_baseline";
-            args = {"--methods","ffn,ffn_pinn,lstm,lstm_pinn,pinn","--ffn-architectures","16,16","--ffn-activations","relu","--ffn-lags","1,2,3,4,5,6","--lstm-architectures","32","--lstm-sequences","12","--pinn-architectures","24,24","--learning-rates","0.003","--batch-sizes","32","--seeds","42","--physics-weights","0.05","--recession-k","0.08"};
+            args = QStringList{"--methods","ffn,ffn_pinn,lstm,lstm_pinn,pinn","--ffn-architectures","16,16","--ffn-activations","relu","--ffn-lags","1,2,3,4,5,6","--lstm-architectures","32","--lstm-sequences","12","--pinn-architectures","24,24","--learning-rates","0.003","--batch-sizes","32","--seeds","42","--physics-weights","0.05","--recession-k","0.08"};
         } else if (physics->isChecked()) {
             label = "physics_stage1";
-            args = {"--methods","ffn_pinn,lstm_pinn,pinn","--ffn-architectures","16,16","--ffn-activations","relu","--lstm-architectures","32","--lstm-sequences","12","--pinn-architectures","24,24","--learning-rates","0.003","--batch-sizes","32","--seeds","42","--physics-weights","0.001,0.005,0.01,0.025,0.05,0.1","--recession-k","0.01,0.02,0.04,0.08,0.16"};
+            args = QStringList{"--methods","ffn_pinn,lstm_pinn,pinn","--ffn-architectures","16,16","--ffn-activations","relu","--lstm-architectures","32","--lstm-sequences","12","--pinn-architectures","24,24","--learning-rates","0.003","--batch-sizes","32","--seeds","42","--physics-weights","0.001,0.005,0.01,0.025,0.05,0.1","--recession-k","0.01,0.02,0.04,0.08,0.16"};
         } else if (optimizer->isChecked()) {
             label = "optimizer_stage2";
-            args = {"--methods","ffn,ffn_pinn,lstm,lstm_pinn,pinn","--ffn-architectures","16,16","--ffn-activations","relu","--ffn-lags","1,2,3,4,5,6","--lstm-architectures","32","--lstm-sequences","12","--pinn-architectures","24,24","--learning-rates","0.001,0.003,0.005","--batch-sizes","16,32,64","--seeds","42","--physics-weights","0.01","--recession-k","0.04"};
+            args = QStringList{"--methods","ffn,ffn_pinn,lstm,lstm_pinn,pinn","--ffn-architectures","16,16","--ffn-activations","relu","--ffn-lags","1,2,3,4,5,6","--lstm-architectures","32","--lstm-sequences","12","--pinn-architectures","24,24","--learning-rates","0.001,0.003,0.005","--batch-sizes","16,32,64","--seeds","42","--physics-weights","0.01","--recession-k","0.04"};
         } else {
             label = "robustness_stage3";
-            args = {"--methods","ffn,ffn_pinn,lstm,lstm_pinn,pinn","--ffn-architectures","16,16","--ffn-activations","relu","--ffn-lags","1,2,3,4,5,6","--lstm-architectures","32","--lstm-sequences","12","--pinn-architectures","24,24","--learning-rates","0.003","--batch-sizes","32","--seeds","42,123,2026,31415,27182","--physics-weights","0.01","--recession-k","0.04"};
+            args = QStringList{"--methods","ffn,ffn_pinn,lstm,lstm_pinn,pinn","--ffn-architectures","16,16","--ffn-activations","relu","--ffn-lags","1,2,3,4,5,6","--lstm-architectures","32","--lstm-sequences","12","--pinn-architectures","24,24","--learning-rates","0.003","--batch-sizes","32","--seeds","42,123,2026,31415,27182","--physics-weights","0.01","--recession-k","0.04"};
         }
         QString output;
         if (!generate(rootPath, args, &output)) { QMessageBox::critical(&d, "Quick Sweep", "Generation failed:\n\n" + output); return; }

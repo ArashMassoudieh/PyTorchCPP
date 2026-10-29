@@ -14,6 +14,9 @@
 #include <QMessageBox>
 #include <QValueAxis>
 
+// Same namespaced Charts module as hydropinnwindow.cpp.
+using namespace QtCharts;
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>
