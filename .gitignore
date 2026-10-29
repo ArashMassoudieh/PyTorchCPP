@@ -97,3 +97,17 @@ Hydro/experiments/**/_*/
 # the underscore convention above, just at the repo root instead of under
 # Hydro/experiments/.
 /.scratch_*/
+
+# Generated Sligo job inputs: retain manifests, keep reusable generators tracked.
+/Hydro/experiments/gistohq_sligo/decade_20261022/*_configs*/*
+!/Hydro/experiments/gistohq_sligo/decade_20261022/*_configs*/run_manifest.json
+!/Hydro/experiments/gistohq_sligo/decade_20261022/*_configs*/manifest.json
+/Hydro/experiments/gistohq_sligo/decade_20261022/*_smoke.json
+/Hydro/experiments/gistohq_sligo/decade_20261022/*smoke.batch
+/Hydro/experiments/gistohq_sligo/improvement_loop_20261023/*configs*/*
+!/Hydro/experiments/gistohq_sligo/improvement_loop_20261023/*configs*/run_manifest.json
+!/Hydro/experiments/gistohq_sligo/improvement_loop_20261023/*configs*/manifest.json
+/Hydro/experiments/gistohq_sligo/interval_corrected_screen_configs/*
+!/Hydro/experiments/gistohq_sligo/interval_corrected_screen_configs/run_manifest.json
+/Hydro/experiments/gistohq_sligo/interval_screen_original_forcing_controls_configs/*
+!/Hydro/experiments/gistohq_sligo/interval_screen_original_forcing_controls_configs/run_manifest.json
