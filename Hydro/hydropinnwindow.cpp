@@ -51,6 +51,11 @@
 #include <QtCharts/QValueAxis>
 #include <QtCharts/QXYSeries>
 
+// This Qt build's Charts module is namespaced (QT_CHARTS_NAMESPACE=QtCharts),
+// so QChart/QLineSeries/QValueAxis/etc. below are QtCharts::QChart and so on
+// unless brought into scope here.
+using namespace QtCharts;
+
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -1635,20 +1640,51 @@ void HydroPINNWindow::exportExperimentArtifacts() {
     }
 }
 
-void HydroPINNWindow::loadInferenceArtifacts() {
-    const QString directory = QFileDialog::getExistingDirectory(
-        this, "Load Hydro inference artifact directory");
-    if (directory.isEmpty()) return;
-
+bool HydroPINNWindow::loadInferenceArtifactsFromDirectory(const QString& directory) {
+    // Split out of loadInferenceArtifacts() specifically so the real
+    // loading/inference-session-construction logic can be exercised directly
+    // by a test (constructing a HydroPINNWindow and calling this with a known
+    // directory), without needing to drive QFileDialog::getExistingDirectory
+    // at all. That modal dialog is what made this path unverifiable under a
+    // headless/offscreen Qt platform (improvement_loop_20261023/57); this
+    // function's own correctness does not depend on how the directory string
+    // was obtained, so it needed no change to become independently testable
+    // -- only extracting it from the dialog-driving wrapper did.
+    //
+    // Correction, caught by actually running the extracted test rather than
+    // assuming the extraction was sufficient: this function originally also
+    // called QMessageBox::information()/::critical() directly on success/
+    // failure. Those are modal dialogs too, exactly like the QFileDialog this
+    // split was meant to get away from -- a headless test calling this
+    // function still hung on them, with no file picker involved at all. Moved
+    // both calls out to loadInferenceArtifacts() (the interactive, dialog-
+    // driven entry point) below, which is the only caller that should ever
+    // show a message box; this function now reports outcomes only through
+    // appendLog() (already non-modal) and its own return value.
     try {
         auto artifacts = HydroArtifactLoader().loadForInference(directory.toStdString());
         QStringList approaches;
         std::map<QString, std::unique_ptr<HydroInferenceSession>> preparedSessions;
+        std::map<QString, bool> usesSharedScale;
         for (const auto& entry : artifacts.models) {
             const QString approach = QString::fromStdString(entry.first);
             approaches.push_back(approach);
-            preparedSessions.emplace(
-                approach, std::make_unique<HydroInferenceSession>(artifacts, entry.first));
+            // lstm_shared_scale_ablation_zero/_urban need a physics baseline
+            // and segment-aware sequences HydroInferenceSession does not
+            // implement; constructing one for them would throw the explicit
+            // rejection (correctly -- see Hydro/evaluation/inference_runner.cpp)
+            // and abort this ENTIRE load for every approach, not just this
+            // one. Skip the session for these specifically; they are routed
+            // through HydroInferenceRunner::runSharedScaleAblation instead,
+            // in runLoadedInferenceForMode below.
+            SharedScaleInferenceProfile profile;
+            const bool sharedScale = entry.first == "lstm_pinn" &&
+                parseSharedScaleInferenceProfile(artifacts.experiment.config.pinn_physics_profile, profile);
+            usesSharedScale[approach] = sharedScale;
+            if (!sharedScale) {
+                preparedSessions.emplace(
+                    approach, std::make_unique<HydroInferenceSession>(artifacts, entry.first));
+            }
         }
         const QString experimentId = QString::fromStdString(artifacts.experiment.experiment_id);
         std::map<QString, HydroRunResult> restoredResults;
@@ -1657,19 +1693,49 @@ void HydroPINNWindow::loadInferenceArtifacts() {
         }
         lastModeResults_ = std::move(restoredResults);
         inferenceSessions_ = std::move(preparedSessions);
+        inferenceApproachUsesSharedScale_ = std::move(usesSharedScale);
+        loadedInferenceDirectory_ = directory;
         loadedInferenceArtifacts_ = std::make_unique<HydroInferenceArtifacts>(std::move(artifacts));
         appendLog(QString("Loaded and prepared inference artifacts for experiment '%1': %2.")
                       .arg(experimentId, approaches.join(", ")));
+        lastInferenceArtifactLoadError_.clear();
+        refreshPerformanceAssessment();
+        return true;
+    } catch (const std::exception& error) {
+        loadedInferenceArtifacts_.reset();
+        inferenceSessions_.clear();
+        inferenceApproachUsesSharedScale_.clear();
+        loadedInferenceDirectory_.clear();
+        lastInferenceArtifactLoadError_ = QString::fromUtf8(error.what());
+        appendLog(QString("Inference artifact load failed: %1").arg(error.what()));
+        return false;
+    }
+}
+
+void HydroPINNWindow::loadInferenceArtifacts() {
+    const QString directory = QFileDialog::getExistingDirectory(
+        this, "Load Hydro inference artifact directory");
+    if (directory.isEmpty()) return;
+    // The only caller that should ever show a message box for this operation
+    // -- loadInferenceArtifactsFromDirectory() itself stays dialog-free so it
+    // can be driven directly by a test (see its own comment and
+    // improvement_loop_20261023/57).
+    if (loadInferenceArtifactsFromDirectory(directory)) {
+        QStringList approaches;
+        if (loadedInferenceArtifacts_) {
+            for (const auto& entry : loadedInferenceArtifacts_->models) {
+                approaches.push_back(QString::fromStdString(entry.first));
+            }
+        }
+        const QString experimentId = loadedInferenceArtifacts_
+            ? QString::fromStdString(loadedInferenceArtifacts_->experiment.experiment_id)
+            : QString();
         QMessageBox::information(
             this, "HydroPINN Inference Artifacts",
             QString("Loaded experiment '%1'.\nAvailable checkpoints: %2")
                 .arg(experimentId, approaches.join(", ")));
-        refreshPerformanceAssessment();
-    } catch (const std::exception& error) {
-        loadedInferenceArtifacts_.reset();
-        inferenceSessions_.clear();
-        appendLog(QString("Inference artifact load failed: %1").arg(error.what()));
-        QMessageBox::critical(this, "HydroPINN Inference Artifacts", QString::fromUtf8(error.what()));
+    } else {
+        QMessageBox::critical(this, "HydroPINN Inference Artifacts", lastInferenceArtifactLoadError_);
     }
 }
 
@@ -1914,18 +1980,25 @@ void HydroPINNWindow::showPredictionForMode(const QString& mode) {
 }
 
 bool HydroPINNWindow::runLoadedInferenceForMode(const QString& mode) {
+    if (!loadedInferenceArtifacts_) {
+        appendLog("Loaded checkpoint inference has no active experiment configuration.");
+        return false;
+    }
+    // lstm_shared_scale_ablation_zero/_urban have no entry in
+    // inferenceSessions_ at all (loadInferenceArtifacts skips constructing a
+    // HydroInferenceSession for them -- it would correctly throw an explicit
+    // rejection and abort loading every other approach too). Route those
+    // through HydroInferenceRunner::runSharedScaleAblation instead, below.
+    const auto sharedScaleIt = inferenceApproachUsesSharedScale_.find(mode);
+    const bool isSharedScale = sharedScaleIt != inferenceApproachUsesSharedScale_.end() && sharedScaleIt->second;
     const auto session = inferenceSessions_.find(mode);
-    if (session == inferenceSessions_.end()) {
+    if (!isSharedScale && session == inferenceSessions_.end()) {
         appendLog(QString("No loaded checkpoint session is available for '%1'.").arg(modeDisplayName(mode)));
         return false;
     }
     const HydroRunConfig current = currentConfig();
     if (!current.use_hydro_package && !current.use_csv_data) {
         appendLog("Loaded checkpoint inference currently requires Hydro Package or CSV as the Data tab source.");
-        return false;
-    }
-    if (!loadedInferenceArtifacts_) {
-        appendLog("Loaded checkpoint inference has no active experiment configuration.");
         return false;
     }
     try {
@@ -1952,6 +2025,34 @@ bool HydroPINNWindow::runLoadedInferenceForMode(const QString& mode) {
         config.hydro_package_path = current.hydro_package_path;
         config.hydro_catchment_id = current.hydro_catchment_id;
         config.csv_path = current.csv_path;
+
+        if (isSharedScale) {
+            if (!config.use_hydro_package) {
+                throw std::runtime_error("lstm_shared_scale_ablation_zero/_urban require Hydro Package as the data source.");
+            }
+            // holdoutMode is always false here -- the UI has no path to the
+            // holdout confirmation token, by design (Hydro/experiments/
+            // gistohq_sligo/run_frozen_shared_scale_inference.cpp is the only
+            // place that token is ever accepted). Ordinary prediction through
+            // this window never lifts the reserved-period seal.
+            const SharedScaleInferenceResult shared = HydroInferenceRunner().runSharedScaleAblation(
+                config, loadedInferenceDirectory_.toStdString(), mode.toStdString(), /*holdoutMode=*/false);
+            HydroRunResult result;
+            result.success = true;
+            result.message = "Loaded checkpoint inference (shared-scale-ablation) on current Hydro package.";
+            result.x = shared.x;
+            result.y_true = shared.observed;
+            result.y_pred = shared.predicted;
+            result.split = shared.split;
+            populateHydroMetrics(result, result.y_true, result.y_pred);
+            populateHydroPeakMetrics(result);
+            lastModeResults_[mode] = std::move(result);
+            updatePlot(mode, lastModeResults_.at(mode));
+            appendLog(QString("Ran loaded '%1' checkpoint (shared-scale-ablation) on %2 current package samples.")
+                          .arg(modeDisplayName(mode)).arg(static_cast<qlonglong>(shared.x.size())));
+            return true;
+        }
+
         torch::Tensor inputs;
         torch::Tensor targets;
         torch::Tensor plotX;

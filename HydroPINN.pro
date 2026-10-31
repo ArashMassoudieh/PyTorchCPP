@@ -126,6 +126,7 @@ SOURCES += \
     Hydro/evaluation/experiment_loader.cpp \
     Hydro/evaluation/artifact_loader.cpp \
     Hydro/evaluation/inference_runner.cpp \
+    Hydro/evaluation/shared_scale_inference.cpp \
     Hydro/models/pinn_wrapper.cpp \
     Hydro/physics/physics_config.cpp \
     Hydro/physics/rr_physics.cpp \
@@ -152,6 +153,7 @@ HEADERS += \
     Hydro/dataset/sequence_builder.h Hydro/dataset/chronological_split.h Hydro/dataset/tensor_scaler.h \
     Hydro/evaluation/hydro_metrics.h Hydro/evaluation/experiment_exporter.h Hydro/evaluation/experiment_loader.h \
     Hydro/evaluation/artifact_loader.h Hydro/evaluation/inference_runner.h Hydro/evaluation/model_checkpoint.h \
+    Hydro/evaluation/shared_scale_inference.h \
     Hydro/physics/physics_config.h Hydro/physics/rr_physics.h \
     Hydro/models/hydro_run_types.h Hydro/models/hydro_lstm_module.h \
     Hydro/models/physics_batch.h Hydro/models/reservoir_routing_tensor.h \

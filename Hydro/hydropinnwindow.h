@@ -17,7 +17,12 @@ class QSpinBox;
 class QDoubleSpinBox;
 class QCheckBox;
 class QLineEdit;
-class QChartView;
+// QChartView is defined inside namespace QtCharts (this Qt build's Charts
+// module is namespaced); forward-declaring it at global scope here created a
+// second, undefined ::QChartView that collides with QtCharts::QChartView
+// once the .cpp brings the real one into scope with `using namespace QtCharts;`.
+namespace QtCharts { class QChartView; }
+using QtCharts::QChartView;
 class QTextBrowser;
 class QListWidget;
 
@@ -31,6 +36,15 @@ class HydroPINNWindow : public QMainWindow {
 public:
     explicit HydroPINNWindow(QWidget* parent = nullptr);
     void showCurrentInputsOutputs();
+    // Public specifically so a test can load a known artifact directory and
+    // then drive the real "Show <mode>" buttons to exercise the real
+    // runLoadedInferenceForMode() path, without ever needing to automate
+    // QFileDialog::getExistingDirectory() (loadInferenceArtifacts() still
+    // uses that dialog and remains the normal user-facing entry point; this
+    // is the logic it calls, exposed directly). See
+    // Hydro/tests/gui_inference_artifact_loading_test.cpp and
+    // improvement_loop_20261023/57.
+    bool loadInferenceArtifactsFromDirectory(const QString& directory);
 
 private:
     QLabel* statusLabel_;
@@ -139,6 +153,20 @@ private:
     std::map<QString, HydroRunResult> lastModeResults_;
     std::unique_ptr<HydroInferenceArtifacts> loadedInferenceArtifacts_;
     std::map<QString, std::unique_ptr<HydroInferenceSession>> inferenceSessions_;
+    // Approaches whose pinn_physics_profile is lstm_shared_scale_ablation_zero
+    // or _urban: HydroInferenceSession explicitly rejects these (they need a
+    // physics baseline + segment-aware sequences it doesn't implement), so no
+    // session is constructed for them in inferenceSessions_. Instead
+    // runLoadedInferenceForMode routes them to
+    // HydroInferenceRunner::runSharedScaleAblation, which needs the on-disk
+    // experiment directory (for its own frozen-scaler/checkpoint loading),
+    // hence this member. See Hydro/evaluation/shared_scale_inference.h.
+    QString loadedInferenceDirectory_;
+    // Set by loadInferenceArtifactsFromDirectory() on failure (cleared on
+    // success), since that function itself no longer shows a QMessageBox --
+    // only loadInferenceArtifacts() does, using this to populate the dialog.
+    QString lastInferenceArtifactLoadError_;
+    std::map<QString, bool> inferenceApproachUsesSharedScale_;
     std::vector<double> lastSyntheticX_;
     std::vector<double> lastSyntheticTarget_;
     std::map<QString, std::vector<double>> lastSyntheticInputs_;

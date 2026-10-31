@@ -202,6 +202,9 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     // field (-1 = unset, takes priority over test_end_split_ratio when
     // both are present - see chronological_split.h's testEndX doc comment).
     c.test_end_x = static_cast<int64_t>(optionalNumberValue(json, "test_end_x", -1.0));
+    c.train_end_x = static_cast<int64_t>(optionalNumberValue(json, "train_end_x", -1.0));
+    c.validation_end_x = static_cast<int64_t>(optionalNumberValue(json, "validation_end_x", -1.0));
+    c.pinn_initial_flow = optionalNumberValue(json, "pinn_initial_flow", -1.0);
     c.shuffle_training = boolValue(json, "shuffle_training");
     c.evaluate_metrics = boolValue(json, "evaluate_metrics");
     c.normalization = stringValue(json, "normalization");
@@ -227,6 +230,19 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.lstm_warm_start_checkpoint_path = optionalStringValue(json, "lstm_warm_start_checkpoint_path", "");
     c.lstm_dropout = optionalNumberValue(json, "lstm_dropout", 0.0);
     c.antecedent_index_halflife_hours = optionalNumberValue(json, "antecedent_index_halflife_hours", 0.0);
+    c.urban_quick_k = optionalNumberValue(json, "urban_quick_k", 1.0);
+    c.urban_slow_k = optionalNumberValue(json, "urban_slow_k", 0.04);
+    c.urban_detention_k = optionalNumberValue(json, "urban_detention_k", 0.08);
+    c.urban_channel_k = optionalNumberValue(json, "urban_channel_k", 1.0);
+    c.urban_quick_fraction = optionalNumberValue(json, "urban_quick_fraction", 0.26);
+    c.urban_detention_fraction = optionalNumberValue(json, "urban_detention_fraction", 0.183);
+    c.urban_runoff_coefficient = optionalNumberValue(json, "urban_runoff_coefficient", 1.0);
+    c.urban_intensity_quick_strength = optionalNumberValue(json, "urban_intensity_quick_strength", 0.0);
+    c.urban_intensity_reference_mm_h = optionalNumberValue(json, "urban_intensity_reference_mm_h", 1.0);
+    if (!std::isfinite(c.urban_intensity_quick_strength) || c.urban_intensity_quick_strength < 0.0 || c.urban_intensity_quick_strength > 1.0 ||
+        !std::isfinite(c.urban_intensity_reference_mm_h) || c.urban_intensity_reference_mm_h <= 0.0) {
+        throw std::runtime_error("Urban intensity response requires strength in [0,1] and positive finite reference");
+    }
     c.regional_training_basin_list_path = optionalStringValue(json, "regional_training_basin_list_path", "");
     c.regional_validation_basin_list_path = optionalStringValue(json, "regional_validation_basin_list_path", "");
     c.regional_per_basin_sequence_count = static_cast<int64_t>(optionalNumberValue(json, "regional_per_basin_sequence_count", -1.0));

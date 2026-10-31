@@ -1566,14 +1566,20 @@ torch::Tensor NeuralNetworkWrapper::forward_internal(torch::Tensor input) {
         } else if (hidden_activation_function_ == "sigmoid") {
             x = torch::sigmoid(x);
         }
-        // Apply output activation function
-        if (output_activation_function_ == "relu") {
-            x = torch::relu(x);
-        } else if (output_activation_function_ == "tanh") {
-            x = torch::tanh(x);
-        } else if (output_activation_function_ == "sigmoid") {
-            x = torch::sigmoid(x);
-        }
+        // Deliberately no output_activation_function_ step here. This block
+        // existed and was found, by direct comparison, to make this function
+        // diverge from forward(DataType) -- whose equivalent block is
+        // commented out -- and from forward(DataType) is what
+        // Hydro/models/ffn_wrapper.cpp and ffn_pinn_wrapper.cpp actually call
+        // (model.forward(DataType::Test)) to compute every predValidation/
+        // predTest/predFull this program has ever exported or reported for
+        // the ffn/ffn_pinn approaches. initializeNetwork(output_size, activation)
+        // sets input/hidden/output activation to the same string, so with a
+        // nonempty activation this function was applying it one extra time
+        // relative to the function whose output is what actually gets
+        // exported -- confirmed by a synthetic before/after comparison
+        // (Hydro/experiments/gistohq_sligo/test_inference_runner_explicit_rejection.cpp's
+        // sibling investigation; see improvement_loop_20261023/50's follow-on).
     }
 
     // Final layer without activation

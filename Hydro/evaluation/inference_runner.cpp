@@ -47,6 +47,20 @@ torch::nn::Sequential makeSequential(int64_t inputDim,
     return model;
 }
 
+// Pre-existing bug, found and fixed here (improvement_loop_20261023/50 and its
+// follow-on): this class only ever called setg() and never overrode
+// seekoff/seekpos. std::streambuf's default seekoff/seekpos unconditionally
+// fail (return pos_type(off_type(-1))), so tellg()/seekg() on a stream backed
+// by this buffer always failed -- exactly the
+// "istream reader failed: getting the current position" abort LibTorch's
+// zip-format checkpoint reader hits, since it needs random access to parse a
+// zip archive. This affects the real HydroInferenceSession checkpoint-loading
+// path in production, not only the test that first surfaced it: every
+// HydroInferenceSession construction for approach in {ffn_pinn, pinn, lstm,
+// lstm_pinn} (the torch-module-v1/sequential paths) loads through this same
+// buffer. Confirmed pre-existing, not introduced by any change in this
+// session: reproduced identically against the unmodified file checked out
+// from git HEAD before this fix was written.
 class CheckpointMemoryBuffer : public std::streambuf {
 public:
     explicit CheckpointMemoryBuffer(const std::vector<std::uint8_t>& bytes) {
@@ -161,6 +175,46 @@ HydroInferenceSession::HydroInferenceSession(const HydroInferenceArtifacts& arti
         if (modelArtifact->second.format != "torch-module-v1") {
             throw std::runtime_error("Recurrent inference requires torch-module-v1.");
         }
+        // Hydro/models/lstm_pinn_wrapper.cpp's LSTMPINNWrapper::train() dispatches
+        // on pinn_physics_profile to one of six training functions. Four of them
+        // (trainResidualHybrid for lstm_residual_pinn_hybrid; trainSharedScaleAblation
+        // for the three lstm_shared_scale_ablation_* profiles) compute predFull as
+        // clamp_min(0, baseline + inverseTransform(model->forward(...))) -- the clip
+        // applies to the SUM, not to the residual before adding the baseline; those
+        // are different numbers -- over segment-aware, warm-up-excluding sequences.
+        // This bare forward-pass engine implements none of that (confirmed by direct
+        // source comparison, improvement_loop_20261023/47). Checked BEFORE loading
+        // the checkpoint at all, so an unsupported profile fails with this message
+        // instead of whatever the loader happens to do first (archive loading has its
+        // own, unrelated failure modes -- see improvement_loop_20261023/50 -- and must
+        // never be allowed to preempt this check).
+        static const std::vector<std::string> kKnownUnsupportedLstmPinnProfiles = {
+            "lstm_residual_pinn_hybrid",
+            "lstm_shared_scale_ablation_zero",
+            "lstm_shared_scale_ablation_urban",
+            "lstm_shared_scale_ablation_physics",
+        };
+        if (approach == "lstm_pinn" &&
+            std::find(kKnownUnsupportedLstmPinnProfiles.begin(), kKnownUnsupportedLstmPinnProfiles.end(),
+                      artifacts.experiment.config.pinn_physics_profile) != kKnownUnsupportedLstmPinnProfiles.end()) {
+            throw std::runtime_error(
+                "HydroInferenceSession does not support lstm_pinn profile '" +
+                artifacts.experiment.config.pinn_physics_profile + "'. This profile requires a physics "
+                "baseline, output clipping, and segment-aware sequence construction this bare forward-pass "
+                "engine does not perform, and would silently produce a wrong (not merely approximate) "
+                "prediction. See Hydro/experiments/gistohq_sligo/run_frozen_shared_scale_inference.cpp for "
+                "the validated implementation, and "
+                "improvement_loop_20261023/47_frozen_inference_validation.md for how this gap was found.");
+        }
+        // NOTE: rejecting the four profiles above is NOT the same as establishing that
+        // every remaining profile (two_reservoir_hybrid aside) produces a prediction
+        // matching its training pipeline. The "water_balance"/default path's own
+        // backend (lstmnetworkwrapper.cpp) also applies clamp_min(0, ...) to its
+        // output, which this engine's bare fallback below still does not apply at
+        // all. Matching model family is not the same claim as matching predictions --
+        // that parity is unverified for every profile this engine does not explicitly
+        // reject, not just the four it does. Tracked for the shared forward-inference
+        // extraction (Task 6 part 2), not resolved by this explicit-rejection pass.
         impl_->sequenceLength = std::max(2, artifacts.experiment.config.lstm_sequence_length);
         CheckpointMemoryStream archiveStream(modelArtifact->second.bytes);
         torch::serialize::InputArchive archive;
@@ -261,4 +315,18 @@ torch::Tensor HydroInferenceRunner::predictRecurrent(
         throw std::invalid_argument("Recurrent inference does not support approach: " + approach);
     }
     return HydroInferenceSession(artifacts, approach).predict(physicalSequences);
+}
+
+SharedScaleInferenceResult HydroInferenceRunner::runSharedScaleAblation(
+    const HydroRunConfig& config,
+    const std::string& frozenExperimentDir,
+    const std::string& approach,
+    bool holdoutMode) const {
+    SharedScaleInferenceProfile profile;
+    if (!parseSharedScaleInferenceProfile(config.pinn_physics_profile, profile)) {
+        throw std::runtime_error(
+            "runSharedScaleAblation does not support pinn_physics_profile '" + config.pinn_physics_profile +
+            "'. Call parseSharedScaleInferenceProfile first to check before routing here.");
+    }
+    return runSharedScaleInference(config, profile, frozenExperimentDir, approach, holdoutMode);
 }

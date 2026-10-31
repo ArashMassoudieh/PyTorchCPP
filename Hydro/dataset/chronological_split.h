@@ -99,3 +99,16 @@ inline ChronologicalSplit makeChronologicalSplit(int64_t total,
     }
     return {trainEnd, validationEnd, total, testEnd};
 }
+
+// Counts resolved from explicit calendar/x cutoffs. Unlike ratio splits these
+// keep the same calendar boundaries across models with different warm-up/gaps.
+inline ChronologicalSplit makeExactChronologicalSplit(int64_t total,
+                                                      int64_t trainEnd,
+                                                      int64_t validationEnd,
+                                                      int64_t testEnd) {
+    if (!(0 < trainEnd && trainEnd < validationEnd &&
+          validationEnd < testEnd && testEnd <= total)) {
+        throw std::invalid_argument("Exact temporal split requires nonempty ordered train, validation and test partitions.");
+    }
+    return {trainEnd, validationEnd, total, testEnd};
+}

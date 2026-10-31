@@ -132,6 +132,14 @@ struct HydroRunConfig {
     // results/nse08_recovery_20261015/phase3_regional/00_phase3_design.md's
     // "Status update" section for the full account.
     int64_t test_end_x = -1;
+    // Optional inclusive exported-x cutoffs. Set both together with test_end_x;
+    // they override fractional training/validation boundaries.
+    int64_t train_end_x = -1;
+    int64_t validation_end_x = -1;
+    // -1 retains observed discharge initialization at each continuous segment.
+    // A nonnegative value starts every segment from this fixed discharge,
+    // avoiding use of target observations when restarting after a test gap.
+    double pinn_initial_flow = -1.0;
     bool shuffle_training = true;
     int random_seed = 42;
     std::string optimizer = "adam";
@@ -211,6 +219,19 @@ struct HydroRunConfig {
     // own recurrence/lookback window already sees. 0.0 (default) disables
     // this and recovers prior behavior exactly.
     double antecedent_index_halflife_hours = 0.0;
+
+    // Reduced urban/managed-storage baseline used by the controlled
+    // shared-scale LSTM ablation. These parameters are explicit so the
+    // framework does not overload the legacy two-reservoir fields.
+    double urban_quick_k = 1.0;
+    double urban_slow_k = 0.04;
+    double urban_detention_k = 0.08;
+    double urban_channel_k = 1.0;
+    double urban_quick_fraction = 0.26;
+    double urban_detention_fraction = 0.183;
+    double urban_runoff_coefficient = 1.0;
+    double urban_intensity_quick_strength = 0.0;
+    double urban_intensity_reference_mm_h = 1.0;
 
     // Regional multi-basin pretraining mode only (lstm_regional_pretrain,
     // see lstm_regional_pretrain.h): paths to plain text files, one

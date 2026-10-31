@@ -259,6 +259,12 @@ std::map<std::string, HydroArtifactScalers> HydroArtifactLoader::loadScalers(
 
         auto& pair = scalers[fields[0]];
         auto& state = fields[1] == "input" ? pair.input : pair.target;
+        // HydroScalerState defaults to an identity transform. The first CSV
+        // row replaces that default; subsequent rows extend the same scaler.
+        if (expected == 0) {
+            state.offset.clear();
+            state.scale.clear();
+        }
         const auto shape = parseShape(fields[4], row);
         if (!state.offset.empty() && (state.method != fields[3] || state.shape != shape)) {
             throw std::runtime_error("Inconsistent scaler metadata in row " + std::to_string(row) + ".");
