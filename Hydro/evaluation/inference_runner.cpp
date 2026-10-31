@@ -51,9 +51,47 @@ class CheckpointMemoryBuffer : public std::streambuf {
 public:
     explicit CheckpointMemoryBuffer(const std::vector<std::uint8_t>& bytes) {
         if (bytes.empty()) throw std::runtime_error("Inference checkpoint is empty.");
-        auto* begin = const_cast<char*>(reinterpret_cast<const char*>(bytes.data()));
-        setg(begin, begin, begin + bytes.size());
+        begin_ = const_cast<char*>(reinterpret_cast<const char*>(bytes.data()));
+        end_ = begin_ + bytes.size();
+        setg(begin_, begin_, end_);
     }
+
+protected:
+    pos_type seekoff(off_type off, std::ios_base::seekdir dir, std::ios_base::openmode which) override {
+        if (!(which & std::ios_base::in)) return pos_type(off_type(-1));
+        const off_type size = static_cast<off_type>(end_ - begin_);
+        off_type baseOffset;
+        switch (dir) {
+            case std::ios_base::beg: baseOffset = 0; break;
+            case std::ios_base::cur: baseOffset = static_cast<off_type>(gptr() - begin_); break;
+            case std::ios_base::end: baseOffset = size; break;
+            default: return pos_type(off_type(-1));
+        }
+        // Bounds-check in integer space BEFORE forming any pointer, AND
+        // before computing `baseOffset + off` itself. `off` is parser-
+        // controlled input (read out of the checkpoint byte stream by
+        // LibTorch's zip reader) and can be any value `off_type` can hold,
+        // including near its min/max -- so `baseOffset + off` can overflow a
+        // signed integer (UB) even though `baseOffset` itself is always
+        // small (bounded by `size`). Checked against the equivalent
+        // non-overflowing bound `off in [-baseOffset, size - baseOffset]`
+        // instead of performing the addition speculatively; both ends of
+        // that range are safe to compute since `baseOffset` and `size` are
+        // always within [0, size], far from off_type's limits.
+        if (off < -baseOffset || off > size - baseOffset) return pos_type(off_type(-1));
+        const off_type requested = baseOffset + off;
+        char* newPos = begin_ + requested;
+        setg(begin_, newPos, end_);
+        return pos_type(requested);
+    }
+
+    pos_type seekpos(pos_type pos, std::ios_base::openmode which) override {
+        return seekoff(off_type(pos), std::ios_base::beg, which);
+    }
+
+private:
+    char* begin_ = nullptr;
+    char* end_ = nullptr;
 };
 
 class CheckpointMemoryStream : public std::istream {
