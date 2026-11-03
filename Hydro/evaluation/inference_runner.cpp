@@ -322,6 +322,30 @@ SharedScaleInferenceResult HydroInferenceRunner::runSharedScaleAblation(
     const std::string& frozenExperimentDir,
     const std::string& approach,
     bool holdoutMode) const {
+    // Opt-in multiscale dispatch (improvement_loop_20261023 report 70),
+    // mirroring trainSharedScaleAblationMultiscale's own dispatch in
+    // lstm_pinn_wrapper.cpp -- checked BEFORE the profile parse below so a
+    // disabled config (multiscale_daily_history_days==0, the default)
+    // takes the exact unmodified path it always did.
+    if (config.multiscale_daily_history_days > 0) {
+        if (config.pinn_physics_profile != "lstm_shared_scale_ablation_zero") {
+            throw std::runtime_error(
+                "runSharedScaleAblation: multiscale_daily_history_days > 0 is only supported for "
+                "pinn_physics_profile 'lstm_shared_scale_ablation_zero', got '" + config.pinn_physics_profile + "'.");
+        }
+        // Matched-control checkpoints (task #143) are a plain HydroLSTM
+        // ("torch-module-v1"), not a MultiscaleHydroLSTM -- checked BEFORE
+        // the multiscale dispatch below, which requires
+        // "torch-module-v1-multiscale" and would simply throw on a
+        // matched-control checkpoint (improvement_loop_20261023 report 72,
+        // caught on user review: this dispatcher previously routed every
+        // positive history length to the multiscale loader regardless of
+        // this flag).
+        if (config.multiscale_matched_control) {
+            return runMatchedControlSharedScaleInference(config, frozenExperimentDir, approach, holdoutMode);
+        }
+        return runMultiscaleSharedScaleInference(config, frozenExperimentDir, approach, holdoutMode);
+    }
     SharedScaleInferenceProfile profile;
     if (!parseSharedScaleInferenceProfile(config.pinn_physics_profile, profile)) {
         throw std::runtime_error(

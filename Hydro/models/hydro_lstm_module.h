@@ -22,6 +22,23 @@ struct HydroLSTMImpl : torch::nn::Module {
         return fc->forward(output.select(1, output.size(1) - 1));
     }
 
+    // Additive overload (improvement_loop_20261023 report 68): an explicit
+    // initial (h0, c0) for the multiscale daily-history branch to transfer
+    // into. The no-argument forward() above is completely unchanged and is
+    // still what every existing caller uses -- this overload is never
+    // reached unless a caller opts in by passing initialState, so disabled
+    // (default) behavior is the exact same call, not a conditional skip of
+    // new code.
+    torch::Tensor forward(const torch::Tensor& inputs,
+                          const torch::Tensor& h0,
+                          const torch::Tensor& c0) {
+        const auto output = std::get<0>(lstm->forward(inputs, std::make_tuple(h0, c0)));
+        return fc->forward(output.select(1, output.size(1) - 1));
+    }
+
+    int64_t hiddenSize() const { return lstm->options.hidden_size(); }
+    int64_t numLayers() const { return lstm->options.num_layers(); }
+
     torch::nn::LSTM lstm{nullptr};
     torch::nn::Linear fc{nullptr};
 };

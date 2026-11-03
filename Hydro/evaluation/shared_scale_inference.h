@@ -52,3 +52,41 @@ SharedScaleInferenceResult runSharedScaleInference(
     const std::string& frozenExperimentDir,
     const std::string& approach,
     bool holdoutMode);
+
+// Additive counterpart (improvement_loop_20261023 reports 66-69) for a
+// checkpoint trained by trainSharedScaleAblationMultiscale (approach
+// "lstm_multiscale", Zero baseline only -- the only arm this program's
+// multiscale screen manifest uses). Does not touch runSharedScaleInference
+// above, which remains exactly as verified in reports 58-60.
+//
+// Result rows cover ELIGIBLE windows only (daily_history::eligibleWindowIndices)
+// -- a multiscale checkpoint has no defined forward pass for a window
+// lacking its required daily-history length, and there is no fallback (report
+// 69). Callers comparing against a control-arm result must intersect on
+// SharedScaleInferenceResult::x themselves; the two results are not
+// guaranteed to have the same row count or the same length.
+SharedScaleInferenceResult runMultiscaleSharedScaleInference(
+    const HydroRunConfig& config,
+    const std::string& frozenExperimentDir,
+    const std::string& approach,
+    bool holdoutMode);
+
+// Additive counterpart (improvement_loop_20261023 report 72 / task #143's
+// public-entry-point gap) for a checkpoint trained by
+// trainSharedScaleAblationMatchedControl -- an ordinary plain HydroLSTM
+// ("torch-module-v1", same approach/format as a non-matched-control zero
+// run), so this reuses runSharedScaleInference's existing, unmodified Zero
+// reload verbatim (never runMultiscaleSharedScaleInference's loader, which
+// requires "torch-module-v1-multiscale" and would simply throw on a
+// matched-control checkpoint). The one real difference: this filters the
+// full, unrestricted reload result down to the SAME eligible-window set
+// (daily_history::eligibleWindowIndices) the paired multiscale checkpoint's
+// own reload is restricted to, recomputed independently from the same
+// package/config rather than persisted anywhere, so a caller comparing this
+// against runMultiscaleSharedScaleInference's result gets identical x/split
+// coverage without needing to intersect on x itself.
+SharedScaleInferenceResult runMatchedControlSharedScaleInference(
+    const HydroRunConfig& config,
+    const std::string& frozenExperimentDir,
+    const std::string& approach,
+    bool holdoutMode);

@@ -2,9 +2,12 @@
 #include "lstm_pinn_wrapper.h"
 #include "lstmnetworkwrapper.h"
 #include "hydro_lstm_module.h"
+#include "multiscale_lstm_module.h"
 #include "two_reservoir_routing.h"
 
 #include "../dataset/chronological_split.h"
+#include "../dataset/configured_chronological_split.h"
+#include "../dataset/daily_history_builder.h"
 #include "../dataset/resolve_test_end_x_tensor.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
 #include "../dataset/tensor_scaler.h"
@@ -1107,6 +1110,467 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
     return result;
 }
 
+// Opt-in multiscale variant of trainSharedScaleAblation's Zero-baseline arm
+// (improvement_loop_20261023 reports 66-69) -- "lstm_multiscale" approach,
+// dispatched only when config.multiscale_daily_history_days > 0. Restricted
+// to the Zero baseline because that is the only arm this program's
+// multiscale screen manifest uses (generate_multiscale_memory_screen.py);
+// not a general replacement for trainSharedScaleAblation, which is
+// completely unmodified by this addition (confirmed: nothing above this
+// comment changed).
+//
+// Mirrors trainSharedScaleAblation's split/scale/train/score structure
+// exactly where the two are not supposed to differ, so a side-by-side read
+// of the two functions shows precisely where the multiscale arm departs:
+// (1) a parallel daily-history tensor built alongside the hourly sequence,
+// (2) one shared eligibility mask (daily_history::eligibleWindowIndices)
+// applied to every per-split tensor, train/validation/test alike, so the
+// scored window set is restricted identically in both places it matters,
+// (3) MultiscaleHydroLSTM in place of HydroLSTM, forwarded with both the
+// hourly and daily tensors.
+HydroRunResult trainSharedScaleAblationMultiscale(const HydroRunConfig& config) {
+    HydroRunResult result;
+    torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
+    if (config.multiscale_daily_history_days <= 0) {
+        throw std::invalid_argument("trainSharedScaleAblationMultiscale requires multiscale_daily_history_days > 0.");
+    }
+
+    torch::Tensor physicsX, y, plotX, segmentId;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX, segmentId)) {
+        throw std::runtime_error("Unable to construct reduced-reservoir LSTM multiscale tensors.");
+    }
+    if (physicsX.dim() != 2 || physicsX.size(1) < 4) {
+        throw std::runtime_error("LSTM multiscale requires [time, Peff, precipitation, PET, ...] input features.");
+    }
+
+    const torch::Tensor peffFull = physicsX.slice(1, 1, 2).reshape({-1}).contiguous();
+    const torch::Tensor precipitationFull = physicsX.slice(1, 2, 3).reshape({-1}).contiguous();
+    const torch::Tensor petFull = physicsX.slice(1, 3, 4).reshape({-1}).contiguous();
+    const torch::Tensor observedFull = y.reshape({-1}).contiguous();
+    const int64_t n = peffFull.size(0);
+    // Zero baseline only -- see function comment.
+    const torch::Tensor baselineFull = torch::zeros({n, 1}, torch::kFloat32);
+    const torch::Tensor targetFull = y - baselineFull;  // == y
+
+    const torch::Tensor modelX = predictorFeatures(physicsX);
+    const torch::Tensor precipitationCol = precipitationFull.reshape({-1, 1});
+    SequenceData seq = makeSequences(modelX, targetFull, plotX, peffFull.reshape({-1, 1}), precipitationCol,
+                                     config.lstm_sequence_length, segmentId);
+    const int sequenceLength = std::max(2, config.lstm_sequence_length);
+    const torch::Tensor sequenceEndpoints = sequenceEndpointIndices(segmentId, sequenceLength);
+    const torch::Tensor qObservedSeq = observedFull.reshape({-1, 1}).index_select(0, sequenceEndpoints).contiguous();
+    const torch::Tensor baselineSeq = baselineFull.index_select(0, sequenceEndpoints).contiguous();
+
+    // Daily-history tensor, one row per hourly window, built from the SAME
+    // full-resolution plotX/precipitation/PET/segmentId the hourly windows
+    // came from -- never the windowed/sliced versions, so completed-day
+    // alignment and segment-membership are checked against real timestamps
+    // (report 69's fix), not sequence position.
+    const auto dailyResult = daily_history::buildDailyHistoryTensorsFromWindowEndTimes(
+        plotX, precipitationFull, petFull, segmentId, seq.time, sequenceLength,
+        config.multiscale_daily_history_days);
+    const torch::Tensor eligibleIdx = daily_history::eligibleWindowIndices(dailyResult.eligible);
+    if (eligibleIdx.numel() < 8) {
+        throw std::runtime_error("LSTM multiscale: too few eligible windows (insufficient daily history) to train.");
+    }
+
+    // config.test_end_x is in exported-x space, not sequence-index space -
+    // resolve it against this model's actual sequence endpoints (gap-aware),
+    // exactly as trainSharedScaleAblation does, BEFORE any eligibility
+    // filtering -- the chronological boundary itself is unaffected by which
+    // windows later turn out to have enough daily history.
+    const ChronologicalSplit split = configuredChronologicalSplit(seq.time, config);
+    const int64_t nTrain = split.train_end;
+
+    // One shared eligibility mask, applied identically to every per-split
+    // tensor -- report 69's fix for the training/scoring inconsistency a
+    // per-model fallback method previously introduced. Restricting to each
+    // split range AND the eligible set, in that order, keeps the
+    // chronological boundary computation (above) completely unaffected by
+    // eligibility, while still scoring only eligible windows within each
+    // resulting range.
+    const auto restrictToEligible = [&](const torch::Tensor& tensor, int64_t rangeStart, int64_t rangeEnd) {
+        const torch::Tensor rangeMask = (eligibleIdx >= rangeStart) & (eligibleIdx < rangeEnd);
+        const torch::Tensor rangeEligibleIdx = eligibleIdx.index({rangeMask}) - rangeStart;
+        return tensor.slice(0, rangeStart, rangeEnd).index_select(0, rangeEligibleIdx).contiguous();
+    };
+
+    torch::Tensor xTrainPhysical = restrictToEligible(seq.x, 0, nTrain);
+    torch::Tensor targetTrainPhysical = restrictToEligible(seq.y, 0, nTrain);
+    torch::Tensor dailyTrain = restrictToEligible(dailyResult.features, 0, nTrain);
+    torch::Tensor xValidationPhysical = restrictToEligible(seq.x, nTrain, split.validation_end);
+    torch::Tensor dailyValidation = restrictToEligible(dailyResult.features, nTrain, split.validation_end);
+    torch::Tensor xTestPhysical = restrictToEligible(seq.x, split.validation_end, split.test_end);
+    torch::Tensor dailyTest = restrictToEligible(dailyResult.features, split.validation_end, split.test_end);
+    torch::Tensor qValidation = restrictToEligible(qObservedSeq, nTrain, split.validation_end);
+    torch::Tensor qTest = restrictToEligible(qObservedSeq, split.validation_end, split.test_end);
+    torch::Tensor baselineValidation = restrictToEligible(baselineSeq, nTrain, split.validation_end);
+    torch::Tensor baselineTest = restrictToEligible(baselineSeq, split.validation_end, split.test_end);
+    if (xTrainPhysical.size(0) < 8 || xValidationPhysical.size(0) < 1 || xTestPhysical.size(0) < 1) {
+        throw std::runtime_error("LSTM multiscale: too few eligible windows in one of train/validation/test after eligibility filtering.");
+    }
+
+    TensorScaler inputScaler;
+    inputScaler.fit(xTrainPhysical, "standardize");
+    torch::Tensor xTrain = inputScaler.transform(xTrainPhysical);
+    torch::Tensor xValidation = inputScaler.transform(xValidationPhysical);
+    torch::Tensor xTest = inputScaler.transform(xTestPhysical);
+
+    torch::Tensor qTrainPhysical = restrictToEligible(qObservedSeq, 0, nTrain);
+    const double commonScale = std::max(1.0e-6, qTrainPhysical.std().item<double>());
+    HydroScalerState commonScaleState;
+    commonScaleState.method = "standardize";
+    commonScaleState.shape = {1};
+    commonScaleState.offset = {0.0};
+    commonScaleState.scale = {commonScale};
+    TensorScaler targetScaler;
+    targetScaler.importState(commonScaleState);
+    torch::Tensor targetTrain = targetScaler.transform(targetTrainPhysical);
+
+    const std::vector<int> hiddenLayers = parseHiddenLayers(config.hidden_layers_csv);
+    const int64_t hiddenDim = static_cast<int64_t>(hiddenLayers.front());
+    const int64_t numLayers = static_cast<int64_t>(std::max<std::size_t>(1, hiddenLayers.size()));
+    MultiscaleHydroLSTM model(seq.x.size(2), hiddenDim, 1, numLayers,
+                              /*dailyInputDim=*/2, config.multiscale_daily_hidden_size);
+    // Daily-feature scaler (report 71): fit on training-eligible rows only
+    // -- the same leakage-avoidance convention already used for
+    // inputScaler/targetScaler above, extended to the daily branch's own
+    // inputs. Persisted inside this model's own checkpoint (register_buffer
+    // in multiscale_lstm_module.h), not scalers.csv.
+    model->fitDailyScaler(dailyTrain);
+    torch::optim::Adam optimizer(model->parameters(),
+                                 torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
+
+    const int64_t trainN = xTrain.size(0);
+    const int batchSize = std::max(2, config.batch_size);
+    std::vector<torch::Tensor> bestParameters;
+    std::vector<double> losses;
+    std::vector<double> validationLosses;
+    double bestValidationMse = std::numeric_limits<double>::infinity();
+    int bestEpoch = 0;
+
+    for (int epoch = 0; epoch < std::max(1, config.epochs); ++epoch) {
+        model->train();
+        double epochLoss = 0.0;
+        int64_t seen = 0;
+        for (int64_t start = 0; start < trainN; start += batchSize) {
+            const int64_t end = std::min<int64_t>(start + batchSize, trainN);
+            if (end - start < 2) continue;
+            optimizer.zero_grad();
+            torch::Tensor predTarget = model->forward(xTrain.slice(0, start, end), dailyTrain.slice(0, start, end));
+            torch::Tensor loss = torch::mse_loss(predTarget, targetTrain.slice(0, start, end));
+            loss.backward();
+            optimizer.step();
+            const int64_t count = end - start;
+            epochLoss += loss.item<double>() * static_cast<double>(count);
+            seen += count;
+        }
+        losses.push_back(epochLoss / static_cast<double>(std::max<int64_t>(1, seen)));
+
+        model->eval();
+        double validationMse = 0.0;
+        {
+            torch::NoGradGuard noGrad;
+            torch::Tensor predValidation = (baselineValidation +
+                targetScaler.inverseTransform(model->forward(xValidation, dailyValidation))).clamp_min(0.0);
+            validationMse = torch::mse_loss(predValidation, qValidation).item<double>();
+        }
+        if (!std::isfinite(validationMse)) {
+            throw std::runtime_error("LSTM multiscale validation produced a non-finite loss.");
+        }
+        validationLosses.push_back(validationMse);
+        if (validationMse < bestValidationMse) {
+            bestValidationMse = validationMse;
+            bestEpoch = epoch + 1;
+            bestParameters.clear();
+            for (const auto& parameter : model->parameters()) bestParameters.push_back(parameter.detach().clone());
+        }
+    }
+
+    if (bestParameters.empty()) throw std::runtime_error("LSTM multiscale did not produce a validation-selected checkpoint.");
+    copyParameters(bestParameters, model->parameters());
+
+    result.training_loss_history = losses;
+    result.validation_loss_history = validationLosses;
+    result.best_epoch = bestEpoch;
+    result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
+    result.validation_mse = bestValidationMse;
+    result.input_scaler = inputScaler.exportState();
+    result.target_scaler = targetScaler.exportState();
+
+    {
+        const auto checkpoint = temporaryHydroCheckpointPath("hydro_lstm_multiscale");
+        torch::serialize::OutputArchive archive;
+        model->save(archive);
+        archive.save_to(checkpoint.string());
+        result.model_checkpoint = readHydroCheckpoint(checkpoint);
+        result.model_checkpoint_format = "torch-module-v1-multiscale";
+        std::filesystem::remove(checkpoint);
+    }
+
+    model->eval();
+    torch::NoGradGuard noGrad;
+    torch::Tensor predTest = (baselineTest + targetScaler.inverseTransform(model->forward(xTest, dailyTest))).clamp_min(0.0);
+    if (!predTest.defined() || !predTest.isfinite().all().item<bool>()) {
+        throw std::runtime_error("LSTM multiscale prediction produced non-finite values.");
+    }
+    if (config.evaluate_metrics) {
+        populateHydroMetrics(result, tensorValues(qTest), tensorValues(predTest));
+        if (!hydroMetricsAreFinite(result)) throw std::runtime_error("LSTM multiscale evaluation produced invalid core hydrology metrics.");
+    }
+
+    // Full-series plotting output covers only ELIGIBLE windows -- unlike
+    // trainSharedScaleAblation's predFull (which covers every window), a
+    // multiscale checkpoint has no defined forward pass for an ineligible
+    // window (no fallback -- report 69), so there is nothing honest to plot
+    // there. result.x/y_true/y_pred are therefore shorter than the full
+    // seq.x row count whenever any window was ineligible; downstream
+    // consumers must not assume length parity with the control arm's output.
+    torch::Tensor xEligibleFull = seq.x.index_select(0, eligibleIdx);
+    torch::Tensor dailyEligibleFull = dailyResult.features.index_select(0, eligibleIdx);
+    torch::Tensor timeEligibleFull = seq.time.index_select(0, eligibleIdx);
+    torch::Tensor qEligibleFull = qObservedSeq.index_select(0, eligibleIdx);
+    torch::Tensor baselineEligibleFull = baselineSeq.index_select(0, eligibleIdx);
+    torch::Tensor xFullScaled = inputScaler.transform(xEligibleFull);
+    torch::Tensor predFull = (baselineEligibleFull +
+        targetScaler.inverseTransform(model->forward(xFullScaled, dailyEligibleFull))).clamp_min(0.0);
+    fillPlotVectors(result, timeEligibleFull, qEligibleFull, predFull);
+    result.split.resize(result.x.size(), "beyond_test_end");
+    {
+        auto eligibleIdxAcc = eligibleIdx.accessor<int64_t, 1>();
+        for (std::size_t i = 0; i < result.split.size(); ++i) {
+            const int64_t originalIndex = eligibleIdxAcc[static_cast<int64_t>(i)];
+            if (originalIndex < split.train_end) result.split[i] = "train";
+            else if (originalIndex < split.validation_end) result.split[i] = "validation";
+            else if (originalIndex < split.test_end) result.split[i] = "test";
+        }
+    }
+    populateHydroPeakMetrics(result);
+    result.success = true;
+    result.message = "LSTM multiscale, control-comparable zero baseline: daily-history branch (" +
+        std::to_string(config.multiscale_daily_history_days) + " days), eligible windows only (" +
+        std::to_string(eligibleIdx.numel()) + " of " + std::to_string(seq.x.size(0)) + ").";
+    return result;
+}
+
+// Matched-control variant of trainSharedScaleAblation's Zero-baseline arm
+// (improvement_loop_20261023 report 71 / task #143). Shares that function's
+// model class (plain HydroLSTM, no daily branch), checkpoint format
+// ("torch-module-v1") and loss/metric code BYTE FOR BYTE; the only thing
+// this function changes is WHICH windows are eligible to train/validate/
+// test on and WHERE its own inputScaler/targetScaler are fit, so this arm's
+// eligible-window set is provably identical to
+// trainSharedScaleAblationMultiscale's (same daily_history::
+// eligibleWindowIndices call, same multiscale_daily_history_days config
+// field, same split-before-eligibility ordering) rather than
+// trainSharedScaleAblation's own default of scoring every window.
+// trainSharedScaleAblation above remains the correct, unmodified function
+// for every other comparison in this program; this one exists only to pair
+// against trainSharedScaleAblationMultiscale.
+HydroRunResult trainSharedScaleAblationMatchedControl(const HydroRunConfig& config) {
+    HydroRunResult result;
+    torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
+    if (config.multiscale_daily_history_days <= 0) {
+        throw std::invalid_argument(
+            "trainSharedScaleAblationMatchedControl requires multiscale_daily_history_days > 0 "
+            "(it defines the eligibility mask this arm must share with the paired multiscale arm).");
+    }
+
+    torch::Tensor physicsX, y, plotX, segmentId;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX, segmentId)) {
+        throw std::runtime_error("Unable to construct reduced-reservoir LSTM matched-control tensors.");
+    }
+    if (physicsX.dim() != 2 || physicsX.size(1) < 4) {
+        throw std::runtime_error("LSTM matched control requires [time, Peff, precipitation, PET, ...] input features "
+                                  "(PET is needed only to compute the shared eligibility mask).");
+    }
+
+    const torch::Tensor peffFull = physicsX.slice(1, 1, 2).reshape({-1}).contiguous();
+    const torch::Tensor precipitationFull = physicsX.slice(1, 2, 3).reshape({-1}).contiguous();
+    const torch::Tensor petFull = physicsX.slice(1, 3, 4).reshape({-1}).contiguous();
+    const torch::Tensor observedFull = y.reshape({-1}).contiguous();
+    const int64_t n = peffFull.size(0);
+    // Zero baseline only -- see function comment.
+    const torch::Tensor baselineFull = torch::zeros({n, 1}, torch::kFloat32);
+    const torch::Tensor targetFull = y - baselineFull;  // == y
+
+    const torch::Tensor modelX = predictorFeatures(physicsX);
+    const torch::Tensor precipitationCol = precipitationFull.reshape({-1, 1});
+    SequenceData seq = makeSequences(modelX, targetFull, plotX, peffFull.reshape({-1, 1}), precipitationCol,
+                                     config.lstm_sequence_length, segmentId);
+    const int sequenceLength = std::max(2, config.lstm_sequence_length);
+    const torch::Tensor sequenceEndpoints = sequenceEndpointIndices(segmentId, sequenceLength);
+    const torch::Tensor qObservedSeq = observedFull.reshape({-1, 1}).index_select(0, sequenceEndpoints).contiguous();
+    const torch::Tensor baselineSeq = baselineFull.index_select(0, sequenceEndpoints).contiguous();
+
+    // Eligibility mask computed EXACTLY as trainSharedScaleAblationMultiscale
+    // computes it -- same inputs, same function call -- so the two arms'
+    // eligible-window sets are provably identical, not merely similar. This
+    // arm never feeds dailyResult.features to any model; it exists solely to
+    // compute dailyResult.eligible.
+    const auto dailyResult = daily_history::buildDailyHistoryTensorsFromWindowEndTimes(
+        plotX, precipitationFull, petFull, segmentId, seq.time, sequenceLength,
+        config.multiscale_daily_history_days);
+    const torch::Tensor eligibleIdx = daily_history::eligibleWindowIndices(dailyResult.eligible);
+    if (eligibleIdx.numel() < 8) {
+        throw std::runtime_error("LSTM matched control: too few eligible windows (insufficient daily history) to train.");
+    }
+
+    const ChronologicalSplit split = configuredChronologicalSplit(seq.time, config);
+    const int64_t nTrain = split.train_end;
+
+    const auto restrictToEligible = [&](const torch::Tensor& tensor, int64_t rangeStart, int64_t rangeEnd) {
+        const torch::Tensor rangeMask = (eligibleIdx >= rangeStart) & (eligibleIdx < rangeEnd);
+        const torch::Tensor rangeEligibleIdx = eligibleIdx.index({rangeMask}) - rangeStart;
+        return tensor.slice(0, rangeStart, rangeEnd).index_select(0, rangeEligibleIdx).contiguous();
+    };
+
+    torch::Tensor xTrainPhysical = restrictToEligible(seq.x, 0, nTrain);
+    torch::Tensor targetTrainPhysical = restrictToEligible(seq.y, 0, nTrain);
+    torch::Tensor xValidationPhysical = restrictToEligible(seq.x, nTrain, split.validation_end);
+    torch::Tensor xTestPhysical = restrictToEligible(seq.x, split.validation_end, split.test_end);
+    torch::Tensor qValidation = restrictToEligible(qObservedSeq, nTrain, split.validation_end);
+    torch::Tensor qTest = restrictToEligible(qObservedSeq, split.validation_end, split.test_end);
+    torch::Tensor baselineValidation = restrictToEligible(baselineSeq, nTrain, split.validation_end);
+    torch::Tensor baselineTest = restrictToEligible(baselineSeq, split.validation_end, split.test_end);
+    if (xTrainPhysical.size(0) < 8 || xValidationPhysical.size(0) < 1 || xTestPhysical.size(0) < 1) {
+        throw std::runtime_error("LSTM matched control: too few eligible windows in one of train/validation/test after eligibility filtering.");
+    }
+
+    TensorScaler inputScaler;
+    inputScaler.fit(xTrainPhysical, "standardize");
+    torch::Tensor xTrain = inputScaler.transform(xTrainPhysical);
+    torch::Tensor xValidation = inputScaler.transform(xValidationPhysical);
+    torch::Tensor xTest = inputScaler.transform(xTestPhysical);
+
+    // Independently fit from THIS arm's own eligible training rows -- not
+    // copied from the paired multiscale run -- satisfying the "own scalers"
+    // half of the matched-control requirement (report 71 / task #143).
+    torch::Tensor qTrainPhysical = restrictToEligible(qObservedSeq, 0, nTrain);
+    const double commonScale = std::max(1.0e-6, qTrainPhysical.std().item<double>());
+    HydroScalerState commonScaleState;
+    commonScaleState.method = "standardize";
+    commonScaleState.shape = {1};
+    commonScaleState.offset = {0.0};
+    commonScaleState.scale = {commonScale};
+    TensorScaler targetScaler;
+    targetScaler.importState(commonScaleState);
+    torch::Tensor targetTrain = targetScaler.transform(targetTrainPhysical);
+
+    const std::vector<int> hiddenLayers = parseHiddenLayers(config.hidden_layers_csv);
+    const int64_t hiddenDim = static_cast<int64_t>(hiddenLayers.front());
+    const int64_t numLayers = static_cast<int64_t>(std::max<std::size_t>(1, hiddenLayers.size()));
+    HydroLSTM model(seq.x.size(2), hiddenDim, 1, numLayers);
+    torch::optim::Adam optimizer(model->parameters(),
+                                 torch::optim::AdamOptions(config.learning_rate).weight_decay(config.weight_decay));
+
+    const int64_t trainN = xTrain.size(0);
+    const int batchSize = std::max(2, config.batch_size);
+    std::vector<torch::Tensor> bestParameters;
+    std::vector<double> losses;
+    std::vector<double> validationLosses;
+    double bestValidationMse = std::numeric_limits<double>::infinity();
+    int bestEpoch = 0;
+
+    for (int epoch = 0; epoch < std::max(1, config.epochs); ++epoch) {
+        model->train();
+        double epochLoss = 0.0;
+        int64_t seen = 0;
+        for (int64_t start = 0; start < trainN; start += batchSize) {
+            const int64_t end = std::min<int64_t>(start + batchSize, trainN);
+            if (end - start < 2) continue;
+            optimizer.zero_grad();
+            torch::Tensor predTarget = model->forward(xTrain.slice(0, start, end));
+            torch::Tensor loss = torch::mse_loss(predTarget, targetTrain.slice(0, start, end));
+            loss.backward();
+            optimizer.step();
+            const int64_t count = end - start;
+            epochLoss += loss.item<double>() * static_cast<double>(count);
+            seen += count;
+        }
+        losses.push_back(epochLoss / static_cast<double>(std::max<int64_t>(1, seen)));
+
+        model->eval();
+        double validationMse = 0.0;
+        {
+            torch::NoGradGuard noGrad;
+            torch::Tensor predValidation = (baselineValidation +
+                targetScaler.inverseTransform(model->forward(xValidation))).clamp_min(0.0);
+            validationMse = torch::mse_loss(predValidation, qValidation).item<double>();
+        }
+        if (!std::isfinite(validationMse)) {
+            throw std::runtime_error("LSTM matched control validation produced a non-finite loss.");
+        }
+        validationLosses.push_back(validationMse);
+        if (validationMse < bestValidationMse) {
+            bestValidationMse = validationMse;
+            bestEpoch = epoch + 1;
+            bestParameters.clear();
+            for (const auto& parameter : model->parameters()) bestParameters.push_back(parameter.detach().clone());
+        }
+    }
+
+    if (bestParameters.empty()) throw std::runtime_error("LSTM matched control did not produce a validation-selected checkpoint.");
+    copyParameters(bestParameters, model->parameters());
+
+    result.training_loss_history = losses;
+    result.validation_loss_history = validationLosses;
+    result.best_epoch = bestEpoch;
+    result.final_loss = losses.at(static_cast<std::size_t>(bestEpoch - 1));
+    result.validation_mse = bestValidationMse;
+    result.input_scaler = inputScaler.exportState();
+    result.target_scaler = targetScaler.exportState();
+
+    {
+        const auto checkpoint = temporaryHydroCheckpointPath("hydro_lstm_shared_scale_matched_control");
+        torch::serialize::OutputArchive archive;
+        model->save(archive);
+        archive.save_to(checkpoint.string());
+        result.model_checkpoint = readHydroCheckpoint(checkpoint);
+        result.model_checkpoint_format = "torch-module-v1";
+        std::filesystem::remove(checkpoint);
+    }
+
+    model->eval();
+    torch::NoGradGuard noGrad;
+    torch::Tensor predTest = (baselineTest + targetScaler.inverseTransform(model->forward(xTest))).clamp_min(0.0);
+    if (!predTest.defined() || !predTest.isfinite().all().item<bool>()) {
+        throw std::runtime_error("LSTM matched control prediction produced non-finite values.");
+    }
+    if (config.evaluate_metrics) {
+        populateHydroMetrics(result, tensorValues(qTest), tensorValues(predTest));
+        if (!hydroMetricsAreFinite(result)) throw std::runtime_error("LSTM matched control evaluation produced invalid core hydrology metrics.");
+    }
+
+    // Full-series plotting output covers only ELIGIBLE windows, exactly like
+    // trainSharedScaleAblationMultiscale's -- so a plot comparing both arms
+    // overlays the same x-axis window set, not trainSharedScaleAblation's
+    // full (unrestricted) series.
+    torch::Tensor xEligibleFull = seq.x.index_select(0, eligibleIdx);
+    torch::Tensor timeEligibleFull = seq.time.index_select(0, eligibleIdx);
+    torch::Tensor qEligibleFull = qObservedSeq.index_select(0, eligibleIdx);
+    torch::Tensor baselineEligibleFull = baselineSeq.index_select(0, eligibleIdx);
+    torch::Tensor xFullScaled = inputScaler.transform(xEligibleFull);
+    torch::Tensor predFull = (baselineEligibleFull + targetScaler.inverseTransform(model->forward(xFullScaled))).clamp_min(0.0);
+    fillPlotVectors(result, timeEligibleFull, qEligibleFull, predFull);
+    result.split.resize(result.x.size(), "beyond_test_end");
+    {
+        auto eligibleIdxAcc = eligibleIdx.accessor<int64_t, 1>();
+        for (std::size_t i = 0; i < result.split.size(); ++i) {
+            const int64_t originalIndex = eligibleIdxAcc[static_cast<int64_t>(i)];
+            if (originalIndex < split.train_end) result.split[i] = "train";
+            else if (originalIndex < split.validation_end) result.split[i] = "validation";
+            else if (originalIndex < split.test_end) result.split[i] = "test";
+        }
+    }
+    populateHydroPeakMetrics(result);
+    result.success = true;
+    result.message = "LSTM shared-scale ablation, matched-control arm: zero baseline, plain HydroLSTM (no daily branch), "
+        "eligible windows only (" + std::to_string(eligibleIdx.numel()) + " of " + std::to_string(seq.x.size(0)) +
+        "), matching trainSharedScaleAblationMultiscale's eligibility mask.";
+    return result;
+}
+
 } // namespace
 
 HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
@@ -1120,6 +1584,18 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
         return trainSharedScaleAblation(config, /*zeroBaseline=*/false);
     }
     if (config.pinn_physics_profile == "lstm_shared_scale_ablation_zero") {
+        // Opt-in: multiscale_daily_history_days==0 (default) takes the
+        // unmodified path below, byte-for-byte as before this field existed.
+        if (config.multiscale_daily_history_days > 0) {
+            // multiscale_matched_control (task #143): same eligibility mask
+            // as the multiscale arm below, but a plain HydroLSTM -- checked
+            // first so a matched-control config can never silently fall
+            // through to the full daily-branch model.
+            if (config.multiscale_matched_control) {
+                return trainSharedScaleAblationMatchedControl(config);
+            }
+            return trainSharedScaleAblationMultiscale(config);
+        }
         return trainSharedScaleAblation(config, /*zeroBaseline=*/true);
     }
     if (config.pinn_physics_profile == "linear_reservoir") {

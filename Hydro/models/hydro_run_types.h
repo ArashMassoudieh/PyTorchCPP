@@ -233,6 +233,33 @@ struct HydroRunConfig {
     double urban_intensity_quick_strength = 0.0;
     double urban_intensity_reference_mm_h = 1.0;
 
+    // Opt-in daily-resolution antecedent-history branch (improvement_loop_
+    // 20261023 reports 66/67/68). 0 (default) disables it completely -- the
+    // LSTM wrapper must take the exact same code path as before this field
+    // existed, not merely skip the branch at runtime. A positive value is
+    // the number of fully-completed calendar days of coarse history (daily
+    // total precipitation, daily total PET) fed to a small daily LSTM whose
+    // final (h,c) is transferred, via learned linear layers, into the
+    // existing hourly LSTM's initial state -- see
+    // Hydro/models/multiscale_lstm_module.h.
+    int64_t multiscale_daily_history_days = 0;
+    // Hidden size of the daily branch. Only meaningful when
+    // multiscale_daily_history_days > 0. Kept small and fixed (not grid-
+    // searched) per report 67 Sec 1's capacity-control decision.
+    int64_t multiscale_daily_hidden_size = 4;
+    // Matched-control arm (improvement_loop_20261023 report 71 / task #143).
+    // Only meaningful when multiscale_daily_history_days > 0. When true,
+    // lstm_shared_scale_ablation_zero trains a PLAIN HydroLSTM (no daily
+    // branch) restricted to the identical eligible-window set that
+    // multiscale_daily_history_days would produce for the paired multiscale
+    // run, with its own independently-fit (eligible-training-only) scalers
+    // -- see trainSharedScaleAblationMatchedControl. Checkpoint format and
+    // approach are unchanged ("torch-module-v1" / "lstm_pinn"), so no
+    // inference/exporter whitelist needed updating for this flag. Default
+    // false: multiscale_daily_history_days > 0 alone still dispatches to the
+    // multiscale arm, exactly as before this field existed.
+    bool multiscale_matched_control = false;
+
     // Regional multi-basin pretraining mode only (lstm_regional_pretrain,
     // see lstm_regional_pretrain.h): paths to plain text files, one
     // GIStoOHQ package directory per line, listing the basins pooled for

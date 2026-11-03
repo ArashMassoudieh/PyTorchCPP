@@ -243,6 +243,12 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
         !std::isfinite(c.urban_intensity_reference_mm_h) || c.urban_intensity_reference_mm_h <= 0.0) {
         throw std::runtime_error("Urban intensity response requires strength in [0,1] and positive finite reference");
     }
+    c.multiscale_daily_history_days = static_cast<int64_t>(optionalNumberValue(json, "multiscale_daily_history_days", 0.0));
+    c.multiscale_daily_hidden_size = static_cast<int64_t>(optionalNumberValue(json, "multiscale_daily_hidden_size", 4.0));
+    if (c.multiscale_daily_history_days < 0 || c.multiscale_daily_hidden_size < 1) {
+        throw std::runtime_error("multiscale_daily_history_days must be >= 0 and multiscale_daily_hidden_size must be >= 1.");
+    }
+    c.multiscale_matched_control = optionalBoolValue(json, "multiscale_matched_control", false);
     c.regional_training_basin_list_path = optionalStringValue(json, "regional_training_basin_list_path", "");
     c.regional_validation_basin_list_path = optionalStringValue(json, "regional_validation_basin_list_path", "");
     c.regional_per_basin_sequence_count = static_cast<int64_t>(optionalNumberValue(json, "regional_per_basin_sequence_count", -1.0));

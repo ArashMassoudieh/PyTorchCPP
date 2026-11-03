@@ -152,12 +152,13 @@ std::string safeFileStem(const std::string& value) {
 
 bool supportedApproach(const std::string& approach) {
     return approach == "ffn" || approach == "ffn_pinn" || approach == "pinn" ||
-           approach == "lstm" || approach == "lstm_pinn";
+           approach == "lstm" || approach == "lstm_pinn" || approach == "lstm_multiscale";
 }
 
 bool checkpointFormatMatchesApproach(const std::string& approach, const std::string& format) {
     if (approach == "ffn") return format == "neuralnetworkwrapper-v1";
     if (approach == "lstm" || approach == "lstm_pinn") return format == "torch-module-v1";
+    if (approach == "lstm_multiscale") return format == "torch-module-v1-multiscale";
     if (approach == "ffn_pinn" || approach == "pinn") {
         return format == "neuralnetworkwrapper-v1" || format == "torch-sequential-v1";
     }
@@ -267,6 +268,9 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
               << "  \"random_seed\": " << config.random_seed << ",\n"
               << "  \"train_fraction\": " << config.train_split_ratio << ",\n"
               << "  \"validation_fraction\": " << config.validation_split_ratio << ",\n"
+              << "  \"multiscale_daily_history_days\": " << config.multiscale_daily_history_days << ",\n"
+              << "  \"multiscale_daily_hidden_size\": " << config.multiscale_daily_hidden_size << ",\n"
+              << "  \"multiscale_matched_control\": " << (config.multiscale_matched_control ? "true" : "false") << ",\n"
               << "  \"shuffle_training\": " << (config.shuffle_training ? "true" : "false") << ",\n"
               << "  \"evaluate_metrics\": " << (config.evaluate_metrics ? "true" : "false") << ",\n"
               << "  \"normalization\": \"" << escapeJson(config.normalization) << "\",\n"

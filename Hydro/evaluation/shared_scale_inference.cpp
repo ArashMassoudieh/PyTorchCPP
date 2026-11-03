@@ -4,10 +4,12 @@
 #include "../dataset/hydro_checksum.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
 #include "../dataset/configured_chronological_split.h"
+#include "../dataset/daily_history_builder.h"
 #include "../dataset/tensor_scaler.h"
 #include "../models/two_reservoir_routing.h"
 #include "../models/urban_managed_routing.h"
 #include "../models/hydro_lstm_module.h"
+#include "../models/multiscale_lstm_module.h"
 
 #include <algorithm>
 #include <cmath>
@@ -309,6 +311,222 @@ SharedScaleInferenceResult runSharedScaleInference(
         else if (i < split.validation_end) label = "validation";
         else if (i < split.test_end) label = "test";
         result.split.push_back(std::move(label));
+    }
+    return result;
+}
+
+SharedScaleInferenceResult runMultiscaleSharedScaleInference(
+    const HydroRunConfig& configIn,
+    const std::string& frozenExperimentDir,
+    const std::string& approach,
+    bool holdoutMode) {
+    torch::NoGradGuard noGrad;
+    HydroRunConfig config = configIn;
+    if (config.multiscale_daily_history_days <= 0) {
+        throw std::runtime_error("runMultiscaleSharedScaleInference requires multiscale_daily_history_days > 0.");
+    }
+
+    if (!config.use_hydro_package) {
+        throw std::runtime_error("runMultiscaleSharedScaleInference only supports use_hydro_package configs.");
+    }
+    if (!config.hydro_package_path.empty() && !std::filesystem::path(config.hydro_package_path).is_absolute()) {
+        throw std::runtime_error("Expected an absolute hydro_package_path.");
+    }
+    config.use_latent_storage_physics = true;
+
+    torch::Tensor physicsX, y, plotX, segmentId;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX, segmentId)) {
+        throw std::runtime_error("Unable to load reservoir physics tensors from the configured package.");
+    }
+    requireDevelopmentOnly(plotX, "raw-tensors", holdoutMode);
+
+    const torch::Tensor peffFull = physicsX.slice(1, 1, 2).reshape({-1}).contiguous();
+    const torch::Tensor precipitationFull = physicsX.slice(1, 2, 3).reshape({-1}).contiguous();
+    const torch::Tensor petFull = physicsX.slice(1, 3, 4).reshape({-1}).contiguous();
+    const torch::Tensor observedFull = y.reshape({-1}).contiguous();
+    const int64_t n = peffFull.size(0);
+    const torch::Tensor baselineFull = torch::zeros({n, 1}, torch::kFloat32);  // Zero baseline only -- see header.
+    const torch::Tensor targetFull = y - baselineFull;
+
+    const torch::Tensor modelX = predictorFeatures(physicsX);
+    const torch::Tensor precipitationCol = precipitationFull.reshape({-1, 1});
+    SequenceData seq = makeSequences(modelX, targetFull, plotX, peffFull.reshape({-1, 1}), precipitationCol,
+                                     config.lstm_sequence_length, segmentId);
+    const int sequenceLength = std::max(2, config.lstm_sequence_length);
+    const torch::Tensor sequenceEndpoints = sequenceEndpointIndices(segmentId, sequenceLength);
+    const torch::Tensor qObservedSeq = observedFull.reshape({-1, 1}).index_select(0, sequenceEndpoints).contiguous();
+    const torch::Tensor baselineSeq = baselineFull.index_select(0, sequenceEndpoints).contiguous();
+    requireDevelopmentOnly(seq.time, "sequence-endpoints", holdoutMode);
+
+    const auto dailyResult = daily_history::buildDailyHistoryTensorsFromWindowEndTimes(
+        plotX, precipitationFull, petFull, segmentId, seq.time, sequenceLength,
+        config.multiscale_daily_history_days);
+    const torch::Tensor eligibleIdx = daily_history::eligibleWindowIndices(dailyResult.eligible);
+    if (eligibleIdx.numel() == 0) {
+        throw std::runtime_error("runMultiscaleSharedScaleInference: no eligible windows (insufficient daily history).");
+    }
+
+    const ChronologicalSplit split = configuredChronologicalSplit(seq.time, config);
+
+    const auto scalers = HydroArtifactLoader().loadScalers(frozenExperimentDir);
+    const auto scalerIt = scalers.find(approach);
+    if (scalerIt == scalers.end()) {
+        throw std::runtime_error("No scaler artifact found for approach '" + approach + "' in " + frozenExperimentDir);
+    }
+    TensorScaler inputScaler;
+    inputScaler.importState(scalerIt->second.input);
+    TensorScaler targetScaler;
+    targetScaler.importState(scalerIt->second.target);
+
+    const auto models = HydroArtifactLoader().loadModels(frozenExperimentDir);
+    const auto modelIt = models.find(approach);
+    if (modelIt == models.end()) {
+        throw std::runtime_error("No model artifact found for approach '" + approach + "' in " + frozenExperimentDir);
+    }
+    const std::string checkpointPath = frozenExperimentDir + "/" + modelIt->second.relative_path;
+    const std::string checkpointSha256Before = sha256File(checkpointPath);
+    if (modelIt->second.format != "torch-module-v1-multiscale") {
+        throw std::runtime_error("Expected torch-module-v1-multiscale checkpoint format, found: " + modelIt->second.format);
+    }
+    if (!modelIt->second.sha256.empty() && modelIt->second.sha256 != checkpointSha256Before) {
+        throw std::runtime_error("Checkpoint file hash does not match the artifact bundle's own recorded hash.");
+    }
+
+    const auto hidden = parseHiddenLayersCsv(config.hidden_layers_csv);
+    MultiscaleHydroLSTM model(seq.x.size(2), hidden.front(), 1,
+                              static_cast<int64_t>(std::max<std::size_t>(1, hidden.size())),
+                              /*dailyInputDim=*/2, config.multiscale_daily_hidden_size);
+    {
+        torch::serialize::InputArchive archive;
+        archive.load_from(checkpointPath);
+        model->load(archive);
+    }
+    // Daily-feature scaler (report 71) is a registered buffer, loaded with
+    // the rest of the checkpoint above -- this just confirms it actually
+    // came through, rather than silently proceeding with an unfit scaler.
+    model->confirmDailyScalerLoaded();
+    model->eval();
+
+    torch::Tensor xEligible = seq.x.index_select(0, eligibleIdx);
+    torch::Tensor dailyEligible = dailyResult.features.index_select(0, eligibleIdx);
+    torch::Tensor timeEligible = seq.time.index_select(0, eligibleIdx);
+    torch::Tensor observedEligible = qObservedSeq.index_select(0, eligibleIdx);
+    torch::Tensor baselineEligible = baselineSeq.index_select(0, eligibleIdx);
+
+    torch::Tensor xScaled = inputScaler.transform(xEligible);
+    torch::Tensor predFull = (baselineEligible +
+        targetScaler.inverseTransform(model->forward(xScaled, dailyEligible))).clamp_min(0.0);
+    if (!predFull.defined() || !predFull.isfinite().all().item<bool>()) {
+        throw std::runtime_error("Multiscale shared-scale inference produced non-finite values.");
+    }
+
+    const std::string checkpointSha256After = sha256File(checkpointPath);
+    if (checkpointSha256After != checkpointSha256Before) {
+        throw std::runtime_error("Checkpoint file changed on disk during inference (hash mismatch before/after). This must never happen.");
+    }
+
+    SharedScaleInferenceResult result;
+    result.checkpointSha256 = checkpointSha256After;
+    const auto timeCpu = timeEligible.reshape({-1}).to(torch::kCPU).contiguous();
+    const auto obsCpu = observedEligible.reshape({-1}).to(torch::kCPU).contiguous();
+    const auto predCpu = predFull.reshape({-1}).to(torch::kCPU).contiguous();
+    const auto eligibleIdxAcc = eligibleIdx.accessor<int64_t, 1>();
+    result.x.reserve(static_cast<std::size_t>(timeCpu.size(0)));
+    result.observed.reserve(result.x.capacity());
+    result.predicted.reserve(result.x.capacity());
+    result.split.reserve(result.x.capacity());
+    for (int64_t i = 0; i < timeCpu.size(0); ++i) {
+        result.x.push_back(timeCpu[i].item<double>());
+        result.observed.push_back(obsCpu[i].item<double>());
+        result.predicted.push_back(predCpu[i].item<double>());
+        const int64_t originalIndex = eligibleIdxAcc[i];
+        std::string label = "beyond_test_end";
+        if (originalIndex < split.train_end) label = "train";
+        else if (originalIndex < split.validation_end) label = "validation";
+        else if (originalIndex < split.test_end) label = "test";
+        result.split.push_back(std::move(label));
+    }
+    return result;
+}
+
+SharedScaleInferenceResult runMatchedControlSharedScaleInference(
+    const HydroRunConfig& configIn,
+    const std::string& frozenExperimentDir,
+    const std::string& approach,
+    bool holdoutMode) {
+    torch::NoGradGuard noGrad;
+    if (configIn.multiscale_daily_history_days <= 0) {
+        throw std::runtime_error("runMatchedControlSharedScaleInference requires multiscale_daily_history_days > 0.");
+    }
+    HydroRunConfig config = configIn;
+    config.use_latent_storage_physics = true; // matches runSharedScaleInference's own preparation
+
+    // The matched-control checkpoint is an ordinary plain HydroLSTM
+    // ("torch-module-v1") -- reload it via the existing, unmodified Zero
+    // path, never runMultiscaleSharedScaleInference's loader (which
+    // requires "torch-module-v1-multiscale" and would simply throw here).
+    SharedScaleInferenceProfile zeroProfile;
+    if (!parseSharedScaleInferenceProfile(config.pinn_physics_profile, zeroProfile)) {
+        throw std::runtime_error("runMatchedControlSharedScaleInference requires pinn_physics_profile "
+                                 "'lstm_shared_scale_ablation_zero'.");
+    }
+    const SharedScaleInferenceResult full = runSharedScaleInference(config, zeroProfile, frozenExperimentDir, approach, holdoutMode);
+
+    // Recompute the SAME eligibility mask trainSharedScaleAblationMatchedControl
+    // and runMultiscaleSharedScaleInference compute, from the same package --
+    // never persisted anywhere, matching report 71's "same daily_history
+    // call, same config field" convention, so this function's output is
+    // restricted to the identical eligible-window set the paired multiscale
+    // checkpoint's own reload uses.
+    torch::Tensor physicsX, y, plotX, segmentId;
+    if (!loadReservoirPhysicsTensors(config, physicsX, y, plotX, segmentId)) {
+        throw std::runtime_error("Unable to load reservoir physics tensors from the configured package.");
+    }
+    requireDevelopmentOnly(plotX, "raw-tensors", holdoutMode);
+    const torch::Tensor peffFull = physicsX.slice(1, 1, 2).reshape({-1}).contiguous();
+    const torch::Tensor precipitationFull = physicsX.slice(1, 2, 3).reshape({-1}).contiguous();
+    const torch::Tensor petFull = physicsX.slice(1, 3, 4).reshape({-1}).contiguous();
+    const torch::Tensor modelX = predictorFeatures(physicsX);
+    const torch::Tensor precipitationCol = precipitationFull.reshape({-1, 1});
+    SequenceData seq = makeSequences(modelX, y, plotX, peffFull.reshape({-1, 1}), precipitationCol,
+                                     config.lstm_sequence_length, segmentId);
+    requireDevelopmentOnly(seq.time, "sequence-endpoints", holdoutMode);
+    const int sequenceLength = std::max(2, config.lstm_sequence_length);
+
+    const auto dailyResult = daily_history::buildDailyHistoryTensorsFromWindowEndTimes(
+        plotX, precipitationFull, petFull, segmentId, seq.time, sequenceLength,
+        config.multiscale_daily_history_days);
+    const torch::Tensor eligibleIdx = daily_history::eligibleWindowIndices(dailyResult.eligible);
+    if (eligibleIdx.numel() == 0) {
+        throw std::runtime_error("runMatchedControlSharedScaleInference: no eligible windows (insufficient daily history).");
+    }
+
+    SharedScaleInferenceResult result;
+    result.checkpointSha256 = full.checkpointSha256;
+    const auto timeCpu = seq.time.reshape({-1}).to(torch::kCPU).contiguous();
+    const auto eligibleAcc = eligibleIdx.accessor<int64_t, 1>();
+    result.x.reserve(static_cast<std::size_t>(eligibleIdx.numel()));
+    result.observed.reserve(result.x.capacity());
+    result.predicted.reserve(result.x.capacity());
+    result.split.reserve(result.x.capacity());
+    for (int64_t i = 0; i < eligibleIdx.numel(); ++i) {
+        const int64_t originalIndex = eligibleAcc[i];
+        if (originalIndex < 0 || originalIndex >= static_cast<int64_t>(full.x.size())) {
+            throw std::runtime_error("runMatchedControlSharedScaleInference: eligibility index out of range for the reloaded series.");
+        }
+        // Defensive cross-check: this function's own sequence build (used
+        // only to compute eligibility) and runSharedScaleInference's
+        // independent sequence build must agree on x at the same ordinal
+        // position -- both come from the identical package/sequence-length/
+        // segment logic, so disagreement means the two builds silently
+        // diverged, not that this check is unnecessary.
+        if (std::abs(timeCpu[originalIndex].item<double>() - full.x[static_cast<std::size_t>(originalIndex)]) > 1.0e-6) {
+            throw std::runtime_error("runMatchedControlSharedScaleInference: eligibility index does not align with the reloaded series.");
+        }
+        result.x.push_back(full.x[static_cast<std::size_t>(originalIndex)]);
+        result.observed.push_back(full.observed[static_cast<std::size_t>(originalIndex)]);
+        result.predicted.push_back(full.predicted[static_cast<std::size_t>(originalIndex)]);
+        result.split.push_back(full.split[static_cast<std::size_t>(originalIndex)]);
     }
     return result;
 }

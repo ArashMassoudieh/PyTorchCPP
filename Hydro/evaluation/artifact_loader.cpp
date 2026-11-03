@@ -189,7 +189,8 @@ std::map<std::string, HydroModelArtifact> HydroArtifactLoader::loadModels(
         const auto fields = splitCsv(line);
         if (fields.size() != 5 || fields[0].empty()) throw std::runtime_error("Invalid models.csv row " + std::to_string(row) + ".");
         if (!safeRelativePath(fields[1])) throw std::runtime_error("Model artifact path escapes the experiment directory.");
-        if (fields[2] != "neuralnetworkwrapper-v1" && fields[2] != "torch-module-v1") {
+        if (fields[2] != "neuralnetworkwrapper-v1" && fields[2] != "torch-module-v1" &&
+            fields[2] != "torch-module-v1-multiscale") {
             throw std::runtime_error("Unsupported model checkpoint format: " + fields[2]);
         }
         std::size_t expectedSize = 0;
@@ -556,11 +557,13 @@ HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
             throw std::runtime_error("Model is missing scaler state for approach: " + entry.first);
         }
         const bool recurrent = entry.first == "lstm" || entry.first == "lstm_pinn";
+        const bool multiscale = entry.first == "lstm_multiscale";
         const bool feedForward = entry.first == "ffn" || entry.first == "ffn_pinn" || entry.first == "pinn";
-        if (!recurrent && !feedForward) {
+        if (!recurrent && !multiscale && !feedForward) {
             throw std::runtime_error("Unsupported inference approach: " + entry.first);
         }
-        const std::string expectedFormat = recurrent ? "torch-module-v1" : "neuralnetworkwrapper-v1";
+        const std::string expectedFormat = multiscale ? "torch-module-v1-multiscale"
+            : (recurrent ? "torch-module-v1" : "neuralnetworkwrapper-v1");
         if (entry.second.format != expectedFormat) {
             throw std::runtime_error("Checkpoint format does not match approach " + entry.first + ".");
         }
