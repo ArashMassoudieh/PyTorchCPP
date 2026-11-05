@@ -36,6 +36,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -48,6 +49,16 @@ TIE_BREAK_RULE = (
 
 class HistoryLengthSelectionError(ValueError):
     """Raised when the inputs do not support a valid common-support selection."""
+
+
+# Reserved-period seal for the Sligo epoch (x>=77016 == 2023-10-15 onward).
+# This selection script only ever reads a fold's own validation-split rows,
+# and every phase1_selection fold's test_end_x is already below this bound
+# by construction -- so this should never fire in practice. It exists as a
+# defensive check, not a primary control: refusing explicitly on a seal
+# violation is safer than silently scoring on it if some future caller ever
+# points this script at a differently-bounded job directory.
+RESERVED_PERIOD_X_CUTOFF = 77016
 
 
 def _sha256_file(path: Path) -> str:
@@ -65,18 +76,64 @@ def _checkpoint_filename(approach: str) -> str:
 
 
 def read_validation_rows(predictions_csv: Path, approach: str) -> Dict[float, Tuple[float, float]]:
-    """Return {x: (observed, predicted)} for one approach's VALIDATION split only."""
+    """Return {x: (observed, predicted)} for one approach's VALIDATION split only.
+
+    Validates every field actually used, not only observed/predicted: x
+    itself must be finite, must represent a whole-hour index (not merely
+    "close to" one -- a non-integer x indicates a corrupted or
+    wrong-format export, never a legitimate one), and must fall strictly
+    before the reserved-period seal. Also checks split-consistency across
+    the *whole* file for this approach, not only within the validation
+    rows read: the same x must never appear under two different split
+    labels for the same approach, since that would mean the export itself
+    is ambiguous about which split a given hour belongs to.
+    """
     rows: Dict[float, Tuple[float, float]] = {}
+    x_to_split: Dict[float, str] = {}
     with open(predictions_csv, newline="") as handle:
         for row in csv.DictReader(handle):
-            if row["approach"] != approach or row["split"] != "validation":
+            if row["approach"] != approach:
                 continue
             x = float(row["x"])
+            if not math.isfinite(x):
+                raise HistoryLengthSelectionError(
+                    f"Non-finite x={x} for approach {approach!r} in {predictions_csv}"
+                )
+            if x != int(x):
+                raise HistoryLengthSelectionError(
+                    f"Non-integer x={x} for approach {approach!r} in {predictions_csv} -- "
+                    "hour-index timestamps must be whole numbers; this indicates a "
+                    "corrupted or wrong-format export"
+                )
+            if x >= RESERVED_PERIOD_X_CUTOFF:
+                raise HistoryLengthSelectionError(
+                    f"x={x} is at or past the reserved-period seal "
+                    f"(cutoff {RESERVED_PERIOD_X_CUTOFF}) in {predictions_csv} -- refusing "
+                    "to process a row from the reserved period, regardless of split"
+                )
+            split = row["split"]
+            if x in x_to_split and x_to_split[x] != split:
+                raise HistoryLengthSelectionError(
+                    f"x={x} for approach {approach!r} in {predictions_csv} is labeled both "
+                    f"{x_to_split[x]!r} and {split!r} -- ambiguous split assignment, refusing "
+                    "to select on it"
+                )
+            x_to_split[x] = split
+            if split != "validation":
+                continue
             if x in rows:
                 raise HistoryLengthSelectionError(
                     f"Duplicate validation x={x} for approach {approach!r} in {predictions_csv}"
                 )
-            rows[x] = (float(row["observed"]), float(row["predicted"]))
+            observed_value = float(row["observed"])
+            predicted_value = float(row["predicted"])
+            if not math.isfinite(observed_value) or not math.isfinite(predicted_value):
+                raise HistoryLengthSelectionError(
+                    f"Non-finite value at x={x} for approach {approach!r} in {predictions_csv} "
+                    f"(observed={observed_value}, predicted={predicted_value}) -- refusing to "
+                    "select on data that would silently poison the NSE comparison"
+                )
+            rows[x] = (observed_value, predicted_value)
     if not rows:
         raise HistoryLengthSelectionError(
             f"No validation rows found for approach {approach!r} in {predictions_csv}"
@@ -114,6 +171,7 @@ def select_history_length(
         raise HistoryLengthSelectionError("select_history_length requires at least two D candidates")
 
     job_dirs = {d: Path(path) for d, path in candidate_job_dirs.items()}
+    fold_bounds_by_d: Dict[int, tuple] = {}
     for d, job_dir in job_dirs.items():
         config_path = job_dir / "experiment_config.json"
         checkpoint_path = job_dir / "models" / _checkpoint_filename(approach)
@@ -121,6 +179,29 @@ def select_history_length(
             raise HistoryLengthSelectionError(f"D={d}: missing {config_path}")
         if not checkpoint_path.is_file():
             raise HistoryLengthSelectionError(f"D={d}: missing {checkpoint_path}")
+        # A config's own sha256 says a file was hashed, not that it is the
+        # *right* file: verify the config actually declares the D it was
+        # registered under, not merely that some config exists at that path.
+        config_data = json.loads(config_path.read_text())
+        declared_d = config_data.get("multiscale_daily_history_days")
+        if declared_d != d:
+            raise HistoryLengthSelectionError(
+                f"D={d}: {config_path} declares multiscale_daily_history_days="
+                f"{declared_d!r}, not {d} -- this job directory does not match "
+                "the D it was registered under"
+            )
+        fold_bounds_by_d[d] = (
+            config_data.get("train_end_x"),
+            config_data.get("validation_end_x"),
+            config_data.get("test_end_x"),
+        )
+    distinct_fold_bounds = set(fold_bounds_by_d.values())
+    if len(distinct_fold_bounds) > 1:
+        raise HistoryLengthSelectionError(
+            "Candidates do not share identical (train_end_x, validation_end_x, "
+            f"test_end_x) fold boundaries -- they are not the same fold: "
+            f"{fold_bounds_by_d}"
+        )
 
     per_d_rows = {
         d: read_validation_rows(job_dir / "predictions.csv", approach)
