@@ -14,7 +14,7 @@ from select_multiscale_history_length import (
     select_history_length,
 )
 
-_DEFAULT_FOLD_BOUNDS = {"train_end_x": 1000, "validation_end_x": 2000, "test_end_x": 3000}
+_DEFAULT_FOLD_BOUNDS = {"train_end_x": 0, "validation_end_x": 2000, "test_end_x": 3000}
 
 
 def _write_job_dir(root, name, approach, rows, config=None, d=None):
@@ -272,16 +272,105 @@ class SelectMultiscaleHistoryLengthTest(unittest.TestCase):
 
     def test_candidates_from_different_folds_are_rejected(self):
         """Candidates whose configs disagree on train/validation/test_end_x
-        are not the same fold and must not be compared against each other."""
+        are not the same fold and must not be compared against each other.
+        (Bounds here are still chronological and pre-seal on their own --
+        this test is specifically about cross-candidate disagreement, not
+        about rejecting a single malformed bound, which has its own tests
+        below.)"""
         job14 = _write_job_dir(self.tmp_path, "d14", "lstm_multiscale", {1: (1.0, 1.0), 2: (2.0, 2.0)}, d=14)
         job60 = _write_job_dir(
             self.tmp_path, "d60", "lstm_multiscale", {1: (1.0, 1.0), 2: (2.0, 2.0)},
-            config={"multiscale_daily_history_days": 60, "train_end_x": 9999,
-                    "validation_end_x": 2000, "test_end_x": 3000},
+            config={"multiscale_daily_history_days": 60, "train_end_x": 0,
+                    "validation_end_x": 1500, "test_end_x": 3000},
         )
 
         with self.assertRaisesRegex(HistoryLengthSelectionError, "not the same fold"):
             select_history_length({14: job14, 60: job60})
+
+    def test_missing_fold_bound_is_rejected_even_if_every_candidate_matches(self):
+        """Three candidates all equally missing train_end_x/validation_end_x/
+        test_end_x would trivially 'agree' as (None, None, None) under a
+        naive equality check -- directly reproduced before this check
+        existed: selection succeeded despite no real fold boundary existing
+        anywhere. A missing bound must be rejected regardless of whether
+        every candidate shares the same omission."""
+        job14 = _write_job_dir(
+            self.tmp_path, "d14", "lstm_multiscale", {1: (1.0, 1.0), 2: (2.0, 2.0)},
+            config={"multiscale_daily_history_days": 14},
+        )
+        job30 = _write_job_dir(
+            self.tmp_path, "d30", "lstm_multiscale", {1: (1.0, 1.0), 2: (2.0, 2.0)},
+            config={"multiscale_daily_history_days": 30},
+        )
+
+        with self.assertRaisesRegex(HistoryLengthSelectionError, "missing one or more"):
+            select_history_length({14: job14, 30: job30})
+
+    def test_non_chronological_fold_bounds_are_rejected(self):
+        job14 = _write_job_dir(
+            self.tmp_path, "d14", "lstm_multiscale", {1: (1.0, 1.0), 2: (2.0, 2.0)},
+            config={"multiscale_daily_history_days": 14, "train_end_x": 2000,
+                    "validation_end_x": 1000, "test_end_x": 3000},
+        )
+        job30 = _write_job_dir(
+            self.tmp_path, "d30", "lstm_multiscale", {1: (1.0, 1.0), 2: (2.0, 2.0)},
+            config={"multiscale_daily_history_days": 30, "train_end_x": 2000,
+                    "validation_end_x": 1000, "test_end_x": 3000},
+        )
+
+        with self.assertRaisesRegex(HistoryLengthSelectionError, "not chronological"):
+            select_history_length({14: job14, 30: job30})
+
+    def test_fold_bounds_reaching_into_reserved_period_are_rejected(self):
+        job14 = _write_job_dir(
+            self.tmp_path, "d14", "lstm_multiscale", {1: (1.0, 1.0), 2: (2.0, 2.0)},
+            config={"multiscale_daily_history_days": 14, "train_end_x": 0,
+                    "validation_end_x": 2000, "test_end_x": RESERVED_PERIOD_X_CUTOFF},
+        )
+        job30 = _write_job_dir(
+            self.tmp_path, "d30", "lstm_multiscale", {1: (1.0, 1.0), 2: (2.0, 2.0)},
+            config={"multiscale_daily_history_days": 30, "train_end_x": 0,
+                    "validation_end_x": 2000, "test_end_x": RESERVED_PERIOD_X_CUTOFF},
+        )
+
+        with self.assertRaisesRegex(HistoryLengthSelectionError, "reserved-period seal"):
+            select_history_length({14: job14, 30: job30})
+
+    def test_nonpositive_d_is_rejected(self):
+        job0 = _write_job_dir(self.tmp_path, "d0", "lstm_multiscale", {1: (1.0, 1.0)}, d=0)
+        job14 = _write_job_dir(self.tmp_path, "d14", "lstm_multiscale", {1: (1.0, 1.0)}, d=14)
+
+        with self.assertRaisesRegex(HistoryLengthSelectionError, "positive integer"):
+            select_history_length({0: job0, 14: job14})
+
+    def test_validation_row_outside_declared_interval_is_rejected(self):
+        """A row labeled 'validation' in the CSV but whose x falls outside the
+        fold's own declared [train_end_x, validation_end_x) is rejected --
+        the split label alone is not trusted. Directly reproduced before
+        this check existed: two candidates both scored cleanly on rows
+        thousands of hours outside their declared validation window."""
+        job14 = _write_job_dir(
+            self.tmp_path, "d14", "lstm_multiscale", {5000: (1.0, 1.0), 5001: (2.0, 2.0)}, d=14,
+        )
+        job30 = _write_job_dir(
+            self.tmp_path, "d30", "lstm_multiscale", {5000: (1.0, 1.0), 5001: (2.0, 2.0)}, d=30,
+        )
+
+        with self.assertRaisesRegex(HistoryLengthSelectionError, "outside the fold's own declared"):
+            select_history_length({14: job14, 30: job30})
+
+    def test_cross_candidate_observed_mismatch_at_shared_x_is_rejected(self):
+        """Two candidates sharing a real-world hour x but disagreeing on its
+        observed discharge indicates a corrupted/mismatched target series.
+        Directly reproduced before this check existed: both candidates
+        scored NSE=1.0 against two different 'truths' for the same hour."""
+        job14 = _write_job_dir(self.tmp_path, "d14", "lstm_multiscale",
+                                {1: (5.0, 5.0), 2: (6.0, 6.0)}, d=14)
+        job30 = _write_job_dir(self.tmp_path, "d30", "lstm_multiscale",
+                                {1: (5.0, 5.0), 2: (999.0, 999.0)}, d=30)
+
+        with self.assertRaisesRegex(HistoryLengthSelectionError, "disagree on the observed value"):
+            select_history_length({14: job14, 30: job30})
 
     def test_missing_checkpoint_file_is_rejected(self):
         job_dir = self.tmp_path / "incomplete"

@@ -75,7 +75,13 @@ def _checkpoint_filename(approach: str) -> str:
     return "".join(c.lower() if c.isalnum() else "_" for c in approach) + ".pt"
 
 
-def read_validation_rows(predictions_csv: Path, approach: str) -> Dict[float, Tuple[float, float]]:
+def read_validation_rows(
+    predictions_csv: Path,
+    approach: str,
+    *,
+    validation_start_x: float,
+    validation_end_x: float,
+) -> Dict[float, Tuple[float, float]]:
     """Return {x: (observed, predicted)} for one approach's VALIDATION split only.
 
     Validates every field actually used, not only observed/predicted: x
@@ -87,6 +93,13 @@ def read_validation_rows(predictions_csv: Path, approach: str) -> Dict[float, Tu
     rows read: the same x must never appear under two different split
     labels for the same approach, since that would mean the export itself
     is ambiguous about which split a given hour belongs to.
+
+    A row's CSV ``split`` label alone is not trusted either: a row labeled
+    "validation" must also have x inside [validation_start_x,
+    validation_end_x) -- the fold's own declared interval, taken from its
+    config -- or it is rejected. Without this, a mislabeled or
+    wrong-fold export could still be silently scored as if it were
+    legitimate validation data for this fold.
     """
     rows: Dict[float, Tuple[float, float]] = {}
     x_to_split: Dict[float, str] = {}
@@ -121,6 +134,14 @@ def read_validation_rows(predictions_csv: Path, approach: str) -> Dict[float, Tu
             x_to_split[x] = split
             if split != "validation":
                 continue
+            if not (validation_start_x <= x < validation_end_x):
+                raise HistoryLengthSelectionError(
+                    f"x={x} for approach {approach!r} in {predictions_csv} is labeled "
+                    "'validation' but falls outside the fold's own declared validation "
+                    f"interval [{validation_start_x}, {validation_end_x}) -- the split label "
+                    "alone is not trusted; refusing to score a row whose timestamp doesn't "
+                    "actually belong to this fold's validation window"
+                )
             if x in rows:
                 raise HistoryLengthSelectionError(
                     f"Duplicate validation x={x} for approach {approach!r} in {predictions_csv}"
@@ -173,6 +194,11 @@ def select_history_length(
     job_dirs = {d: Path(path) for d, path in candidate_job_dirs.items()}
     fold_bounds_by_d: Dict[int, tuple] = {}
     for d, job_dir in job_dirs.items():
+        if not isinstance(d, int) or d <= 0:
+            raise HistoryLengthSelectionError(
+                f"D={d!r} is not a positive integer -- daily-history length must be a "
+                "positive number of days"
+            )
         config_path = job_dir / "experiment_config.json"
         checkpoint_path = job_dir / "models" / _checkpoint_filename(approach)
         if not config_path.is_file():
@@ -190,11 +216,38 @@ def select_history_length(
                 f"{declared_d!r}, not {d} -- this job directory does not match "
                 "the D it was registered under"
             )
-        fold_bounds_by_d[d] = (
+        raw_bounds = (
             config_data.get("train_end_x"),
             config_data.get("validation_end_x"),
             config_data.get("test_end_x"),
         )
+        # Bounds must be PRESENT, FINITE, and CHRONOLOGICAL, not merely equal to every
+        # other candidate's bounds -- three candidates that all simply omit these fields
+        # would otherwise "match" trivially as (None, None, None) and pass undetected.
+        if any(b is None for b in raw_bounds):
+            raise HistoryLengthSelectionError(
+                f"D={d}: {config_path} is missing one or more of "
+                "train_end_x/validation_end_x/test_end_x -- a missing bound is not a "
+                "valid fold boundary, even if every candidate is equally missing it"
+            )
+        train_end_x, validation_end_x, test_end_x = raw_bounds
+        if not all(isinstance(b, (int, float)) and math.isfinite(b) for b in raw_bounds):
+            raise HistoryLengthSelectionError(
+                f"D={d}: {config_path}'s fold bounds are not all finite numbers: {raw_bounds}"
+            )
+        if not (train_end_x < validation_end_x < test_end_x):
+            raise HistoryLengthSelectionError(
+                f"D={d}: {config_path}'s fold bounds are not chronological "
+                f"(train_end_x={train_end_x}, validation_end_x={validation_end_x}, "
+                f"test_end_x={test_end_x}) -- expected train_end_x < validation_end_x < test_end_x"
+            )
+        if test_end_x >= RESERVED_PERIOD_X_CUTOFF:
+            raise HistoryLengthSelectionError(
+                f"D={d}: {config_path}'s test_end_x={test_end_x} is at or past the "
+                f"reserved-period seal (cutoff {RESERVED_PERIOD_X_CUTOFF}) -- refusing a "
+                "fold whose own declared bounds reach into the reserved period"
+            )
+        fold_bounds_by_d[d] = raw_bounds
     distinct_fold_bounds = set(fold_bounds_by_d.values())
     if len(distinct_fold_bounds) > 1:
         raise HistoryLengthSelectionError(
@@ -202,12 +255,37 @@ def select_history_length(
             f"test_end_x) fold boundaries -- they are not the same fold: "
             f"{fold_bounds_by_d}"
         )
+    shared_train_end_x, shared_validation_end_x, _shared_test_end_x = next(iter(distinct_fold_bounds))
 
     per_d_rows = {
-        d: read_validation_rows(job_dir / "predictions.csv", approach)
+        d: read_validation_rows(
+            job_dir / "predictions.csv", approach,
+            validation_start_x=shared_train_end_x, validation_end_x=shared_validation_end_x,
+        )
         for d, job_dir in job_dirs.items()
     }
     per_d_xsets = {d: set(rows.keys()) for d, rows in per_d_rows.items()}
+
+    # All candidates' observed values on identical x must agree before scoring: a
+    # cross-export consistency check distinct from any single file's own internal checks
+    # above. Two candidates sharing a real-world hour x but disagreeing on its observed
+    # discharge means at least one export's target series is corrupted or mismatched --
+    # directly reproduced before this check existed: two such candidates both "selected"
+    # cleanly with NSE=1.0 each, computed against two different "truths" for the same hour.
+    observed_by_x: Dict[float, Dict[int, float]] = {}
+    for d, rows in per_d_rows.items():
+        for x, (observed_value, _predicted_value) in rows.items():
+            observed_by_x.setdefault(x, {})[d] = observed_value
+    for x, per_d_observed in observed_by_x.items():
+        if len(per_d_observed) < 2:
+            continue
+        values = list(per_d_observed.values())
+        if max(values) - min(values) > 1e-6:
+            raise HistoryLengthSelectionError(
+                f"Candidates disagree on the observed value at shared x={x}: "
+                f"{per_d_observed} -- this indicates a corrupted or mismatched target "
+                "series between exports; refusing to score on inconsistent ground truth"
+            )
 
     ordered_largest_first = sorted(per_d_xsets, reverse=True)
     largest_d = ordered_largest_first[0]
