@@ -1,0 +1,128 @@
+{
+  "common_support_hours": 49478,
+  "duplicate_x_check": "none found in any of the 13 files",
+  "per_model": {
+    "ffn": {
+      "estimand_NOT_reported_in_manuscript_concat_seeds_rmse": 0.185664,
+      "estimand_NOT_reported_in_manuscript_concat_seeds_rmse_n": 148434,
+      "estimand_mean_of_seed_nse": 0.434367,
+      "estimand_mean_of_seed_rmse": 0.18566,
+      "note": "estimand_mean_of_seed_nse/rmse are the arithmetic mean of each seed's own, independently computed metric over its full pooled (across years/folds) 49,478-hour common-support series -- this is what the manuscript reports. NOT an ensemble metric (median-prediction-then-score). The concat_seeds_rmse field is a different, NOT manuscript-reported quantity, included only to make the distinction between 'mean of per-seed RMSE' and 'RMSE on all seeds' rows pooled together' explicit and inspectable.",
+      "per_seed_nse": {
+        "s123": 0.443596,
+        "s27182": 0.431573,
+        "s42": 0.427931
+      },
+      "per_seed_rmse": {
+        "s123": 0.184143,
+        "s27182": 0.186122,
+        "s42": 0.186717
+      },
+      "seeds": [
+        "s42",
+        "s123",
+        "s27182"
+      ]
+    },
+    "ffn_residual_hybrid": {
+      "estimand_NOT_reported_in_manuscript_concat_seeds_rmse": 0.180549,
+      "estimand_NOT_reported_in_manuscript_concat_seeds_rmse_n": 148434,
+      "estimand_mean_of_seed_nse": 0.465101,
+      "estimand_mean_of_seed_rmse": 0.180541,
+      "note": "estimand_mean_of_seed_nse/rmse are the arithmetic mean of each seed's own, independently computed metric over its full pooled (across years/folds) 49,478-hour common-support series -- this is what the manuscript reports. NOT an ensemble metric (median-prediction-then-score). The concat_seeds_rmse field is a different, NOT manuscript-reported quantity, included only to make the distinction between 'mean of per-seed RMSE' and 'RMSE on all seeds' rows pooled together' explicit and inspectable.",
+      "per_seed_nse": {
+        "s123": 0.455122,
+        "s27182": 0.479561,
+        "s42": 0.46062
+      },
+      "per_seed_rmse": {
+        "s123": 0.182226,
+        "s27182": 0.178092,
+        "s42": 0.181304
+      },
+      "seeds": [
+        "s42",
+        "s123",
+        "s27182"
+      ]
+    },
+    "lstm_24h": {
+      "estimand_NOT_reported_in_manuscript_concat_seeds_rmse": 0.152212,
+      "estimand_NOT_reported_in_manuscript_concat_seeds_rmse_n": 148434,
+      "estimand_mean_of_seed_nse": 0.619831,
+      "estimand_mean_of_seed_rmse": 0.152171,
+      "note": "estimand_mean_of_seed_nse/rmse are the arithmetic mean of each seed's own, independently computed metric over its full pooled (across years/folds) 49,478-hour common-support series -- this is what the manuscript reports. NOT an ensemble metric (median-prediction-then-score). The concat_seeds_rmse field is a different, NOT manuscript-reported quantity, included only to make the distinction between 'mean of per-seed RMSE' and 'RMSE on all seeds' rows pooled together' explicit and inspectable.",
+      "per_seed_nse": {
+        "s123": 0.611557,
+        "s27182": 0.644108,
+        "s42": 0.603829
+      },
+      "per_seed_rmse": {
+        "s123": 0.153859,
+        "s27182": 0.147272,
+        "s42": 0.155382
+      },
+      "seeds": [
+        "s42",
+        "s123",
+        "s27182"
+      ]
+    },
+    "lstm_residual_hybrid": {
+      "estimand_NOT_reported_in_manuscript_concat_seeds_rmse": 0.148356,
+      "estimand_NOT_reported_in_manuscript_concat_seeds_rmse_n": 148434,
+      "estimand_mean_of_seed_nse": 0.638845,
+      "estimand_mean_of_seed_rmse": 0.148291,
+      "note": "estimand_mean_of_seed_nse/rmse are the arithmetic mean of each seed's own, independently computed metric over its full pooled (across years/folds) 49,478-hour common-support series -- this is what the manuscript reports. NOT an ensemble metric (median-prediction-then-score). The concat_seeds_rmse field is a different, NOT manuscript-reported quantity, included only to make the distinction between 'mean of per-seed RMSE' and 'RMSE on all seeds' rows pooled together' explicit and inspectable.",
+      "per_seed_nse": {
+        "s123": 0.60978,
+        "s27182": 0.661335,
+        "s42": 0.645419
+      },
+      "per_seed_rmse": {
+        "s123": 0.154211,
+        "s27182": 0.143663,
+        "s42": 0.147
+      },
+      "seeds": [
+        "s42",
+        "s123",
+        "s27182"
+      ]
+    },
+    "two_reservoir": {
+      "estimand_NOT_reported_in_manuscript_concat_seeds_rmse": 0.219793,
+      "estimand_NOT_reported_in_manuscript_concat_seeds_rmse_n": 49478,
+      "estimand_mean_of_seed_nse": 0.207298,
+      "estimand_mean_of_seed_rmse": 0.219793,
+      "note": "estimand_mean_of_seed_nse/rmse are the arithmetic mean of each seed's own, independently computed metric over its full pooled (across years/folds) 49,478-hour common-support series -- this is what the manuscript reports. NOT an ensemble metric (median-prediction-then-score). The concat_seeds_rmse field is a different, NOT manuscript-reported quantity, included only to make the distinction between 'mean of per-seed RMSE' and 'RMSE on all seeds' rows pooled together' explicit and inspectable.",
+      "per_seed_nse": {
+        "s42": 0.207298
+      },
+      "per_seed_rmse": {
+        "s42": 0.219793
+      },
+      "seeds": [
+        "s42"
+      ]
+    }
+  },
+  "reserved_period_x_cutoff": 77016,
+  "source_dir": "/home/arash/Dropbox/HydroPINN paper/results/framework_decade_20261022/annual_analysis_v2",
+  "source_file_sha256": {
+    "ffn_residual_hybrid_s123": "39ae03d4fc350bc902c5c892b47d37a6b8790d1ace40b1a132f7a636f5eac408",
+    "ffn_residual_hybrid_s27182": "5898ad59bbcfc121ebf8dd2b58aafaa9ee0900c93e422d65e8aaa9f733f6437b",
+    "ffn_residual_hybrid_s42": "28cfd646d02fe5f615e8bb6c7076bb35a0d684479fc755358fa649741ff219cc",
+    "ffn_s123": "5ae4b308cdc1f1e788aceaac1f22fdf5cc60f5e752edc3f6900f61cc99655978",
+    "ffn_s27182": "a6fdf2773b8f4d106dab941f223e70bd789709f9c80ec945f6c2d4f8fc549a9c",
+    "ffn_s42": "963b2cdcf7fb7d0a79e38274d7c636921092ec46ffb1f269632dbf857e0d8228",
+    "lstm_24h_s123": "95c3a4c12d677f37cf663e052689cbd5f740db701154f45e96d6c96458aeadf9",
+    "lstm_24h_s27182": "4dfc345ba673e33ec6fd44072af715a3b7db271fd752f33d4b9e0123214fca64",
+    "lstm_24h_s42": "9db04892bbdc71c60b7127a8aae94261bc6aa5d11c492c1e8e9d8c339a51de40",
+    "lstm_residual_hybrid_s123": "dd0186cb10870ad98189cb0c0f2a2d0c31440d716faddf715001e3b1d54b00db",
+    "lstm_residual_hybrid_s27182": "f858d317ddeb0ae24f9b095d85814a78bd59a7e342209d857ec3e59dc89a77ba",
+    "lstm_residual_hybrid_s42": "50326ac3deb3ce27b8b22f93d05af04ab319fa8deb4653d7a90daf2ffec0c31c",
+    "two_reservoir_s42": "e3131d6c46bc2e60fee124dd7ad64e4357c2c7c2bef73ef1ca2f7d74082d83ab"
+  },
+  "timestamp_set_identity_verified": true
+}
