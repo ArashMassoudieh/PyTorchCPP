@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Antecedent-memory diagnostic (Task 2, CLAUDE_RESULTS_IMPROVEMENT_TASKS_20261105.md).
 
-Development-forcing-only, no training, no outcome-optimized lag search. Quantifies:
+Development forcing and previously frozen event diagnostics; no training, no outcome-optimized lag search. Quantifies:
   1. Antecedent rainfall totals ending at each frozen event's start, at hourly
      resolution (24h/72h/168h, trailing from the event start) and at daily
      resolution (14/30/60 complete prior calendar days, same alignment rule
@@ -21,8 +21,8 @@ Development-forcing-only, no training, no outcome-optimized lag search. Quantifi
 
 Source: entirely the development-period-sealed MRMS package
 sligocreekdemo_mrms_corrected_devperiod (study_end 2023-10-14T23:00:00Z, strictly
-before the x=77016 / 2023-10-15T00:00:00Z seal). No reserved-period timestamp or
-value is read by this script.
+before the x=77016 / 2023-10-15T00:00:00Z seal). Timestamps are parsed and checked before rainfall or event-value access.
+CSV parsing itself necessarily reads fields; reserved values are not used.
 """
 from __future__ import annotations
 
@@ -81,40 +81,55 @@ def hourly_window_sum(series: dict[datetime, float], end_exclusive: datetime, ho
 
 
 def daily_window_sum(series: dict[datetime, float], end_exclusive: datetime, days: int) -> tuple[float, float, int]:
-    """Sum over the `days` most recent FULLY COMPLETE UTC calendar days strictly
-    before the day containing end_exclusive -- same alignment rule as the
-    multiscale daily-history branch (report 66/68): a day is only used if every
-    one of its 24 hours has a recorded value. Returns (sum_mm, coverage_fraction
-    = complete_days_found / days_requested, complete_days_found)."""
-    day_start = datetime(end_exclusive.year, end_exclusive.month, end_exclusive.day, tzinfo=timezone.utc)
+    """Fixed interval [UTC midnight(end)-days, UTC midnight(end)).
+
+    Incomplete days contribute no total and reduce coverage; older days never
+    substitute for missing days. A partial total is NOT a complete-history sum.
+    """
+    if isinstance(days, bool) or not isinstance(days, int) or days <= 0:
+        raise ValueError("days must be a positive integer")
+    if end_exclusive.tzinfo is None or end_exclusive.utcoffset() != timedelta(0):
+        raise ValueError("end_exclusive must be UTC-aware")
+    day_start = end_exclusive.replace(hour=0, minute=0, second=0, microsecond=0)
     total = 0.0
     complete_days_found = 0
-    cursor = day_start
-    while complete_days_found < days:
-        cursor -= timedelta(days=1)
+    for offset in range(1, days + 1):
+        cursor = day_start - timedelta(days=offset)
         hours = [cursor + timedelta(hours=h) for h in range(24)]
         if all(h in series for h in hours):
             total += sum(series[h] for h in hours)
             complete_days_found += 1
-        else:
-            # A day with any missing hour is skipped entirely (not partially
-            # summed), matching the "fully-completed days only" rule -- but we
-            # keep walking backward rather than aborting, so one short gap
-            # doesn't silently truncate the whole window to zero days found.
-            # Walking indefinitely is bounded by the series' own start.
-            if cursor < min(series):
-                break
     return total, complete_days_found / days, complete_days_found
 
 
+def validate_event_interval(start, end):
+    """Guard event dates before any observed/error field is accessed."""
+    for value in (start, end):
+        if value.tzinfo is None or value.utcoffset() != timedelta(0):
+            raise ValueError("event timestamp must be UTC-aware")
+        if value >= RESERVED_PERIOD_X_CUTOFF_TIMESTAMP:
+            raise ValueError("reserved event timestamp")
+    if end < start:
+        raise ValueError("reversed event interval")
+
+
 def main() -> int:
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output-prefix', type=Path, required=True,
+                        help='new output prefix; existing CSV/JSON are never overwritten')
+    args = parser.parse_args()
+    out_json = Path(str(args.output_prefix) + '.json')
+    out_csv = Path(str(args.output_prefix) + '.csv')
+    if out_json.exists() or out_csv.exists():
+        raise FileExistsError('refusing to overwrite an existing diagnostic')
     series = load_mrms_hourly(MRMS_PATH)
     series_start = min(series)
     series_end = max(series)
 
     # --- Diagnostic 1: what does daily aggregation structurally discard? ---
     # Burstiness = (wettest single hour) / (day total), for every fully-complete
-    # UTC day with nonzero rainfall. A value near 1.0 means the day's rain was
+    # UTC day with total rainfall >0.5 mm. A value near 1.0 means the day's rain was
     # concentrated in essentially one hour -- information a daily total alone
     # cannot distinguish from the same total spread evenly across 24 hours.
     burstiness_values = []
@@ -142,6 +157,7 @@ def main() -> int:
         for row in csv.DictReader(handle):
             start_utc = datetime.fromisoformat(row["start_utc"].replace("Z", "+00:00"))
             end_utc = datetime.fromisoformat(row["end_utc"].replace("Z", "+00:00"))
+            validate_event_interval(start_utc, end_utc)
             a24, c24 = hourly_window_sum(series, start_utc, 24)
             a72, c72 = hourly_window_sum(series, start_utc, 72)
             a168, c168 = hourly_window_sum(series, start_utc, 168)
@@ -161,6 +177,9 @@ def main() -> int:
                 "antecedent_72h_mm": round(a72, 4), "antecedent_72h_coverage": round(c72, 4),
                 "antecedent_72h_mm_existing_column": float(row["rain_antecedent_72h_mm"]),
                 "antecedent_168h_mm": round(a168, 4), "antecedent_168h_coverage": round(c168, 4),
+                "antecedent_14d_eligible": dc14 == 1.0,
+                "antecedent_30d_eligible": dc30 == 1.0,
+                "antecedent_60d_eligible": dc60 == 1.0,
                 "antecedent_14d_mm": round(d14, 4), "antecedent_14d_coverage": round(dc14, 4),
                 "antecedent_30d_mm": round(d30, 4), "antecedent_30d_coverage": round(dc30, 4),
                 "antecedent_60d_mm": round(d60, 4), "antecedent_60d_coverage": round(dc60, 4),
@@ -223,7 +242,8 @@ def main() -> int:
         "source_package": str(MRMS_PATH),
         "source_event_table": str(EVENT_TABLE_PATH),
         "development_series_span": [str(series_start), str(series_end)],
-        "reserved_period_timestamps_read": 0,
+        "reserved_values_used": False,
+        "daily_window_policy": "fixed preceding UTC calendar interval; incomplete days excluded, never replaced",
         "burstiness_diagnostic": burstiness_summary,
         "event_count": len(events),
         "max_72h_antecedent_diff_vs_existing_column_mm": round(max_72h_diff, 6),
@@ -233,15 +253,15 @@ def main() -> int:
         "duration_strata": duration_strata,
     }
 
-    OUT_JSON.write_text(json.dumps(report, indent=2, sort_keys=True))
-    with open(OUT_CSV, "w", newline="") as handle:
+    out_json.write_text(json.dumps(report, indent=2, sort_keys=True))
+    with open(out_csv, "x", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(events[0].keys()))
         writer.writeheader()
         writer.writerows(events)
 
     print(json.dumps(report, indent=2, sort_keys=True))
-    print("wrote", OUT_JSON)
-    print("wrote", OUT_CSV)
+    print("wrote", out_json)
+    print("wrote", out_csv)
     return 0
 
 
