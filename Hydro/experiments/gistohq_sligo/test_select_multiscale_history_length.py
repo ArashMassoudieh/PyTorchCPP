@@ -345,7 +345,7 @@ class SelectMultiscaleHistoryLengthTest(unittest.TestCase):
 
     def test_validation_row_outside_declared_interval_is_rejected(self):
         """A row labeled 'validation' in the CSV but whose x falls outside the
-        fold's own declared [train_end_x, validation_end_x) is rejected --
+        fold's own declared (train_end_x, validation_end_x] is rejected --
         the split label alone is not trusted. Directly reproduced before
         this check existed: two candidates both scored cleanly on rows
         thousands of hours outside their declared validation window."""
@@ -354,6 +354,47 @@ class SelectMultiscaleHistoryLengthTest(unittest.TestCase):
         )
         job30 = _write_job_dir(
             self.tmp_path, "d30", "lstm_multiscale", {5000: (1.0, 1.0), 5001: (2.0, 2.0)}, d=30,
+        )
+
+        with self.assertRaisesRegex(HistoryLengthSelectionError, "outside the fold's own declared"):
+            select_history_length({14: job14, 30: job30})
+
+    def test_validation_row_exactly_at_validation_end_x_is_accepted(self):
+        """validation_end_x is an INCLUSIVE cutoff (Hydro/models/hydro_run_types.h's
+        own doc comment, confirmed against resolve_test_end_x.h's `<=` lookup and
+        chronological_split.h's count-based slicing -- see checkpoint 59 of
+        CLAUDE_VERIFICATION_REPORT.md) -- a row labeled 'validation' at x exactly
+        equal to validation_end_x belongs to validation and must be accepted, not
+        rejected as 'outside' the interval. Directly reproduced against real
+        HydroBatch-produced predictions.csv before this test existed: every real
+        Stage A/B job's own last validation row sits exactly here, and an earlier,
+        half-open version of this check rejected all of them."""
+        bounds = {"train_end_x": 0, "validation_end_x": 2000, "test_end_x": 3000}
+        job14 = _write_job_dir(
+            self.tmp_path, "d14", "lstm_multiscale", {2000: (1.0, 1.0), 1999: (2.0, 2.0)},
+            config={"experiment_id": "d14", "multiscale_daily_history_days": 14, **bounds}, d=14,
+        )
+        job30 = _write_job_dir(
+            self.tmp_path, "d30", "lstm_multiscale", {2000: (1.0, 1.0), 1999: (2.0, 2.0)},
+            config={"experiment_id": "d30", "multiscale_daily_history_days": 30, **bounds}, d=30,
+        )
+
+        report = select_history_length({14: job14, 30: job30})
+        self.assertIn(2000.0, report["common_support_x_values"])
+
+    def test_validation_row_exactly_at_train_end_x_is_rejected(self):
+        """train_end_x is train's own inclusive end (same source evidence as
+        above), so validation's lower bound is EXCLUSIVE of it -- a row labeled
+        'validation' at x exactly equal to train_end_x actually belongs to train
+        and must be rejected, not silently accepted as the start of validation."""
+        bounds = {"train_end_x": 0, "validation_end_x": 2000, "test_end_x": 3000}
+        job14 = _write_job_dir(
+            self.tmp_path, "d14", "lstm_multiscale", {0: (1.0, 1.0), 1: (2.0, 2.0)},
+            config={"experiment_id": "d14", "multiscale_daily_history_days": 14, **bounds}, d=14,
+        )
+        job30 = _write_job_dir(
+            self.tmp_path, "d30", "lstm_multiscale", {0: (1.0, 1.0), 1: (2.0, 2.0)},
+            config={"experiment_id": "d30", "multiscale_daily_history_days": 30, **bounds}, d=30,
         )
 
         with self.assertRaisesRegex(HistoryLengthSelectionError, "outside the fold's own declared"):

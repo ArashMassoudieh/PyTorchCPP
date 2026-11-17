@@ -95,11 +95,27 @@ def read_validation_rows(
     is ambiguous about which split a given hour belongs to.
 
     A row's CSV ``split`` label alone is not trusted either: a row labeled
-    "validation" must also have x inside [validation_start_x,
-    validation_end_x) -- the fold's own declared interval, taken from its
+    "validation" must also have x inside (validation_start_x,
+    validation_end_x] -- the fold's own declared interval, taken from its
     config -- or it is rejected. Without this, a mislabeled or
     wrong-fold export could still be silently scored as if it were
     legitimate validation data for this fold.
+
+    Boundary convention, confirmed against the real split logic (not
+    assumed): HydroRunConfig's train_end_x/validation_end_x/test_end_x are
+    documented as "inclusive exported-x cutoffs"
+    (Hydro/models/hydro_run_types.h), and resolve_test_end_x.h's
+    resolveTestEndSequenceCountFromSorted uses `endpointX[i] <= cutoff`
+    (strictly <=, not <) when counting how many rows belong up to and
+    including a cutoff -- so validation_end_x's own row IS part of
+    validation (inclusive upper bound), and validation_start_x
+    (== the fold's train_end_x) is the *train* partition's own inclusive
+    end, so validation starts strictly after it (exclusive lower bound).
+    An earlier version of this check used the opposite convention
+    ([validation_start_x, validation_end_x), half-open) and was never
+    exercised against real HydroBatch-produced predictions.csv until a
+    real Stage A dispatch (improvement_loop_20261023 checkpoint 58)
+    rejected every fold's own genuinely-correct validation_end_x row.
     """
     rows: Dict[float, Tuple[float, float]] = {}
     x_to_split: Dict[float, str] = {}
@@ -134,11 +150,11 @@ def read_validation_rows(
             x_to_split[x] = split
             if split != "validation":
                 continue
-            if not (validation_start_x <= x < validation_end_x):
+            if not (validation_start_x < x <= validation_end_x):
                 raise HistoryLengthSelectionError(
                     f"x={x} for approach {approach!r} in {predictions_csv} is labeled "
                     "'validation' but falls outside the fold's own declared validation "
-                    f"interval [{validation_start_x}, {validation_end_x}) -- the split label "
+                    f"interval ({validation_start_x}, {validation_end_x}] -- the split label "
                     "alone is not trusted; refusing to score a row whose timestamp doesn't "
                     "actually belong to this fold's validation window"
                 )
