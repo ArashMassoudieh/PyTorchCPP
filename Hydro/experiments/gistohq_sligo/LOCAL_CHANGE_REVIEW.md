@@ -32,7 +32,7 @@ independent scoped review; do not hide them with ignore rules:
 
 | Group | Files | Review needed |
 |---|---|---|
-| Batch/config/export | `hydro_batch_runner.cpp`, `experiment_loader.cpp`, `experiment_exporter.cpp`, `hydro_run_types.h`, `experiment_exporter_test.cpp` | Separate multiscale export-label and split-boundary provenance fixes from optional loss/feature fields; verify clean-checkout roundtrip |
+| Batch dispatch/export labeling | `hydro_batch_runner.cpp` | Separate multiscale export-label support from optional summary columns; verify CLI export/reload integration |
 | Model splits and routing | `ffn_wrapper.cpp`, `pinn_wrapper.cpp`, `residual_pinn_wrapper.h`, `two_reservoir_routing.h`, `reservoir_routing_test.cpp`, `scientific_core_test.cpp` | Exact chronological cutoffs, segment reset/initial-flow behavior and regression coverage |
 | Experimental learning/forcing | `lstm_pinn_wrapper.cpp`, `lstmnetworkwrapper.cpp`, `lstm_regional_pretrain.cpp`, `hydro_tensor_builder.h` | Separate urban/volume/high-flow/MRMS-CV and pretraining logging changes; verify zero-option behavior and dependencies |
 
@@ -50,3 +50,17 @@ remains tracked. Logs/runner and a build-file hash inventory were additionally
 preserved under the Dropbox paper `audits/repo_housekeeping_*` directory before
 ignoring the build tree. Do not use the ignore rule as authorization to delete
 original verification evidence or checkpoints.
+
+## Config transport review completed
+
+The loader/config types/exporter and exporter regression test were reviewed
+as a separate settings-preservation change. Their exact four-file snapshot
+passed `run_experiment_exporter_test.sh` in an isolated HEAD checkout with
+no other outstanding source patches. Exported configs now retain chronological
+cutoffs and additional routing/training settings instead of requiring sidecar
+recovery for newly exported runs. Historical outputs remain untouched.
+
+This verifies settings transport, not performance or behavioral acceptance of
+optional high-flow/volume/MRMS features; their model-side changes remain a
+separate review. Existing partial-source-build provenance for old experiments
+is not retroactively rewritten by this source commit.

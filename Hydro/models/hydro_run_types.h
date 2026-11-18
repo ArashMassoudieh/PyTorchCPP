@@ -161,6 +161,9 @@ struct HydroRunConfig {
     // behavior exactly.
     double lstm_bias_weight = 0.0;
 
+    // Shared-scale LSTM only: training-std-normalized mini-batch volume penalty.
+    double shared_scale_volume_weight = 0.0;
+
     // FFN residual hybrid only: when true, lstm_bias_weight is used only as
     // the *initial* bias-penalty weight; the actual weight becomes a learned
     // parameter (Kendall et al. 2017 homoscedastic uncertainty weighting: a
@@ -193,6 +196,16 @@ struct HydroRunConfig {
     // behavior exactly.
     double physical_error_weight = 0.0;
 
+    // Plain LSTM only: adds a physical-space squared-error term restricted
+    // to observations at or above a discharge quantile fitted from the
+    // training split only. This targets peak-amplitude error without using
+    // validation/test discharge to define what "high flow" means. The term
+    // is averaged over high-flow samples in each mini-batch and normalized
+    // by the training discharge standard deviation. 0.0 recovers the prior
+    // objective exactly; high_flow_loss_quantile must lie in [0, 1).
+    double high_flow_loss_weight = 0.0;
+    double high_flow_loss_quantile = 0.99;
+
     // Plain LSTM only: inter-layer dropout passed to torch::nn::LSTMOptions.
     // Only has an effect when hidden_layers specifies 2+ layers (torch does
     // not apply dropout after the last layer). 0.0 (default) recovers prior
@@ -219,6 +232,12 @@ struct HydroRunConfig {
     // own recurrence/lookback window already sees. 0.0 (default) disables
     // this and recovers prior behavior exactly.
     double antecedent_index_halflife_hours = 0.0;
+
+    // GIStoOHQ packages only: append the optional MRMS within-basin spatial
+    // coefficient of variation as an additional supervised-model feature.
+    // Missing/non-MRMS hours use 0.0. Disabled by default so existing model
+    // dimensions and checkpoints are unchanged.
+    bool use_mrms_spatial_cv_feature = false;
 
     // Reduced urban/managed-storage baseline used by the controlled
     // shared-scale LSTM ablation. These parameters are explicit so the

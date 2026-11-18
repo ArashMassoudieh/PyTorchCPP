@@ -225,11 +225,24 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.pinn_routing_lag_hours = optionalNumberValue(json, "pinn_routing_lag_hours", 0.0);
     c.pinn_flow_exponent = optionalNumberValue(json, "pinn_flow_exponent", 0.0);
     c.lstm_bias_weight = optionalNumberValue(json, "lstm_bias_weight", 0.0);
+    c.shared_scale_volume_weight = optionalNumberValue(json, "shared_scale_volume_weight", 0.0);
+    if (!std::isfinite(c.shared_scale_volume_weight) || c.shared_scale_volume_weight < 0.0) {
+        throw std::runtime_error("shared_scale_volume_weight must be finite and nonnegative");
+    }
     c.physical_error_weight = optionalNumberValue(json, "physical_error_weight", 0.0);
+    c.high_flow_loss_weight = optionalNumberValue(json, "high_flow_loss_weight", 0.0);
+    c.high_flow_loss_quantile = optionalNumberValue(json, "high_flow_loss_quantile", 0.99);
+    if (c.high_flow_loss_weight < 0.0) {
+        throw std::runtime_error("Experiment configuration contains negative high_flow_loss_weight.");
+    }
+    if (c.high_flow_loss_quantile < 0.0 || c.high_flow_loss_quantile >= 1.0) {
+        throw std::runtime_error("Experiment configuration high_flow_loss_quantile must be in [0, 1).");
+    }
     c.lstm_bias_weight_adaptive = optionalBoolValue(json, "lstm_bias_weight_adaptive", false);
     c.lstm_warm_start_checkpoint_path = optionalStringValue(json, "lstm_warm_start_checkpoint_path", "");
     c.lstm_dropout = optionalNumberValue(json, "lstm_dropout", 0.0);
     c.antecedent_index_halflife_hours = optionalNumberValue(json, "antecedent_index_halflife_hours", 0.0);
+    c.use_mrms_spatial_cv_feature = optionalBoolValue(json, "use_mrms_spatial_cv_feature", false);
     c.urban_quick_k = optionalNumberValue(json, "urban_quick_k", 1.0);
     c.urban_slow_k = optionalNumberValue(json, "urban_slow_k", 0.04);
     c.urban_detention_k = optionalNumberValue(json, "urban_detention_k", 0.08);
