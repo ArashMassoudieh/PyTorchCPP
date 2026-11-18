@@ -220,16 +220,35 @@ inline std::optional<std::pair<double, double>> trailingMeanAndVariance(const Ho
 
 }  // namespace detail
 
+// Enforces that a caller-supplied sealStartX can only TIGHTEN the fixed
+// development-only seal, never widen it: 0 < sealStartX <= kSealStartX.
+// Independent-review correction: an earlier version of this file let
+// buildSample's sealStartX parameter default to kSealStartX but placed no
+// bound on what a caller could pass instead -- a caller passing a larger
+// value (e.g. 80000) could accept origins at/past the real seal
+// (confirmed with fabricated synthetic rows only, never real reserved
+// data, in audits/hydrofusion_supervisor_20261117/fixed_seal_parameter_probe.cpp).
+// The default call path was never affected (it always used kSealStartX),
+// but the guarantee must hold for every caller, not just the default one.
+inline void validateSealStartX(int64_t sealStartX) {
+    if (!(0 < sealStartX && sealStartX <= kSealStartX)) {
+        throw std::invalid_argument(
+            "validateSealStartX: sealStartX must satisfy 0 < sealStartX <= kSealStartX -- only "
+            "tightening the fixed development-only seal is permitted, never widening it.");
+    }
+}
+
 // Builds one HydroFusion sample for the given origin hour, or returns
 // std::nullopt if the origin row itself does not exist or either the
 // origin or target index is at/past the reserved-period seal. The seal
 // check happens before any value is read for either row, per the
-// contract's section 3 ordering requirement. sealStartX has no mechanism
-// here to widen it beyond kSealStartX -- it is a plain parameter with
-// that default, never raised internally; this module has no holdoutMode-
-// style override at all, by design, in this development-only prototype.
+// contract's section 3 ordering requirement. sealStartX is validated by
+// validateSealStartX before anything else in this function runs -- a
+// caller cannot pass a value that widens the fixed development-only seal
+// beyond kSealStartX; only tightening it is permitted.
 inline std::optional<Sample> buildSample(const HourlyIndex& idx, const std::vector<HourlyRow>& rows,
                                           int64_t originHour, int64_t sealStartX = kSealStartX) {
+    validateSealStartX(sealStartX);
     // Origin domain validated BEFORE the origin+1 arithmetic below, not
     // after -- an out-of-range originHour must never reach the addition
     // (let alone anything that reads a value), matching the "validate
@@ -363,6 +382,7 @@ inline SplitPartition partitionForX(int64_t x, const SplitCutoffs& cutoffs) {
 // checked before any sample work is done with the cutoffs, not left
 // implicit in partitionForX's three sequential comparisons.
 inline void validateSplitCutoffs(const SplitCutoffs& cutoffs, int64_t sealStartX = kSealStartX) {
+    validateSealStartX(sealStartX);  // sealStartX itself cannot widen the fixed seal either
     if (!(0 <= cutoffs.train_end_x && cutoffs.train_end_x < cutoffs.validation_end_x &&
           cutoffs.validation_end_x < cutoffs.test_end_x && cutoffs.test_end_x < sealStartX)) {
         throw std::invalid_argument(

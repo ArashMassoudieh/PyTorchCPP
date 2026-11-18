@@ -36,15 +36,23 @@ model input (matches `CLAUDE_HYDROFUSION_IMPLEMENTATION_TASKS_20261115.md`
 Task 3's "future Q as a LABEL only" rule, generalized here to Task 1's
 contract level since it governs sampling, not just the log-residual target).
 
-**Caution on `latency_hours > 0` (independent-review correction):** the
-`h <= o` reduction above is not merely "less ideal" once `latency_hours`
-becomes positive — it can silently invalidate the whole 1-hour-ahead framing.
-`avail(o) = o + 1 + latency_hours`; once `latency_hours >= 1`, `avail(o)`
-reaches or passes `avail(o+1) = o + 2 + latency_hours`'s own interval start,
-meaning the decision time has moved at or past when the *target* itself
-would already be available — there is no longer a meaningful 1-hour-ahead
-forecast to make. This is a structural limit of the current origin/target/
-horizon framing, not a detail `latency_model` alone communicates. This
+**Caution on `latency_hours > 0` (independent-review correction, twice
+corrected):** the `h <= o` reduction above is not merely "less ideal" once
+`latency_hours` becomes positive — it can silently invalidate the whole
+1-hour-ahead framing. The target row covers the absolute-time interval
+`[o+1, o+2)`; decision time is `avail(o) = o + 1 + latency_hours`. For any
+`latency_hours > 0`, decision time already falls *inside* that interval
+(`o + 1 + latency_hours > o + 1`) — the forecast is being issued partway
+through the very interval it is trying to predict. Once `latency_hours >=
+1`, decision time reaches or passes the interval's own *end* (`o + 2`) --
+at that point the target interval has already fully elapsed by the time a
+decision could be made, so there is no future left to forecast at all. (An
+earlier version of this paragraph compared decision time against
+`avail(o+1) = o + 2 + latency_hours` instead of the interval's actual end
+`o + 2` — those two quantities differ by exactly `latency_hours` and can
+never cross each other by construction; that was the wrong threshold and
+is corrected here.) This is a structural limit of the current origin/
+target/horizon framing, not a detail `latency_model` alone communicates. This
 prototype supports `latency_hours = 0.0` only; any `latency_hours > 0` run
 requires a revised contract (a wider horizon, a different origin
 definition, or both) before it can be called operational, not just a
@@ -190,8 +198,10 @@ discharge-memory lookups (`o-71 .. o`) may fall in an earlier split than the
 sample's own assigned split — e.g. a validation-origin sample may read
 train-split discharge history. This is allowed because it is purely causal
 historical data, not a future label. What is never allowed is the converse:
-a train-split sample's **target** may not be a row at or past `train_end`
-(no future label may enter training).
+for a train-split sample, `target_x > train_end_x` (strictly past the
+cutoff) is forbidden; `target_x == train_end_x` is allowed, consistent
+with the inclusive exported-x cutoff (`train_end_x` itself is the last x
+value included in train) -- no future label may enter training.
 
 ## 8. What this contract does not cover
 

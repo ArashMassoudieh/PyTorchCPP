@@ -113,7 +113,7 @@
     },
     "sample_assignment": "a sample (origin=o, target=o+1) is assigned to split S iff both o and o+1 resolve to the same partition S under the prototype adapter; otherwise the sample is discarded entirely, never partially assigned",
     "historical_context_exception": "discharge-memory lookup rows (o-71..o) may fall in an earlier split than the sample's own assigned split (purely causal, not a future label)",
-    "forbidden": "a train-split sample's target row may never be at or past train_end"
+    "forbidden": "for a train-split sample, target_x > train_end_x (strictly past the cutoff) is forbidden; target_x == train_end_x is allowed, consistent with the inclusive exported-x cutoff (train_end_x itself is the last x value included in train)"
   },
 
   "not_covered_by_this_contract": [

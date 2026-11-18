@@ -25,6 +25,7 @@ using hydrofusion::SplitCutoffs;
 using hydrofusion::SplitPartition;
 using hydrofusion::assignSampleSplit;
 using hydrofusion::partitionForX;
+using hydrofusion::validateSealStartX;
 using hydrofusion::validateSplitCutoffs;
 
 namespace {
@@ -493,6 +494,75 @@ void testBuildSampleRejectsOutOfDomainOriginBeforeArithmetic() {
     std::cout << "testBuildSampleRejectsOutOfDomainOriginBeforeArithmetic: PASS\n";
 }
 
+// --- Regression tests reproducing the independent review's third probe
+// (audits/hydrofusion_supervisor_20261117/fixed_seal_parameter_probe.cpp) --
+// using only fabricated synthetic rows, never real reserved data.
+
+void testSealStartXCannotBeWidenedPastFixedSeal() {
+    bool threwForWideningValue = false;
+    try {
+        validateSealStartX(80000);  // > kSealStartX: an attempt to widen, must be rejected
+    } catch (const std::invalid_argument&) {
+        threwForWideningValue = true;
+    }
+    assert(threwForWideningValue);
+
+    bool threwForZero = false;
+    try {
+        validateSealStartX(0);
+    } catch (const std::invalid_argument&) {
+        threwForZero = true;
+    }
+    assert(threwForZero);
+
+    bool threwForNegative = false;
+    try {
+        validateSealStartX(-5);
+    } catch (const std::invalid_argument&) {
+        threwForNegative = true;
+    }
+    assert(threwForNegative);
+
+    // Tightening (a smaller, positive value) must be permitted.
+    validateSealStartX(1000);  // must not throw
+    validateSealStartX(hydrofusion::kSealStartX);  // the fixed default itself must not throw
+
+    // Exact reproduction of the independent review's probe: fabricated
+    // synthetic rows at x=76940..77039 (never real reserved data), then
+    // buildSample(idx, rows, 77016, 80000) -- origin AT the fixed seal,
+    // with a wider caller-supplied sealStartX. Before the fix: this
+    // returned a sample with target_native_mask=true. After the fix:
+    // buildSample must throw before accepting the widened parameter.
+    std::vector<HourlyRow> rows;
+    for (int i = 0; i < 100; ++i) rows.push_back(makeRow(76940 + i, 1.0));
+    HourlyIndex idx(rows);
+    bool threwFromBuildSample = false;
+    try {
+        auto sample = buildSample(idx, rows, 77016, 80000);
+        (void)sample;
+    } catch (const std::invalid_argument&) {
+        threwFromBuildSample = true;
+    }
+    assert(threwFromBuildSample);
+
+    // Exact reproduction of the probe's second half: validateSplitCutoffs
+    // with cutoffs past the fixed seal and a widened sealStartX. Before
+    // the fix: accepted. After the fix: must throw.
+    bool threwFromCutoffs = false;
+    try {
+        validateSplitCutoffs(SplitCutoffs{77000, 77010, 77020}, 80000);
+    } catch (const std::invalid_argument&) {
+        threwFromCutoffs = true;
+    }
+    assert(threwFromCutoffs);
+
+    // The default call path (sealStartX left at its default) must remain
+    // completely unaffected -- this was always correct and must stay so.
+    auto defaultPathSample = buildSample(idx, rows, hydrofusion::kSealStartX - 50);
+    assert(defaultPathSample.has_value());  // well before the seal, with full support
+    std::cout << "testSealStartXCannotBeWidenedPastFixedSeal: PASS\n";
+}
+
 void testPersistenceBenchmarkProvenanceOnFixture() {
     auto rows = contiguousFixture();
     HourlyIndex idx(rows);
@@ -546,6 +616,7 @@ int main() {
     testInvalidSplitCutoffsRejected();
     testHourlyIndexRejectsOutOfInt64RangeX();
     testBuildSampleRejectsOutOfDomainOriginBeforeArithmetic();
+    testSealStartXCannotBeWidenedPastFixedSeal();
     std::cout << "ALL HYDROFUSION FEATURE BUILDER TESTS PASSED\n";
     return 0;
 }
