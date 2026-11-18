@@ -152,11 +152,15 @@ std::string safeFileStem(const std::string& value) {
 
 bool supportedApproach(const std::string& approach) {
     return approach == "ffn" || approach == "ffn_pinn" || approach == "pinn" ||
-           approach == "lstm" || approach == "lstm_pinn" || approach == "lstm_multiscale";
+           approach == "lstm" || approach == "lstm_pinn" || approach == "lstm_multiscale" ||
+           approach == "ffn_hydrofusion";
 }
 
 bool checkpointFormatMatchesApproach(const std::string& approach, const std::string& format) {
-    if (approach == "ffn") return format == "neuralnetworkwrapper-v1";
+    // Opt-in HydroFusion forecasting mode: reuses NeuralNetworkWrapper
+    // exactly like plain "ffn", so the same checkpoint-format rule
+    // applies -- see Hydro/models/ffn_hydrofusion_wrapper.cpp.
+    if (approach == "ffn" || approach == "ffn_hydrofusion") return format == "neuralnetworkwrapper-v1";
     if (approach == "lstm" || approach == "lstm_pinn") return format == "torch-module-v1";
     if (approach == "lstm_multiscale") return format == "torch-module-v1-multiscale";
     if (approach == "ffn_pinn" || approach == "pinn") {
@@ -225,7 +229,14 @@ void validateExportResult(const std::string& approach, const HydroRunResult& res
 void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
                                         const std::string& experimentId,
                                         const HydroRunConfig& config,
-                                        const std::map<std::string, HydroRunResult>& results) const {
+                                        const std::map<std::string, HydroRunResult>& results,
+                                        std::size_t callerConfigSize,
+                                        std::size_t callerResultSize) const {
+    // Defaults are evaluated in the caller TU. Reject stale aggregate layouts
+    // before copying map nodes or dereferencing config strings.
+    if (callerConfigSize != sizeof(HydroRunConfig) || callerResultSize != sizeof(HydroRunResult)) {
+        throw std::runtime_error("Hydro export ABI layout mismatch; rebuild all translation units from one source snapshot.");
+    }
     if (experimentId.empty()) throw std::invalid_argument("Experiment ID cannot be empty.");
     const std::filesystem::path experimentName(experimentId);
     if (experimentId == "." || experimentId == ".." || experimentName.is_absolute() ||
@@ -305,6 +316,8 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
               << "  \"regional_window_end\": \"" << escapeJson(config.regional_window_end) << "\",\n"
               << "  \"shuffle_training\": " << (config.shuffle_training ? "true" : "false") << ",\n"
               << "  \"evaluate_metrics\": " << (config.evaluate_metrics ? "true" : "false") << ",\n"
+              << "  \"hydrofusion_synthetic_verification\": " << (config.hydrofusion_synthetic_verification ? "true" : "false") << ",\n"
+              << "  \"hydrofusion_target_mode\": \"" << escapeJson(config.hydrofusion_target_mode) << "\",\n"
               << "  \"normalization\": \"" << escapeJson(config.normalization) << "\",\n"
               << "  \"hidden_layers\": \"" << escapeJson(config.hidden_layers_csv) << "\",\n"
               << "  \"input_lags\": \"" << escapeJson(config.input_lags_csv) << "\",\n"

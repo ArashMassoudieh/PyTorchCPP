@@ -304,6 +304,21 @@ struct HydroRunConfig {
     // instead of the declared window. See regional_window_filter.h.
     std::string regional_window_start = "";
     std::string regional_window_end = "";
+
+    // Opt-in FFN+HydroFusion one-hour-ahead causal forecasting mode only
+    // (mode "ffn_hydrofusion", see Hydro/models/ffn_hydrofusion_wrapper.h
+    // and Hydro/experiments/gistohq_sligo/hydrofusion_forecast_contract.md).
+    // Meaningless for every other mode -- no other wrapper reads this
+    // field, so its default has no effect on any existing dispatch path.
+    // "log_residual" (default) or "direct_log_q" -- see TargetMode in
+    // hydrofusion_log_residual.h. train_end_x/validation_end_x/
+    // test_end_x above are reused for this mode's split cutoffs (falling
+    // back to the fixture's own natural bounds when unset); no separate
+    // cutoff fields are introduced for it.
+    std::string hydrofusion_target_mode = "log_residual";
+    // No real-data loader exists yet. Require a positive test-only opt-in,
+    // never infer synthetic consent from absent/false source flags.
+    bool hydrofusion_synthetic_verification = false;
 };
 
 struct HydroRunResult {
@@ -341,4 +356,23 @@ struct HydroRunResult {
     std::string model_checkpoint_format;
     std::vector<std::uint8_t> model_checkpoint;
     std::vector<double> physics_residual;
+
+    // Opt-in FFN+HydroFusion mode only (mode "ffn_hydrofusion"). Empty/
+    // default for every other mode -- no other wrapper sets these. Carries
+    // the HydroFusion-specific metadata-sidecar fields from
+    // FFNHydroFusionWrapper::train back through the unmodified
+    // runJob -> HydroRunResult -> main() pipeline to the post-exportRun
+    // sidecar-writing hook in hydro_batch_runner.cpp's main(), without
+    // restructuring that pipeline's signature for every other mode.
+    std::string hydrofusion_target_mode;  // "log_residual" | "direct_log_q"; empty = n/a
+    double hydrofusion_q_ref = std::numeric_limits<double>::quiet_NaN();
+    int64_t hydrofusion_train_end_x = -1;
+    int64_t hydrofusion_validation_end_x = -1;
+    int64_t hydrofusion_test_end_x = -1;
+    // Parallel to x/y_true/y_pred/split above (which all carry target_x,
+    // the time the observation/prediction are AT); this is the matching
+    // origin_x (the time the forecast was actually made FROM) for the
+    // same rows, in the same order -- see hydrofusion_metadata_sidecar.h's
+    // writeOriginTargetMapCsv doc comment for why both must stay explicit.
+    std::vector<int64_t> hydrofusion_test_origin_x;
 };

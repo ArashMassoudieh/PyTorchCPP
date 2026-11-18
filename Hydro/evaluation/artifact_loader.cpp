@@ -520,7 +520,10 @@ HydroProvenanceArtifact HydroArtifactLoader::loadProvenance(const std::string& e
 }
 
 HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
-    const std::string& experimentDirectory) const {
+    const std::string& experimentDirectory, std::size_t callerArtifactsSize) const {
+    if (callerArtifactsSize != sizeof(HydroInferenceArtifacts)) {
+        throw std::runtime_error("Hydro inference ABI layout mismatch; rebuild all translation units from one source snapshot.");
+    }
     std::filesystem::path root(experimentDirectory);
     if (!std::filesystem::is_directory(root)) {
         throw std::runtime_error("Experiment directory does not exist: " + experimentDirectory);
@@ -558,7 +561,8 @@ HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
         }
         const bool recurrent = entry.first == "lstm" || entry.first == "lstm_pinn";
         const bool multiscale = entry.first == "lstm_multiscale";
-        const bool feedForward = entry.first == "ffn" || entry.first == "ffn_pinn" || entry.first == "pinn";
+        const bool feedForward = entry.first == "ffn" || entry.first == "ffn_pinn" || entry.first == "pinn" ||
+                                  entry.first == "ffn_hydrofusion";
         if (!recurrent && !multiscale && !feedForward) {
             throw std::runtime_error("Unsupported inference approach: " + entry.first);
         }

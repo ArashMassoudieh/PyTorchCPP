@@ -136,6 +136,27 @@ double optionalNumberValue(const std::string& json, const std::string& key, cons
     }
 }
 
+// Exact split indices must not be silently rounded or converted out of range.
+int64_t optionalCutoffValue(const std::string& json, const std::string& key, int64_t fallback = -1) {
+    rejectDuplicateField(json, key);
+    const std::regex field("\\\"" + key + "\\\"\\s*:");
+    if (!std::regex_search(json, field)) return fallback;
+    std::smatch match;
+    const std::regex number("\\\"" + key +
+        "\\\"\\s*:\\s*(-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\\s*[,}]");
+    try {
+        if (!std::regex_search(json, match, number)) throw std::invalid_argument("not numeric");
+        const long double value = std::stold(match[1].str());
+        if (!std::isfinite(value) || std::floor(value) != value || value < -1 ||
+            value >= 0x1p63L) {
+            throw std::out_of_range("not an exact supported index");
+        }
+        return static_cast<int64_t>(value);
+    } catch (const std::exception&) {
+        throw std::runtime_error("Experiment configuration cutoff must be an exact int64 index >= -1: " + key);
+    }
+}
+
 int integerValue(const std::string& json, const std::string& key) {
     rejectDuplicateField(json, key);
     std::smatch match;
@@ -201,9 +222,9 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     // Optional exact row index, absent in every config predating this
     // field (-1 = unset, takes priority over test_end_split_ratio when
     // both are present - see chronological_split.h's testEndX doc comment).
-    c.test_end_x = static_cast<int64_t>(optionalNumberValue(json, "test_end_x", -1.0));
-    c.train_end_x = static_cast<int64_t>(optionalNumberValue(json, "train_end_x", -1.0));
-    c.validation_end_x = static_cast<int64_t>(optionalNumberValue(json, "validation_end_x", -1.0));
+    c.test_end_x = optionalCutoffValue(json, "test_end_x");
+    c.train_end_x = optionalCutoffValue(json, "train_end_x");
+    c.validation_end_x = optionalCutoffValue(json, "validation_end_x");
     c.pinn_initial_flow = optionalNumberValue(json, "pinn_initial_flow", -1.0);
     c.shuffle_training = boolValue(json, "shuffle_training");
     c.evaluate_metrics = boolValue(json, "evaluate_metrics");
@@ -256,17 +277,26 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
         !std::isfinite(c.urban_intensity_reference_mm_h) || c.urban_intensity_reference_mm_h <= 0.0) {
         throw std::runtime_error("Urban intensity response requires strength in [0,1] and positive finite reference");
     }
-    c.multiscale_daily_history_days = static_cast<int64_t>(optionalNumberValue(json, "multiscale_daily_history_days", 0.0));
-    c.multiscale_daily_hidden_size = static_cast<int64_t>(optionalNumberValue(json, "multiscale_daily_hidden_size", 4.0));
+    c.multiscale_daily_history_days = optionalCutoffValue(json, "multiscale_daily_history_days", 0);
+    c.multiscale_daily_hidden_size = optionalCutoffValue(json, "multiscale_daily_hidden_size", 4);
     if (c.multiscale_daily_history_days < 0 || c.multiscale_daily_hidden_size < 1) {
         throw std::runtime_error("multiscale_daily_history_days must be >= 0 and multiscale_daily_hidden_size must be >= 1.");
     }
     c.multiscale_matched_control = optionalBoolValue(json, "multiscale_matched_control", false);
     c.regional_training_basin_list_path = optionalStringValue(json, "regional_training_basin_list_path", "");
     c.regional_validation_basin_list_path = optionalStringValue(json, "regional_validation_basin_list_path", "");
-    c.regional_per_basin_sequence_count = static_cast<int64_t>(optionalNumberValue(json, "regional_per_basin_sequence_count", -1.0));
+    c.regional_per_basin_sequence_count = optionalCutoffValue(json, "regional_per_basin_sequence_count", -1);
     c.regional_window_start = optionalStringValue(json, "regional_window_start", "");
     c.regional_window_end = optionalStringValue(json, "regional_window_end", "");
+    // Opt-in FFN+HydroFusion mode only ("ffn_hydrofusion") -- absent in
+    // every config predating this field, which must keep working
+    // unchanged. No other mode reads this.
+    c.hydrofusion_synthetic_verification = optionalBoolValue(json, "hydrofusion_synthetic_verification", false);
+    c.hydrofusion_target_mode = optionalStringValue(json, "hydrofusion_target_mode", "log_residual");
+    if (c.hydrofusion_target_mode != "log_residual" && c.hydrofusion_target_mode != "direct_log_q") {
+        throw std::runtime_error(
+            "Experiment configuration hydrofusion_target_mode must be 'log_residual' or 'direct_log_q'.");
+    }
     c.use_hydro_package = boolValue(json, "use_hydro_package");
     c.use_csv_data = boolValue(json, "use_csv_data");
     c.csv_path = stringValue(json, "csv_path");

@@ -8,9 +8,12 @@
 #include <memory>
 #include <string>
 
+enum class HydroInferenceOutputSpace { Physical, TransformedHydroFusionTarget };
+
 class HydroInferenceSession {
 public:
-    HydroInferenceSession(const HydroInferenceArtifacts& artifacts, const std::string& approach);
+    HydroInferenceSession(const HydroInferenceArtifacts& artifacts, const std::string& approach,
+                          HydroInferenceOutputSpace outputSpace = HydroInferenceOutputSpace::Physical);
     ~HydroInferenceSession();
     HydroInferenceSession(HydroInferenceSession&&) noexcept;
     HydroInferenceSession& operator=(HydroInferenceSession&&) noexcept;

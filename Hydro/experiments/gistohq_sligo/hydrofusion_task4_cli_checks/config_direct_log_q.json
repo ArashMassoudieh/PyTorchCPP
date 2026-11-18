@@ -33,7 +33,7 @@
   "csv_y_column": 1,
   "csv_has_header": true,
   "synthetic_profile": "watershed_balance",
-  "sample_count": 220,
+  "sample_count": 300,
   "t_start": 0,
   "t_end": 5,
   "synthetic_reservoir_truth_k": 0.08,
@@ -47,5 +47,6 @@
   "hydrofusion_target_mode": "direct_log_q",
   "train_end_x": 150,
   "validation_end_x": 220,
-  "test_end_x": 280
+  "test_end_x": 280,
+  "hydrofusion_synthetic_verification": true
 }

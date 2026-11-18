@@ -24,6 +24,13 @@ import pathlib,sys
 batch=pathlib.Path(sys.argv[1]).name
 if 'guard' in batch:
  print('this mode is synthetic-fixture-only for now');sys.exit(1)
+for name, message in [('missing_optin','explicit hydrofusion_synthetic_verification=true is required'),
+                      ('invalid_mode','hydrofusion_target_mode must be'),
+                      ('missing_cutoff','must all be set explicitly'),
+                      ('fractional_cutoff','cutoff must be an exact int64'),
+                      ('overflow_cutoff','cutoff must be an exact int64')]:
+ if name in batch:
+  print(message);sys.exit(1)
 out=pathlib.Path(sys.argv[2])
 for mode in ['ffn','lstm','pinn','ffn_pinn','lstm_pinn']:
  p=out/('hydrofusion_regression_'+mode)/'predictions.csv'
@@ -78,7 +85,7 @@ for mode in ['ffn','lstm','pinn','ffn_pinn','lstm_pinn']:
     def test_cli_guard_and_success_orchestration(self):
         result = self.run_script(CLI, self.binary(), self.root/'cli')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn('5 passed, 0 failed', result.stdout)
+        self.assertIn('10 passed, 0 failed', result.stdout)
         self.assertTrue((self.root/'cli'/'binary_hashes.txt').is_file())
 
     def test_hash_failure_prevents_launch(self):

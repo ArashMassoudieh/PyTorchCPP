@@ -130,8 +130,11 @@ struct HydroInferenceSession::Impl {
 };
 
 HydroInferenceSession::HydroInferenceSession(const HydroInferenceArtifacts& artifacts,
-                                             const std::string& approach)
+                                             const std::string& approach, HydroInferenceOutputSpace outputSpace)
     : impl_(std::make_unique<Impl>()) {
+    if (approach == "ffn_hydrofusion" && outputSpace != HydroInferenceOutputSpace::TransformedHydroFusionTarget) {
+        throw std::runtime_error("HydroFusion requires metadata-aware physical discharge reconstruction; use HydroFusionInferenceSession.");
+    }
     const auto modelArtifact = artifacts.models.find(approach);
     const auto scalerArtifact = artifacts.scalers.find(approach);
     if (modelArtifact == artifacts.models.end() || scalerArtifact == artifacts.scalers.end()) {
@@ -151,7 +154,10 @@ HydroInferenceSession::HydroInferenceSession(const HydroInferenceArtifacts& arti
     }
 
     const auto hiddenLayers = parseHiddenLayers(artifacts.experiment.config.hidden_layers_csv);
-    if (approach == "ffn" || approach == "ffn_pinn" || approach == "pinn") {
+    // "ffn_hydrofusion" (opt-in HydroFusion forecasting mode) reuses
+    // NeuralNetworkWrapper exactly like plain "ffn" -- see
+    // Hydro/models/ffn_hydrofusion_wrapper.cpp.
+    if (approach == "ffn" || approach == "ffn_pinn" || approach == "pinn" || approach == "ffn_hydrofusion") {
         if (modelArtifact->second.format == "neuralnetworkwrapper-v1") {
             impl_->feedForward = std::make_unique<NeuralNetworkWrapper>();
             impl_->feedForward->setHiddenLayers(hiddenLayers);

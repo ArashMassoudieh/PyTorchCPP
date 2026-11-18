@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <map>
 #include <string>
 #include <vector>
@@ -65,5 +66,6 @@ public:
     std::map<std::string, HydroTrainingHistoryArtifact> loadTrainingHistory(const std::string& experimentDirectory) const;
     HydroEnvironmentArtifact loadEnvironment(const std::string& experimentDirectory) const;
     HydroProvenanceArtifact loadProvenance(const std::string& experimentDirectory) const;
-    HydroInferenceArtifacts loadForInference(const std::string& experimentDirectory) const;
+    HydroInferenceArtifacts loadForInference(const std::string& experimentDirectory,
+                                              std::size_t callerArtifactsSize = sizeof(HydroInferenceArtifacts)) const;
 };

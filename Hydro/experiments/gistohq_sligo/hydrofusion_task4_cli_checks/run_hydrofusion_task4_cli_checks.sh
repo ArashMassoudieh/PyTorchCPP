@@ -76,6 +76,11 @@ expect_failure_with_message "guard_hydro_package" "jobs_guard_test.batch" \
   "this mode is synthetic-fixture-only for now"
 expect_failure_with_message "guard_csv_data"      "jobs_guard_test_csv.batch" \
   "this mode is synthetic-fixture-only for now"
+expect_failure_with_message "missing_optin" "jobs_missing_optin.batch"   "explicit hydrofusion_synthetic_verification=true is required"
+expect_failure_with_message "invalid_mode" "jobs_invalid_mode.batch"   "hydrofusion_target_mode must be"
+expect_failure_with_message "missing_cutoff" "jobs_missing_cutoff.batch"   "must all be set explicitly"
+expect_failure_with_message "fractional_cutoff" "jobs_fractional_cutoff.batch"   "cutoff must be an exact int64"
+expect_failure_with_message "overflow_cutoff" "jobs_overflow_cutoff.batch"   "cutoff must be an exact int64"
 expect_success           "regression_5method"  "jobs_regression.batch"
 
 echo

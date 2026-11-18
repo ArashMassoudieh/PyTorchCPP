@@ -99,6 +99,7 @@ SOURCES += \
     Hydro/models/lstm_wrapper.cpp \
     Hydro/models/lstm_pinn_wrapper.cpp \
     Hydro/models/lstm_regional_pretrain.cpp \
+    Hydro/models/ffn_hydrofusion_wrapper.cpp \
     $$GENERATED_LSTM_NETWORK_WRAPPER
 
 HEADERS += \
@@ -124,4 +125,10 @@ HEADERS += \
     Hydro/models/physics_batch.h Hydro/models/reservoir_routing_tensor.h \
     Hydro/models/ffn_wrapper.h Hydro/models/ffn_pinn_wrapper.h Hydro/models/ffn_reservoir_pinn_wrapper.h Hydro/models/ffn_two_reservoir_pinn_wrapper.h Hydro/models/pinn_wrapper.h \
     Hydro/models/lstm_wrapper.h Hydro/models/lstm_pinn_wrapper.h Hydro/models/lstmnetworkwrapper.h \
-    Hydro/models/lstm_regional_pretrain.h
+    Hydro/models/lstm_regional_pretrain.h \
+    Hydro/models/ffn_hydrofusion_wrapper.h \
+    Hydro/experiments/gistohq_sligo/hydrofusion_feature_builder.h \
+    Hydro/experiments/gistohq_sligo/hydrofusion_log_residual.h \
+    Hydro/experiments/gistohq_sligo/hydrofusion_synthetic_fixture.h \
+    Hydro/experiments/gistohq_sligo/hydrofusion_dataset_assembly.h \
+    Hydro/experiments/gistohq_sligo/hydrofusion_metadata_sidecar.h

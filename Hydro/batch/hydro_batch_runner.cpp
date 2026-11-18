@@ -8,6 +8,9 @@
 #include "../models/lstm_wrapper.h"
 #include "../models/lstm_pinn_wrapper.h"
 #include "../models/lstm_regional_pretrain.h"
+#include "../models/ffn_hydrofusion_wrapper.h"
+#include "../experiments/gistohq_sligo/hydrofusion_metadata_sidecar.h"
+#include "../dataset/hydro_checksum.h"
 
 #include <torch/torch.h>
 
@@ -181,7 +184,7 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
         std::string mode, config;
         if (!(parser >> mode >> config)) {
             throw std::runtime_error("Invalid Hydro batch entry at line " + std::to_string(line_number) +
-                                     "; expected: <ffn|ffn_pinn|lstm|lstm_pinn|pinn> <config.json>; line='" + stripped + "'");
+                                     "; expected: <ffn|ffn_pinn|lstm|lstm_pinn|pinn|ffn_hydrofusion> <config.json>; line='" + stripped + "'");
         }
         std::string extra;
         if (parser >> extra) {
@@ -189,7 +192,8 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
                                      std::to_string(line_number) + "; line='" + stripped + "'");
         }
         if (mode != "ffn" && mode != "ffn_pinn" && mode != "lstm" &&
-            mode != "lstm_pinn" && mode != "pinn" && mode != "lstm_regional_pretrain") {
+            mode != "lstm_pinn" && mode != "pinn" && mode != "lstm_regional_pretrain" &&
+            mode != "ffn_hydrofusion") {
             throw std::runtime_error("Unsupported Hydro batch mode at line " + std::to_string(line_number) + ": " + mode);
         }
         fs::path config_path(config);
@@ -211,6 +215,7 @@ HydroRunResult runJob(const std::string& mode, const HydroRunConfig& config) {
     if (mode == "lstm_pinn") { LSTMPINNWrapper runner; return runner.train(config); }
     if (mode == "pinn") { PINNWrapper runner; return runner.train(config); }
     if (mode == "lstm_regional_pretrain") { return trainLstmRegionalPretrainFromConfig(config); }
+    if (mode == "ffn_hydrofusion") { FFNHydroFusionWrapper runner; return runner.train(config); }
     throw std::runtime_error("Unsupported Hydro batch mode: " + mode);
 }
 
@@ -305,6 +310,64 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
         << r.physics_residual_mean << ',' << r.physics_residual_rmse << ',' << r.cumulative_physics_residual << '\n';
 }
 
+// ffn_hydrofusion only: writes the HydroFusion metadata + origin/target-map
+// sidecars documented in hydrofusion_metadata_sidecar.h, read back from the
+// real exporter's own just-written models.csv/scalers.csv. Register both
+// metadata files in the managed manifest: completeness rejects UNLISTED
+// additions, not metadata files as a category.
+void exportHydroFusionSidecarForBatchJob(const fs::path& output_root, const std::string& experiment_id,
+                                         const std::string& approach, const HydroRunResult& result) {
+    const fs::path bundleDir = output_root / experiment_id;
+    const std::string modelSha256 = hydrofusion::readModelSha256FromModelsCsv(bundleDir, approach);
+    const std::string scalersSha256 = sha256File((bundleDir / "scalers.csv").string());
+
+    hydrofusion::TargetMode mode;
+    if (result.hydrofusion_target_mode == "direct_log_q") mode = hydrofusion::TargetMode::DirectLogQ;
+    else if (result.hydrofusion_target_mode == "log_residual") mode = hydrofusion::TargetMode::LogResidual;
+    else throw std::runtime_error("exportHydroFusionSidecarForBatchJob: invalid hydrofusion_target_mode on result.");
+
+    hydrofusion::HydroFusionMetadata metadata;
+    metadata.mode = mode;
+    metadata.qRef = result.hydrofusion_q_ref;
+    metadata.cutoffs = hydrofusion::SplitCutoffs{result.hydrofusion_train_end_x, result.hydrofusion_validation_end_x,
+                                                   result.hydrofusion_test_end_x};
+    metadata.modelSha256 = modelSha256;
+    metadata.scalersSha256 = scalersSha256;
+
+    const fs::path metadataPath = bundleDir / "hydrofusion_metadata.txt";
+    hydrofusion::exportHydroFusionMetadata(metadata, metadataPath.string());
+
+    // result.x already carries target_x (set by FFNHydroFusionWrapper::train);
+    // result.hydrofusion_test_origin_x carries the matching origin_x, same
+    // row order -- see hydro_run_types.h's doc comment on both fields.
+    std::vector<int64_t> targetX;
+    targetX.reserve(result.x.size());
+    for (const double value : result.x) targetX.push_back(static_cast<int64_t>(value));
+    const fs::path mapPath = bundleDir / "hydrofusion_origin_target_map.csv";
+    hydrofusion::writeOriginTargetMapCsv(mapPath, result.hydrofusion_test_origin_x, targetX, metadata.horizonHours);
+
+    // Replace the manifest only after the registered metadata files are closed.
+    // A failed/partial write leaves an invalid bundle, never a successful reload.
+    const auto manifestPath = bundleDir / "artifact_manifest.csv";
+    std::ifstream previous(manifestPath, std::ios::binary);
+    if (!previous) throw std::runtime_error("Missing managed bundle manifest.");
+    const std::string oldManifest((std::istreambuf_iterator<char>(previous)), std::istreambuf_iterator<char>());
+    const auto pending = bundleDir / "artifact_manifest.pending";
+    {
+        std::ofstream next(pending, std::ios::binary);
+        next << oldManifest;
+        for (const auto& path : {metadataPath, mapPath}) {
+            next << path.filename().generic_string() << ',' << fs::file_size(path) << ',' << sha256File(path.string()) << '\n';
+        }
+        next.close();
+        if (!next) throw std::runtime_error("Could not register HydroFusion bundle metadata.");
+    }
+    fs::rename(pending, manifestPath);
+
+    std::cout << "[batch] wrote HydroFusion sidecar: " << metadataPath << '\n'
+              << "[batch] wrote HydroFusion origin/target map: " << mapPath << '\n';
+}
+
 // lstm_regional_pretrain produces a reusable checkpoint, not a forecast
 // series - its HydroRunResult has no x/y_true/y_pred/split (there is no
 // single time axis to report for a basin-pooled run), so it cannot go
@@ -389,9 +452,13 @@ int main(int argc, char** argv) {
                     // See exportRegionalPretrainRun's doc comment.
                     exportRegionalPretrainRun(output_root, loaded.experiment_id, result);
                 } else {
+                    const std::string approach = exportApproachFor(job.mode, config);
                     std::map<std::string, HydroRunResult> results;
-                    results.emplace(exportApproachFor(job.mode, config), result);
+                    results.emplace(approach, result);
                     HydroExperimentExporter().exportRun(output_root.string(), loaded.experiment_id, config, results);
+                    if (job.mode == "ffn_hydrofusion") {
+                        exportHydroFusionSidecarForBatchJob(output_root, loaded.experiment_id, approach, result);
+                    }
                     appendSummary(summary_path, loaded.experiment_id, job.mode, config, result);
                 }
                 if (!result.success) ++failures;
