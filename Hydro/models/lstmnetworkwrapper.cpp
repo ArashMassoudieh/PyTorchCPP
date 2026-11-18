@@ -1,7 +1,7 @@
 #include "lstmnetworkwrapper.h"
 #include "hydro_lstm_module.h"
 #include "../dataset/chronological_split.h"
-#include "../dataset/resolve_test_end_x_tensor.h"
+#include "../dataset/configured_chronological_split.h"
 #include "../dataset/lstm_sequence_builder.h"
 #include "../dataset/tensor_scaler.h"
 #include "../dataset/hydro_tensor_builder.h"
@@ -331,11 +331,7 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     // config.test_end_x is in exported-x space, not sequence-index space -
     // resolve it against this model's actual sequence endpoints (gap-aware)
     // rather than assuming a constant offset. See resolve_test_end_x.h.
-    const int64_t testEndSeqCount = resolveTestEndSequenceCount(seq.plotSeq, config.test_end_x);
-    const ChronologicalSplit split = makeChronologicalSplit(totalSeq,
-                                                            config.train_split_ratio,
-                                                            config.validation_split_ratio,
-                                                            config.test_end_split_ratio, testEndSeqCount);
+    const ChronologicalSplit split = configuredChronologicalSplit(seq.plotSeq, config);
     const int64_t nTrain = split.train_end;
 
     torch::Tensor xTrain = seq.xSeq.slice(0, 0, nTrain).contiguous();
@@ -363,6 +359,19 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
     // HydroRunConfig::physical_error_weight) so it is commensurate with the
     // standardized/transformed-space data loss.
     const double physicalScale = std::max(1.0e-6, yTrainPhysical.std().item<double>());
+    double highFlowThreshold = std::numeric_limits<double>::infinity();
+    if (config.high_flow_loss_weight > 0.0) {
+        if (config.high_flow_loss_quantile < 0.0 || config.high_flow_loss_quantile >= 1.0) {
+            throw std::invalid_argument("high_flow_loss_quantile must be in [0, 1).");
+        }
+        const torch::Tensor sortedPhysical =
+            std::get<0>(yTrainPhysical.reshape({-1}).sort()).contiguous();
+        const int64_t thresholdIndex = std::min<int64_t>(
+            sortedPhysical.numel() - 1,
+            static_cast<int64_t>(std::floor(
+                config.high_flow_loss_quantile * static_cast<double>(sortedPhysical.numel() - 1))));
+        highFlowThreshold = sortedPhysical[thresholdIndex].item<double>();
+    }
 
     HydroLSTM model(seq.xSeq.size(2), hiddenDim, y.size(1), numLayers, config.lstm_dropout);
     if (!config.lstm_warm_start_checkpoint_path.empty()) {
@@ -464,6 +473,23 @@ HydroRunResult LSTMNetworkWrapper::train(const HydroRunConfig& config, bool phys
                     (predPhysicalForPhysTerm - truthPhysicalForPhysTerm) / physicalScale;
                 torch::Tensor physicalTerm = (normalizedPhysicalResidual * normalizedPhysicalResidual).mean();
                 loss = loss + config.physical_error_weight * physicalTerm;
+            }
+            if (config.high_flow_loss_weight > 0.0) {
+                // Threshold and scale come only from the training split. The
+                // conditional mean keeps the term's magnitude independent of
+                // how many tail samples happen to land in this mini-batch;
+                // batches without a high-flow observation contribute zero.
+                const torch::Tensor predPhysicalForHighFlow = targetScaler.inverseTransform(pred);
+                const torch::Tensor truthPhysicalForHighFlow = yTrainPhysical.index_select(0, idx);
+                const torch::Tensor highFlowMask =
+                    (truthPhysicalForHighFlow >= highFlowThreshold).to(pred.options());
+                const torch::Tensor normalizedHighFlowResidual =
+                    (predPhysicalForHighFlow - truthPhysicalForHighFlow) / physicalScale;
+                const torch::Tensor highFlowCount = highFlowMask.sum();
+                const torch::Tensor highFlowTerm =
+                    (highFlowMask * normalizedHighFlowResidual * normalizedHighFlowResidual).sum() /
+                    torch::clamp_min(highFlowCount, 1.0);
+                loss = loss + config.high_flow_loss_weight * highFlowTerm;
             }
             loss.backward();
             optimizer.step();

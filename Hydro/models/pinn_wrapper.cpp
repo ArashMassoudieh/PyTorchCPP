@@ -3,7 +3,7 @@
 #include "ffn_pinn_wrapper.h"
 #include "two_reservoir_routing.h"
 #include "../dataset/chronological_split.h"
-#include "../dataset/resolve_test_end_x_tensor.h"
+#include "../dataset/configured_chronological_split.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
 #include "../evaluation/hydro_metrics.h"
 #include "../evaluation/model_checkpoint.h"
@@ -109,9 +109,7 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     // gaps here too, confirmed directly: 744 x-units across 8 gaps on the
     // Sligo Creek package - not safe to assume away just because this
     // function has no separate windowing step). See resolve_test_end_x.h.
-    const int64_t testEndSeqCount = resolveTestEndSequenceCount(plotX, config.test_end_x);
-    const ChronologicalSplit split = makeChronologicalSplit(x.size(0), config.train_split_ratio, config.validation_split_ratio,
-                                                             config.test_end_split_ratio, testEndSeqCount);
+    const ChronologicalSplit split = configuredChronologicalSplit(plotX, config);
     // dt is a single global scalar (common hourly timestep); infer it from
     // just the first segment - a multi-block package (loadHydroPackageTensors
     // keeps every valid segment, see hydro_tensor_builder.h) has real time
@@ -175,7 +173,7 @@ HydroRunResult simulatePinnTwoReservoir(const HydroRunConfig& config) {
     // letting a stateful hour-to-hour recurrence treat a real multi-month gap
     // between GIStoOHQ blocks as a single adjacent timestep.
     const std::vector<double> predicted =
-        simulateTwoReservoirBaselinePerSegment(peffVec, observedVec, segmentId, routingParams);
+        simulateTwoReservoirBaselinePerSegment(peffVec, observedVec, segmentId, routingParams, config.pinn_initial_flow);
     if (std::any_of(predicted.begin(), predicted.end(), [](double v) { return !std::isfinite(v); })) {
         throw std::runtime_error("Standalone two-reservoir PINN simulation produced non-finite values.");
     }

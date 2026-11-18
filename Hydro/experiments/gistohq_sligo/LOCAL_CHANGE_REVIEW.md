@@ -25,22 +25,43 @@ Full-period utilities are historical source only: they are not authorized to
 read reserved observations. Absolute local paths and external sibling-package
 dependencies have intentionally been preserved, not silently rewritten.
 
-## Remaining mixed source changes
+## Original mixed-source review completed
 
-The following pre-existing groups remain visible and uncommitted pending
-independent scoped review; do not hide them with ignore rules:
+All 18 originally modified source/test files have now been reviewed in scoped
+groups (including the earlier launcher fixes). The final seven model/batch
+files were built in an isolated HEAD archive with the pinned Utilities
+submodule, then exercised through fabricated-package model tests and six
+actual CLI runs. No real watershed training/evaluation was rerun.
 
-| Group | Files | Review needed |
-|---|---|---|
-| Batch dispatch/export labeling | `hydro_batch_runner.cpp` | Separate multiscale export-label support from optional summary columns; verify CLI export/reload integration |
-| Model splits and routing | `ffn_wrapper.cpp`, `pinn_wrapper.cpp`, `residual_pinn_wrapper.h` | Exact chronological cutoffs, segment reset/initial-flow behavior and regression coverage |
-| Experimental learning/forcing | `lstm_pinn_wrapper.cpp`, `lstmnetworkwrapper.cpp`, `hydro_tensor_builder.h` | Separate urban/volume/high-flow/MRMS-CV changes; verify zero-option behavior and dependencies |
+Final checks cover exact train/validation/test endpoints across missing hours,
+beyond-test labels, fixed-state routing independent of target discharge,
+optional MRMS-CV feature transport with stable existing support, rejection of
+incompatible latent/CV layout, nonzero high-flow/volume loss activation,
+matched daily/control support, and daily checkpoint reload.
 
-Several files contain multiple groups' changes; this table is a review map,
-not a proposed blanket staging list. In particular, historical successful
-runs do not establish that these uncommitted C++ patches are in a clean
-checkout or reproducible from HEAD alone. Source/build provenance remains
-relevant to any artifact release.
+Three issues exposed during this review were fixed: a circular residual-header
+include; export relabeling that was not restricted to the actual multiscale
+profile; and a missing optional volume term in the daily-history arm while its
+matched control used that term. Volume/high-flow weights and spatial-CV
+features remain disabled by default; verification is not a scientific
+recommendation to enable the previously rejected experimental recipes.
+
+Synthetic compatibility against the frozen source-build executable confirms
+exact predictions for 944 plain-LSTM and 840 daily-history rows when optional
+features are off and legacy ratio splits are used. Explicit cutoffs now apply
+to plain LSTM as requested; the older executable ignored those endpoints, so
+that intentional correction must not be described as identical old behavior.
+
+Saved harness: `Hydro/tests/run_legacy_engine_regression_test.sh`,
+`legacy_engine_regression_test.cpp` and root `verify_legacy_engine.pro`.
+It uses new output directories and never opens real-basin observations.
+Evidence/source/submodule/binary hashes are preserved under the Dropbox paper
+`audits/legacy_engine_finalization_20261117/` directory. Historical outputs,
+checkpoints and their provenance limitations remain unchanged.
+
+This verifies the tested source and synthetic paths, not every possible
+option combination, interactive GUI operation or new real-data improvement.
+Claude's newer HydroFusion files are a separate active workstream.
 
 ## Generated build files
 
@@ -83,7 +104,5 @@ selection. It passed an isolated source compilation with format warnings
 treated as errors; existing validation rejects invalid batch sizes before
 the new progress calculation. No regional research job was rerun.
 
-Seven model-side files remain pending as listed in the table above. Their
-changes must be reviewed/tested by behavior, especially exact split support,
-multiscale export labels, fixed-initial-flow call sites, and zero-weight
-compatibility for the optional losses/features, before committing them.
+The subsequent final engine review above closes the seven model-side files
+with isolated model/CLI tests and a frozen-executable compatibility check.

@@ -69,12 +69,16 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
         if (config.use_latent_storage_physics) {
             features.reserve(prepared.model_rows.size() * 8);
         } else {
-            features.reserve(prepared.model_rows.size() * 6);
+            features.reserve(prepared.model_rows.size() * (config.use_mrms_spatial_cv_feature ? 7 : 6));
         }
         targets.reserve(prepared.model_rows.size());
         times.reserve(prepared.model_rows.size());
         segments.reserve(prepared.model_rows.size());
-        const std::int64_t featureWidth = config.use_latent_storage_physics ? 8 : 6;
+        if (config.use_latent_storage_physics && config.use_mrms_spatial_cv_feature) {
+            throw std::runtime_error("MRMS spatial-CV feature is not supported with latent-storage physics.");
+        }
+        const std::int64_t featureWidth = config.use_latent_storage_physics
+            ? 8 : (config.use_mrms_spatial_cv_feature ? 7 : 6);
         for (const auto& row : prepared.model_rows) {
             const double time = row.elapsed_hours;
             if (config.use_latent_storage_physics) {
@@ -91,6 +95,9 @@ inline bool loadHydroPackageTensors(const HydroRunConfig& config,
                 features.push_back(static_cast<float>(row.features[4]));
             } else {
                 for (const auto value : row.features) features.push_back(static_cast<float>(value));
+                if (config.use_mrms_spatial_cv_feature) {
+                    features.push_back(static_cast<float>(row.mrms_spatial_cv));
+                }
             }
             targets.push_back(static_cast<float>(row.target_runoff_mm_per_hour));
             times.push_back(static_cast<float>(time));

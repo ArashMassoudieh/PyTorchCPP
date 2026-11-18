@@ -1,5 +1,6 @@
 #include "ffn_wrapper.h"
 #include "../dataset/chronological_split.h"
+#include "../dataset/configured_chronological_split.h"
 #include "../dataset/tensor_scaler.h"
 #include "../dataset/hydro_tensor_builder.h"
 #include "../dataset/csv_tensor_builder.h"
@@ -281,14 +282,14 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
     model.setLags(currentInputLags(static_cast<int>(x.size(1))));
     model.initializeNetwork(1, config.activation);
 
-    const ChronologicalSplit split = makeChronologicalSplit(x.size(0), config.train_split_ratio, config.validation_split_ratio);
+    const ChronologicalSplit split = configuredChronologicalSplit(plotX, config);
     const int64_t nTrain = split.train_end;
     torch::Tensor xTrain = x.slice(0, 0, nTrain);
     torch::Tensor yTrain = y.slice(0, 0, nTrain);
     torch::Tensor xValidation = x.slice(0, nTrain, split.validation_end);
     torch::Tensor yValidation = y.slice(0, nTrain, split.validation_end);
-    torch::Tensor xTest = x.slice(0, split.validation_end, x.size(0));
-    torch::Tensor yTest = y.slice(0, split.validation_end, y.size(0));
+    torch::Tensor xTest = x.slice(0, split.validation_end, split.test_end);
+    torch::Tensor yTest = y.slice(0, split.validation_end, split.test_end);
 
     TensorScaler inputScaler;
     TensorScaler targetScaler;
@@ -352,10 +353,11 @@ HydroRunResult FFNWrapper::train(const HydroRunConfig& config) {
         throw std::runtime_error("Full-series prediction for plotting failed or produced non-finite values.");
     }
     fillPlotVectors(result, plotX, y, predFull);
-    result.split.resize(result.x.size(), "test");
+    result.split.resize(result.x.size(), "beyond_test_end");
     for (size_t i = 0; i < result.split.size(); ++i) {
         if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
         else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+        else if (static_cast<int64_t>(i) < split.test_end) result.split[i] = "test";
     }
     populateHydroPeakMetrics(result);
     result.success = true;

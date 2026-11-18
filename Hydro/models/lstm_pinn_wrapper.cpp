@@ -4,11 +4,11 @@
 #include "hydro_lstm_module.h"
 #include "multiscale_lstm_module.h"
 #include "two_reservoir_routing.h"
+#include "urban_managed_routing.h"
 
 #include "../dataset/chronological_split.h"
 #include "../dataset/configured_chronological_split.h"
 #include "../dataset/daily_history_builder.h"
-#include "../dataset/resolve_test_end_x_tensor.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
 #include "../dataset/tensor_scaler.h"
 #include "../evaluation/hydro_metrics.h"
@@ -241,11 +241,7 @@ HydroRunResult trainTwoReservoirHybrid(const HydroRunConfig& config) {
     // config.test_end_x is in exported-x space, not sequence-index space -
     // resolve it against this model's actual sequence endpoints (gap-aware)
     // rather than assuming a constant offset. See resolve_test_end_x.h.
-    const int64_t testEndSeqCount = resolveTestEndSequenceCount(seq.time, config.test_end_x);
-    const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
-                                                            config.train_split_ratio,
-                                                            config.validation_split_ratio,
-                                                            config.test_end_split_ratio, testEndSeqCount);
+    const ChronologicalSplit split = configuredChronologicalSplit(seq.time, config);
     const int64_t nTrain = split.train_end;
     const int64_t nValidationEnd = split.validation_end;
 
@@ -465,11 +461,7 @@ HydroRunResult trainLinearReservoir(const HydroRunConfig& config) {
     // config.test_end_x is in exported-x space, not sequence-index space -
     // resolve it against this model's actual sequence endpoints (gap-aware)
     // rather than assuming a constant offset. See resolve_test_end_x.h.
-    const int64_t testEndSeqCount = resolveTestEndSequenceCount(seq.time, config.test_end_x);
-    const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
-                                                            config.train_split_ratio,
-                                                            config.validation_split_ratio,
-                                                            config.test_end_split_ratio, testEndSeqCount);
+    const ChronologicalSplit split = configuredChronologicalSplit(seq.time, config);
     const int64_t nTrain = split.train_end;
     torch::Tensor xTrainPhysical = seq.x.slice(0, 0, nTrain).contiguous();
     torch::Tensor yTrainPhysical = seq.y.slice(0, 0, nTrain).contiguous();
@@ -725,7 +717,7 @@ HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
     // simulateTwoReservoirBaselinePerSegment's comment: this is a stateful
     // hour-to-hour recurrence, so it must not carry state across a real gap.
     const std::vector<double> baselineVec =
-        simulateTwoReservoirBaselinePerSegment(peffVec, observedVec, segmentId, routingParams);
+        simulateTwoReservoirBaselinePerSegment(peffVec, observedVec, segmentId, routingParams, config.pinn_initial_flow);
     if (std::any_of(baselineVec.begin(), baselineVec.end(), [](double v) { return !std::isfinite(v); })) {
         throw std::runtime_error("LSTM residual-hybrid physics baseline produced non-finite values.");
     }
@@ -757,11 +749,7 @@ HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
     // config.test_end_x is in exported-x space, not sequence-index space -
     // resolve it against this model's actual sequence endpoints (gap-aware)
     // rather than assuming a constant offset. See resolve_test_end_x.h.
-    const int64_t testEndSeqCount = resolveTestEndSequenceCount(seq.time, config.test_end_x);
-    const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
-                                                            config.train_split_ratio,
-                                                            config.validation_split_ratio,
-                                                            config.test_end_split_ratio, testEndSeqCount);
+    const ChronologicalSplit split = configuredChronologicalSplit(seq.time, config);
     const int64_t nTrain = split.train_end;
     torch::Tensor xTrainPhysical = seq.x.slice(0, 0, nTrain).contiguous();
     torch::Tensor residualTrainPhysical = seq.y.slice(0, 0, nTrain).contiguous();
@@ -889,13 +877,13 @@ HydroRunResult trainResidualHybrid(const HydroRunConfig& config) {
 // trainResidualHybrid, but BOTH arms share one common linear discharge scale
 // fit from training Q_obs only (no centering, so there is nothing for the
 // two arms' centering conventions to disagree on), instead of each
-// independently fitting its own target scaler. zeroBaseline=false is the
-// physics arm (baseline=Q_physics, target=Q_obs-Q_physics); zeroBaseline=true
-// is the control arm (baseline=0, target=Q_obs). This is a new, additive
-// function - trainResidualHybrid and the lstm_residual_pinn_hybrid profile
-// above are untouched, so every prior result built on that profile still
-// reproduces exactly.
-HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroBaseline) {
+// independently fitting its own target scaler. The baseline selector supports
+// zero, legacy two-reservoir, and reduced urban/managed-storage arms. This is
+// additive: trainResidualHybrid and the lstm_residual_pinn_hybrid profile above
+// are untouched, so every prior result built on that profile still reproduces.
+enum class SharedScaleBaseline { Zero, TwoReservoir, UrbanManaged };
+
+HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, SharedScaleBaseline baselineKind) {
     HydroRunResult result;
     torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
@@ -913,9 +901,9 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
     const int64_t n = peffFull.size(0);
 
     torch::Tensor baselineFull;
-    if (zeroBaseline) {
+    if (baselineKind == SharedScaleBaseline::Zero) {
         baselineFull = torch::zeros({n, 1}, torch::kFloat32);
-    } else {
+    } else if (baselineKind == SharedScaleBaseline::TwoReservoir) {
         const double fastK = config.storage_coeff;
         const double slowK = config.lambda_decay;
         const double alpha = config.runoff_coeff;
@@ -941,9 +929,40 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
         routingParams.lagSteps = lagSteps;
         routingParams.flowExponent = config.pinn_flow_exponent;
         const std::vector<double> baselineVec =
-            simulateTwoReservoirBaselinePerSegment(peffVec, observedVec, segmentId, routingParams);
+            simulateTwoReservoirBaselinePerSegment(peffVec, observedVec, segmentId, routingParams, config.pinn_initial_flow);
         if (std::any_of(baselineVec.begin(), baselineVec.end(), [](double v) { return !std::isfinite(v); })) {
             throw std::runtime_error("LSTM shared-scale ablation physics baseline produced non-finite values.");
+        }
+        baselineFull = torch::from_blob(const_cast<double*>(baselineVec.data()), {n}, torch::kDouble)
+                           .clone().to(torch::kFloat32).reshape({n, 1});
+    } else {
+        std::vector<double> peffVec(static_cast<std::size_t>(n));
+        std::vector<double> observedVec(static_cast<std::size_t>(n));
+        std::vector<std::int64_t> segmentVec(static_cast<std::size_t>(n));
+        const auto segmentCpu = segmentId.reshape({-1}).to(torch::kCPU).contiguous();
+        for (int64_t i = 0; i < n; ++i) {
+            peffVec[static_cast<std::size_t>(i)] = peffFull[i].item<double>();
+            observedVec[static_cast<std::size_t>(i)] = observedFull[i].item<double>();
+            segmentVec[static_cast<std::size_t>(i)] = segmentCpu[i].item<std::int64_t>();
+        }
+        UrbanManagedRoutingParams routingParams;
+        routingParams.intensityQuickStrength = config.urban_intensity_quick_strength;
+        routingParams.intensityReferenceMmH = config.urban_intensity_reference_mm_h;
+        routingParams.quickK = config.urban_quick_k;
+        routingParams.slowK = config.urban_slow_k;
+        routingParams.detentionK = config.urban_detention_k;
+        routingParams.channelK = config.urban_channel_k;
+        routingParams.quickFraction = config.urban_quick_fraction;
+        routingParams.detentionCatchmentFraction = config.urban_detention_fraction;
+        routingParams.runoffCoefficient = config.urban_runoff_coefficient;
+        routingParams.dtHours = dt;
+        routingParams.lagSteps = dt > 0.0
+            ? static_cast<int64_t>(std::llround(std::max(0.0, config.pinn_routing_lag_hours) / dt))
+            : 0;
+        const std::vector<double> baselineVec = simulateUrbanManagedBaselinePerSegment(
+            peffVec, observedVec, segmentVec, routingParams, config.pinn_initial_flow);
+        if (std::any_of(baselineVec.begin(), baselineVec.end(), [](double v) { return !std::isfinite(v); })) {
+            throw std::runtime_error("LSTM shared-scale urban baseline produced non-finite values.");
         }
         baselineFull = torch::from_blob(const_cast<double*>(baselineVec.data()), {n}, torch::kDouble)
                            .clone().to(torch::kFloat32).reshape({n, 1});
@@ -968,11 +987,7 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
     // config.test_end_x is in exported-x space, not sequence-index space -
     // resolve it against this model's actual sequence endpoints (gap-aware)
     // rather than assuming a constant offset. See resolve_test_end_x.h.
-    const int64_t testEndSeqCount = resolveTestEndSequenceCount(seq.time, config.test_end_x);
-    const ChronologicalSplit split = makeChronologicalSplit(seq.x.size(0),
-                                                            config.train_split_ratio,
-                                                            config.validation_split_ratio,
-                                                            config.test_end_split_ratio, testEndSeqCount);
+    const ChronologicalSplit split = configuredChronologicalSplit(seq.time, config);
     const int64_t nTrain = split.train_end;
     torch::Tensor xTrainPhysical = seq.x.slice(0, 0, nTrain).contiguous();
     torch::Tensor targetTrainPhysical = seq.y.slice(0, 0, nTrain).contiguous();
@@ -1030,6 +1045,13 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
             optimizer.zero_grad();
             torch::Tensor predTarget = model->forward(xTrain.slice(0, start, end));
             torch::Tensor loss = torch::mse_loss(predTarget, targetTrain.slice(0, start, end));
+            // Uniform hourly rows: mean discharge error is local volume error.
+            // Both tensors already use the same training-only discharge std.
+            // Keep the zero-weight path byte-for-byte identical in operations.
+            if (config.shared_scale_volume_weight > 0.0) {
+                const auto meanError = (predTarget - targetTrain.slice(0, start, end)).mean();
+                loss = loss + config.shared_scale_volume_weight * meanError.square();
+            }
             loss.backward();
             optimizer.step();
             const int64_t count = end - start;
@@ -1104,9 +1126,13 @@ HydroRunResult trainSharedScaleAblation(const HydroRunConfig& config, bool zeroB
     }
     populateHydroPeakMetrics(result);
     result.success = true;
-    result.message = zeroBaseline
-        ? "LSTM shared-scale ablation, control arm: zero baseline, common Q_obs-derived discharge scale."
-        : "LSTM shared-scale ablation, physics arm: frozen two-reservoir baseline, common Q_obs-derived discharge scale.";
+    if (baselineKind == SharedScaleBaseline::Zero) {
+        result.message = "LSTM shared-scale ablation, control arm: zero baseline, common Q_obs-derived discharge scale.";
+    } else if (baselineKind == SharedScaleBaseline::TwoReservoir) {
+        result.message = "LSTM shared-scale ablation, physics arm: frozen two-reservoir baseline, common Q_obs-derived discharge scale.";
+    } else {
+        result.message = "LSTM shared-scale ablation, physics arm: frozen reduced urban/managed-storage baseline, common Q_obs-derived discharge scale.";
+    }
     return result;
 }
 
@@ -1259,6 +1285,13 @@ HydroRunResult trainSharedScaleAblationMultiscale(const HydroRunConfig& config) 
             optimizer.zero_grad();
             torch::Tensor predTarget = model->forward(xTrain.slice(0, start, end), dailyTrain.slice(0, start, end));
             torch::Tensor loss = torch::mse_loss(predTarget, targetTrain.slice(0, start, end));
+            // Keep the optional shared-scale objective identical in both
+            // daily-history and matched-control arms; weight zero retains
+            // the original operation path and checkpoint criterion.
+            if (config.shared_scale_volume_weight > 0.0) {
+                const auto meanError = (predTarget - targetTrain.slice(0, start, end)).mean();
+                loss = loss + config.shared_scale_volume_weight * meanError.square();
+            }
             loss.backward();
             optimizer.step();
             const int64_t count = end - start;
@@ -1482,6 +1515,13 @@ HydroRunResult trainSharedScaleAblationMatchedControl(const HydroRunConfig& conf
             optimizer.zero_grad();
             torch::Tensor predTarget = model->forward(xTrain.slice(0, start, end));
             torch::Tensor loss = torch::mse_loss(predTarget, targetTrain.slice(0, start, end));
+            // Same shared_scale_volume_weight term trainSharedScaleAblation's
+            // Zero-baseline arm applies, so this is a true architectural
+            // (daily-branch-vs-not) control, not also a loss-function change.
+            if (config.shared_scale_volume_weight > 0.0) {
+                const auto meanError = (predTarget - targetTrain.slice(0, start, end)).mean();
+                loss = loss + config.shared_scale_volume_weight * meanError.square();
+            }
             loss.backward();
             optimizer.step();
             const int64_t count = end - start;
@@ -1581,7 +1621,7 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
         return trainResidualHybrid(config);
     }
     if (config.pinn_physics_profile == "lstm_shared_scale_ablation_physics") {
-        return trainSharedScaleAblation(config, /*zeroBaseline=*/false);
+        return trainSharedScaleAblation(config, SharedScaleBaseline::TwoReservoir);
     }
     if (config.pinn_physics_profile == "lstm_shared_scale_ablation_zero") {
         // Opt-in: multiscale_daily_history_days==0 (default) takes the
@@ -1596,7 +1636,10 @@ HydroRunResult LSTMPINNWrapper::train(const HydroRunConfig& config) {
             }
             return trainSharedScaleAblationMultiscale(config);
         }
-        return trainSharedScaleAblation(config, /*zeroBaseline=*/true);
+        return trainSharedScaleAblation(config, SharedScaleBaseline::Zero);
+    }
+    if (config.pinn_physics_profile == "lstm_shared_scale_ablation_urban") {
+        return trainSharedScaleAblation(config, SharedScaleBaseline::UrbanManaged);
     }
     if (config.pinn_physics_profile == "linear_reservoir") {
         return trainLinearReservoir(config);

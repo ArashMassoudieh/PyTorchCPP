@@ -58,6 +58,26 @@ bool isPhysicsMode(const std::string& mode) {
     return mode == "ffn_pinn" || mode == "lstm_pinn" || mode == "pinn";
 }
 
+// Dispatch mode (job.mode) and export/manifest approach label are not the
+// same thing for multiscale jobs: training can only be dispatched via mode
+// "lstm_pinn" (the CLI's fixed whitelist has no separate "lstm_multiscale"
+// mode), but experiment_exporter.cpp's checkpointFormatMatchesApproach and
+// artifact_loader.cpp's reload-time format check both require the approach
+// label "lstm_multiscale" to accept a "torch-module-v1-multiscale"
+// checkpoint -- confirmed by a real export failure ("Hydro export
+// checkpoint is missing or has an unsupported format for: lstm_pinn") on
+// the first real multiscale-screen dispatch. Matched-control jobs
+// (multiscale_matched_control=true) train a plain HydroLSTM
+// ("torch-module-v1") and are unaffected, so they keep the "lstm_pinn"
+// label used everywhere else.
+std::string exportApproachFor(const std::string& mode, const HydroRunConfig& config) {
+    if (mode == "lstm_pinn" && config.pinn_physics_profile == "lstm_shared_scale_ablation_zero" &&
+        config.multiscale_daily_history_days > 0 && !config.multiscale_matched_control) {
+        return "lstm_multiscale";
+    }
+    return mode;
+}
+
 fs::path findRepositoryRoot(const fs::path& start) {
     fs::path current = fs::absolute(start);
     if (!fs::is_directory(current)) current = current.parent_path();
@@ -102,6 +122,7 @@ void preparePhysicsConfig(const std::string& mode, HydroRunConfig& config) {
         (mode == "lstm_pinn" && config.pinn_physics_profile == "two_reservoir_hybrid") ||
         (mode == "lstm_pinn" && config.pinn_physics_profile == "lstm_residual_pinn_hybrid") ||
         (mode == "lstm_pinn" && config.pinn_physics_profile == "lstm_shared_scale_ablation_physics") ||
+        (mode == "lstm_pinn" && config.pinn_physics_profile == "lstm_shared_scale_ablation_urban") ||
         (mode == "lstm_pinn" && config.pinn_physics_profile == "lstm_shared_scale_ablation_zero") ||
         (mode == "ffn_pinn" && config.pinn_physics_profile == "ffn_two_reservoir_hybrid") ||
         (mode == "ffn_pinn" && config.pinn_physics_profile == "ffn_residual_pinn_hybrid") ||
@@ -237,7 +258,7 @@ void printMetrics(const std::string& experiment_id, const std::string& mode,
 }
 
 const char* summaryHeader() {
-    return "experiment_id,mode,lstm_sequence_length,input_lags,hidden_layers,activation,learning_rate,batch_size,random_seed,normalization,physics_profile,storage_coeff,lambda_decay,runoff_coeff,pinn_routing_lag_hours,pinn_flow_exponent,lstm_bias_weight,lstm_dropout,data_weight,physics_weight,latent_storage,latent_recession_per_hour,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_loss,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual";
+    return "experiment_id,mode,lstm_sequence_length,input_lags,hidden_layers,activation,learning_rate,batch_size,random_seed,normalization,physics_profile,storage_coeff,lambda_decay,runoff_coeff,pinn_routing_lag_hours,pinn_flow_exponent,lstm_bias_weight,physical_error_weight,high_flow_loss_weight,high_flow_loss_quantile,lstm_dropout,antecedent_index_halflife_hours,use_mrms_spatial_cv_feature,data_weight,physics_weight,latent_storage,latent_recession_per_hour,success,final_loss,validation_mse,test_mse,rmse,mae,r2,nse,kge,correlation,pbias,volume_error_percent,peak_timing_error,peak_magnitude_error_percent,high_flow_rmse,low_flow_rmse,physics_loss,physics_residual_mean,physics_residual_rmse,cumulative_physics_residual";
 }
 
 void prepareSummaryFile(const fs::path& summary_path) {
@@ -270,7 +291,10 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
         << csvCell(config.normalization) << ',' << csvCell(config.pinn_physics_profile) << ','
         << config.storage_coeff << ',' << config.lambda_decay << ',' << config.runoff_coeff << ','
         << config.pinn_routing_lag_hours << ',' << config.pinn_flow_exponent << ','
-        << config.lstm_bias_weight << ',' << config.lstm_dropout << ','
+        << config.lstm_bias_weight << ',' << config.physical_error_weight << ','
+        << config.high_flow_loss_weight << ',' << config.high_flow_loss_quantile << ','
+        << config.lstm_dropout << ',' << config.antecedent_index_halflife_hours << ','
+        << (config.use_mrms_spatial_cv_feature ? 1 : 0) << ','
         << config.data_weight << ',' << config.physics_weight << ','
         << (config.use_latent_storage_physics ? "true" : "false") << ','
         << config.latent_storage_recession_per_hour << ',' << (r.success ? "true" : "false") << ','
@@ -366,7 +390,7 @@ int main(int argc, char** argv) {
                     exportRegionalPretrainRun(output_root, loaded.experiment_id, result);
                 } else {
                     std::map<std::string, HydroRunResult> results;
-                    results.emplace(job.mode, result);
+                    results.emplace(exportApproachFor(job.mode, config), result);
                     HydroExperimentExporter().exportRun(output_root.string(), loaded.experiment_id, config, results);
                     appendSummary(summary_path, loaded.experiment_id, job.mode, config, result);
                 }

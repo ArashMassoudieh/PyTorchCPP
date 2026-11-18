@@ -1,9 +1,10 @@
 #pragma once
 
-#include "ffn_reservoir_pinn_wrapper.h"
+#include "ffn_reservoir_detail.h"
 #include "hydro_run_types.h"
 #include "two_reservoir_routing.h"
 #include "../dataset/chronological_split.h"
+#include "../dataset/configured_chronological_split.h"
 #include "../dataset/reservoir_physics_tensor_builder.h"
 #include "../dataset/tensor_scaler.h"
 #include "../evaluation/hydro_metrics.h"
@@ -63,16 +64,16 @@ public:
         HydroRunResult result;
         torch::manual_seed(static_cast<uint64_t>(std::max(0, config.random_seed)));
 
-        torch::Tensor x, y, plotX;
-        if (!loadReservoirPhysicsTensors(config, x, y, plotX)) {
+        torch::Tensor x, y, plotX, segmentId;
+        if (!loadReservoirPhysicsTensors(config, x, y, plotX, segmentId)) {
             throw std::runtime_error("Unable to construct reservoir physics tensors for residual-correction PINN hybrid.");
         }
         if (x.dim() != 2 || x.size(1) < 2 || y.dim() != 2 || y.size(1) != 1) {
             throw std::runtime_error("Residual-correction PINN hybrid expects [time, Peff, ...] inputs and scalar runoff targets.");
         }
 
-        const ChronologicalSplit split = makeChronologicalSplit(x.size(0), config.train_split_ratio, config.validation_split_ratio);
-        const double dt = regularPhysicalTimeStepFromTime(plotX);
+        const ChronologicalSplit split = configuredChronologicalSplit(plotX, config);
+        const double dt = firstSegmentDt(plotX, segmentId);
         const double fastK = config.storage_coeff;
         const double slowK = config.lambda_decay;
         const double alpha = config.runoff_coeff;
@@ -83,14 +84,17 @@ public:
         const auto peff = x.slice(1, 1, 2).reshape({-1}).to(torch::kCPU).contiguous();
         const auto observed = y.reshape({-1}).to(torch::kCPU).contiguous();
         const int64_t n = peff.size(0);
-        const double q0 = observed[0].item<double>();
         const double runoffCoefficient = std::max(1.0e-6, config.forcing_gain);
         const int64_t lagSteps = dt > 0.0
             ? static_cast<int64_t>(std::llround(std::max(0.0, config.pinn_routing_lag_hours) / dt))
             : 0;
 
         std::vector<double> peffVec(static_cast<std::size_t>(n));
-        for (int64_t i = 0; i < n; ++i) peffVec[static_cast<std::size_t>(i)] = peff[i].item<double>();
+        std::vector<double> observedVec(static_cast<std::size_t>(n));
+        for (int64_t i = 0; i < n; ++i) {
+            peffVec[static_cast<std::size_t>(i)] = peff[i].item<double>();
+            observedVec[static_cast<std::size_t>(i)] = observed[i].item<double>();
+        }
         TwoReservoirRoutingParams routingParams;
         routingParams.fastK = fastK;
         routingParams.slowK = slowK;
@@ -99,7 +103,7 @@ public:
         routingParams.dt = dt;
         routingParams.lagSteps = lagSteps;
         routingParams.flowExponent = config.pinn_flow_exponent;
-        const std::vector<double> baseline = simulateTwoReservoirBaseline(peffVec, q0, routingParams);
+        const std::vector<double> baseline = simulateTwoReservoirBaselinePerSegment(peffVec, observedVec, segmentId, routingParams, config.pinn_initial_flow);
         if (std::any_of(baseline.begin(), baseline.end(), [](double v) { return !std::isfinite(v); })) {
             throw std::runtime_error("Residual-correction PINN hybrid physics baseline produced non-finite values.");
         }
@@ -117,9 +121,9 @@ public:
         torch::Tensor xValidationRaw = x.slice(0, split.train_end, split.validation_end).contiguous();
         torch::Tensor yValidation = y.slice(0, split.train_end, split.validation_end).contiguous();
         torch::Tensor baselineValidation = baselineTensor.slice(0, split.train_end, split.validation_end).contiguous();
-        torch::Tensor xTestRaw = x.slice(0, split.validation_end, x.size(0)).contiguous();
-        torch::Tensor yTest = y.slice(0, split.validation_end, y.size(0)).contiguous();
-        torch::Tensor baselineTest = baselineTensor.slice(0, split.validation_end, x.size(0)).contiguous();
+        torch::Tensor xTestRaw = x.slice(0, split.validation_end, split.test_end).contiguous();
+        torch::Tensor yTest = y.slice(0, split.validation_end, split.test_end).contiguous();
+        torch::Tensor baselineTest = baselineTensor.slice(0, split.validation_end, split.test_end).contiguous();
         torch::Tensor yTrainPhysical = y.slice(0, 0, split.train_end).contiguous();
         torch::Tensor baselineTrain = baselineTensor.slice(0, 0, split.train_end).contiguous();
         // Training-split discharge std, fit on train only like every other
@@ -301,10 +305,11 @@ public:
         if (scaleResidual) predictedResidualFull = targetScaler.inverseTransform(predictedResidualFull);
         torch::Tensor predFull = (baselineTensor + predictedResidualFull).clamp_min(0.0);
         fillPlotVectors(result, plotX, y, predFull);
-        result.split.resize(result.x.size(), "test");
+        result.split.resize(result.x.size(), "beyond_test_end");
         for (std::size_t i = 0; i < result.split.size(); ++i) {
             if (static_cast<int64_t>(i) < split.train_end) result.split[i] = "train";
             else if (static_cast<int64_t>(i) < split.validation_end) result.split[i] = "validation";
+            else if (static_cast<int64_t>(i) < split.test_end) result.split[i] = "test";
         }
         result.success = true;
         return result;
