@@ -28,12 +28,21 @@ SCRIPT = HERE / "run_multiscale_selection_batch.sh"
 
 FAKE_HYDROBATCH = """#!/usr/bin/env bash
 batch_file="$1"
-job_out="$2"
+output_root="$2"
 sleep "${FAKE_JOB_SLEEP:-0.1}"
 if [[ "$batch_file" == *shouldfail* ]]; then
   echo "simulated failure" >&2
   exit 1
 fi
+# Real HydroBatch's exportRun always creates <output_root>/<experiment_id>/
+# (hydro_batch_runner.cpp) -- this stub's job_out must match that nesting
+# (experiment_id == the .batch file's own stem, as in every real manifest
+# this launcher is run against), not write flat into output_root, so the
+# launcher's own completeness check (which looks one level in) is exercised
+# the same way it is against the real binary.
+name="$(basename "$batch_file" .batch)"
+job_out="$output_root/$name"
+mkdir -p "$job_out"
 echo '{"ok":true}' > "$job_out/experiment_config.json"
 echo "approach,index,split,x,observed,predicted,residual" > "$job_out/predictions.csv"
 echo "file,sha256" > "$job_out/artifact_manifest.csv"

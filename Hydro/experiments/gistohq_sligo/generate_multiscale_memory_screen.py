@@ -34,7 +34,12 @@ Two phases, budgeted separately (report 68):
        unset, so a regenerated control config would have trained/scored
        on every window instead of the eligible subset the multiscale arm
        requires, defeating report 71's matched-control design).
-     - Multiscale: same split/package, approach name "lstm_multiscale",
+     - Multiscale: same split/package, approach "lstm_pinn" (dispatch mode is
+       the fixed CLI whitelist; physics_profile=lstm_shared_scale_ablation_zero
+       plus multiscale_daily_history_days>0 is what actually selects the
+       multiscale branch inside LSTMPINNWrapper::train -- confirmed by a real
+       dispatch failure, "lstm_multiscale" is not a recognized batch mode and
+       was a bug in an earlier version of this script, fixed 2026-11-13),
        daily-history fields added; D is the phase-1 sentinel above.
 
 Architecture (24h hourly LSTM, hidden=32, 1 layer; daily branch hidden=4,
@@ -101,7 +106,7 @@ def main() -> None:
                 multiscale_daily_history_days=d,
                 multiscale_daily_hidden_size=DAILY_HIDDEN_SIZE,
             )
-            path = write_config(selection_dir, name, cfg, "lstm_multiscale")
+            path = write_config(selection_dir, name, cfg, "lstm_pinn")
             manifest["selection_jobs"].append({
                 "fold_year": year, "daily_history_days": d, "seed": 42,
                 "config_path": str(path), "config_sha256": sha(path),
@@ -149,7 +154,7 @@ def main() -> None:
                 multiscale_daily_history_days=UNRESOLVED_D_SENTINEL,
                 multiscale_daily_hidden_size=DAILY_HIDDEN_SIZE,
             )
-            path = write_config(multiscale_dir, name, cfg, "lstm_multiscale")
+            path = write_config(multiscale_dir, name, cfg, "lstm_pinn")
             manifest["comparison_multiscale_jobs"].append({
                 "fold_year": year, "seed": seed, "config_path": str(path), "config_sha256": sha(path),
                 "multiscale_daily_history_days": "UNRESOLVED -- set from phase 1's winning D for this fold_year before use",

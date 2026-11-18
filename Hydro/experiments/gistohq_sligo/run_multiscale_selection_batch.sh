@@ -338,10 +338,23 @@ FAILED_SENTINEL="$OUTPUT_ROOT/.failed"
 
 run_one_job() {
   local batch_file="$1"
-  local name job_out status
+  local name job_out log_staging status
   name="$(basename "$batch_file" .batch)"
   job_out="$OUTPUT_ROOT/$name"
-  mkdir -p "$job_out"
+  # Stage run.log in $RUNNING_DIR, NOT inside $job_out, and do not
+  # pre-create $job_out at all before invoking HydroBatch. HydroBatch's own
+  # archiveExistingExperiment (hydro_batch_runner.cpp) renames
+  # <output-dir-arg>/<experiment_id> out of the way the instant it already
+  # exists -- confirmed by a real dispatch: pre-creating $job_out here
+  # (formerly via `mkdir -p "$job_out"`, needed only so the old
+  # "$job_out/run.log" redirect target existed) made HydroBatch see its own
+  # about-to-be-created experiment directory as "already existing" on
+  # literally every run, archiving the in-progress run.log into a sibling
+  # "$name.previous/" directory instead of leaving it beside the real
+  # output. The exported artifacts themselves were never at risk (a fresh,
+  # correct experiment_id directory is still created either way) -- only
+  # run.log's own location was wrong.
+  log_staging="$RUNNING_DIR/$name.log"
   # $BASHPID, not $$: this function runs in a backgrounded subshell
   # (`run_one_job ... &`), and bash's $$ is documented to retain the PID of
   # the top-level invoking shell even inside a subshell -- it would record
@@ -354,14 +367,32 @@ run_one_job() {
   # status is captured via `status=$?` on the next line would instead kill
   # the function before that line ever ran (confirmed by actually testing
   # the failure path against a fake stub, not by reasoning about it).
+  # HydroBatch's own exportRun always creates <output-dir-arg>/<experiment_id>/
+  # (hydro_batch_runner.cpp) -- since every job's .batch-file stem equals its
+  # experiment_id in this manifest set, passing job_out ($OUTPUT_ROOT/$name)
+  # here would make HydroBatch create a second, redundant $name/ level
+  # inside it ($job_out/$name/...), one directory deeper than this script's
+  # own completeness check below looks. Pass $OUTPUT_ROOT (the shared parent)
+  # instead, so HydroBatch's own $name/ subdirectory IS $job_out -- confirmed
+  # by a real dispatch: all 9 phase1_selection jobs exported successfully in
+  # this exact nested location, but were wrongly marked FAILED by the stale
+  # single-level check until this fix. Concurrent jobs under one shared
+  # OUTPUT_ROOT is safe: each job's experiment_id-named subdirectory differs
+  # and fs::create_directories on the shared parent is idempotent.
   if (
     ulimit -v "$PER_JOB_MEMORY_LIMIT_KB"
-    timeout "$PER_JOB_TIMEOUT_SECONDS" "$HYDROBATCH_BIN" "$batch_file" "$job_out"
-  ) > "$job_out/run.log" 2>&1; then
+    timeout "$PER_JOB_TIMEOUT_SECONDS" "$HYDROBATCH_BIN" "$batch_file" "$OUTPUT_ROOT"
+  ) > "$log_staging" 2>&1; then
     status=0
   else
     status=$?
   fi
+  # job_out is only created now, after HydroBatch has already run -- if
+  # HydroBatch itself created it (the success path), this is a harmless
+  # no-op; if HydroBatch failed before creating anything, this ensures a
+  # place for run.log/exit_status.txt to land either way.
+  mkdir -p "$job_out"
+  mv "$log_staging" "$job_out/run.log"
   echo "$status" > "$job_out/exit_status.txt"
   rm -f "$RUNNING_DIR/$name"
   if [[ "$status" -ne 0 ]]; then
