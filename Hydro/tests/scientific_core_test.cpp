@@ -12,6 +12,23 @@
 #include <vector>
 
 int main() {
+    // Calendar cutoffs remain consistent when warm-up or missing hours change
+    // array offsets. A cutoff within a gap must not fabricate a sample.
+    for (const auto& endpoints : {std::vector<double>{0,1,2,5,6,7,9},
+                                  std::vector<double>{1,2,5,6,7,9}}) {
+        auto count = [&](int64_t x) { return resolveTestEndSequenceCountFromSorted(endpoints, x); };
+        auto exact = makeExactChronologicalSplit(endpoints.size(), count(3), count(6), count(9));
+        assert(endpoints[exact.train_end-1] == 2);
+        assert(endpoints[exact.validation_end-1] == 6);
+        assert(endpoints[exact.validation_end] == 7);
+        assert(endpoints[exact.test_end-1] == 9);
+    }
+    for (const auto& ends : {std::vector<int64_t>{0,2,3}, {2,2,3}, {1,3,3}, {1,2,5}}) {
+        bool invalid = false;
+        try { (void)makeExactChronologicalSplit(4, ends[0], ends[1], ends[2]); }
+        catch (const std::invalid_argument&) { invalid = true; }
+        assert(invalid);
+    }
     // Every observation and every adjacent transition is visited exactly once,
     // including singleton tails and batches larger than the whole series.
     for (int64_t total : {1, 2, 3, 17, 32, 33, 65}) {

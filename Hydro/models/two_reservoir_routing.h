@@ -94,7 +94,8 @@ inline std::vector<double> simulateTwoReservoirBaselinePerSegment(
     const std::vector<double>& peffVec,
     const std::vector<double>& observedVec,
     const torch::Tensor& segmentId,
-    const TwoReservoirRoutingParams& routingParams) {
+    const TwoReservoirRoutingParams& routingParams,
+    double initialFlow = -1.0) {
     const auto segments = segmentId.reshape({-1}).contiguous();
     const int64_t n = static_cast<int64_t>(peffVec.size());
     std::vector<double> baseline(static_cast<std::size_t>(n));
@@ -104,7 +105,8 @@ inline std::vector<double> simulateTwoReservoirBaselinePerSegment(
         int64_t end = begin + 1;
         while (end < n && segments[end].item<int64_t>() == segment) ++end;
         const std::vector<double> segmentPeff(peffVec.begin() + begin, peffVec.begin() + end);
-        const double segmentQ0 = observedVec[static_cast<std::size_t>(begin)];
+        const double segmentQ0 = initialFlow >= 0.0 ? initialFlow
+            : observedVec[static_cast<std::size_t>(begin)];
         const std::vector<double> segmentBaseline =
             simulateTwoReservoirBaseline(segmentPeff, segmentQ0, routingParams);
         std::copy(segmentBaseline.begin(), segmentBaseline.end(), baseline.begin() + begin);

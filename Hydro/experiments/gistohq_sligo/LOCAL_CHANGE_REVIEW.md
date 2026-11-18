@@ -33,7 +33,7 @@ independent scoped review; do not hide them with ignore rules:
 | Group | Files | Review needed |
 |---|---|---|
 | Batch dispatch/export labeling | `hydro_batch_runner.cpp` | Separate multiscale export-label support from optional summary columns; verify CLI export/reload integration |
-| Model splits and routing | `ffn_wrapper.cpp`, `pinn_wrapper.cpp`, `residual_pinn_wrapper.h`, `two_reservoir_routing.h`, `reservoir_routing_test.cpp`, `scientific_core_test.cpp` | Exact chronological cutoffs, segment reset/initial-flow behavior and regression coverage |
+| Model splits and routing | `ffn_wrapper.cpp`, `pinn_wrapper.cpp`, `residual_pinn_wrapper.h` | Exact chronological cutoffs, segment reset/initial-flow behavior and regression coverage |
 | Experimental learning/forcing | `lstm_pinn_wrapper.cpp`, `lstmnetworkwrapper.cpp`, `lstm_regional_pretrain.cpp`, `hydro_tensor_builder.h` | Separate urban/volume/high-flow/MRMS-CV and pretraining logging changes; verify zero-option behavior and dependencies |
 
 Several files contain multiple groups' changes; this table is a review map,
@@ -64,3 +64,13 @@ This verifies settings transport, not performance or behavioral acceptance of
 optional high-flow/volume/MRMS features; their model-side changes remain a
 separate review. Existing partial-source-build provenance for old experiments
 is not retroactively rewritten by this source commit.
+
+## Routing helper and cutoff regression review completed
+
+The optional fixed-initial-flow argument in `two_reservoir_routing.h` and
+its routing/scientific-core regression tests passed in an isolated HEAD
+checkout containing only those three changes. Explicit initial flow is
+independent of observed discharge, resets at segment boundaries, and
+omitting the argument preserves legacy initialization. The LibTorch routing
+test also covers analytic routing, gradients and checkpoint compatibility.
+This does not yet accept the separate model-wrapper call-site changes.
