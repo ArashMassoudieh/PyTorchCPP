@@ -72,3 +72,70 @@ python3 -m unittest discover -s Hydro/experiments/gistohq_sligo -p test_hydrofus
 The audit always reports `research_ready=false` and `training_authorized=false`.
 Passing it is a bounded evidence subdeliverable, not all-five real-data acceptance,
 proof of accuracy improvement, or authorization to remove production guards.
+
+## Causal adapter and prepared-source acceptance (2026-11-18)
+
+The timing blockers above are now fixed in the additive prepared-data path:
+`hydrofusion_causal_native_adapter.h` labels completed hourly intervals at their
+END and uses only completed PET days released by the specified origin. Hourly
+forcing and daily-PET delays are explicit; negative/unknown policies and nonzero
+Q-release latency are rejected rather than silently changing the one-hour task.
+The prepared-package recipe freezes zero Q delay and24-hour forcing/PET delays
+as IDEALIZED HINDCAST assumptions. Actual operational publication latencies are
+not established. The original same-hour/legacy loader is deliberately preserved.
+
+`slice_hydrofusion_producer_prefix.py` can prepare the upstream presealed slice
+without reading excluded target values: unbuffered exact timestamp read, then
+stop before reading the first excluded record's variable/value/qualifiers. It
+requires the producer's canonical sorted timestamp-first format; arbitrary
+multiline CSV is rejected. Parent whole-asset hashes remain explicitly UNVERIFIED
+because checking them would read the mixed-period reserved observations. Exact
+copied prefixes and parent manifest are independently hashed and retained.
+
+`prepare_hydrofusion_causal_package.py` checks source QC (only disclosed coverage
+warnings accepted), declared-variable units against actual rows, native qualifier
+policy, and creates a hash-bound interval CSV plus daily PET/provenance manifest.
+It does not fit a model. `loadPreparedNativePackage` rechecks the manifest/CSV
+hashes and domain/time policy, then calls the SAME causal adapter for all five
+new families. The opt-in config requires explicit native manifest path+SHA and
+synthetic verification=false. Conflicting sources, absent pins and legacy raw
+package/CSV flags still fail. Managed bundles include the interval input and
+native manifest; inference binds the latter's hash to the exported config. The
+upstream audit/provenance records are retained with the campaign, not invented
+from trained predictions. Original causal synthetic modes remain compatible.
+
+Verified normal optimized frozen build:7 fabricated prepared-source variants
+through actual CLI, all7 managed fresh reloads,2 all-row FFN reloads/validation
+exports,8 actual CLI rejection cases, all under a hard12GiB virtual-memory cap.
+The five original same-hour methods remain byte-identical on1054 regression
+rows. Five standalone adapter suites pass ASan/UBSan (leak checking disabled for
+host restrictions);15 producer/prefix +3 preparation +5 budget +9 evaluator
+regressions pass. This is bounded acceptance, not general memory-safety proof.
+
+User explicitly approved the initial six-fit FFN budget after these fixes.
+The research plan uses one prospectively frozen calendar fold: Train2015–2016,
+Validation2017, Test2018, endpoint cutoffs17543/26303/35063. All arms share16182/
+8595/8387 eligible target timestamps, actual area23754600m², A-only discharge,
+no Q interpolation, max300s sample support/75%coverage. The300s cap is a declared
+conservative aggregation policy corroborated by presealed native cadence, not
+a claim the export independently declares continuous observation support.
+Estimated A;e records are excluded. POWER's legacy MJ/hr energy-density alias
+follows the existing producer/consumer contract and remains disclosed.
+
+The six-fit launcher freezes data/support/config/script/executable hashes before
+any fit, takes an exclusive launch claim, pins two CPUs/noGPU, hard-caps address
+space12GiB (stricter than RSS alone), wall time8h/fit and retained artifacts250MB,
+checks50epochs and earliest validation-minimum selection, then reloads every
+checkpoint in a fresh process. No automatic retry or larger campaign is allowed.
+FFN reproduction checks ALL test rows and a bounded production target-free API
+sample, and saves validation predictions separately. Test and validation metrics
+are explicitly labeled; no test-based hyperparameter selection.
+
+Reproduce fabricated acceptance:
+
+```sh
+python3 Hydro/experiments/gistohq_sligo/verify_hydrofusion_native_cli.py BATCH RELOAD FFN_REPRODUCTION NEW_OUTPUT
+```
+
+Actual research completion/results are recorded separately in the campaign;
+passing these checks alone is not an improvement claim or manuscript promotion.

@@ -4,6 +4,16 @@ from pathlib import Path
 import evaluate_causal_forecast_methods as e
 
 class EvaluatorTest(unittest.TestCase):
+    def test_validation_label_is_explicit(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/"validation.csv"
+            path.write_text("approach,index,split,x,observed,predicted,residual\na,0,validation,10,2,3,1\n")
+            with self.assertRaises(ValueError):
+                e.load_predictions(path,"a")
+            self.assertEqual(e.load_predictions(path,"a","validation"),{10:(2.,3.)})
+
     def test_identity_and_constant(self):
         self.assertEqual(e.metrics([1,2,3],[1,2,3],2)['nse'],1)
         self.assertAlmostEqual(e.metrics([1,2,3],[1,2,3],2)['kge'],1)

@@ -319,7 +319,7 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
 // metadata files in the managed manifest: completeness rejects UNLISTED
 // additions, not metadata files as a category.
 void exportHydroFusionSidecarForBatchJob(const fs::path& output_root, const std::string& experiment_id,
-                                         const std::string& approach, const HydroRunResult& result) {
+                                         const std::string& approach, const HydroRunResult& result, const HydroRunConfig& config) {
     const fs::path bundleDir = output_root / experiment_id;
     const std::string modelSha256 = hydrofusion::readModelSha256FromModelsCsv(bundleDir, approach);
     const std::string scalersSha256 = sha256File((bundleDir / "scalers.csv").string());
@@ -349,6 +349,14 @@ void exportHydroFusionSidecarForBatchJob(const fs::path& output_root, const std:
     const fs::path mapPath = bundleDir / "hydrofusion_origin_target_map.csv";
     hydrofusion::writeOriginTargetMapCsv(mapPath, result.hydrofusion_test_origin_x, targetX, metadata.horizonHours);
 
+    std::vector<fs::path> managedPaths{metadataPath,mapPath};
+    if(!config.hydrofusion_synthetic_verification && !config.hydrofusion_native_manifest_path.empty()){
+        const fs::path source(config.hydrofusion_native_manifest_path);
+        if(sha256File(source.string())!=config.hydrofusion_native_manifest_sha256)throw std::runtime_error("Native source manifest changed during fit.");
+        for(const auto& pair:std::vector<std::pair<fs::path,fs::path>>{{source,bundleDir/"native_input_manifest.json"},{source.parent_path()/"intervals.csv",bundleDir/"intervals.csv"}}){
+            fs::copy_file(pair.first,pair.second,fs::copy_options::none);managedPaths.push_back(pair.second);
+        }
+    }
     // Replace the manifest only after the registered metadata files are closed.
     // A failed/partial write leaves an invalid bundle, never a successful reload.
     const auto manifestPath = bundleDir / "artifact_manifest.csv";
@@ -359,7 +367,7 @@ void exportHydroFusionSidecarForBatchJob(const fs::path& output_root, const std:
     {
         std::ofstream next(pending, std::ios::binary);
         next << oldManifest;
-        for (const auto& path : {metadataPath, mapPath}) {
+        for (const auto& path : managedPaths) {
             next << path.filename().generic_string() << ',' << fs::file_size(path) << ',' << sha256File(path.string()) << '\n';
         }
         next.close();
@@ -460,7 +468,7 @@ int main(int argc, char** argv) {
                     results.emplace(approach, result);
                     HydroExperimentExporter().exportRun(output_root.string(), loaded.experiment_id, config, results);
                     if (job.mode == "ffn_hydrofusion" || hydrofusion::isExtendedForecast(job.mode)) {
-                        exportHydroFusionSidecarForBatchJob(output_root, loaded.experiment_id, approach, result);
+                        exportHydroFusionSidecarForBatchJob(output_root, loaded.experiment_id, approach, result, config);
                     }
                     appendSummary(summary_path, loaded.experiment_id, job.mode, config, result);
                 }

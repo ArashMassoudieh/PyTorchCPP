@@ -292,6 +292,8 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     // every config predating this field, which must keep working
     // unchanged. No other mode reads this.
     c.hydrofusion_synthetic_verification = optionalBoolValue(json, "hydrofusion_synthetic_verification", false);
+    c.hydrofusion_native_manifest_path = optionalStringValue(json, "hydrofusion_native_manifest_path", "");
+    c.hydrofusion_native_manifest_sha256 = optionalStringValue(json, "hydrofusion_native_manifest_sha256", "");
     c.hydrofusion_target_mode = optionalStringValue(json, "hydrofusion_target_mode", "log_residual");
     if (c.hydrofusion_target_mode != "log_residual" && c.hydrofusion_target_mode != "direct_log_q") {
         throw std::runtime_error(

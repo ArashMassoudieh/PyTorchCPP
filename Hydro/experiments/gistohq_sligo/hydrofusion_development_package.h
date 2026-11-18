@@ -8,7 +8,8 @@ namespace hydrofusion {
 // Deliberately new DEVELOPMENT interchange, NOT a GIStoOHQ manifest parser.
 // Row schema fixes all units in the header; context supplies epoch/area/source.
 // No real-source path is wired into model training by this reader.
-inline std::vector<HourlyRow> loadDevelopmentHourlyPackage(
+struct NativeHourlyInputs { std::vector<GisToOhqHourlyRow> rows; std::vector<NativeSupportEvidence> evidence; };
+inline NativeHourlyInputs loadDevelopmentHourlyInputs(
     const std::filesystem::path& csv, const NativeAdapterContext& context) {
     std::ifstream stream(csv);
     if (!stream) throw std::invalid_argument("Cannot open development hourly package.");
@@ -68,6 +69,11 @@ inline std::vector<HourlyRow> loadDevelopmentHourlyPackage(
         r.discharge_valid=flag(f[9]);
         support.push_back({r.epoch_seconds,flag(f[10]),flag(f[11]),number(f[12]),f[13]});rows.push_back(r);
     }
-    return adaptNativeHourlyRows(rows,support,context);
+    return {std::move(rows),std::move(support)};
+}
+inline std::vector<HourlyRow> loadDevelopmentHourlyPackage(
+    const std::filesystem::path& csv, const NativeAdapterContext& context) {
+    auto input=loadDevelopmentHourlyInputs(csv,context);
+    return adaptNativeHourlyRows(input.rows,input.evidence,context);
 }
 } // namespace hydrofusion

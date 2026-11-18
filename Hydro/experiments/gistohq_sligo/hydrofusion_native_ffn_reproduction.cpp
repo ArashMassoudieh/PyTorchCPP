@@ -1,0 +1,52 @@
+#include "../../evaluation/hydrofusion_forecast_inference.h"
+#include "hydrofusion_prepared_native_package.h"
+#include <iostream>
+#include <iomanip>
+// Independent fresh-process FFN archive/scaler reload on ALL native test rows,
+// plus a bounded sample through the real predictAt API. Also persists validation
+// predictions for predeclared advancement criteria, never refitting scalers.
+int main(int argc,char** argv){try{
+    using namespace hydrofusion;
+    if(argc!=3)throw std::invalid_argument("Pass managed bundle and NEW validation CSV.");
+    const std::string directory=argv[1],approach="ffn_causal_forecast";
+    if(std::filesystem::exists(argv[2]))throw std::invalid_argument("Refusing existing validation output.");
+    torch::set_num_threads(2);
+    auto artifacts=HydroArtifactLoader().loadForInference(directory);
+    HydroFusionForecastInference predictor(artifacts,directory,approach);
+    const auto& c=artifacts.experiment.config;
+    const auto rows=loadPreparedNativePackage((std::filesystem::path(directory)/"native_input_manifest.json").string(),c.hydrofusion_native_manifest_sha256);
+    auto data=prepareHydroFusionSequenceData(rows,forecastTargetMode(c),{c.train_end_x,c.validation_end_x,c.test_end_x},24);
+    auto metadata=reloadHydroFusionMetadata((std::filesystem::path(directory)/"hydrofusion_metadata.txt").string());
+    if(data.qRef!=metadata.qRef)throw std::runtime_error("Training-only q_ref identity mismatch.");
+    const auto& model=artifacts.models.at(approach);std::string raw(model.bytes.begin(),model.bytes.end());std::istringstream bytes(raw);
+    torch::serialize::InputArchive archive,weights;archive.load_from(bytes);archive.read("weights",weights);
+    ForecastNet net(false,forecastHidden(c));net->load(weights);net->eval();
+    TensorScaler xs,ys;xs.importState(artifacts.scalers.at(approach).input);ys.importState(artifacts.scalers.at(approach).target);
+    torch::NoGradGuard guard;
+    auto predict=[&](const DatasetSplit& split){return forecastReconstruct(forecastTargetMode(c),ys.inverseTransform(net->forward(xs.transform(split.x))),split.originQ,metadata.qRef);};
+    auto predictions=predict(data.test);
+    const auto& result=artifacts.results.at(approach);
+    auto map=readOriginTargetMapCsv(std::filesystem::path(directory)/"hydrofusion_origin_target_map.csv");validateOriginTargetMap(map,1);
+    if(result.x.size()!=predictions.size()||map.size()!=predictions.size())throw std::runtime_error("Native test support size mismatch.");
+    double maxAbs=0;size_t apiChecks=0;
+    for(size_t i=0;i<predictions.size();++i){
+        if(result.x[i]!=data.test.targetX[i]||result.y_true[i]!=data.test.observedTargetQ[i]||result.split[i]!="test"||map[i]!=std::make_pair(data.test.originX[i],data.test.targetX[i]))throw std::runtime_error("Native test identity/value mismatch.");
+        const double error=std::abs(predictions[i]-result.y_pred[i]);
+        if(!std::isfinite(predictions[i])||!std::isfinite(result.y_pred[i])||error>1e-5+1e-5*std::abs(result.y_pred[i]))throw std::runtime_error("Native archive prediction mismatch.");
+        maxAbs=std::max(maxAbs,error);
+        if(i==0||i+1==predictions.size()||i%std::max<size_t>(1,predictions.size()/10)==0){
+            std::vector<HourlyRow> prefix;for(const auto& row:rows)if(row.x<=data.test.originX[i])prefix.push_back(row);
+            const double actual=predictor.predictAt(prefix,data.test.originX[i]);
+            if(!std::isfinite(actual)||std::abs(actual-predictions[i])>1e-5+1e-5*std::abs(actual))throw std::runtime_error("Production target-free inference mismatch.");
+            ++apiChecks;
+        }
+    }
+    const auto validation=predict(data.validation);
+    std::ofstream output(argv[2]);if(!output)throw std::runtime_error("Cannot create validation CSV.");
+    output<<"approach,index,split,x,observed,predicted,residual\n"<<std::setprecision(17);
+    for(size_t i=0;i<validation.size();++i){const auto observed=data.validation.observedTargetQ[i];
+        if(!std::isfinite(validation[i]))throw std::runtime_error("Nonfinite validation output.");
+        output<<approach<<','<<i<<",validation,"<<data.validation.targetX[i]<<','<<observed<<','<<validation[i]<<','<<validation[i]-observed<<'\n';}
+    output.close();if(!output)throw std::runtime_error("Validation CSV write failed.");
+    std::cout<<std::setprecision(17)<<"PASS all_test_rows="<<predictions.size()<<" production_target_free_checks="<<apiChecks<<" max_abs="<<maxAbs<<" validation_rows="<<validation.size()<<" q_ref="<<metadata.qRef<<'\n';
+}catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}}

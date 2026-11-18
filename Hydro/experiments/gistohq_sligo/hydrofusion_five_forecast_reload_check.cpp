@@ -1,6 +1,7 @@
 #include "../../evaluation/hydrofusion_forecast_inference.h"
 #include "../../evaluation/inference_runner.h"
 #include "hydrofusion_synthetic_fixture.h"
+#include "hydrofusion_prepared_native_package.h"
 #include <iostream>
 #include <iomanip>
 int main(int argc,char** argv){
@@ -12,15 +13,22 @@ int main(int argc,char** argv){
         HydroFusionForecastInference predictor(artifacts,directory,approach);
         bool genericRejected=false;try{HydroInferenceSession wrong(artifacts,approach);}catch(const std::exception&){genericRejected=true;}
         if(!genericRejected)throw std::runtime_error("Generic forecast output not rejected.");
-        const auto rows=buildSyntheticFixture();const auto& c=artifacts.experiment.config;
+        const auto& c=artifacts.experiment.config;
+        const auto rows=c.hydrofusion_synthetic_verification?buildSyntheticFixture():loadPreparedNativePackage((std::filesystem::path(directory)/"native_input_manifest.json").string(),c.hydrofusion_native_manifest_sha256);
         const auto eligible=buildForecastSequences(rows,{c.train_end_x,c.validation_end_x,c.test_end_x},24);
         std::vector<ForecastSequence> expectedSupport;for(const auto& s:eligible)if(s.split==SplitPartition::Test)expectedSupport.push_back(s);
         const auto map=readOriginTargetMapCsv(std::filesystem::path(directory)/"hydrofusion_origin_target_map.csv");
         validateOriginTargetMap(map,1);const auto& result=artifacts.results.at(approach);
         if(result.x.size()!=expectedSupport.size()||map.size()!=expectedSupport.size())throw std::runtime_error("Missing/extra eligible support.");
-        double maxAbs=0,maxRel=0;
+        double maxAbs=0,maxRel=0;size_t reloadChecks=0;
         for(size_t i=0;i<expectedSupport.size();++i){const auto& s=expectedSupport[i];
             if(result.x[i]!=s.target_x||map[i]!=std::make_pair(s.origin_x,s.target_x)||result.split[i]!="test"||result.y_true[i]!=s.observed_target_q)throw std::runtime_error("Timestamp/observed/split/map mismatch.");
+            if(!std::isfinite(result.y_pred[i]))throw std::runtime_error("Nonfinite exported prediction.");
+            // All identities/labels checked above; bounded native fresh-inference
+            // sample covers first/last and up to16 evenly spaced test records.
+            const auto stride=std::max<size_t>(1,expectedSupport.size()/15);
+            if(!c.hydrofusion_synthetic_verification && i%stride!=0 && i+1!=expectedSupport.size())continue;
+            ++reloadChecks;
             // Discard target and every future row entirely: production prediction
             // must not require or read them, including target native flags.
             std::vector<HourlyRow> prefix;for(const auto& row:rows)if(row.x<=s.origin_x)prefix.push_back(row);
@@ -32,12 +40,14 @@ int main(int argc,char** argv){
             auto perturbed=rows;for(auto& row:perturbed)if(row.x>s.origin_x){row.observed_runoff_mm_per_hour=999;row.precipitation_mm_per_hour=999;}
             if(predictor.predictAt(perturbed,s.origin_x)!=actual)throw std::runtime_error("Future values changed past forecast.");
         }
+        if(c.hydrofusion_synthetic_verification){
         bool gapRejected=false;auto gapped=rows;gapped.erase(gapped.begin()+200);
         try{predictor.predictAt(gapped,245);}catch(const std::exception&){gapRejected=true;}
         if(!gapRejected)throw std::runtime_error("Gapped history accepted.");
         bool missingRejected=false;auto missing=rows;missing[200].discharge_valid=false;
         try{predictor.predictAt(missing,245);}catch(const std::exception&){missingRejected=true;}
         if(!missingRejected)throw std::runtime_error("Non-native history accepted.");
-        std::cout<<std::setprecision(17)<<"PASS "<<approach<<" rows="<<expectedSupport.size()<<" max_abs="<<maxAbs<<" max_rel="<<maxRel<<" (atol=1e-5,rtol=1e-5); target-free/future/gap/native/generic guards PASS\n";
+        }
+        std::cout<<std::setprecision(17)<<"PASS "<<approach<<" rows="<<expectedSupport.size()<<" fresh_reload_checks="<<reloadChecks<<" max_abs="<<maxAbs<<" max_rel="<<maxRel<<" (atol=1e-5,rtol=1e-5); target-free/future/generic PASS (gap/native mutation tests synthetic-only)\n";
     }catch(const std::exception& e){std::cerr<<"FAIL: "<<e.what()<<'\n';return 1;}
 }

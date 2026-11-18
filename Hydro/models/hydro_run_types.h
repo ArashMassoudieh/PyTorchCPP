@@ -319,6 +319,8 @@ struct HydroRunConfig {
     // No real-data loader exists yet. Require a positive test-only opt-in,
     // never infer synthetic consent from absent/false source flags.
     bool hydrofusion_synthetic_verification = false;
+    std::string hydrofusion_native_manifest_path;
+    std::string hydrofusion_native_manifest_sha256;
 };
 
 struct HydroRunResult {

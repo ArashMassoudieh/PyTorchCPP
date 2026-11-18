@@ -2,11 +2,12 @@
 #include "hydrofusion_forecast_core.h"
 #include "../experiments/gistohq_sligo/hydrofusion_synthetic_fixture.h"
 #include "../evaluation/hydro_metrics.h"
+#include "../experiments/gistohq_sligo/hydrofusion_prepared_native_package.h"
 #include <limits>
 
 HydroRunResult HydroFusionForecastWrapper::train(const HydroRunConfig& c,const std::string& approach){
     using namespace hydrofusion;validateForecastConfig(c,approach);
-    const auto rows=buildSyntheticFixture();const auto mode=forecastTargetMode(c);
+    const auto rows=c.hydrofusion_synthetic_verification?buildSyntheticFixture():loadPreparedNativePackage(c.hydrofusion_native_manifest_path,c.hydrofusion_native_manifest_sha256);const auto mode=forecastTargetMode(c);
     auto data=prepareHydroFusionSequenceData(rows,mode,{c.train_end_x,c.validation_end_x,c.test_end_x},24);
     std::map<int64_t,double> physics;if(isPhysicalForecast(approach))physics=causalPhysicalForecasts(rows,forecastPhysics(c));
     const auto trainRef=forecastReference(data.train,physics,isPhysicalForecast(approach));

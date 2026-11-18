@@ -20,8 +20,11 @@ inline TargetMode forecastTargetMode(const HydroRunConfig& c){
     throw std::invalid_argument("Unknown forecast target mode.");
 }
 inline void validateForecastConfig(const HydroRunConfig& c,const std::string& name){
-    if(!isExtendedForecast(name)||c.use_hydro_package||c.use_csv_data||!c.hydrofusion_synthetic_verification)
-        throw std::invalid_argument("Extended forecasts require explicit synthetic verification and reject package/CSV training.");
+    const bool native=!c.hydrofusion_native_manifest_path.empty() && c.hydrofusion_native_manifest_sha256.size()==64;
+    if(!isExtendedForecast(name)||c.use_hydro_package||c.use_csv_data||
+       (c.hydrofusion_synthetic_verification==native) ||
+       (!native && (!c.hydrofusion_native_manifest_path.empty()||!c.hydrofusion_native_manifest_sha256.empty())))
+        throw std::invalid_argument("Extended forecasts require explicit synthetic verification OR a pinned prepared native manifest, and reject legacy package/CSV training.");
     validateSplitCutoffs({c.train_end_x,c.validation_end_x,c.test_end_x});forecastTargetMode(c);
     if(c.lstm_sequence_length!=24||c.activation!="tanh"||c.normalization!="standardize"||c.optimizer!="adam"||
        c.shuffle_training||c.weight_decay!=0||c.physics_weight!=0||c.epochs<1||c.batch_size<1||!std::isfinite(c.learning_rate)||c.learning_rate<=0)

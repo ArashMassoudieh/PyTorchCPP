@@ -1,8 +1,8 @@
-# Prospective research proposal — NOT APPROVED / NOT LAUNCHED
+# Research plan — initial six-fit stage approved; extensions unapproved
 
 Synthetic implementation checks establish consistency, not better basin skill.
 All existing manuscript conclusions remain unchanged. No real research job is
-included in the verification runners. Real-source training remains rejected.
+included in the verification runners. Raw legacy package/CSV training remains rejected; prepared causal sources require explicit hash pins.
 
 ## Prerequisites before any approval request becomes executable
 
@@ -63,3 +63,13 @@ paired-seed deltas. Include free one-hour persistence. Signed positive PBIAS
 means overprediction. Raw Q is mm/h; public m3/s conversion is explicit using
 the actual declared area (the existing Sligo display factor is19.0893/3.6).
 Undefined constant-series scores remain null, never promoted into a PASS.
+
+## Explicit initial-stage approval — 2026-11-18
+
+The user approved exactly the first SIX FFN fits: two matched arms × seeds42/43/44,
+50epochs, two CPU threads, noGPU,12GiB memory ceiling and8hours/fit. The executable
+launcher hard-caps virtual memory as a stricter resident-memory bound. Later
+architectures/physical hybrids are still NOT authorized research jobs.
+See HYDROFUSION_REAL_DATA_READINESS.md and the frozen six-fit campaign plan for
+the causal native-data acceptance and exact calendar/support/provenance policy.
+This is an idealized retrospective hindcast, not an operational forecast claim.

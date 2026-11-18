@@ -4,7 +4,7 @@
 #include "../experiments/gistohq_sligo/hydrofusion_metadata_sidecar.h"
 #include "../dataset/hydro_checksum.h"
 
-// Managed-bundle, raw-hourly-context inference for the four additive modes.
+// Managed-bundle, raw-hourly-context inference for the five additive modes.
 // No labels/q_ref refitting and no target row are needed to predict at origin.
 class HydroFusionForecastInference {
     HydroRunConfig config_;std::string approach_;double qref_=0;
@@ -15,6 +15,11 @@ public:
         :config_(artifacts.experiment.config),approach_(approach){
         using namespace hydrofusion;validateForecastConfig(config_,approach_);
         HydroArtifactLoader().validateBundleManifest(directory);
+        if(!config_.hydrofusion_synthetic_verification){
+            const auto native=std::filesystem::path(directory)/"native_input_manifest.json";
+            if(sha256File(native.string())!=config_.hydrofusion_native_manifest_sha256)
+                throw std::invalid_argument("Native input provenance binding mismatch.");
+        }
         const auto model=artifacts.models.find(approach_);const auto scaler=artifacts.scalers.find(approach_);
         if(model==artifacts.models.end()||scaler==artifacts.scalers.end()||model->second.format!="hydrofusion-forecast-v1")throw std::invalid_argument("Missing/mismatched forecast artifact.");
         auto metadata=reloadHydroFusionMetadata((std::filesystem::path(directory)/"hydrofusion_metadata.txt").string());

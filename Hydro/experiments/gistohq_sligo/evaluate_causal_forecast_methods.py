@@ -59,12 +59,12 @@ def training_threshold(path, train_end):
     return q[lower]+(q[min(lower+1, len(q)-1)]-q[lower])*(position-lower)
 
 
-def load_predictions(path, approach):
+def load_predictions(path, approach, split="test"):
     rows = csv_rows(path, ['approach','index','split','x','observed','predicted','residual'])
     output = {}
     for row in rows:
         x = timestamp(row['x'])  # before numerical access to target/prediction
-        if x in output or row['approach'] != approach or row['split'] != 'test':
+        if x in output or row['approach'] != approach or row['split'] != split:
             raise ValueError('Duplicate, mismatched approach or non-test prediction row.')
         observed = finite_nonnegative(row['observed'])
         predicted = finite_nonnegative(row['predicted'])
@@ -151,6 +151,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--method',action='append',required=True,help='unique label=approach=/path/predictions.csv; labels may encode seed')
     parser.add_argument('--support',required=True)
+    parser.add_argument('--split',choices=['test','validation'],default='test')
     parser.add_argument('--training-observations',required=True)
     parser.add_argument('--train-end',required=True,type=timestamp)
     parser.add_argument('--events',help='prospectively frozen JSON list, never selected by test skill')
@@ -166,14 +167,14 @@ def main():
         name,approach,path = specification.split('=',2)
         if name in methods:
             raise ValueError('Duplicate method label.')
-        methods[name] = load_predictions(path,approach);approaches[name]=approach;files.append(path)
+        methods[name] = load_predictions(path,approach,args.split);approaches[name]=approach;files.append(path)
     events = json.loads(Path(args.events).read_text()) if args.events else []
     if len({e['name'] for e in events}) != len(events):
         raise ValueError('Duplicate event name.')
     if args.events:
         files.append(args.events)
     threshold = training_threshold(args.training_observations,args.train_end)
-    report = {'units':'raw mm/h; event volume mm; positive PBIAS means overprediction',
+    report = {'evaluated_split':args.split,'units':'raw mm/h; event volume mm; positive PBIAS means overprediction',
               'method_approaches':approaches,
               'comparison_note':'ffn_hydrofusion is a compatibility path with broader training support; use ffn_causal_forecast for matched architecture comparisons. No synthetic skill claim.',
               'q90_training_only':threshold,'support_sha256':hashlib.sha256(('\n'.join(map(str,support))+'\n').encode()).hexdigest(),

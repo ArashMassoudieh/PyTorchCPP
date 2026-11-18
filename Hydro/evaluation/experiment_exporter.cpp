@@ -319,6 +319,8 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
               << "  \"shuffle_training\": " << (config.shuffle_training ? "true" : "false") << ",\n"
               << "  \"evaluate_metrics\": " << (config.evaluate_metrics ? "true" : "false") << ",\n"
               << "  \"hydrofusion_synthetic_verification\": " << (config.hydrofusion_synthetic_verification ? "true" : "false") << ",\n"
+              << "  \"hydrofusion_native_manifest_path\": \"" << escapeJson(config.hydrofusion_native_manifest_path) << "\",\n"
+              << "  \"hydrofusion_native_manifest_sha256\": \"" << escapeJson(config.hydrofusion_native_manifest_sha256) << "\",\n"
               << "  \"hydrofusion_target_mode\": \"" << escapeJson(config.hydrofusion_target_mode) << "\",\n"
               << "  \"normalization\": \"" << escapeJson(config.normalization) << "\",\n"
               << "  \"hidden_layers\": \"" << escapeJson(config.hidden_layers_csv) << "\",\n"
