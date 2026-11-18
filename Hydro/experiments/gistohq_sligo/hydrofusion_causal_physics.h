@@ -1,0 +1,46 @@
+#pragma once
+#include "hydrofusion_feature_builder.h"
+
+namespace hydrofusion {
+struct CausalPhysicsParams { double fast=1, slow=0.1, fraction=0.7, gain=1; };
+struct ReservoirLedger { double fastStorage=0,slowStorage=0,inputVolume=0,outflowVolume=0; };
+inline void validateCausalPhysics(const CausalPhysicsParams& p) {
+    if(!std::isfinite(p.fast)||p.fast<=0||!std::isfinite(p.slow)||p.slow<=0||
+       !std::isfinite(p.fraction)||p.fraction<0||p.fraction>1||!std::isfinite(p.gain)||p.gain<0)
+        throw std::invalid_argument("Invalid causal physical parameters.");
+}
+inline double stepCausalReservoirs(ReservoirLedger& state,double effectiveRain,const CausalPhysicsParams& p) {
+    validateCausalPhysics(p);
+    if(!std::isfinite(effectiveRain)||effectiveRain<0||!std::isfinite(state.fastStorage)||state.fastStorage<0||
+       !std::isfinite(state.slowStorage)||state.slowStorage<0)throw std::invalid_argument("Invalid causal physical state/input.");
+    const double inflow=effectiveRain*p.gain;
+    const auto update=[](double s,double r,double k){return std::exp(-k)*s+(-std::expm1(-k))*r/k;};
+    const double fast=update(state.fastStorage,p.fraction*inflow,p.fast);
+    const double slow=update(state.slowStorage,(1-p.fraction)*inflow,p.slow);
+    const double out=state.fastStorage+state.slowStorage+inflow-fast-slow;
+    const double q=p.fast*fast+p.slow*slow;
+    if(!std::isfinite(fast)||!std::isfinite(slow)||!std::isfinite(out)||!std::isfinite(q)||q<0||out < -1e-10)
+        throw std::overflow_error("Causal physical update overflow/domain failure.");
+    state.fastStorage=fast;state.slowStorage=slow;
+    state.inputVolume+=inflow;state.outflowVolume+=out;
+    if(!std::isfinite(state.inputVolume)||!std::isfinite(state.outflowVolume))throw std::overflow_error("Physical ledger overflow.");
+    return q;
+}
+inline std::map<int64_t,double> causalPhysicalForecasts(const std::vector<HourlyRow>& rows,const CausalPhysicsParams& params) {
+    validateCausalPhysics(params);HourlyIndex index(rows);(void)index;
+    // Guard every timestamp before touching forcing; full reserved datasets are
+    // not admissible and must never be supplied for after-the-fact filtering.
+    for(const auto& r:rows)if(r.x>=kSealStartX)throw std::invalid_argument("Causal physics preseal input required.");
+    std::map<int64_t,double> output;ReservoirLedger state;int64_t previous=-2;double previousRain=0;
+    for(const auto& r:rows) {
+        const auto x=static_cast<int64_t>(r.x);
+        if(!r.all_forcings_valid||!std::isfinite(r.precipitation_mm_per_hour)||r.precipitation_mm_per_hour<0||
+           !std::isfinite(r.pet_mm_per_hour)||r.pet_mm_per_hour<0) {state={};previous=-2;continue;}
+        if(x!=previous+1)state={};else stepCausalReservoirs(state,previousRain,params);
+        const double rain=std::max(0.0,r.precipitation_mm_per_hour-r.pet_mm_per_hour);
+        auto forecastState=state;output.emplace(x,stepCausalReservoirs(forecastState,rain,params));
+        previous=x;previousRain=rain;
+    }
+    return output;
+}
+} // namespace hydrofusion

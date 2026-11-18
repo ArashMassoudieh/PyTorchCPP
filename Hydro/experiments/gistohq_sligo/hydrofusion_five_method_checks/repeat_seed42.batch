@@ -1,0 +1,4 @@
+ffn_causal_forecast ffn_causal_forecast_log_residual.json
+lstm_hydrofusion lstm_hydrofusion_log_residual.json
+ffn_physical_forecast ffn_physical_forecast_log_residual.json
+lstm_physical_forecast lstm_physical_forecast_log_residual.json

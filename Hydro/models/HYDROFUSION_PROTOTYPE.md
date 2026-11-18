@@ -70,3 +70,13 @@ explicit layout-rejection tests, and source/binary manifests.
 No real-basin training is authorized by these tests or by successful reloads.
 Accuracy, event skill, data-quality assumptions and all-five-method improvements
 require separate implementation and a prospectively approved matched experiment.
+
+## Additive five-method family
+
+The original FFN path above remains compatible. A separate matched FFN/LSTM,
+causal physical baseline and two physical-log-residual hybrids are now available
+through explicit synthetic-only CLI approaches. See
+`Hydro/experiments/gistohq_sligo/hydrofusion_five_method_checks/README.md` and
+`ALL_FIVE_ACCEPTANCE_20261118.md` for exact contracts and verification.
+These additions do not remove source guards, enable GUI training or establish
+real-basin improvements. The research proposal is saved and not launched.

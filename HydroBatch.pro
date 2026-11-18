@@ -100,6 +100,7 @@ SOURCES += \
     Hydro/models/lstm_pinn_wrapper.cpp \
     Hydro/models/lstm_regional_pretrain.cpp \
     Hydro/models/ffn_hydrofusion_wrapper.cpp \
+    Hydro/models/hydrofusion_forecast_wrapper.cpp \
     $$GENERATED_LSTM_NETWORK_WRAPPER
 
 HEADERS += \

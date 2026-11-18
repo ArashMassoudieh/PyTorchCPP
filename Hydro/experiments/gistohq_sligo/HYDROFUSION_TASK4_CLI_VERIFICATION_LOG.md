@@ -1,6 +1,6 @@
 > Historical Claude verification record, preserved as written. The independent
 > Codex takeover found and fixed additional seed, validation-selection, mode-export
-> and integer-boundary issues. See `CODEX_TASK4_CLOSURE_20261118.md` for current
+> and integer-boundary issues. See `TASK4_CLOSURE_20261118.md` for current
 > acceptance/evidence; this record alone does not close the earlier crash gate.
 
 # HydroFusion Task 4 -- real-CLI dispatch verification log

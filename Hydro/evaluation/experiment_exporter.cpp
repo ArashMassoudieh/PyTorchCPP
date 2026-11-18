@@ -1,3 +1,4 @@
+#include "../models/hydrofusion_forecast_modes.h"
 #include "experiment_exporter.h"
 #include "../dataset/hydro_package_directory.h"
 #include "../dataset/hydro_checksum.h"
@@ -153,10 +154,11 @@ std::string safeFileStem(const std::string& value) {
 bool supportedApproach(const std::string& approach) {
     return approach == "ffn" || approach == "ffn_pinn" || approach == "pinn" ||
            approach == "lstm" || approach == "lstm_pinn" || approach == "lstm_multiscale" ||
-           approach == "ffn_hydrofusion";
+           approach == "ffn_hydrofusion" || hydrofusion::isExtendedForecast(approach);
 }
 
 bool checkpointFormatMatchesApproach(const std::string& approach, const std::string& format) {
+    if (hydrofusion::isExtendedForecast(approach)) return format == "hydrofusion-forecast-v1";
     // Opt-in HydroFusion forecasting mode: reuses NeuralNetworkWrapper
     // exactly like plain "ffn", so the same checkpoint-format rule
     // applies -- see Hydro/models/ffn_hydrofusion_wrapper.cpp.

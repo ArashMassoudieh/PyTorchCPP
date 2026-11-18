@@ -40,7 +40,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('batch_binary')
     p.add_argument('output')
-    p.add_argument('--check', choices=['reload','integration','legacy_inference','exporter'], default='reload')
+    p.add_argument('--check', choices=['reload','integration','legacy_inference','exporter','five_forecast'], default='reload')
     p.add_argument('--integration-test-source', help='Copy an updated test main; all production headers remain frozen')
     args = p.parse_args()
     binary, output = Path(args.batch_binary).absolute(), Path(args.output).absolute()
@@ -63,7 +63,8 @@ def main():
         'reload': 'Hydro/experiments/gistohq_sligo/hydrofusion_batch_bundle_reload_check.cpp',
         'integration': 'Hydro/experiments/gistohq_sligo/hydrofusion_ffn_engine_integration_test.cpp',
         'legacy_inference': 'Hydro/tests/inference_runner_test.cpp',
-        'exporter': 'Hydro/tests/experiment_exporter_test.cpp'}
+        'exporter': 'Hydro/tests/experiment_exporter_test.cpp',
+        'five_forecast': 'Hydro/experiments/gistohq_sligo/hydrofusion_five_forecast_reload_check.cpp'}
     main_source = frozen/sources[args.check]
     extra_includes = []
     if args.integration_test_source:

@@ -1,3 +1,4 @@
+#include "../models/hydrofusion_forecast_modes.h"
 #include "inference_runner.h"
 
 #include "../dataset/tensor_scaler.h"
@@ -132,6 +133,7 @@ struct HydroInferenceSession::Impl {
 HydroInferenceSession::HydroInferenceSession(const HydroInferenceArtifacts& artifacts,
                                              const std::string& approach, HydroInferenceOutputSpace outputSpace)
     : impl_(std::make_unique<Impl>()) {
+    if (hydrofusion::isExtendedForecast(approach)) throw std::runtime_error("Use HydroFusionForecastInference with causal hourly context, not generic inference.");
     if (approach == "ffn_hydrofusion" && outputSpace != HydroInferenceOutputSpace::TransformedHydroFusionTarget) {
         throw std::runtime_error("HydroFusion requires metadata-aware physical discharge reconstruction; use HydroFusionInferenceSession.");
     }

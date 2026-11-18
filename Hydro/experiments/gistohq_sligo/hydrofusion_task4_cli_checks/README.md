@@ -47,7 +47,7 @@ synthetic fits to check seed handling and validation checkpoint selection.
 undefined/float-cast overflow sanitizers and tests invalid numeric domains.
 
 Current prototype acceptance/evidence is recorded in
-`../CODEX_TASK4_CLOSURE_20261118.md`. Forecast metadata/time maps now reside
+`../TASK4_CLOSURE_20261118.md`. Forecast metadata/time maps now reside
 INSIDE each managed experiment directory and are included in its manifest.
 `check_hydrofusion_bundle_integrity.py VERIFIER SYNTHETIC_BUNDLE NEW_OUTPUT`
 checks corrupted artifact copies without fitting any model or altering originals.

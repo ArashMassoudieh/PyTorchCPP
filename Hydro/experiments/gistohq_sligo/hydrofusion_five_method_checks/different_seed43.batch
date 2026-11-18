@@ -1,0 +1,4 @@
+ffn_causal_forecast ffn_causal_forecast_seed43.json
+lstm_hydrofusion lstm_hydrofusion_seed43.json
+ffn_physical_forecast ffn_physical_forecast_seed43.json
+lstm_physical_forecast lstm_physical_forecast_seed43.json

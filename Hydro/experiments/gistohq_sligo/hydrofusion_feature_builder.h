@@ -247,7 +247,7 @@ inline void validateSealStartX(int64_t sealStartX) {
 // caller cannot pass a value that widens the fixed development-only seal
 // beyond kSealStartX; only tightening it is permitted.
 inline std::optional<Sample> buildSample(const HourlyIndex& idx, const std::vector<HourlyRow>& rows,
-                                          int64_t originHour, int64_t sealStartX = kSealStartX) {
+                                          int64_t originHour, int64_t sealStartX = kSealStartX, bool includeTarget = true) {
     validateSealStartX(sealStartX);
     // Origin domain validated BEFORE the origin+1 arithmetic below, not
     // after -- an out-of-range originHour must never reach the addition
@@ -335,6 +335,7 @@ inline std::optional<Sample> buildSample(const HourlyIndex& idx, const std::vect
     sample.predictor_availability_mask = dischargeGroupComplete && metGroupComplete;
     sample.features = f;
 
+    if (!includeTarget) return sample; // Forecast-only calls never read future target values.
     auto targetRowIdx = idx.rowForHour(targetHour);
     if (targetRowIdx.has_value() && rows[*targetRowIdx].discharge_valid) {
         const double targetQ = rows[*targetRowIdx].observed_runoff_mm_per_hour;

@@ -9,6 +9,8 @@
 #include "../models/lstm_pinn_wrapper.h"
 #include "../models/lstm_regional_pretrain.h"
 #include "../models/ffn_hydrofusion_wrapper.h"
+#include "../models/hydrofusion_forecast_wrapper.h"
+#include "../models/hydrofusion_forecast_modes.h"
 #include "../experiments/gistohq_sligo/hydrofusion_metadata_sidecar.h"
 #include "../dataset/hydro_checksum.h"
 
@@ -193,7 +195,7 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
         }
         if (mode != "ffn" && mode != "ffn_pinn" && mode != "lstm" &&
             mode != "lstm_pinn" && mode != "pinn" && mode != "lstm_regional_pretrain" &&
-            mode != "ffn_hydrofusion") {
+            mode != "ffn_hydrofusion" && !hydrofusion::isExtendedForecast(mode)) {
             throw std::runtime_error("Unsupported Hydro batch mode at line " + std::to_string(line_number) + ": " + mode);
         }
         fs::path config_path(config);
@@ -215,6 +217,7 @@ HydroRunResult runJob(const std::string& mode, const HydroRunConfig& config) {
     if (mode == "lstm_pinn") { LSTMPINNWrapper runner; return runner.train(config); }
     if (mode == "pinn") { PINNWrapper runner; return runner.train(config); }
     if (mode == "lstm_regional_pretrain") { return trainLstmRegionalPretrainFromConfig(config); }
+    if (hydrofusion::isExtendedForecast(mode)) { HydroFusionForecastWrapper runner; return runner.train(config, mode); }
     if (mode == "ffn_hydrofusion") { FFNHydroFusionWrapper runner; return runner.train(config); }
     throw std::runtime_error("Unsupported Hydro batch mode: " + mode);
 }
@@ -456,7 +459,7 @@ int main(int argc, char** argv) {
                     std::map<std::string, HydroRunResult> results;
                     results.emplace(approach, result);
                     HydroExperimentExporter().exportRun(output_root.string(), loaded.experiment_id, config, results);
-                    if (job.mode == "ffn_hydrofusion") {
+                    if (job.mode == "ffn_hydrofusion" || hydrofusion::isExtendedForecast(job.mode)) {
                         exportHydroFusionSidecarForBatchJob(output_root, loaded.experiment_id, approach, result);
                     }
                     appendSummary(summary_path, loaded.experiment_id, job.mode, config, result);
