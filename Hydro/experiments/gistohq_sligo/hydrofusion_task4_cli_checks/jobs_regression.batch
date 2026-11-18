@@ -1,0 +1,5 @@
+ffn config_regression_ffn.json
+lstm config_regression_lstm.json
+pinn config_regression_pinn.json
+ffn_pinn config_regression_ffn_pinn.json
+lstm_pinn config_regression_lstm_pinn.json
