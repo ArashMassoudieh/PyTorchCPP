@@ -1,0 +1,125 @@
+{
+  "$schema_name": "HydroFusionForecastContract",
+  "$schema_version": "1.1.0",
+  "$comment": "Task 1 deliverable for CLAUDE_HYDROFUSION_IMPLEMENTATION_TASKS_20261115.md. Updated in 1.1.0 (independent-review correction) to synchronize split_rule, masks, and the discharge_valid caveat with the actual Task 2 implementation and its own correction cycle -- the 1.0.0 version of this schema had drifted from both the corrected markdown and the fixed code. See hydrofusion_forecast_contract.md for the prose rationale behind every field below.",
+
+  "horizon": {
+    "horizon_hours": 1,
+    "note": "Prospectively fixed. Other horizons are future work, not a silent grid."
+  },
+
+  "availability": {
+    "latency_hours": 0.0,
+    "latency_model": "idealized",
+    "note": "latency_model must be set to a non-idealized value explicitly before any run is described as operational. availability_index(h) = h + 1 + latency_hours."
+  },
+
+  "reserved_period_seal": {
+    "seal_start_x": 77016,
+    "holdout_mode_default": false,
+    "check_order": "before_any_value_read",
+    "checked_indices": ["origin_x", "target_x"],
+    "note": "Duplicated literal, matching this codebase's existing per-file convention (no shared header exports it)."
+  },
+
+  "package_scope": {
+    "allowed_package_kind": "development_only",
+    "note": "No package-kind flag exists at the loader level (GisToOhqPackageConfig / loadHydroPackageTensors); enforcement is caller-side only, via holdout_mode_default=false and the reserved_period_seal checks above."
+  },
+
+  "domain_guards": {
+    "x_must_be": "finite, integer-valued, and in [0, max_representable_x]",
+    "max_representable_x": 9.0e18,
+    "max_representable_x_note": "A finite, integer-valued double can still exceed int64_t's representable range (~9.223e18); static_cast<int64_t> of such a value is undefined behavior, not merely a large number. Checked explicitly before every x-to-int64 cast (HourlyIndex construction and runPersistenceBenchmark's own origin loop), with margin below int64_t's actual max so no double-rounding ambiguity falls near the boundary.",
+    "origin_domain_checked_before_arithmetic": "buildSample validates originHour is in [0, max_representable_x - 1] before computing targetHour = originHour + 1, not after.",
+    "derived_feature_finiteness": "Every individual discharge/met value read is checked finite and (where physically meaningful) nonnegative, but finite inputs do not guarantee finite derived results -- trailing-window sums/means/variances and the two difference-based features (q_last_hourly_change, q_past_slope_6h) are independently re-checked for finiteness after computation; a non-finite derived value voids predictor_availability_mask for the whole sample rather than being stored."
+  },
+
+  "input_allowlist": {
+    "discharge_memory_group": {
+      "source_field": "observed_runoff_mm_per_hour",
+      "unit": "mm/h",
+      "validity_flag": "discharge_valid",
+      "validity_flag_caveat": "discharge_valid is caller-supplied in this prototype. The prototype does NOT trust it alone -- every read additionally requires std::isfinite and >= 0 on the value itself, independent of the flag -- but the flag's semantic claim of genuine NATIVE (non-interpolated) support is unproven here; that proof is Task 4's responsibility once a real GisToOhq loader adapter populates this field. A boolean name alone does not establish native support.",
+      "features": [
+        {"name": "q_lag_0h", "definition": "Q(o)"},
+        {"name": "q_lag_1h", "definition": "Q(o-1)"},
+        {"name": "q_lag_3h", "definition": "Q(o-3)"},
+        {"name": "q_lag_6h", "definition": "Q(o-6)"},
+        {"name": "q_lag_12h", "definition": "Q(o-12)"},
+        {"name": "q_lag_24h", "definition": "Q(o-24)"},
+        {"name": "q_trailing_mean_6h", "definition": "mean(Q(o-5..o))", "window_hours": 6, "complete_window_required": true},
+        {"name": "q_trailing_mean_24h", "definition": "mean(Q(o-23..o))", "window_hours": 24, "complete_window_required": true},
+        {"name": "q_trailing_mean_72h", "definition": "mean(Q(o-71..o))", "window_hours": 72, "complete_window_required": true},
+        {"name": "q_trailing_var_6h", "definition": "population_variance(Q(o-5..o))", "window_hours": 6, "complete_window_required": true},
+        {"name": "q_trailing_var_24h", "definition": "population_variance(Q(o-23..o))", "window_hours": 24, "complete_window_required": true},
+        {"name": "q_trailing_var_72h", "definition": "population_variance(Q(o-71..o))", "window_hours": 72, "complete_window_required": true},
+        {"name": "q_last_hourly_change", "definition": "Q(o) - Q(o-1)"},
+        {"name": "q_past_slope_6h", "definition": "(Q(o) - Q(o-6)) / 6", "note": "This prototype's specific fixed choice of window for 'a simple past-only slope'."}
+      ]
+    },
+    "meteorological_at_origin_group": {
+      "read_at": "h = o only",
+      "validity_flag": "all_forcings_valid (plus each field's own per-field validity flag)",
+      "features": [
+        {"name": "met_precip_mm_per_h", "harmonizer_field": "precipitation_mm_per_hour"},
+        {"name": "met_temperature_c", "harmonizer_field": "temperature_c"},
+        {"name": "met_relative_humidity_pct", "harmonizer_field": "relative_humidity_percent"},
+        {"name": "met_wind_speed_m_per_s", "harmonizer_field": "wind_speed_m_per_second"},
+        {"name": "met_solar_mj_per_m2_per_h", "harmonizer_field": "solar_energy_mj_per_m2_per_hour"},
+        {"name": "met_pet_mm_per_h", "harmonizer_field": "pet_mm_per_hour"}
+      ]
+    },
+    "excluded_by_design": [
+      "any snow/spring regime feature (not established for Sligo, not borrowed by analogy)",
+      "any column outside this allowlist"
+    ]
+  },
+
+  "masks": {
+    "predictor_availability_mask": {
+      "requires": [
+        "every row read by discharge_memory_group (o-71..o, as applicable per feature) exists, is discharge_valid, AND carries a finite, nonnegative value (the flag alone is not trusted numerically)",
+        "every row read shares the same segment_id as o (no cross-gap lookback)",
+        "row o is all_forcings_valid for meteorological_at_origin_group AND every one of its six fields is finite, with precipitation/wind_speed/solar/pet/relative_humidity additionally nonnegative (temperature_c has no such domain constraint)",
+        "every DERIVED feature (q_trailing_mean_*, q_trailing_var_*, q_last_hourly_change, q_past_slope_6h) is itself finite -- finite inputs do not guarantee finite derived arithmetic (e.g. a trailing mean over large-but-finite values can overflow); a non-finite derived value voids the mask even when every input it was built from was individually valid"
+      ]
+    },
+    "target_native_mask": {
+      "requires": ["row (o+1) exists, is discharge_valid, and carries a finite, nonnegative value (non-interpolated observation; same numeric-vs-flag independence as above)"]
+    },
+    "policy": "Both masks applied identically before training loss and before scoring, for every arm (persistence, direct-log-Q, log-residual)."
+  },
+
+  "segment_id_rule": {
+    "derived_from": "actual chronological gaps (integer hour value of x; non-finite/non-integer x rejected; duplicate/non-monotonic x rejected)",
+    "new_segment_when": "elapsed-hour gap between consecutive rows != 1",
+    "never": "inferred from row position"
+  },
+
+  "split_rule": {
+    "production_path_semantics": {
+      "resolved_via": "configuredChronologicalSplit / resolveTestEndSequenceCount",
+      "operates_on": "torch tensors and windowed-sequence array positions (train_end/validation_end/test_end are sequence-array indices, resolved from x via resolveTestEndSequenceCount's endpoint lookup)",
+      "boundary_semantics": "half-open; train_end excluded from train (first index of validation); validation_end excluded from validation (first index of test); test_end excluded from test (position >= test_end is beyond_test_end)"
+    },
+    "prototype_adapter_semantics": {
+      "implemented_by": "partitionForX / assignSampleSplit (hydrofusion_feature_builder.h)",
+      "independence_note": "This is a narrowly-scoped, independent, torch-free adapter -- NOT a call into configuredChronologicalSplit, which requires torch tensors and sequence-array positions that do not exist at this builder's raw-per-row granularity. The 1.0.0 version of this schema incorrectly stated resolved_via as configuredChronologicalSplit 'only'; this was inaccurate and is corrected here.",
+      "operates_on": "raw exported-x values directly (train_end_x/validation_end_x/test_end_x are inclusive x-coordinate cutoffs, not sequence-array indices)",
+      "cutoff_semantics": "a row whose x equals the cutoff is the last row included in that partition (x <= cutoff), equivalent in effect to the production path's half-open sequence-position bound but expressed directly in x-space",
+      "parity_verification": "checked against resolveTestEndSequenceCountFromSorted (dataset/resolve_test_end_x.h) -- the same pure, torch-free core the production path itself calls -- in test_hydrofusion_feature_builder.cpp's testPartitionForXParityWithProduction, including across a gapped sequence. Parity is verified, not assumed.",
+      "required_cutoff_ordering": "0 <= train_end_x < validation_end_x < test_end_x < seal_start_x, enforced by validateSplitCutoffs() BEFORE any sample work in runPersistenceBenchmark -- an out-of-order or non-strict set of cutoffs throws std::invalid_argument rather than silently producing a nonsensical partition assignment"
+    },
+    "sample_assignment": "a sample (origin=o, target=o+1) is assigned to split S iff both o and o+1 resolve to the same partition S under the prototype adapter; otherwise the sample is discarded entirely, never partially assigned",
+    "historical_context_exception": "discharge-memory lookup rows (o-71..o) may fall in an earlier split than the sample's own assigned split (purely causal, not a future label)",
+    "forbidden": "a train-split sample's target row may never be at or past train_end"
+  },
+
+  "not_covered_by_this_contract": [
+    "feature-builder implementation (Task 2)",
+    "persistence benchmark implementation (Task 2)",
+    "log-residual target/reconstruction formulation (Task 3)",
+    "integration/leakage test implementation (Task 4)"
+  ]
+}
