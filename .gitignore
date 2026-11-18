@@ -111,3 +111,6 @@ Hydro/experiments/**/_*/
 !/Hydro/experiments/gistohq_sligo/interval_corrected_screen_configs/run_manifest.json
 /Hydro/experiments/gistohq_sligo/interval_screen_original_forcing_controls_configs/*
 !/Hydro/experiments/gistohq_sligo/interval_screen_original_forcing_controls_configs/run_manifest.json
+
+# Local Stage B verification build/runtime; source .pro and tests remain tracked.
+/build-verify-stageb/
