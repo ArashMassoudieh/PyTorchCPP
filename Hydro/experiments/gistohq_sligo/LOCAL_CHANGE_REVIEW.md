@@ -34,7 +34,7 @@ independent scoped review; do not hide them with ignore rules:
 |---|---|---|
 | Batch dispatch/export labeling | `hydro_batch_runner.cpp` | Separate multiscale export-label support from optional summary columns; verify CLI export/reload integration |
 | Model splits and routing | `ffn_wrapper.cpp`, `pinn_wrapper.cpp`, `residual_pinn_wrapper.h` | Exact chronological cutoffs, segment reset/initial-flow behavior and regression coverage |
-| Experimental learning/forcing | `lstm_pinn_wrapper.cpp`, `lstmnetworkwrapper.cpp`, `lstm_regional_pretrain.cpp`, `hydro_tensor_builder.h` | Separate urban/volume/high-flow/MRMS-CV and pretraining logging changes; verify zero-option behavior and dependencies |
+| Experimental learning/forcing | `lstm_pinn_wrapper.cpp`, `lstmnetworkwrapper.cpp`, `hydro_tensor_builder.h` | Separate urban/volume/high-flow/MRMS-CV changes; verify zero-option behavior and dependencies |
 
 Several files contain multiple groups' changes; this table is a review map,
 not a proposed blanket staging list. In particular, historical successful
@@ -74,3 +74,16 @@ independent of observed discharge, resets at segment boundaries, and
 omitting the argument preserves legacy initialization. The LibTorch routing
 test also covers analytic routing, gradients and checkpoint compatibility.
 This does not yet accept the separate model-wrapper call-site changes.
+
+## Regional progress logging review completed
+
+The logging-only change in `lstm_regional_pretrain.cpp` adds basin/epoch
+progress and elapsed time without changing training expressions or checkpoint
+selection. It passed an isolated source compilation with format warnings
+treated as errors; existing validation rejects invalid batch sizes before
+the new progress calculation. No regional research job was rerun.
+
+Seven model-side files remain pending as listed in the table above. Their
+changes must be reviewed/tested by behavior, especially exact split support,
+multiscale export labels, fixed-initial-flow call sites, and zero-weight
+compatibility for the optional losses/features, before committing them.

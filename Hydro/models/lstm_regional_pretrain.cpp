@@ -8,6 +8,8 @@
 #include "../evaluation/model_checkpoint.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -286,6 +288,13 @@ RegionalBasinInput loadRegionalBasinInput(const std::string& packagePath, const 
     input.staid = packagePath;
     input.xSeq = seq.xSeq;
     input.ySeq = seq.ySeq;
+    // Printed unconditionally (not behind a verbosity flag): a long-running
+    // multi-basin load/train job with zero progress visibility is exactly
+    // what made an earlier real run of this trainer un-debuggable for 18+
+    // CPU-hours - every basin's sequence count is cheap to print and tells
+    // the caller up front how large the pooled epoch is about to be.
+    std::fprintf(stderr, "[regional_pretrain] loaded basin %s: %lld sequences\n", packagePath.c_str(),
+                (long long)input.xSeq.size(0));
     return input;
 }
 
@@ -328,12 +337,26 @@ RegionalPretrainOutput trainLstmRegionalPool(
     // torch::manual_seed, matching the single-basin trainer's convention.
     std::mt19937_64 samplingRng(static_cast<uint64_t>(std::max<int64_t>(0, config.random_seed)));
 
+    // Printed unconditionally, same rationale as loadRegionalBasinInput's
+    // per-basin logging: a pooled multi-basin job's total per-epoch size
+    // (perBasinCount * basin count) was invisible before a real run, which
+    // made an 18+ CPU-hour run with zero output completely undiagnosable.
+    std::fprintf(stderr,
+                 "[regional_pretrain] %zu training basins, perBasinCount=%lld, "
+                 "~%lld sequences/epoch, batch_size=%d -> ~%lld batches/epoch, %d epoch(s) requested\n",
+                 scaledTraining.size(), (long long)perBasinCount,
+                 (long long)(perBasinCount * static_cast<int64_t>(scaledTraining.size())), config.batch_size,
+                 (long long)((perBasinCount * static_cast<int64_t>(scaledTraining.size()) + config.batch_size - 1) /
+                             config.batch_size),
+                 config.epochs);
+
     RegionalPretrainOutput out;
     double bestValidation = std::numeric_limits<double>::infinity();
     int bestEpoch = 0;
     std::vector<torch::Tensor> bestParameters;
 
     for (int epoch = 1; epoch <= config.epochs; ++epoch) {
+        const auto epochStart = std::chrono::steady_clock::now();
         model->train();
         const auto epochIndices = balancedShuffledEpochIndices(trainingSizes, perBasinCount, samplingRng);
         double epochLossSum = 0.0;
@@ -393,6 +416,13 @@ RegionalPretrainOutput trainLstmRegionalPool(
             torch::NoGradGuard noGrad;
             for (const auto& p : model->parameters()) bestParameters.push_back(p.clone());
         }
+
+        const double epochSeconds =
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - epochStart).count();
+        std::fprintf(stderr,
+                     "[regional_pretrain] epoch %d/%d: train_loss=%.6f val_loss=%.6f best_epoch=%d "
+                     "elapsed=%.1fs\n",
+                     epoch, config.epochs, trainLoss, validationLoss, bestEpoch, epochSeconds);
     }
 
     if (bestParameters.empty()) throw std::runtime_error("Regional pretraining did not produce a validation-selected checkpoint.");
