@@ -60,3 +60,58 @@ then integrate the sequence tensors with an opt-in LSTM model and test both
 log-target modes, validation selection, serialization and fresh-process physical
 Q reload. No real research training or five-method accuracy claim is authorized
 by these checks.
+
+## Development file reader and LSTM verification extension
+
+`loadDevelopmentHourlyPackage` reads an explicit fourteen-column development
+CSV with units in its exact header. It is not a GIStoOHQ manifest reader and
+cannot establish the truth of caller-supplied qualifiers. No production source
+guard is removed. Timestamp tokens for every row are checked against the
+requested preseal hourly slice before any observation/forcing token is parsed.
+The format has no quoted fields; source IDs containing commas are unsupported.
+Full numeric-token consumption, finite values, literal 0/1 flags and exact
+column counts are required. Duplicate support identities and unknown source
+IDs are rejected by the common native-support adapter.
+
+`prepareHydroFusionSequenceData` assembles [N,24,20] tensors for the synthetic
+LSTM check. It recomputes q_ref from sequence-eligible Train targets once each,
+then shares exactly the same support and inputs between direct-log-Q and
+log-residual modes. The LSTM smoke check uses the existing HydroLSTM module,
+Adam, training-only standardization and validation-selected weights. Its
+self-contained Torch verification archive contains weights, scaler state,
+mode/q_ref, model shape, synthetic input identities and expected physical Q.
+This archive is a test fixture, NOT the production HydroArtifactLoader bundle
+format. A separate executable process must reproduce physical Q exactly from
+that archive; HydroBatch LSTM dispatch and managed-bundle inference remain a
+subsequent integration stage.
+
+Build this check from a frozen transitive source snapshot, then run with a
+new output directory (never reuse an existing directory):
+
+```
+python3 Hydro/experiments/gistohq_sligo/build_hydrofusion_lstm_synthetic.py /tmp/new-hydrofusion-lstm-check
+/tmp/new-hydrofusion-lstm-check /tmp/new-hydrofusion-lstm-results
+```
+
+The build retains copied headers, compiler command, source hashes, compiler
+output and executable hash alongside the binary. It uses normal -O2 and no
+optimization workaround. This tiny synthetic fit is development verification,
+not a new research campaign or evidence of improved streamflow prediction.
+
+Verified execution for this extension: fabricated CSV → strict file reader →
+native-support adapter → sequence assembly → small real HydroLSTM fit →
+validation-selected weights → verification archive → separate-process physical-Q
+reload. Both target modes reproduced 36 test predictions exactly. Both selected
+epoch 12 of 12; this run does not demonstrate selection of an earlier epoch.
+Changing only validation/test discharge left Train tensors, q_ref and fitted
+scaler offsets unchanged. Input discharge features use float32; original
+origin discharge remains double precision for reconstruction. Identity checking
+compares the feature conversion at float32 precision rather than incorrectly
+requiring its double representation to equal the unrounded original.
+
+File-reader tests passed conversion and interpolated-support masking plus nine
+malformed/schema/provenance/timestamp rejection cases, including a fabricated
+seal timestamp rejected before parsing its deliberately malformed observation.
+The standalone adapter suites passed with ASan/UBSan (leak detection disabled);
+the LibTorch LSTM check passed normal -O2 with warnings-as-errors. The latter is
+not an ASan/UBSan or production managed-bundle acceptance claim.
