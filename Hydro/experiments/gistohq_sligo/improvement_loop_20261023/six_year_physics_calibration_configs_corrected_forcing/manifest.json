@@ -1,0 +1,38 @@
+{
+  "purpose": "Validation-only six-year physics calibration, interval-corrected MRMS forcing",
+  "package_path": "/mnt/3rd900/Projects/GIStoOHQ/examples/SligoCreek/outputs/sligocreekdemo_mrms_interval_corrected_devperiod/hydropinn",
+  "annual_template_source": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs_v2/run_manifest.json",
+  "annual_template_source_sha256": "3fd7ce6e6239115bef8959e61d6cd97ab4d6aaf415626bded46fffc967d7dafb",
+  "jobs": [
+    {
+      "year": "2018",
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/improvement_loop_20261023/six_year_physics_calibration_configs_corrected_forcing/2018.json",
+      "sha256": "5b7c3f52c901afbf927fd6001b510ca042a0933b74166bf64e5251dfbdb560ca"
+    },
+    {
+      "year": "2019",
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/improvement_loop_20261023/six_year_physics_calibration_configs_corrected_forcing/2019.json",
+      "sha256": "a55f9afd8f82430d897180fa095122afe725963bc68f04d45e662bf25978b4ca"
+    },
+    {
+      "year": "2020",
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/improvement_loop_20261023/six_year_physics_calibration_configs_corrected_forcing/2020.json",
+      "sha256": "cbe97a67a9324384f1f19297323e628aaf9c45f46bd1c52a2aca4838e78290e4"
+    },
+    {
+      "year": "2021",
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/improvement_loop_20261023/six_year_physics_calibration_configs_corrected_forcing/2021.json",
+      "sha256": "08d67bc8d1444cba3380f81d5c07084ee5a858698206002848f6fe7d2261d09e"
+    },
+    {
+      "year": "2022",
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/improvement_loop_20261023/six_year_physics_calibration_configs_corrected_forcing/2022.json",
+      "sha256": "8f5392d2a40f1b02d738b478ea467014b8cd9a02b96d69a9436fae9d3b949bde"
+    },
+    {
+      "year": "2023",
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/improvement_loop_20261023/six_year_physics_calibration_configs_corrected_forcing/2023.json",
+      "sha256": "e9f0f55d3c19fbd21029e693a44a72f6c6614a06920b60ae58f87212ecdbf816"
+    }
+  ]
+}

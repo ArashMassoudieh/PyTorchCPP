@@ -1,0 +1,62 @@
+{
+  "_comment": "Template for future interval-screen-style LSTM configs. Includes test_end_x so new batches produce the frozen, non-overlapping bounded test windows directly rather than needing post-hoc repair (see report 39). test_end_x values are the project's already-established per-fold bounds, not newly invented. Replace <PACKAGE_NAME>, <FOLD>, <SEED> before use. Not applied retroactively to any already-launched run.",
+  "epochs": 150,
+  "batch_size": 16,
+  "learning_rate": 0.005,
+  "lambda_decay": 0.8,
+  "optimizer": "adam",
+  "weight_decay": 0,
+  "momentum": 0.9,
+  "random_seed": "<SEED>",
+  "train_fraction": "<SEE_FOLD_TABLE_BELOW>",
+  "validation_fraction": 0.01258,
+  "test_end_x": "<SEE_FOLD_TABLE_BELOW>",
+  "shuffle_training": false,
+  "evaluate_metrics": true,
+  "normalization": "log_standardize",
+  "hidden_layers": "32",
+  "input_lags": "1",
+  "activation": "tanh",
+  "use_time_lagged_ffn": false,
+  "lstm_sequence_length": 24,
+  "physics_profile": "water_balance",
+  "data_weight": 1,
+  "physics_weight": 0.2,
+  "physics_dt": 1,
+  "forcing_gain": 1,
+  "runoff_coeff": 0.7,
+  "storage_coeff": 1,
+  "pinn_collocation_points": 0,
+  "use_hydro_package": true,
+  "use_csv_data": false,
+  "csv_path": "",
+  "csv_x_column": 0,
+  "csv_y_column": 3,
+  "csv_has_header": true,
+  "synthetic_profile": "reduced_reservoir",
+  "sample_count": 240,
+  "t_start": 0,
+  "t_end": 5,
+  "synthetic_reservoir_truth_k": 0.08,
+  "hydro_package_path": "/mnt/3rd900/Projects/GIStoOHQ/examples/SligoCreek/outputs/<PACKAGE_NAME>/hydropinn",
+  "hydro_catchment_id": "",
+  "hydro_package_profile": "rainfall-runoff",
+  "use_hydro_forecast_feature": false,
+  "hydro_forecast_variable": "precipitation",
+  "hydro_forecast_lead_hours": 0,
+  "hydro_forecast_ensemble_member": "",
+  "_fold_table": {
+    "A": {
+      "train_fraction": 0.599428,
+      "test_end_x": 50251
+    },
+    "B": {
+      "train_fraction": 0.734762,
+      "test_end_x": 58784
+    },
+    "C": {
+      "train_fraction": 0.837697,
+      "test_end_x": 66910
+    }
+  }
+}

@@ -1,0 +1,425 @@
+{
+  "purpose": "Preserve existing historical scripts/manifests without running experiments or claiming current scientific acceptance. Paths and bytes unchanged.",
+  "files": [
+    {
+      "path": "Hydro/experiments/gistohq_sligo/analyze_annual_evaluation.py",
+      "sha256": "b5d3b398c5e0ca9cad49ffa9137a7456d69677dfefecfbe49e28dab5fd7987c4",
+      "bytes": 4125,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/analyze_area_sensitivity.py",
+      "sha256": "7c784731f2df17764c14335ce33d99e010dad72676136f08f4ca43872180983c",
+      "bytes": 6539,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/analyze_calendar_safe_events.py",
+      "sha256": "fa90b33f2795238fb2766e1ac5e9144ce3ff832e975484578f28c7ccd6472693",
+      "bytes": 2557,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/analyze_calendar_safe_matched.py",
+      "sha256": "a2146c8bcfc3aaf15f20419ebf6a63478d25ebcbf0d33bc40baf83f0b4c71a94",
+      "bytes": 2430,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/analyze_calendar_safe_matched_events.py",
+      "sha256": "a9d32c819b1b187c24fd268da060e45b69eb8bf033d5134a1b45867d35707c4b",
+      "bytes": 2510,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/analyze_calendar_safe_replication.py",
+      "sha256": "f83c3746ab63ff4f3d277a8e7c89db64557dcf4da8b2f585b8f77a8345da6404",
+      "bytes": 2255,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/analyze_failure_atlas.py",
+      "sha256": "2492d85511fedb5400a098f2859bc330622a31c98decab28b725713fb8d4e2cf",
+      "bytes": 14838,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/analyze_six_year_corrected_forcing.py",
+      "sha256": "b9f3f7fd81c7e683e3411f951a02bae000356c95d1fae56a34d34fd5abeec04f",
+      "bytes": 8504,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/analyze_top_storm_components.py",
+      "sha256": "4631659cbc3b00775f9887580bd3db9fff0882ffb077a5dd561057a7ccbbf521",
+      "bytes": 1916,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/audit_bounded_window_common_support.py",
+      "sha256": "3bac915b9f7cbbfd12849ba588f24a9cd48bfb59e44943757b792dc4f1c65633",
+      "bytes": 6236,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/audit_development_package.py",
+      "sha256": "2eac420dfac76c5976a9770f24a8a3e37404f54fc5f1bc15fcad6de72998e726",
+      "bytes": 2537,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/audit_mrms_catalog_export_trace.py",
+      "sha256": "a7ce4d7df39d77c251e2c8657a8573164269c03f48fe7789ae6e683fc6caacd7",
+      "bytes": 8643,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/audit_mrms_catalog_lookup_trace.py",
+      "sha256": "e2a84ad7110d0a4656f940af271681c12af6f125cbdbacfa935d1353cd35411c",
+      "bytes": 6186,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/audit_native_discharge_support.py",
+      "sha256": "bb697886fdd57558a976c619b7b5cbef17e2403907044b01f882a06b15fbc29c",
+      "bytes": 2043,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/audit_native_discharge_support_full.py",
+      "sha256": "fab89b97dc3fe4c145b81938c5a4f82f9eac8c4791927048809c48bde5d6b666",
+      "bytes": 4069,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false,
+      "restricted_use_warning": "Full-period utility: do not execute under development-only authorization."
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/build_area_sensitivity_package.py",
+      "sha256": "ea279a1bc98622f7fb8d23345bbb6e3a3b8a0f0a345a48f76bb2d01eedc5eaee",
+      "bytes": 2018,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/build_mrms_interval_corrected_full_package.py",
+      "sha256": "8b68c3b1bc8a364addf87f0e9405147047f08e051da5d3dc471b25ce7f5ab5fd",
+      "bytes": 9671,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false,
+      "restricted_use_warning": "Full-period utility: do not execute under development-only authorization."
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/build_mrms_interval_corrected_package.py",
+      "sha256": "431d7bc344be46ff93d51f516220b79393192e1f36ec38aede9ef9310938b6a5",
+      "bytes": 11694,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/build_mrms_spatial_feature_package.py",
+      "sha256": "d6ea6dbd7d5067baf8e1cb08673ccb065bde60994536fcfb0a17a8fca6e8324a",
+      "bytes": 4413,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/check_intensity_consumer.py",
+      "sha256": "d3dd00da0a8995f51310178ab129bf64cd1c0841add6a3960338d6aa2ce03fa3",
+      "bytes": 2115,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/run_manifest.json",
+      "sha256": "c2ee5eb1bc0a927a189d30194e9833d7f546805d3ef4dfb01e9302d84530a0d5",
+      "bytes": 50331,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "JSON parse passed",
+      "main_guard": null
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs_v2/run_manifest.json",
+      "sha256": "3fd7ce6e6239115bef8959e61d6cd97ab4d6aaf415626bded46fffc967d7dafb",
+      "bytes": 53061,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "JSON parse passed",
+      "main_guard": null
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_annual_evaluation.py",
+      "sha256": "6efa9ba8c456243023ac3a3fa7e45fc10ead98e3481cfc77a1e8b65ad2489478",
+      "bytes": 3591,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_calendar_safe_regional.py",
+      "sha256": "2be903c9e7b2a9468dc2ad993fcf6503464c327707339442b55071224185f316",
+      "bytes": 4882,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_high_flow_loss_confirmation.py",
+      "sha256": "467dbca598f60ad206acf969a8caf1670e430d3721160bf969847eca2de46558",
+      "bytes": 4232,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_high_flow_loss_screen.py",
+      "sha256": "d7c58d4fbc33c40940e0b5dbd315f99a216eb591619e8d4d0393a349fdcd8588",
+      "bytes": 3921,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_improvement_finalists.py",
+      "sha256": "d3b58c7978345eb01e9de46728c911cd1c8f0be36e14d1ff446b455901568a7d",
+      "bytes": 3265,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_improvement_screen.py",
+      "sha256": "7696284078f6465fe3fcdbcbab5157d037874b513f9b44396785e563a5935fd3",
+      "bytes": 3932,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_intensity_screen.py",
+      "sha256": "77efe8a608d2fc96c06d0f0860a8ce2e3498de374c49d104a660f9077c608de9",
+      "bytes": 2266,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_mrms_spatial_confirmation.py",
+      "sha256": "c2d72f9a0a54d7c82662e7f00ab6b4010445e0154bb25bbbb699584a811e0d5d",
+      "bytes": 4578,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_mrms_spatial_screen.py",
+      "sha256": "ac3b9a449a3916699f099728d84660e16b57abca17443d0f20b81ae98561a38e",
+      "bytes": 4066,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_official_area_physics_screen.py",
+      "sha256": "37842dfaafcd63d1916597c17476b9b111636c0edf200c0a27fa78f07c655c84",
+      "bytes": 4366,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_six_year_calibration_configs_corrected_forcing.py",
+      "sha256": "b940b4c28e4da74a5a24d7f479d7e8c4d1f4793783c11dbc0aa30660e375cf50",
+      "bytes": 3432,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_six_year_physics.py",
+      "sha256": "074cd01754bbc35b661ab9e3e8e85947cf59b3cbb0245de5f4a3b31c03c603b1",
+      "bytes": 2462,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_six_year_physics_corrected_forcing.py",
+      "sha256": "9d160aaca3ef116ca7db92db775078aa835c96255c6295e2ea4e1dc7cba530cd",
+      "bytes": 6696,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_urban_physics_screen.py",
+      "sha256": "549184b4520faf900f4276c16c2aed09ec7fc8378810637f440b28f85243f821",
+      "bytes": 5529,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/generate_volume_screen.py",
+      "sha256": "994b638ae86a011b812c5c4f70356ca1d57f6ab1b322fd3f980e92c26a611212",
+      "bytes": 1780,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/improvement_loop_20261023/six_year_physics_calibration_configs_corrected_forcing/manifest.json",
+      "sha256": "f1b191fa951d72803328eb1ff6873e1006f783e11bbe9df121e779b11debfcc0",
+      "bytes": 2253,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "JSON parse passed",
+      "main_guard": null
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/improvement_loop_20261023/six_year_physics_configs_corrected_forcing/run_manifest.json",
+      "sha256": "a3730f97ace702da44694380bc15e3a81e2bae4ff4d80ca3f6c3e4a26a021cb1",
+      "bytes": 35969,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "JSON parse passed",
+      "main_guard": null
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/interval_screen_config_template_with_bounds.json",
+      "sha256": "b78b19b40f0bb192119387e161648d821b25cff54f5f5823b8dc5060c080ad11",
+      "bytes": 2029,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "JSON parse passed",
+      "main_guard": null
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/rank_regional_donors.py",
+      "sha256": "00d1a2e0289cca0ec83d484a94647404ecb569b97b5042cc48a38c10252b47ef",
+      "bytes": 2972,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/rescore_bounded_window_both_arms.py",
+      "sha256": "80aad4b92e59909c1f789f679efd03b6fc9b4a697a4a16747641ace12f691b23",
+      "bytes": 8511,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/run_calendar_safe_regional.py",
+      "sha256": "19f3521a3ef6d645faa8612b4b5866d3417e714d655f7cb4126ba456e8090bd0",
+      "bytes": 9252,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/run_intensity_calibration.py",
+      "sha256": "23e785a962863d6b27189b93ab00d81c886a1a3c0a8a2c471ff608a2bda00217",
+      "bytes": 1928,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/run_six_year_calibration.py",
+      "sha256": "58c36d565f6f4056d27a6febd2743bb927726d8dcd70c7725ee9c0c69cfa7208",
+      "bytes": 1834,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/run_six_year_calibration_corrected_forcing.py",
+      "sha256": "613dea1c6128ab1f101c651267e6beb378b27063584821889bf23fdd9e664f86",
+      "bytes": 2477,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": false,
+      "import_time_work_warning": true
+    },
+    {
+      "path": "Hydro/experiments/gistohq_sligo/test_analyze_failure_atlas.py",
+      "sha256": "65326177ff9312bd188882d2ff695b4b1b06cab943280ce9d0aa9fc9b06c8364",
+      "bytes": 1417,
+      "status": "historical source snapshot; scientific outputs not revalidated by this inventory",
+      "syntax": "parse/compile passed without execution",
+      "main_guard": true,
+      "import_time_work_warning": false
+    }
+  ]
+}

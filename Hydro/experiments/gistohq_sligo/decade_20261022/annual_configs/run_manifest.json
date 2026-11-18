@@ -1,0 +1,1098 @@
+{
+  "protocol_sha256": "16854629692bacbec525b07193a5cadc68c0d1810db0e737ddd94825f028ede7",
+  "note": "Fixed 150-epoch validation-checkpoint runs; common settings, no test tuning. Physical constants are fixed comparison defaults, not claimed calibrated optima. Target transforms differ across configurations.",
+  "jobs": [
+    {
+      "id": "annual_2018_ffn_s42",
+      "year": "2018",
+      "model": "ffn",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_s42.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "c89957c3ac93f4871cc2cc3ad5a7f0bf7f8d7297cfa765db26773d7ce56d5ec4"
+    },
+    {
+      "id": "annual_2018_ffn_s123",
+      "year": "2018",
+      "model": "ffn",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_s123.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "a23082d3922b141f025e96843ea8f3b5f80d2da35650b2735c9182118b4fc057"
+    },
+    {
+      "id": "annual_2018_ffn_s27182",
+      "year": "2018",
+      "model": "ffn",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_s27182.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "37dc1e65a65c2fece67679c3a6ce5814cf4261ec879794ec71c7d4bdb4658ced"
+    },
+    {
+      "id": "annual_2018_lstm_24h_s42",
+      "year": "2018",
+      "model": "lstm_24h",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_24h_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_24h_s42.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "36433b237cf88a9de490b574b45aed6f32d921f8c7f21d6f2d15eb4b6d7ac3b1"
+    },
+    {
+      "id": "annual_2018_lstm_24h_s123",
+      "year": "2018",
+      "model": "lstm_24h",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_24h_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_24h_s123.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "96b6e327b99df0ca5ca32efadfc144f65efdee0e7c6f160408ac8e962a3b8a29"
+    },
+    {
+      "id": "annual_2018_lstm_24h_s27182",
+      "year": "2018",
+      "model": "lstm_24h",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_24h_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_24h_s27182.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "b4ce4a801217ce18740d65af64379e1a30074c75b79f06b4b878abeea2dbe1de"
+    },
+    {
+      "id": "annual_2018_two_reservoir_s42",
+      "year": "2018",
+      "model": "two_reservoir",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_two_reservoir_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_two_reservoir_s42.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "04b7a7cb270fe1640d0b8c2670ee59007c3d1dafe67cf2411cfae612a78f1d62"
+    },
+    {
+      "id": "annual_2018_ffn_residual_hybrid_s42",
+      "year": "2018",
+      "model": "ffn_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "df26201aff9570a15a9631efe20df5eb512b1758123852bfe503710581e28edc"
+    },
+    {
+      "id": "annual_2018_ffn_residual_hybrid_s123",
+      "year": "2018",
+      "model": "ffn_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "0d700f41f49b9e48a6fcdf052f5c8493164a27aa4b8a20e31ca05b80a9a7ffa9"
+    },
+    {
+      "id": "annual_2018_ffn_residual_hybrid_s27182",
+      "year": "2018",
+      "model": "ffn_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_ffn_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "f8b5618e90f64d7414f85739c35aa21b92f115522d018dfea922b671b440dafc"
+    },
+    {
+      "id": "annual_2018_lstm_residual_hybrid_s42",
+      "year": "2018",
+      "model": "lstm_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "bc76005fd81a31055c38fb72f541fb8ee5ad091db512832a5bab095d3116d9b3"
+    },
+    {
+      "id": "annual_2018_lstm_residual_hybrid_s123",
+      "year": "2018",
+      "model": "lstm_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "cea75e122a8e8f7028c84f77e88e8ba3dcdb459398f67841115be73103ceb448"
+    },
+    {
+      "id": "annual_2018_lstm_residual_hybrid_s27182",
+      "year": "2018",
+      "model": "lstm_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2018_lstm_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 21887,
+        "validation_end_x": 26303,
+        "test_end_x": 35063
+      },
+      "config_sha256": "8b9ac9d523e404be656591971f2e0db4bb20d0bc44d34ca8bce1e0b83f1c4488"
+    },
+    {
+      "id": "annual_2019_ffn_s42",
+      "year": "2019",
+      "model": "ffn",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_s42.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "ac70f1654f0546434ee0452a42d665bf534b12d9da4cf0f34f384892f7cf574b"
+    },
+    {
+      "id": "annual_2019_ffn_s123",
+      "year": "2019",
+      "model": "ffn",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_s123.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "a6fd7dde70697f8dd508cba87a44d80ef0f4e737e11012034c245b2cf85a4006"
+    },
+    {
+      "id": "annual_2019_ffn_s27182",
+      "year": "2019",
+      "model": "ffn",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_s27182.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "847da9fb0d225d7bf696c80d09b561f0be0c70656b684a092370099fc9d15f0b"
+    },
+    {
+      "id": "annual_2019_lstm_24h_s42",
+      "year": "2019",
+      "model": "lstm_24h",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_24h_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_24h_s42.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "7eea554192f82776d61d2b8f3061168e44885b794976eded3cf162dabb3aee9f"
+    },
+    {
+      "id": "annual_2019_lstm_24h_s123",
+      "year": "2019",
+      "model": "lstm_24h",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_24h_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_24h_s123.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "5323c12d7749de49416941220958405607a0a0fd44f0ec058528380edb1bc5e4"
+    },
+    {
+      "id": "annual_2019_lstm_24h_s27182",
+      "year": "2019",
+      "model": "lstm_24h",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_24h_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_24h_s27182.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "db17a51cd16ddcc089c61fbb46dcb2adcf83a8c8d7cd3b5602ca98f2087726fb"
+    },
+    {
+      "id": "annual_2019_two_reservoir_s42",
+      "year": "2019",
+      "model": "two_reservoir",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_two_reservoir_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_two_reservoir_s42.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "724590603e59c33e4630c8db15274344a790de7b58ed3663cc5ee69afd83ff59"
+    },
+    {
+      "id": "annual_2019_ffn_residual_hybrid_s42",
+      "year": "2019",
+      "model": "ffn_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "80c3e98996975ed78ca214c117d916f763286d9abce1138ed71925dbd4507c69"
+    },
+    {
+      "id": "annual_2019_ffn_residual_hybrid_s123",
+      "year": "2019",
+      "model": "ffn_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "5a5ba4150191cbd1e89f1559179ec637019407038d293b9e50df87cc49942f97"
+    },
+    {
+      "id": "annual_2019_ffn_residual_hybrid_s27182",
+      "year": "2019",
+      "model": "ffn_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_ffn_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "dce0a8a9ceee79ef96b3b5d8f0cb4c7c65a9eecebce51bf5926312e77863c217"
+    },
+    {
+      "id": "annual_2019_lstm_residual_hybrid_s42",
+      "year": "2019",
+      "model": "lstm_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "39b17665165f95ea0253942b2f22c9562ee52690c923183322d31bad081589b7"
+    },
+    {
+      "id": "annual_2019_lstm_residual_hybrid_s123",
+      "year": "2019",
+      "model": "lstm_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "988411447f2301a083a74fbc1c53a40a0beeceb4e567055d281393343ba99611"
+    },
+    {
+      "id": "annual_2019_lstm_residual_hybrid_s27182",
+      "year": "2019",
+      "model": "lstm_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2019_lstm_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 30647,
+        "validation_end_x": 35063,
+        "test_end_x": 43823
+      },
+      "config_sha256": "0955cd78a381a75cfe98c82d17eaed8adc7db4e1060cc2a5bb7aaa1900766c63"
+    },
+    {
+      "id": "annual_2020_ffn_s42",
+      "year": "2020",
+      "model": "ffn",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_s42.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "1f857e124ee7022dbbfff36c2bee66b5d0ce14cb088f1476e1c73a40dffc0335"
+    },
+    {
+      "id": "annual_2020_ffn_s123",
+      "year": "2020",
+      "model": "ffn",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_s123.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "befbe2e9048b01de7c4446af6932b166d796e5d62fc21fd39c04068a47ad1d51"
+    },
+    {
+      "id": "annual_2020_ffn_s27182",
+      "year": "2020",
+      "model": "ffn",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_s27182.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "95375ee9ee72393cb3bec41cdaa319ba2abbc7930b8af4f196b3ab13d9841afe"
+    },
+    {
+      "id": "annual_2020_lstm_24h_s42",
+      "year": "2020",
+      "model": "lstm_24h",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_24h_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_24h_s42.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "a312e7961c4c1e38e62cba5c3baf56451d4a3c9122e1451fc72bc7cb58b8f323"
+    },
+    {
+      "id": "annual_2020_lstm_24h_s123",
+      "year": "2020",
+      "model": "lstm_24h",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_24h_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_24h_s123.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "576db73888a7201019c0107288ab52ed37b42dabe1545b8a9c21fc9cc851c30e"
+    },
+    {
+      "id": "annual_2020_lstm_24h_s27182",
+      "year": "2020",
+      "model": "lstm_24h",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_24h_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_24h_s27182.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "6bcc9264c2d1bfbeb25e23dd79e80a4d15de2bf3c5465acec38ac4140caf723d"
+    },
+    {
+      "id": "annual_2020_two_reservoir_s42",
+      "year": "2020",
+      "model": "two_reservoir",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_two_reservoir_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_two_reservoir_s42.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "5c9ed61fe50ce37a9b3b99dfe6958217db67f491f6a8943efb579f6aa45a9487"
+    },
+    {
+      "id": "annual_2020_ffn_residual_hybrid_s42",
+      "year": "2020",
+      "model": "ffn_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "5716a8298a5589ebf57f16d76dc4c07925b6cdc03591081343462e5e4ca0130b"
+    },
+    {
+      "id": "annual_2020_ffn_residual_hybrid_s123",
+      "year": "2020",
+      "model": "ffn_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "a5b30143347aeb35f922c712e67f06b3dfe3d02973049d25176d974dcb75e026"
+    },
+    {
+      "id": "annual_2020_ffn_residual_hybrid_s27182",
+      "year": "2020",
+      "model": "ffn_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_ffn_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "325b90d5d0b60238a2c8c1915f64bc6af6e35ddfd688a2cda58a4b619c402abd"
+    },
+    {
+      "id": "annual_2020_lstm_residual_hybrid_s42",
+      "year": "2020",
+      "model": "lstm_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "cbca6d94545d3205ef7852a9d88854a218c0f62e264b9d6f39ffd36a85d35b23"
+    },
+    {
+      "id": "annual_2020_lstm_residual_hybrid_s123",
+      "year": "2020",
+      "model": "lstm_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "ecb36967ae011b738357e5f61386dce13c592af05b356783c150d8c290ce46a7"
+    },
+    {
+      "id": "annual_2020_lstm_residual_hybrid_s27182",
+      "year": "2020",
+      "model": "lstm_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2020_lstm_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 39407,
+        "validation_end_x": 43823,
+        "test_end_x": 52607
+      },
+      "config_sha256": "be645270cdb7df8370204580b9cd2e3fd89d1d9ea1ecb0e9663be924f3317bdd"
+    },
+    {
+      "id": "annual_2021_ffn_s42",
+      "year": "2021",
+      "model": "ffn",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_s42.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "e2cdc7750565e3dfd81b412f4836096222740c036706e10ae885cbf24f59e399"
+    },
+    {
+      "id": "annual_2021_ffn_s123",
+      "year": "2021",
+      "model": "ffn",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_s123.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "8f8f8e6468bca5f44eaca038327c7b0f025daa382cc8c60f91621441a7e156d0"
+    },
+    {
+      "id": "annual_2021_ffn_s27182",
+      "year": "2021",
+      "model": "ffn",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_s27182.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "fdbfbc4c138a5770b37489552e472b9d66863771fabf1addf756b8a4e5c8d342"
+    },
+    {
+      "id": "annual_2021_lstm_24h_s42",
+      "year": "2021",
+      "model": "lstm_24h",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_24h_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_24h_s42.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "83eb4c85eb28336fa8481123c3352112cc765929bff85938fd1d23c4c90237a9"
+    },
+    {
+      "id": "annual_2021_lstm_24h_s123",
+      "year": "2021",
+      "model": "lstm_24h",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_24h_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_24h_s123.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "82fe458e324a64b4983468524051fbb30ed6b34cbf13f83e11596d4deaee096b"
+    },
+    {
+      "id": "annual_2021_lstm_24h_s27182",
+      "year": "2021",
+      "model": "lstm_24h",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_24h_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_24h_s27182.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "5e8a341010cc1fb5c48480ad56566190e59e01ee234d09111b926fef9c006821"
+    },
+    {
+      "id": "annual_2021_two_reservoir_s42",
+      "year": "2021",
+      "model": "two_reservoir",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_two_reservoir_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_two_reservoir_s42.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "83e8536d645b00757bfc107ec8c56c3ca7c4ba97e4e81b1ea7599bfc90172873"
+    },
+    {
+      "id": "annual_2021_ffn_residual_hybrid_s42",
+      "year": "2021",
+      "model": "ffn_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "c27f5f14285ce327b5c910d73d1ee52ffe4d16b6b13a867cc12ff4aadb04d927"
+    },
+    {
+      "id": "annual_2021_ffn_residual_hybrid_s123",
+      "year": "2021",
+      "model": "ffn_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "75ba305200ffc0082618f7590d53278e04f44e4c19538272ffef82cd45e75643"
+    },
+    {
+      "id": "annual_2021_ffn_residual_hybrid_s27182",
+      "year": "2021",
+      "model": "ffn_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_ffn_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "5a063d8ea3987124a6c09237d454db4036188a1cc29db11baf6aa2d75fd853a5"
+    },
+    {
+      "id": "annual_2021_lstm_residual_hybrid_s42",
+      "year": "2021",
+      "model": "lstm_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "d8d09ecc0e9edbb196934e8a716ca91f6daad6491573d083f296f8c0107e94a5"
+    },
+    {
+      "id": "annual_2021_lstm_residual_hybrid_s123",
+      "year": "2021",
+      "model": "lstm_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "7c853364996209c859b66c089fb0df8873106c58138acdadc43f3369645fec80"
+    },
+    {
+      "id": "annual_2021_lstm_residual_hybrid_s27182",
+      "year": "2021",
+      "model": "lstm_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2021_lstm_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 48191,
+        "validation_end_x": 52607,
+        "test_end_x": 61367
+      },
+      "config_sha256": "7996cd342273291b64dae2b788a125f54cef954c439774f2e2d7e552e922226e"
+    },
+    {
+      "id": "annual_2022_ffn_s42",
+      "year": "2022",
+      "model": "ffn",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_s42.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "30f37911afd97bfd461ae7ee8b3a47a8eedb9638545f60805dcb52359119490a"
+    },
+    {
+      "id": "annual_2022_ffn_s123",
+      "year": "2022",
+      "model": "ffn",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_s123.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "08e182377159f9608ffa4ea349d6c4acde9dcdd3e5ee9496bf0caa286517c90b"
+    },
+    {
+      "id": "annual_2022_ffn_s27182",
+      "year": "2022",
+      "model": "ffn",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_s27182.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "4f182dbc233dcd6911983a4a3a378c38e25ea979f0f17d0190a1e00de74291f1"
+    },
+    {
+      "id": "annual_2022_lstm_24h_s42",
+      "year": "2022",
+      "model": "lstm_24h",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_24h_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_24h_s42.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "58739f3e22ab6a1fdbd2c432ee5907023d2fc52e5444f9102c9d7a6101122368"
+    },
+    {
+      "id": "annual_2022_lstm_24h_s123",
+      "year": "2022",
+      "model": "lstm_24h",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_24h_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_24h_s123.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "078d834e1e592f12777b5220c011e4e7090f75e40d69454527cba56d7db481f3"
+    },
+    {
+      "id": "annual_2022_lstm_24h_s27182",
+      "year": "2022",
+      "model": "lstm_24h",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_24h_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_24h_s27182.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "9cab415ce6c4949d1ca1abe3bd0685487b0916e018616baa219b33f27ece5c1d"
+    },
+    {
+      "id": "annual_2022_two_reservoir_s42",
+      "year": "2022",
+      "model": "two_reservoir",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_two_reservoir_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_two_reservoir_s42.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "59797caedef14775dc4cad862aee5f2d1aa5a23ca9181df27cc7903c14cf2c54"
+    },
+    {
+      "id": "annual_2022_ffn_residual_hybrid_s42",
+      "year": "2022",
+      "model": "ffn_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "fa8b11dcb72b014989f3509938363c2ba6702e541baa429c4254b4310667afd1"
+    },
+    {
+      "id": "annual_2022_ffn_residual_hybrid_s123",
+      "year": "2022",
+      "model": "ffn_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "dcbdbad43dfc43940e3d1282a9ca2c87e1b0b6371e5c4d4b3127b1944c56423a"
+    },
+    {
+      "id": "annual_2022_ffn_residual_hybrid_s27182",
+      "year": "2022",
+      "model": "ffn_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_ffn_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "c9c6260d0499864bcf4dec26207cb0ceb4a300694265a64bca7894a1e9084348"
+    },
+    {
+      "id": "annual_2022_lstm_residual_hybrid_s42",
+      "year": "2022",
+      "model": "lstm_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "f35206f9fbfdee92e5362a82e40d307ac8988f14ad461317a27e43eeb1a1346e"
+    },
+    {
+      "id": "annual_2022_lstm_residual_hybrid_s123",
+      "year": "2022",
+      "model": "lstm_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "f21934a3d5183966476e5518eee4edfd76b7f6b092abf7d96e48a5300a5d1d2a"
+    },
+    {
+      "id": "annual_2022_lstm_residual_hybrid_s27182",
+      "year": "2022",
+      "model": "lstm_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2022_lstm_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 56951,
+        "validation_end_x": 61367,
+        "test_end_x": 70127
+      },
+      "config_sha256": "e711ae16fe6ed92409f6a51e61bf77c4c2cf5bfd0a02cb5ccf32f3fd5d469b84"
+    },
+    {
+      "id": "annual_2023_ffn_s42",
+      "year": "2023",
+      "model": "ffn",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_s42.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "b58959afb1683af70d9bc1255d3ea50ccdb157137d2003d2a5950d4de6cead7b"
+    },
+    {
+      "id": "annual_2023_ffn_s123",
+      "year": "2023",
+      "model": "ffn",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_s123.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "8ec51a2f33c175fa9698699e95e84d93cd5cb9ca478bac0f72a45e18190aead3"
+    },
+    {
+      "id": "annual_2023_ffn_s27182",
+      "year": "2023",
+      "model": "ffn",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_s27182.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "b54e46937d1e8c9c7aaddda0e8902f53de9beb8ca2da5658ebc7c1774ef1eda5"
+    },
+    {
+      "id": "annual_2023_lstm_24h_s42",
+      "year": "2023",
+      "model": "lstm_24h",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_24h_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_24h_s42.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "0918cf1e50a4b331a4ead61c0cb8e751ba5ca881e9702dd6163098d407cf4999"
+    },
+    {
+      "id": "annual_2023_lstm_24h_s123",
+      "year": "2023",
+      "model": "lstm_24h",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_24h_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_24h_s123.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "c22319fe858b7ec36c91bdece29aeee5fccc60b6191dd26ee178a745dc099917"
+    },
+    {
+      "id": "annual_2023_lstm_24h_s27182",
+      "year": "2023",
+      "model": "lstm_24h",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_24h_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_24h_s27182.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "0fefb020eaf734f2ac6aa567bfe637fac5f3ab4d67873bd96001c178fcb533a5"
+    },
+    {
+      "id": "annual_2023_two_reservoir_s42",
+      "year": "2023",
+      "model": "two_reservoir",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_two_reservoir_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_two_reservoir_s42.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "a23b6d36ccd5981363a2f29d1ff2b1c32d415daf37bd04a688eae00efd6c7944"
+    },
+    {
+      "id": "annual_2023_ffn_residual_hybrid_s42",
+      "year": "2023",
+      "model": "ffn_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "5ddfd2b534be7cf4d2601d86bf9fba7b6879870492be2a0f8bcdecf8c30b5979"
+    },
+    {
+      "id": "annual_2023_ffn_residual_hybrid_s123",
+      "year": "2023",
+      "model": "ffn_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "a13b3614cedfc1ad2f249e5b8cd5d6a41cf6937e77514e800872889b4839454e"
+    },
+    {
+      "id": "annual_2023_ffn_residual_hybrid_s27182",
+      "year": "2023",
+      "model": "ffn_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_ffn_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "1559db98fd2e4d0015c1da8ac5e7fe4d5157a0060b8db2dfcf087cf613999465"
+    },
+    {
+      "id": "annual_2023_lstm_residual_hybrid_s42",
+      "year": "2023",
+      "model": "lstm_residual_hybrid",
+      "seed": 42,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_residual_hybrid_s42.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_residual_hybrid_s42.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "3ebeb128dc8cc6e9187c0f7a75665beb166b58a9a7e36900528f718bf1785cba"
+    },
+    {
+      "id": "annual_2023_lstm_residual_hybrid_s123",
+      "year": "2023",
+      "model": "lstm_residual_hybrid",
+      "seed": 123,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_residual_hybrid_s123.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_residual_hybrid_s123.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "4968575d0c8592af6400c2c0ec08b3618227c92e96075764180f1474912ddbe0"
+    },
+    {
+      "id": "annual_2023_lstm_residual_hybrid_s27182",
+      "year": "2023",
+      "model": "lstm_residual_hybrid",
+      "seed": 27182,
+      "config": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_residual_hybrid_s27182.json",
+      "batch": "/mnt/3rd900/Projects/PyTorchCPP/Hydro/experiments/gistohq_sligo/decade_20261022/annual_configs/annual_2023_lstm_residual_hybrid_s27182.batch",
+      "bounds": {
+        "train_end_x": 65711,
+        "validation_end_x": 70127,
+        "test_end_x": 77015
+      },
+      "config_sha256": "926f964a4ef8eb0c56a8e3651476c3c30b825be6d58ccff0c8b6e077245a0118"
+    }
+  ]
+}
