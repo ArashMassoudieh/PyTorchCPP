@@ -294,6 +294,10 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.hydrofusion_synthetic_verification = optionalBoolValue(json, "hydrofusion_synthetic_verification", false);
     c.hydrofusion_native_manifest_path = optionalStringValue(json, "hydrofusion_native_manifest_path", "");
     c.hydrofusion_native_manifest_sha256 = optionalStringValue(json, "hydrofusion_native_manifest_sha256", "");
+    c.hydrofusion_objective = optionalStringValue(json, "hydrofusion_objective", "log_mse_v1");
+    c.hydrofusion_ffn_activation = optionalStringValue(json, "hydrofusion_ffn_activation", "tanh");
+    if(c.hydrofusion_objective!="log_mse_v1" && c.hydrofusion_objective!="log_flow_mse_v2") throw std::runtime_error("Unknown hydrofusion_objective.");
+    if(c.hydrofusion_ffn_activation!="tanh" && c.hydrofusion_ffn_activation!="silu") throw std::runtime_error("Unknown hydrofusion_ffn_activation.");
     c.hydrofusion_target_mode = optionalStringValue(json, "hydrofusion_target_mode", "log_residual");
     if (c.hydrofusion_target_mode != "log_residual" && c.hydrofusion_target_mode != "direct_log_q") {
         throw std::runtime_error(

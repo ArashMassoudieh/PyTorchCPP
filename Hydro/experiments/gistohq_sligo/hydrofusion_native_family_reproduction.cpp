@@ -25,11 +25,11 @@ int main(int argc,char** argv){try{
     const auto& model=artifacts.models.at(approach);std::string raw(model.bytes.begin(),model.bytes.end());std::istringstream bytes(raw);
     torch::serialize::InputArchive archive,weights;archive.load_from(bytes);
     ForecastNet net{nullptr};
-    if(!physicalOnly){archive.read("weights",weights);net=ForecastNet(isRecurrentForecast(approach),forecastHidden(c));net->load(weights);net->eval();}
+    if(!physicalOnly){archive.read("weights",weights);net=ForecastNet(isRecurrentForecast(approach),forecastHidden(c),c.hydrofusion_ffn_activation=="silu");net->load(weights);net->eval();}
     TensorScaler xs,ys;
     if(!physicalOnly){xs.importState(artifacts.scalers.at(approach).input);ys.importState(artifacts.scalers.at(approach).target);}
     std::map<int64_t,double> physics;
-    if(isPhysicalForecast(approach))physics=causalPhysicalForecasts(rows,forecastPhysics(c));
+    if(isPhysicalForecast(approach))physics=forecastPhysicalSeries(rows,c);
     torch::NoGradGuard guard;
     auto predict=[&](const DatasetSplit& split){
         auto reference=forecastReference(split,physics,isPhysicalForecast(approach)).contiguous();

@@ -1,7 +1,10 @@
 #pragma once
 #include <string>
+#include "hydro_run_types.h"
 namespace hydrofusion {
 inline bool isExtendedForecast(const std::string& name){return name=="ffn_causal_forecast"||name=="lstm_hydrofusion"||name=="pinn_causal_forecast"||name=="ffn_physical_forecast"||name=="lstm_physical_forecast";}
 inline bool isPhysicalForecast(const std::string& name){return isExtendedForecast(name)&&name!="lstm_hydrofusion"&&name!="ffn_causal_forecast";}
 inline bool isRecurrentForecast(const std::string& name){return name=="lstm_hydrofusion"||name=="lstm_physical_forecast";}
+inline bool forecastRecipeV2(const HydroRunConfig& c){return c.pinn_physics_profile=="causal_two_reservoir_mean_v2"||c.hydrofusion_objective!="log_mse_v1"||c.hydrofusion_ffn_activation!="tanh";}
+inline std::string forecastCheckpointFormat(const HydroRunConfig& c){return forecastRecipeV2(c)?"hydrofusion-forecast-v2":"hydrofusion-forecast-v1";}
 }

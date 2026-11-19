@@ -43,4 +43,39 @@ inline std::map<int64_t,double> causalPhysicalForecasts(const std::vector<Hourly
     }
     return output;
 }
+// Explicit v2 output semantics: exact mean outflow over one hour. The v1
+// function above is intentionally unchanged for old checkpoint reconstruction.
+inline double reservoirHourOutflow(double storage,double inflow,double rate){
+    if(!std::isfinite(storage)||storage<0||!std::isfinite(inflow)||inflow<0||!std::isfinite(rate)||rate<=0)throw std::invalid_argument("Invalid hourly reservoir arguments.");
+    const double released=-std::expm1(-rate);
+    // 1-(1-exp(-k))/k loses precision as k approaches zero.
+    const double fraction=rate<1e-4?rate*(.5+rate*(-1./6+rate*(1./24+rate*(-1./120+rate/720)))):1-released/rate;
+    const double out=storage*released+inflow*fraction;
+    if(!std::isfinite(out)||out<0)throw std::overflow_error("Hourly outflow overflow.");
+    return out;
+}
+inline double stepCausalReservoirHourMean(ReservoirLedger& state,double effectiveRain,const CausalPhysicsParams& p){
+    validateCausalPhysics(p);
+    if(!std::isfinite(effectiveRain)||effectiveRain<0)throw std::invalid_argument("Invalid effective rain.");
+    const double inflow=effectiveRain*p.gain;
+    const double out=reservoirHourOutflow(state.fastStorage,p.fraction*inflow,p.fast)+reservoirHourOutflow(state.slowStorage,(1-p.fraction)*inflow,p.slow);
+    const auto update=[](double s,double r,double k){return std::exp(-k)*s+(-std::expm1(-k)/k)*r;};
+    const double fast=update(state.fastStorage,p.fraction*inflow,p.fast),slow=update(state.slowStorage,(1-p.fraction)*inflow,p.slow);
+    if(!std::isfinite(fast)||!std::isfinite(slow)||!std::isfinite(out)||!std::isfinite(state.inputVolume+inflow)||!std::isfinite(state.outflowVolume+out))throw std::overflow_error("Hourly physical state overflow.");
+    state.fastStorage=fast;state.slowStorage=slow;state.inputVolume+=inflow;state.outflowVolume+=out;
+    return out; // integrated depth divided by exactly one hour
+}
+inline std::map<int64_t,double> causalPhysicalHourlyMeans(const std::vector<HourlyRow>& rows,const CausalPhysicsParams& params){
+    validateCausalPhysics(params);HourlyIndex checked(rows);(void)checked;
+    for(const auto&r:rows)if(r.x>=kSealStartX)throw std::invalid_argument("Causal physics preseal input required.");
+    std::map<int64_t,double> result;ReservoirLedger state;int64_t previous=-2;double prior=0;
+    for(const auto&r:rows){
+        const auto x=static_cast<int64_t>(r.x);
+        if(!r.all_forcings_valid||!std::isfinite(r.precipitation_mm_per_hour)||r.precipitation_mm_per_hour<0||!std::isfinite(r.pet_mm_per_hour)||r.pet_mm_per_hour<0){state={};previous=-2;continue;}
+        if(x!=previous+1)state={};else stepCausalReservoirHourMean(state,prior,params);
+        const double rain=std::max(0.,r.precipitation_mm_per_hour-r.pet_mm_per_hour);
+        auto next=state;result.emplace(x,stepCausalReservoirHourMean(next,rain,params));previous=x;prior=rain;
+    }
+    return result;
+}
 } // namespace hydrofusion

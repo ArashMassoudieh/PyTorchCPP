@@ -191,7 +191,7 @@ std::map<std::string, HydroModelArtifact> HydroArtifactLoader::loadModels(
         if (fields.size() != 5 || fields[0].empty()) throw std::runtime_error("Invalid models.csv row " + std::to_string(row) + ".");
         if (!safeRelativePath(fields[1])) throw std::runtime_error("Model artifact path escapes the experiment directory.");
         if (fields[2] != "neuralnetworkwrapper-v1" && fields[2] != "torch-module-v1" &&
-            fields[2] != "torch-module-v1-multiscale" && fields[2] != "hydrofusion-forecast-v1") {
+            fields[2] != "torch-module-v1-multiscale" && fields[2] != "hydrofusion-forecast-v1" && fields[2] != "hydrofusion-forecast-v2") {
             throw std::runtime_error("Unsupported model checkpoint format: " + fields[2]);
         }
         std::size_t expectedSize = 0;
@@ -561,7 +561,7 @@ HydroInferenceArtifacts HydroArtifactLoader::loadForInference(
             throw std::runtime_error("Model is missing scaler state for approach: " + entry.first);
         }
         if (hydrofusion::isExtendedForecast(entry.first)) {
-            if (entry.second.format != "hydrofusion-forecast-v1") throw std::runtime_error("Forecast checkpoint format mismatch.");
+            if (entry.second.format != hydrofusion::forecastCheckpointFormat(artifacts.experiment.config)) throw std::runtime_error("Forecast checkpoint format mismatch.");
             continue;
         }
         const bool recurrent = entry.first == "lstm" || entry.first == "lstm_pinn";

@@ -316,11 +316,15 @@ struct HydroRunConfig {
     // back to the fixture's own natural bounds when unset); no separate
     // cutoff fields are introduced for it.
     std::string hydrofusion_target_mode = "log_residual";
-    // No real-data loader exists yet. Require a positive test-only opt-in,
+    // Explicit synthetic consent or a hash-pinned prepared native source.
+    // Keep consent explicit;
     // never infer synthetic consent from absent/false source flags.
     bool hydrofusion_synthetic_verification = false;
     std::string hydrofusion_native_manifest_path;
     std::string hydrofusion_native_manifest_sha256;
+    // Defaults preserve every forecast-v1 checkpoint and its training recipe.
+    std::string hydrofusion_objective = "log_mse_v1";
+    std::string hydrofusion_ffn_activation = "tanh";
 };
 
 struct HydroRunResult {

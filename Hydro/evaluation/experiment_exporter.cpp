@@ -158,7 +158,7 @@ bool supportedApproach(const std::string& approach) {
 }
 
 bool checkpointFormatMatchesApproach(const std::string& approach, const std::string& format) {
-    if (hydrofusion::isExtendedForecast(approach)) return format == "hydrofusion-forecast-v1";
+    if (hydrofusion::isExtendedForecast(approach)) return format == "hydrofusion-forecast-v1" || format == "hydrofusion-forecast-v2";
     // Opt-in HydroFusion forecasting mode: reuses NeuralNetworkWrapper
     // exactly like plain "ffn", so the same checkpoint-format rule
     // applies -- see Hydro/models/ffn_hydrofusion_wrapper.cpp.
@@ -321,6 +321,8 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
               << "  \"hydrofusion_synthetic_verification\": " << (config.hydrofusion_synthetic_verification ? "true" : "false") << ",\n"
               << "  \"hydrofusion_native_manifest_path\": \"" << escapeJson(config.hydrofusion_native_manifest_path) << "\",\n"
               << "  \"hydrofusion_native_manifest_sha256\": \"" << escapeJson(config.hydrofusion_native_manifest_sha256) << "\",\n"
+              << "  \"hydrofusion_objective\": \"" << escapeJson(config.hydrofusion_objective) << "\",\n"
+              << "  \"hydrofusion_ffn_activation\": \"" << escapeJson(config.hydrofusion_ffn_activation) << "\",\n"
               << "  \"hydrofusion_target_mode\": \"" << escapeJson(config.hydrofusion_target_mode) << "\",\n"
               << "  \"normalization\": \"" << escapeJson(config.normalization) << "\",\n"
               << "  \"hidden_layers\": \"" << escapeJson(config.hidden_layers_csv) << "\",\n"

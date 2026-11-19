@@ -21,7 +21,7 @@ public:
                 throw std::invalid_argument("Native input provenance binding mismatch.");
         }
         const auto model=artifacts.models.find(approach_);const auto scaler=artifacts.scalers.find(approach_);
-        if(model==artifacts.models.end()||scaler==artifacts.scalers.end()||model->second.format!="hydrofusion-forecast-v1")throw std::invalid_argument("Missing/mismatched forecast artifact.");
+        if(model==artifacts.models.end()||scaler==artifacts.scalers.end()||model->second.format!=forecastCheckpointFormat(config_))throw std::invalid_argument("Missing/mismatched forecast artifact.");
         auto metadata=reloadHydroFusionMetadata((std::filesystem::path(directory)/"hydrofusion_metadata.txt").string());
         validateMetadataBoundToBundle(metadata,model->second.sha256,sha256File((std::filesystem::path(directory)/"scalers.csv").string()));
         mode_=forecastTargetMode(config_);qref_=metadata.qRef;
@@ -32,12 +32,16 @@ public:
         checkpoint.read("recipe",recipe);checkpoint.read("qref",qref);
         if(!torch::equal(recipe,recipeTensor(config_,approach_))||qref.numel()!=1||qref.item<double>()!=qref_)
             throw std::invalid_argument("Forecast checkpoint recipe/scale mismatch.");
+        if(config_.hydrofusion_objective=="log_flow_mse_v2"){
+            torch::Tensor scale;checkpoint.read("training_flow_scale",scale);
+            if(scale.scalar_type()!=torch::kFloat64||scale.numel()!=1||!std::isfinite(scale.item<double>())||scale.item<double>()<=0)throw std::invalid_argument("Missing/invalid training-only physical loss scale.");
+        }
         if(approach_=="pinn_causal_forecast"){
             if(qref_!=1||scaler->second.input.method!="none"||scaler->second.target.method!="none")throw std::invalid_argument("Physical-only baseline must not have fitted transforms.");
         }else{
             xs_.importState(scaler->second.input);ys_.importState(scaler->second.target);
             if(scaler->second.input.shape!=std::vector<int64_t>{1,1,20}||scaler->second.target.shape!=std::vector<int64_t>{1,1})throw std::invalid_argument("Forecast scaler shape mismatch.");
-            net_=ForecastNet(isRecurrentForecast(approach_),forecastHidden(config_));torch::serialize::InputArchive weights;checkpoint.read("weights",weights);net_->load(weights);net_->eval();
+            net_=ForecastNet(isRecurrentForecast(approach_),forecastHidden(config_),config_.hydrofusion_ffn_activation=="silu");torch::serialize::InputArchive weights;checkpoint.read("weights",weights);net_->load(weights);net_->eval();
         }
     }
     double predictAt(const std::vector<hydrofusion::HourlyRow>& supplied,int64_t origin){
@@ -56,7 +60,7 @@ public:
             if(!sample||!sample->predictor_availability_mask)throw std::invalid_argument("Incomplete native forecast history.");
             steps.push_back(featuresToTensorRow(sample->features));}
         double reference=steps.back()[0].item<double>();
-        if(isPhysicalForecast(approach_))reference=causalPhysicalForecasts(prefix,forecastPhysics(config_)).at(origin);
+        if(isPhysicalForecast(approach_))reference=forecastPhysicalSeries(prefix,config_).at(origin);
         if(approach_=="pinn_causal_forecast")return reference;
         torch::NoGradGuard guard;auto x=torch::stack(steps).unsqueeze(0);auto target=ys_.inverseTransform(net_->forward(xs_.transform(x)));
         if(!torch::isfinite(target).all().item<bool>())throw std::runtime_error("Nonfinite forecast output.");

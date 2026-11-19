@@ -211,6 +211,8 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
 }
 
 HydroRunResult runJob(const std::string& mode, const HydroRunConfig& config) {
+    if(!hydrofusion::isExtendedForecast(mode)&&(config.hydrofusion_objective!="log_mse_v1"||config.hydrofusion_ffn_activation!="tanh"||config.pinn_physics_profile=="causal_two_reservoir_mean_v2"))
+        throw std::invalid_argument("Forecast v2 options require an extended forecast approach.");
     if (mode == "ffn") { FFNWrapper runner; return runner.train(config); }
     if (mode == "ffn_pinn") { FFNReservoirPINNWrapper runner; return runner.train(config); }
     if (mode == "lstm") { LSTMWrapper runner; return runner.train(config); }
