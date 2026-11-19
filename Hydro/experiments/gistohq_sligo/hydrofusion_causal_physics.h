@@ -78,4 +78,45 @@ inline std::map<int64_t,double> causalPhysicalHourlyMeans(const std::vector<Hour
     }
     return result;
 }
+// v3: rows are indexed by forecast origin/release hour, but rainfall belongs
+// to [rainfall_valid_end_x-1, rainfall_valid_end_x). Commit ONLY newly released
+// intervals on that historical timeline. Never commit the dry nowcast copy:
+// a later release replaces the unknown interval with its actual available rain.
+// Missing rainfall between the latest known interval and target is explicitly
+// assumed zero, NOT asserted observed dry. PET is the estimate available at
+// release, not future/current-day realized ET. No Q assimilation or calibration.
+inline std::map<int64_t,double> causalPhysicalValidTimeDryForecasts(
+    const std::vector<HourlyRow>& rows,const CausalPhysicsParams& params){
+    validateCausalPhysics(params);HourlyIndex checked(rows);(void)checked;
+    // Validate the complete identity domain before any forcing is inspected.
+    for(const auto& row:rows){
+        if(row.x>=kSealStartX-1)throw std::invalid_argument("v3 requires presealed origin AND target.");
+        if(row.all_forcings_valid && (row.rainfall_valid_end_x<0 ||
+           row.rainfall_valid_end_x>row.rainfall_release_x || row.rainfall_release_x!=row.x ||
+           row.rainfall_release_x-row.rainfall_valid_end_x>168))
+            throw std::invalid_argument("v3 requires explicit bounded valid-time/release provenance.");
+    }
+    std::map<int64_t,double> output;ReservoirLedger state;
+    int64_t previousOrigin=-2,previousValidEnd=-2;
+    for(const auto& row:rows){
+        const auto origin=static_cast<int64_t>(row.x);
+        if(!row.all_forcings_valid){state={};previousOrigin=previousValidEnd=-2;continue;}
+        if(!std::isfinite(row.precipitation_mm_per_hour)||row.precipitation_mm_per_hour<0||
+           !std::isfinite(row.pet_mm_per_hour)||row.pet_mm_per_hour<0)
+            throw std::invalid_argument("v3 requires finite nonnegative available rain/PET.");
+        const auto validEnd=row.rainfall_valid_end_x;
+        // Changed delays would imply duplicate, missing or reordered historical
+        // forcing. Reject within a segment rather than silently revising state.
+        if(origin==previousOrigin+1 && validEnd!=previousValidEnd+1)
+            throw std::invalid_argument("v3 release stream must advance valid time hourly.");
+        if(origin!=previousOrigin+1)state={};
+        stepCausalReservoirHourMean(state,std::max(0.,row.precipitation_mm_per_hour-row.pet_mm_per_hour),params);
+        auto forecast=state;
+        // state is at validEnd. Advance to origin, then forecast [origin,origin+1).
+        for(int64_t hour=validEnd;hour<origin;++hour)stepCausalReservoirHourMean(forecast,0.,params);
+        output.emplace(origin,stepCausalReservoirHourMean(forecast,0.,params));
+        previousOrigin=origin;previousValidEnd=validEnd;
+    }
+    return output;
+}
 } // namespace hydrofusion

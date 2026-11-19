@@ -33,6 +33,8 @@ int main(){
     delayed=policy;delayed.hourly_forcing_delay_hours=2;
     lagged=adaptCausalNativeIntervals(rows,evidence,days,context,delayed);
     check(!lagged[0].all_forcings_valid && !lagged[1].all_forcings_valid && lagged[23].precipitation_mm_per_hour==21);
+    check(lagged[23].rainfall_valid_end_x==22 && lagged[23].rainfall_release_x==24);
+    check(out[23].rainfall_valid_end_x==24 && out[23].rainfall_release_x==24);
     // Future forcing cannot affect an earlier predictor.
     auto future=rows;future[120].precipitation_mm_per_hour=1e6;
     altered=adaptCausalNativeIntervals(future,evidence,days,context,policy);

@@ -158,7 +158,7 @@ bool supportedApproach(const std::string& approach) {
 }
 
 bool checkpointFormatMatchesApproach(const std::string& approach, const std::string& format) {
-    if (hydrofusion::isExtendedForecast(approach)) return format == "hydrofusion-forecast-v1" || format == "hydrofusion-forecast-v2";
+    if (hydrofusion::isExtendedForecast(approach)) return format == "hydrofusion-forecast-v1" || format == "hydrofusion-forecast-v2" || format == "hydrofusion-forecast-v3";
     // Opt-in HydroFusion forecasting mode: reuses NeuralNetworkWrapper
     // exactly like plain "ffn", so the same checkpoint-format rule
     // applies -- see Hydro/models/ffn_hydrofusion_wrapper.cpp.

@@ -27,6 +27,8 @@ inline HourlyRow makeSyntheticFixtureRow(int64_t hour, double q) {
     row.solar_energy_mj_per_m2_per_hour = 0.8;
     row.pet_mm_per_hour = 0.04;
     row.all_forcings_valid = true;
+    row.rainfall_valid_end_x=hour;
+    row.rainfall_release_x=hour;
     return row;
 }
 

@@ -17,6 +17,7 @@ inline CausalPhysicsParams forecastPhysics(const HydroRunConfig& c){return {c.st
 inline std::map<int64_t,double> forecastPhysicalSeries(const std::vector<HourlyRow>& rows,const HydroRunConfig& c){
     if(c.pinn_physics_profile=="causal_two_reservoir_v1")return causalPhysicalForecasts(rows,forecastPhysics(c));
     if(c.pinn_physics_profile=="causal_two_reservoir_mean_v2")return causalPhysicalHourlyMeans(rows,forecastPhysics(c));
+    if(c.pinn_physics_profile=="causal_valid_time_dry_v3")return causalPhysicalValidTimeDryForecasts(rows,forecastPhysics(c));
     throw std::invalid_argument("Unknown causal physical profile.");
 }
 inline TargetMode forecastTargetMode(const HydroRunConfig& c){
@@ -39,14 +40,14 @@ inline void validateForecastConfig(const HydroRunConfig& c,const std::string& na
     if(c.hydrofusion_ffn_activation!="tanh"&&c.hydrofusion_ffn_activation!="silu")throw std::invalid_argument("Unknown forecast FFN activation.");
     if((isRecurrentForecast(name)||name=="pinn_causal_forecast")&&c.hydrofusion_ffn_activation!="tanh")throw std::invalid_argument("SiLU option requires a forecast FFN.");
     if(name=="pinn_causal_forecast"&&c.hydrofusion_objective!="log_mse_v1")throw std::invalid_argument("Physical-only reference has no learned objective.");
-    if(!isPhysicalForecast(name)&&c.pinn_physics_profile=="causal_two_reservoir_mean_v2")throw std::invalid_argument("Hourly-mean profile requires a physical forecast.");
+    if(!isPhysicalForecast(name)&&(c.pinn_physics_profile=="causal_two_reservoir_mean_v2"||forecastRecipeV3(c)))throw std::invalid_argument("Hourly-mean profile requires a physical forecast.");
     if(c.data_weight!=1||c.lstm_bias_weight!=0||c.shared_scale_volume_weight!=0||c.lstm_bias_weight_adaptive||
        c.physical_error_weight!=0||c.high_flow_loss_weight!=0||c.lstm_dropout!=0||
        c.use_mrms_spatial_cv_feature||c.multiscale_daily_history_days!=0||c.multiscale_matched_control||c.pinn_flow_exponent!=0)
         throw std::invalid_argument("Forecast recipe does not support extra objectives, nonlinear routing, dropout, MRMS CV or multiscale branches.");
     if(isPhysicalForecast(name)){
         validateCausalPhysics(forecastPhysics(c));
-        if((c.pinn_physics_profile!="causal_two_reservoir_v1"&&c.pinn_physics_profile!="causal_two_reservoir_mean_v2")||c.pinn_initial_flow!=0||c.physics_dt!=1||c.hydrofusion_target_mode!="log_residual")
+        if((c.pinn_physics_profile!="causal_two_reservoir_v1"&&c.pinn_physics_profile!="causal_two_reservoir_mean_v2"&&!forecastRecipeV3(c))||c.pinn_initial_flow!=0||c.physics_dt!=1||c.hydrofusion_target_mode!="log_residual")
             throw std::invalid_argument("Physical forecast requires an explicit versioned causal profile, zero initial flow, hourly dt and log_residual correction.");
     }
 }
@@ -122,6 +123,11 @@ inline torch::Tensor recipeTensor(const HydroRunConfig& c,const std::string& nam
     auto legacy=torch::tensor({1.0,static_cast<double>(isRecurrentForecast(name)),static_cast<double>(isPhysicalForecast(name)),
         static_cast<double>(name=="pinn_causal_forecast"),static_cast<double>(forecastHidden(c)),24.0,
         static_cast<double>(forecastTargetMode(c)==TargetMode::LogResidual),c.storage_coeff,c.lambda_decay,c.runoff_coeff,c.forcing_gain,c.pinn_initial_flow,c.physics_dt},torch::kFloat64);
+    if(forecastRecipeV3(c)){
+        legacy[0]=3.;
+        // Profile fixes valid-time integration, dry-gap policy and hourly mean.
+        return torch::cat({legacy,torch::tensor({3.,static_cast<double>(c.hydrofusion_objective=="log_flow_mse_v2"),static_cast<double>(c.hydrofusion_ffn_activation=="silu")},torch::kFloat64)});
+    }
     if(!forecastRecipeV2(c))return legacy;
     legacy[0]=2.;
     return torch::cat({legacy,torch::tensor({static_cast<double>(c.pinn_physics_profile=="causal_two_reservoir_mean_v2"),

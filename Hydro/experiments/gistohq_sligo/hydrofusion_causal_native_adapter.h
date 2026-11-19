@@ -94,6 +94,11 @@ inline std::vector<HourlyRow> adaptCausalNativeIntervals(
         row.all_forcings_valid=row.precipitation_valid && row.temperature_valid && row.relative_humidity_valid && row.wind_valid && row.solar_valid && row.pet_valid;
         row.epoch_seconds=origin;
     }
-    return adaptNativeHourlyRows(shifted,shiftedEvidence,endpointContext);
+    auto adapted=adaptNativeHourlyRows(shifted,shiftedEvidence,endpointContext);
+    for(auto& row:adapted){
+        row.rainfall_release_x=static_cast<int64_t>(row.x);
+        row.rainfall_valid_end_x=row.rainfall_release_x-policy.hourly_forcing_delay_hours;
+    }
+    return adapted;
 }
 } // namespace hydrofusion

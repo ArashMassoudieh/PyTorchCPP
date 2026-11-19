@@ -49,6 +49,9 @@ struct HourlyRow {
     double observed_runoff_mm_per_hour = 0.0;
     bool all_forcings_valid = false;
     bool discharge_valid = false;
+    // Rainfall interval end and declared release hour; absent on legacy rows.
+    int64_t rainfall_valid_end_x = -1;
+    int64_t rainfall_release_x = -1;
 };
 
 // Twenty-feature allowlist from the frozen contract, section 4. Field

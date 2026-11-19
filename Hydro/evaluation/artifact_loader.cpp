@@ -191,7 +191,7 @@ std::map<std::string, HydroModelArtifact> HydroArtifactLoader::loadModels(
         if (fields.size() != 5 || fields[0].empty()) throw std::runtime_error("Invalid models.csv row " + std::to_string(row) + ".");
         if (!safeRelativePath(fields[1])) throw std::runtime_error("Model artifact path escapes the experiment directory.");
         if (fields[2] != "neuralnetworkwrapper-v1" && fields[2] != "torch-module-v1" &&
-            fields[2] != "torch-module-v1-multiscale" && fields[2] != "hydrofusion-forecast-v1" && fields[2] != "hydrofusion-forecast-v2") {
+            fields[2] != "torch-module-v1-multiscale" && fields[2] != "hydrofusion-forecast-v1" && fields[2] != "hydrofusion-forecast-v2" && fields[2] != "hydrofusion-forecast-v3") {
             throw std::runtime_error("Unsupported model checkpoint format: " + fields[2]);
         }
         std::size_t expectedSize = 0;
