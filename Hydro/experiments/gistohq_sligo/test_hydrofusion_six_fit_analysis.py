@@ -41,6 +41,8 @@ class AnalysisTests(unittest.TestCase):
         self.assertTrue(result['advancement_passed'])
         self.assertEqual(result['splits']['validation']['paired']['residual_minus_direct']['positive_seeds'],3)
         self.assertTrue(result['input_scalers_identical_all_arms_seeds'])
+        self.assertIn('kge',result['test_means_across_seeds']['log_residual'])
+        self.assertIn('pbias_percent',result['persistence_test'])
     def test_incomplete_refused(self):
         (self.root/'screen_completion.json').write_text('{"completed":[],"plan_sha256":"bad"}')
         with self.assertRaisesRegex(ValueError,'Incomplete'):analyze(self.root,self.root/'report.json')

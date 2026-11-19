@@ -59,7 +59,8 @@ def analyze(root,output):
             'validation_mae_increase':mae_ratio<=gate['maximum_relative_validation_mae_increase']}
     native=json.loads((root/'prepared_input/native_input_manifest.json').read_text())
     area=float(native['catchment_area_m2'])
-    report={'study_type':plan['study_type'],'catchment_area_m2':area,'m3_s_per_mm_h':area/3600000,
+    test_means={mode:{key:average(test,mode,key) for key in ('nse','kge','rmse','mae','pbias_percent','high_flow_rmse')} for mode in ('direct_log_q','log_residual')}
+    report={'test_means_across_seeds':test_means,'persistence_test':test['persistence']['pooled'],'study_type':plan['study_type'],'catchment_area_m2':area,'m3_s_per_mm_h':area/3600000,
             'units':'NSE/KGE dimensionless; RMSE/MAE raw mm/h; PBIAS percent. Convert discharge with the declared dataset area.',
             'plan_sha256':sha(root/'screen_plan.json'),
             'analysis_script_sha256':sha(__file__),'q90_training_only_mm_h':q90,
@@ -80,7 +81,12 @@ def analyze(root,output):
     for label,split in [('validation',validation),('test',test)]:
         paired=reports[label]['paired']['residual_minus_direct']
         lines.append(f"| {label} | {average(split,'direct_log_q','nse'):.6f} | {average(split,'log_residual','nse'):.6f} | {split['persistence']['pooled']['nse']:.6f} | {paired['mean_delta_nse']:+.6f} |")
-    lines += ['',f"Validation paired positive seeds: {delta['positive_seeds']}/3. Residual/direct mean validation MAE change: {mae_ratio:+.2%}.",
+    lines += ['', '| Test method | Mean KGE | Mean RMSE (m3/s) | Mean MAE (m3/s) | Mean PBIAS (%) |',
+              '|---|---:|---:|---:|---:|']
+    for mode,values in list(test_means.items())+[('persistence',test['persistence']['pooled'])]:
+        lines.append(f"| {mode} | {values['kge']:.6f} | {values['rmse']*area/3600000:.6f} | {values['mae']*area/3600000:.6f} | {values['pbias_percent']:+.3f} |")
+    lines += ['', 'Negative PBIAS means underprediction. Advancement uses the predeclared validation NSE/MAE rule; it does not assert dominance over persistence on KGE or bias.',
+              '',f"Validation paired positive seeds: {delta['positive_seeds']}/3. Residual/direct mean validation MAE change: {mae_ratio:+.2%}.",
               '', 'All arms share the exact frozen targets, input scalers and training-only q_ref. Each saved checkpoint was reloaded in a fresh process against all test predictions, with additional target-free production API checks.',
               '',*report['limitations']]
     md=output.with_suffix('.md')
