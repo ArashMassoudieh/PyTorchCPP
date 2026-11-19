@@ -73,3 +73,12 @@ architectures/physical hybrids are still NOT authorized research jobs.
 See HYDROFUSION_REAL_DATA_READINESS.md and the frozen six-fit campaign plan for
 the causal native-data acceptance and exact calendar/support/provenance policy.
 This is an idealized retrospective hindcast, not an operational forecast claim.
+
+## Explicit extension approval — 2026-11-18 America/New_York
+
+User said “Go ahead for all” after the completed six-fit FFN report and proposed
+next LSTM/physical/hybrid stages. This authorizes the saved bounded extension:
+12 additional neural fits plus one deterministic physical run, no sweep/retry.
+Same caps/settings/data/support as above; width32 (FFN705 vs LSTM6945parameters).
+Prior “extensions unapproved” text is historical and superseded only for this
+fixed extension. No new fold, objective tuning, or reserved targets authorized.
