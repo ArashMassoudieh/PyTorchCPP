@@ -19,7 +19,7 @@ DEFINES += DEBUG_ TORCH_SUPPORT _arma ARMA_USE_OPENMP QT_NO_KEYWORDS
 
 # Embed the source revision used by this binary. __DATE__/__TIME__ are captured
 # by Hydro/build_identity.h during compilation.
-GIT_COMMIT = $$system(git -C $$PWD rev-parse --short HEAD 2>/dev/null)
+GIT_COMMIT = $$system(git -C $$system_quote($$PWD) rev-parse --short HEAD 2>/dev/null)
 isEmpty(GIT_COMMIT) { GIT_COMMIT = unknown }
 DEFINES += HYDRO_GIT_COMMIT=\"$$GIT_COMMIT\"
 message("HydroBatch build commit=$$GIT_COMMIT")
@@ -62,7 +62,7 @@ CONFIG(release, debug|release) { QMAKE_CXXFLAGS += -O3 } else { QMAKE_CXXFLAGS +
 REDUCED_RESERVOIR_GENERATOR = $$PWD/Hydro/generate_reduced_reservoir_supervised_wrappers.py
 GENERATED_FFN_WRAPPER = $$PWD/Hydro/generated/ffn_wrapper_reduced_reservoir.cpp
 GENERATED_LSTM_NETWORK_WRAPPER = $$PWD/Hydro/generated/lstmnetworkwrapper_reduced_reservoir.cpp
-system(python3 $$REDUCED_RESERVOIR_GENERATOR)
+system(python3 $$system_quote($$REDUCED_RESERVOIR_GENERATOR))
 !exists($$GENERATED_FFN_WRAPPER) { error("Failed to generate reduced-reservoir FFN wrapper.") }
 !exists($$GENERATED_LSTM_NETWORK_WRAPPER) { error("Failed to generate reduced-reservoir LSTM wrapper.") }
 

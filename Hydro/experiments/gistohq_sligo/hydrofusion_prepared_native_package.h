@@ -17,7 +17,9 @@ inline std::vector<HourlyRow> loadPreparedNativePackage(const std::string& path,
     const auto m=document.object();
     auto text=[&](const char* key){if(!m[key].isString()||m[key].toString().isEmpty())throw std::invalid_argument("Missing native manifest string.");return m[key].toString().toStdString();};
     auto integer=[&](const char* key){if(!m[key].isDouble())throw std::invalid_argument("Missing native manifest integer.");const double n=m[key].toDouble();if(!std::isfinite(n)||n!=std::floor(n)||n<0||n>2000000000)throw std::invalid_argument("Invalid native manifest integer.");return static_cast<int64_t>(n);};
-    if(text("schema")!="HydroFusionPreparedNative-v1" || text("time_label")!="interval_end" ||
+    const auto schema=text("schema");
+    const bool referenceEt=schema=="HydroFusionPreparedNative-v2";
+    if((schema!="HydroFusionPreparedNative-v1" && !referenceEt) || text("time_label")!="interval_end" ||
        text("study_type")!="idealized_retrospective_causal_hindcast")throw std::invalid_argument("Unsupported native package semantics.");
     const auto csvName=text("interval_csv");if(csvName!="intervals.csv")throw std::invalid_argument("Native CSV must be local intervals.csv.");
     auto csv=std::filesystem::path(path).parent_path()/csvName;
@@ -28,15 +30,25 @@ inline std::vector<HourlyRow> loadPreparedNativePackage(const std::string& path,
     // Existing adapter validates area/coverage; raw CSV first-pass validates ALL timestamps.
     auto inputs=loadDevelopmentHourlyInputs(csv,context);
     CausalNativePolicy policy{integer("discharge_delay_hours"),integer("hourly_forcing_delay_hours"),integer("daily_pet_delay_hours"),text("availability_evidence")};
+    if(referenceEt){
+        policy.daily_pet_utc_start_hour=integer("daily_pet_utc_start_hour");
+        if(text("pet_input_semantics")!="short_grass_reference_et")
+            throw std::invalid_argument("Unsupported native reference ET semantics.");
+    }else if(m.contains("daily_pet_utc_start_hour") || m.contains("pet_input_semantics")){
+        throw std::invalid_argument("Versioned native ET semantics required.");
+    }
     if(!m["daily_pet"].isArray())throw std::invalid_argument("Daily PET records required.");
     std::vector<NativeDailyPetEnergy> pet;
     for(const auto& value:m["daily_pet"].toArray()){
         if(!value.isObject())throw std::invalid_argument("Malformed daily PET row.");
         const auto row=value.toObject();
-        const auto t=row["day_start_epoch_seconds"],energy=row["energy_mj_m2_day"],valid=row["valid"];
+        const auto t=row["day_start_epoch_seconds"],energy=row[referenceEt ? "reference_et_mm_day" : "energy_mj_m2_day"],valid=row["valid"];
         if(!t.isDouble()||!energy.isDouble()||!valid.isBool()||!std::isfinite(t.toDouble())||t.toDouble()!=std::floor(t.toDouble())||t.toDouble()<1420070400||t.toDouble()>2000000000)
             throw std::invalid_argument("Malformed daily PET types/domain.");
-        pet.push_back({static_cast<int64_t>(t.toDouble()),energy.toDouble(),valid.toBool()});
+        const double nativeEnergy=energy.toDouble()*(referenceEt ? 2.45 : 1.0);
+        if(referenceEt && (!std::isfinite(nativeEnergy) || nativeEnergy<0))
+            throw std::invalid_argument("Invalid native reference ET depth.");
+        pet.push_back({static_cast<int64_t>(t.toDouble()),nativeEnergy,valid.toBool()});
     }
     context.first_x+=1;context.end_x_exclusive+=1;
     auto result=adaptCausalNativeIntervals(inputs.rows,inputs.evidence,pet,context,policy);

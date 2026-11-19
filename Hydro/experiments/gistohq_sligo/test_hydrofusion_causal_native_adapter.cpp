@@ -52,5 +52,24 @@ int main(){
     altered=adaptCausalNativeIntervals(rows,evidence,missing,context,policy);check(!altered[119].all_forcings_valid);
     auto invalid=days;invalid[4].energy_mj_m2_day=std::numeric_limits<double>::infinity();
     altered=adaptCausalNativeIntervals(rows,evidence,invalid,context,policy);check(!altered[119].all_forcings_valid);
+    // gridMET-like 07UTC provider days: a day's total cannot appear before
+    // its own completion, or before the explicitly assumed release delay.
+    auto shiftedDays=days;for(auto& day:shiftedDays)day.day_start_epoch_seconds+=7*3600;
+    auto offsetPolicy=policy;offsetPolicy.daily_pet_utc_start_hour=7;
+    auto offsetOut=adaptCausalNativeIntervals(rows,evidence,shiftedDays,context,offsetPolicy);
+    check(!offsetOut[29].all_forcings_valid && offsetOut[30].all_forcings_valid);
+    check(offsetOut[30].pet_mm_per_hour==1 && offsetOut[53].pet_mm_per_hour==1 && offsetOut[54].pet_mm_per_hour==2);
+    offsetPolicy.daily_pet_delay_hours=24;
+    auto offsetLag=adaptCausalNativeIntervals(rows,evidence,shiftedDays,context,offsetPolicy);
+    check(!offsetLag[53].all_forcings_valid && offsetLag[54].pet_mm_per_hour==1);
+    auto offsetChanged=shiftedDays;offsetChanged[1].energy_mj_m2_day=1e6;
+    auto offsetAltered=adaptCausalNativeIntervals(rows,evidence,offsetChanged,context,offsetPolicy);
+    for(int i=0;i<78;++i)check(offsetLag[i].pet_mm_per_hour==offsetAltered[i].pet_mm_per_hour);
+    check(offsetLag[78].pet_mm_per_hour!=offsetAltered[78].pet_mm_per_hour);
+    rejects([&]{adaptCausalNativeIntervals(rows,evidence,days,context,offsetPolicy);});
+    auto invalidOffset=policy;invalidOffset.daily_pet_utc_start_hour=24;
+    rejects([&]{adaptCausalNativeIntervals(rows,evidence,days,context,invalidOffset);});
+    invalidOffset.daily_pet_utc_start_hour=-1;
+    rejects([&]{adaptCausalNativeIntervals(rows,evidence,days,context,invalidOffset);});
     std::cout<<"CAUSAL NATIVE INTERVAL/PET CHECKS PASSED\n";
 }

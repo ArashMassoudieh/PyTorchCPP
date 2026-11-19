@@ -17,6 +17,7 @@ struct CausalNativePolicy {
     int64_t hourly_forcing_delay_hours = -1;
     int64_t daily_pet_delay_hours = -1;
     std::string availability_evidence;
+    int64_t daily_pet_utc_start_hour = 0; // Explicit provider-day offset; legacy UTC days unchanged.
 };
 
 // Shared, torch-free row adapter for all causal forecast families. Native Q is
@@ -31,7 +32,7 @@ inline std::vector<HourlyRow> adaptCausalNativeIntervals(
     const CausalNativePolicy& policy) {
     if(policy.discharge_delay_hours!=0 || policy.hourly_forcing_delay_hours<0 || policy.hourly_forcing_delay_hours>168 ||
        policy.daily_pet_delay_hours<0 || policy.daily_pet_delay_hours>168 ||
-       policy.availability_evidence.empty())
+       policy.availability_evidence.empty() || policy.daily_pet_utc_start_hour<0 || policy.daily_pet_utc_start_hour>23)
         throw std::invalid_argument("Explicit bounded causal availability policy required.");
     if(endpointContext.epoch_zero_seconds!=1420070400 || endpointContext.first_x<1 ||
        endpointContext.end_x_exclusive<=endpointContext.first_x || endpointContext.end_x_exclusive>kSealStartX)
@@ -51,7 +52,7 @@ inline std::vector<HourlyRow> adaptCausalNativeIntervals(
         const auto start=day.day_start_epoch_seconds;
         // No days extending into/past the sealed observation interval; add only
         // after safe domain checks. Extra preseal days are permitted for lagging.
-        if(start<endpointContext.epoch_zero_seconds || start>endpointContext.epoch_zero_seconds+kSealStartX*3600-86400 || start%86400)
+        if(start<endpointContext.epoch_zero_seconds || start>endpointContext.epoch_zero_seconds+kSealStartX*3600-86400 || start%86400!=policy.daily_pet_utc_start_hour*3600)
             throw std::invalid_argument("Invalid or sealed daily PET interval.");
         if(!petByEnd.emplace(start+86400,&day).second)
             throw std::invalid_argument("Duplicate daily PET interval.");
@@ -76,10 +77,11 @@ inline std::vector<HourlyRow> adaptCausalNativeIntervals(
             row.precipitation_valid=f.precipitation_valid;row.temperature_valid=f.temperature_valid;
             row.relative_humidity_valid=f.relative_humidity_valid;row.wind_valid=f.wind_valid;row.solar_valid=f.solar_valid;
         }
-        // Use ONLY the most recent complete UTC day whose release time is no
+        // Use ONLY the most recent complete provider day whose release time is no
         // later than origin. Never distribute the current day's eventual total.
         const auto availableBefore=origin-policy.daily_pet_delay_hours*3600;
-        const auto expectedDayEnd=availableBefore/86400*86400;
+        const auto dayOffset=policy.daily_pet_utc_start_hour*3600;
+        const auto expectedDayEnd=(availableBefore-dayOffset)/86400*86400+dayOffset;
         const auto day=petByEnd.find(expectedDayEnd);
         row.pet_valid=false;row.pet_mm_per_hour=0;
         if(day!=petByEnd.end()){

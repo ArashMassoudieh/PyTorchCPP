@@ -24,6 +24,12 @@ def inventory(repo):
     return {str(p): hashlib.sha256((repo/p).read_bytes()).hexdigest() for p in sorted(paths)}
 
 
+def source_snapshot_changes(frozen, expected):
+    """Detect sync renames or edits in the supposedly immutable build snapshot."""
+    return [name for name, digest in expected.items()
+            if not (frozen/name).is_file() or hashlib.sha256((frozen/name).read_bytes()).hexdigest()!=digest]
+
+
 def compile_identity(makefile):
     names = {'CXX','DEFINES','CXXFLAGS','INCPATH','LINK','LFLAGS','LIBS'}
     result = {}
@@ -105,8 +111,13 @@ def main():
             else:
                 script = frozen / 'Hydro/experiments/gistohq_sligo' / args.script
                 status = subprocess.run(['bash', str(script), str(output)], cwd=frozen, env=env, stdout=log, stderr=subprocess.STDOUT).returncode
+        changed_snapshot=source_snapshot_changes(frozen,before)
+        manifest['source_changes_after_build']=changed_snapshot
+        if changed_snapshot:
+            status=1
+            print('Frozen source changed during build: '+', '.join(changed_snapshot[:10]), file=sys.stderr)
         manifest['generated_sources'] = {str(x.relative_to(frozen)): hashlib.sha256(x.read_bytes()).hexdigest() for x in (frozen/'Hydro/generated').glob('*.cpp')}
-        if args.script == 'HydroBatch':
+        if args.script == 'HydroBatch' and (work/'objects'/'Makefile').is_file():
             manifest['compile_identity'] = compile_identity(work/'objects'/'Makefile')
         manifest['exit_code'] = status
         if status == 0:
