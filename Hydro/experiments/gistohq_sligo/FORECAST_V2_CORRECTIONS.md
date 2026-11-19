@@ -133,3 +133,27 @@ provisional build also preceded the final raw-timestamp overflow guard and is
 not the accepted final executable. No optimized-build failure was encountered
 in these isolated builds; this is not a claim that generic memory-safety
 issues in unrelated code are impossible.
+
+## Gauge review package prepared (18 November 2026)
+
+`prepare_gauge_alignment_review.py` creates a separate non-runnable package
+from the already verified2015–2018 native inputs and the saved upstream GIS
+candidate. Raw discharge remains in m³/s, CSV bytes unchanged; no existing
+observations, model outputs or normalization were modified. Original manifest
+is preserved alongside the pending area/provenance. Timestamp/support checks
+precede any interpretation of CSV values; reserved/end-crossing inputs fail.
+
+Actual producer catalog confirms rainfall and PET are `provider_point` products
+requested at the downstream outlet, outside the new upstream polygon. This
+alone does not prove the coarse provider grid differs, but equivalent grid
+support and upstream basin representativeness remain unverified. The products
+must not be relabeled as basin averages or silently treated as gauge-aligned.
+
+Saved package: `Dropbox/HydroPINN paper/results/hydrofusion_gauge_aligned_2018_review`.
+Its schema `HydroFusionPreparedNative-PENDING-SPATIAL-REVIEW` is intentionally
+unsupported by the real loader. Actual CLI rejection was verified before
+fitting. Four new regressions cover strict/complete identities, sealed-source
+rejection before CSV access, and output preservation. Re-running preparation
+reproduced the saved files byte-identically. No new data acquisition or real
+research fitting occurred. Next: establish upstream forcing/PET support, then
+review/release an explicitly derived package before requesting a new fit budget.
