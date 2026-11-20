@@ -14,10 +14,10 @@ class CalibrationEvaluator(unittest.TestCase):
   self.rows=[[x,'never_parse_Q',1+x%7,0,50,1,0,.1,1,0] for x in list(range(90,145))+list(range(17543,17611))+[26304]]
   self.train=[[x,.2+x%3] for x in range(101,111)];self.val=[[x,.1+x%5] for x in range(17570,17581)]
   self.grid=[[i,*p] for i,p in enumerate(itertools.product((1.,2.),(.04,.06,.1),(.4,.7),(.5,1.)))]
- def run_case(self,ok=True):
+ def run_case(self,ok=True,ending='\n'):
   def write(name,header,rows):
    p=self.root/name
-   with p.open('w') as f:w=csv.writer(f,lineterminator='\n');w.writerow(header.split(','));w.writerows(rows)
+   with p.open('w') as f:w=csv.writer(f,lineterminator=ending);w.writerow(header.split(','));w.writerows(rows)
    return p
   canonical=write('rows.csv','x,q,p,t,rh,wind,solar,pet,forcing_valid,discharge_valid',self.rows)
   train=write('train.csv','x,observed',self.train);val=write('validation.csv','x,observed',self.val);grid=write('grid.csv','index,fast,slow,fraction,gain',self.grid)
@@ -33,6 +33,8 @@ class CalibrationEvaluator(unittest.TestCase):
   obs=[r[1] for r in self.val];m=sum(obs)/len(obs);nse=1-sum(v*v for v in obs)/sum((v-m)**2 for v in obs)
   for row in scores:
    self.assertAlmostEqual(float(row['validation_nse']),nse,places=12);self.assertAlmostEqual(float(row['validation_mae']),m,places=12);self.assertEqual(float(row['validation_pbias_percent']),-100.)
+ def test_CRLF_matches_LF_scores(self):
+  self.run_case();expected=(self.root/'output.csv').read_bytes();(self.root/'output.csv').unlink();self.run_case(ending='\r\n');self.assertEqual((self.root/'output.csv').read_bytes(),expected)
  def test_sealed_timestamp_rejected_before_payload(self):
   self.rows[-1]=[77016]+['not_numeric']*9;self.assertIn('timestamp',self.run_case(False).stderr)
  def test_test_truth_rejected_before_observed_parse(self):

@@ -12,9 +12,13 @@ namespace {
 using Table=std::vector<std::vector<std::string>>;
 Table read(const std::string& path,const std::string& header,size_t fields){
  std::ifstream f(path);if(!f)throw std::invalid_argument("Cannot read input");std::string line;
- if(!std::getline(f,line)||line!=header)throw std::invalid_argument("Wrong CSV schema");
+ if(!std::getline(f,line))throw std::invalid_argument("Wrong CSV schema");
+ if(!line.empty()&&line.back()=='\r')line.pop_back();
+ if(line!=header)throw std::invalid_argument("Wrong CSV schema");
  Table table;
- while(std::getline(f,line)){std::vector<std::string> row;std::stringstream s(line);std::string cell;
+ while(std::getline(f,line)){
+  if(!line.empty()&&line.back()=='\r')line.pop_back();
+  std::vector<std::string> row;std::stringstream s(line);std::string cell;
   while(std::getline(s,cell,','))row.push_back(cell);
   if(row.size()!=fields||line.empty()||line.back()==',')throw std::invalid_argument("Malformed CSV row");
   table.push_back(row);}
