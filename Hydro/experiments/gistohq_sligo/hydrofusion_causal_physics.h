@@ -78,13 +78,13 @@ inline std::map<int64_t,double> causalPhysicalHourlyMeans(const std::vector<Hour
     }
     return result;
 }
-// v3: rows are indexed by forecast origin/release hour, but rainfall belongs
+// v3: rows are indexed by forecast origin; rain must be released by origin. It belongs
 // to [rainfall_valid_end_x-1, rainfall_valid_end_x). Commit ONLY newly released
 // intervals on that historical timeline. Never commit the dry nowcast copy:
 // a later release replaces the unknown interval with its actual available rain.
 // Missing rainfall between the latest known interval and target is explicitly
 // assumed zero, NOT asserted observed dry. PET is the estimate available at
-// release, not future/current-day realized ET. No Q assimilation or calibration.
+// origin, not future/current-day realized ET. No Q assimilation or calibration.
 inline std::map<int64_t,double> causalPhysicalValidTimeDryForecasts(
     const std::vector<HourlyRow>& rows,const CausalPhysicsParams& params){
     validateCausalPhysics(params);HourlyIndex checked(rows);(void)checked;
@@ -92,8 +92,8 @@ inline std::map<int64_t,double> causalPhysicalValidTimeDryForecasts(
     for(const auto& row:rows){
         if(row.x>=kSealStartX-1)throw std::invalid_argument("v3 requires presealed origin AND target.");
         if(row.all_forcings_valid && (row.rainfall_valid_end_x<0 ||
-           row.rainfall_valid_end_x>row.rainfall_release_x || row.rainfall_release_x!=row.x ||
-           row.rainfall_release_x-row.rainfall_valid_end_x>168))
+           row.rainfall_valid_end_x>row.rainfall_release_x || row.rainfall_release_x>row.x ||
+           row.x-row.rainfall_valid_end_x>168))
             throw std::invalid_argument("v3 requires explicit bounded valid-time/release provenance.");
     }
     std::map<int64_t,double> output;ReservoirLedger state;

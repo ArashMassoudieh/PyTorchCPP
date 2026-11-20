@@ -73,5 +73,43 @@ int main(){
     rejects([&]{adaptCausalNativeIntervals(rows,evidence,days,context,invalidOffset);});
     invalidOffset.daily_pet_utc_start_hour=-1;
     rejects([&]{adaptCausalNativeIntervals(rows,evidence,days,context,invalidOffset);});
+    // Native-v3 rainfall timing is independent of other hourly weather.
+    auto rainPolicy=policy;rainPolicy.hourly_forcing_delay_hours=24;
+    rainPolicy.rainfall_delay_hours=2;rainPolicy.rainfall_release_delay_hours=1;
+    auto distinctive=rows;for(int h=0;h<240;++h)distinctive[h].temperature_c=1000+h;
+    auto independent=adaptCausalNativeIntervals(distinctive,evidence,days,context,rainPolicy);
+    check(independent[99].precipitation_mm_per_hour==97);
+    check(independent[99].temperature_c==1075);
+    check(independent[99].rainfall_valid_end_x==98 && independent[99].rainfall_release_x==99);
+    check(independent[99].observed_runoff_mm_per_hour==out[99].observed_runoff_mm_per_hour);
+    // Future/unreleased rainfall cannot affect the current row.
+    auto rainFuture=distinctive;rainFuture[98].precipitation_mm_per_hour=1e9;
+    auto rainAltered=adaptCausalNativeIntervals(rainFuture,evidence,days,context,rainPolicy);
+    check(rainAltered[99].precipitation_mm_per_hour==independent[99].precipitation_mm_per_hour);
+    check(rainAltered[100].precipitation_mm_per_hour!=independent[100].precipitation_mm_per_hour);
+    auto missingRain=distinctive;missingRain[97].precipitation_valid=false;
+    auto missingOut=adaptCausalNativeIntervals(missingRain,evidence,days,context,rainPolicy);
+    check(!missingOut[99].all_forcings_valid);
+    missingRain=distinctive;missingRain[97].precipitation_mm_per_hour=0;
+    missingOut=adaptCausalNativeIntervals(missingRain,evidence,days,context,rainPolicy);
+    check(missingOut[99].all_forcings_valid && missingOut[99].precipitation_mm_per_hour==0);
+    auto invalidRain=rainPolicy;invalidRain.rainfall_release_delay_hours=3;
+    rejects([&]{adaptCausalNativeIntervals(rows,evidence,days,context,invalidRain);});
+    invalidRain=rainPolicy;invalidRain.rainfall_delay_hours=169;
+    rejects([&]{adaptCausalNativeIntervals(rows,evidence,days,context,invalidRain);});
+    invalidRain=rainPolicy;invalidRain.rainfall_release_delay_hours=-1;
+    rejects([&]{adaptCausalNativeIntervals(rows,evidence,days,context,invalidRain);});
+    invalidRain=policy;invalidRain.rainfall_delay_hours=-2;
+    rejects([&]{adaptCausalNativeIntervals(rows,evidence,days,context,invalidRain);});
+    // Opting in with the old delay reproduces every old numeric/mask field.
+    auto equivalent=policy;equivalent.rainfall_delay_hours=0;equivalent.rainfall_release_delay_hours=0;
+    auto same=adaptCausalNativeIntervals(rows,evidence,days,context,equivalent);
+    for(size_t i=0;i<out.size();++i){
+        check(out[i].precipitation_mm_per_hour==same[i].precipitation_mm_per_hour);
+        check(out[i].temperature_c==same[i].temperature_c);
+        check(out[i].all_forcings_valid==same[i].all_forcings_valid);
+        check(out[i].rainfall_valid_end_x==same[i].rainfall_valid_end_x);
+        check(out[i].rainfall_release_x==same[i].rainfall_release_x);
+    }
     std::cout<<"CAUSAL NATIVE INTERVAL/PET CHECKS PASSED\n";
 }

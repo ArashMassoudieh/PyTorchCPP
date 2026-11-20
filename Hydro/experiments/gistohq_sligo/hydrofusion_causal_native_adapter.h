@@ -18,6 +18,10 @@ struct CausalNativePolicy {
     int64_t daily_pet_delay_hours = -1;
     std::string availability_evidence;
     int64_t daily_pet_utc_start_hour = 0; // Explicit provider-day offset; legacy UTC days unchanged.
+    // Both -1 preserve the exact v1/v2 shared-weather policy. Independent
+    // precipitation timing is opt-in only; age and release delay are distinct.
+    int64_t rainfall_delay_hours = -1;
+    int64_t rainfall_release_delay_hours = -1;
 };
 
 // Shared, torch-free row adapter for all causal forecast families. Native Q is
@@ -34,6 +38,12 @@ inline std::vector<HourlyRow> adaptCausalNativeIntervals(
        policy.daily_pet_delay_hours<0 || policy.daily_pet_delay_hours>168 ||
        policy.availability_evidence.empty() || policy.daily_pet_utc_start_hour<0 || policy.daily_pet_utc_start_hour>23)
         throw std::invalid_argument("Explicit bounded causal availability policy required.");
+    const bool independentRain = policy.rainfall_delay_hours!=-1 || policy.rainfall_release_delay_hours!=-1;
+    if(independentRain && (policy.rainfall_delay_hours<0 || policy.rainfall_delay_hours>168 ||
+       policy.rainfall_release_delay_hours<0 || policy.rainfall_release_delay_hours>policy.rainfall_delay_hours))
+        throw std::invalid_argument("Invalid independent rainfall age/release policy.");
+    const auto rainAge=independentRain?policy.rainfall_delay_hours:policy.hourly_forcing_delay_hours;
+    const auto rainRelease=independentRain?policy.rainfall_release_delay_hours:policy.hourly_forcing_delay_hours;
     if(endpointContext.epoch_zero_seconds!=1420070400 || endpointContext.first_x<1 ||
        endpointContext.end_x_exclusive<=endpointContext.first_x || endpointContext.end_x_exclusive>kSealStartX)
         throw std::invalid_argument("Invalid causal endpoint development slice.");
@@ -77,6 +87,16 @@ inline std::vector<HourlyRow> adaptCausalNativeIntervals(
             row.precipitation_valid=f.precipitation_valid;row.temperature_valid=f.temperature_valid;
             row.relative_humidity_valid=f.relative_humidity_valid;row.wind_valid=f.wind_valid;row.solar_valid=f.solar_valid;
         }
+        if(independentRain){
+            // Do not make temperature/humidity/wind/solar fresher when changing
+            // only precipitation. Missing radar remains missing, never dry zero.
+            const auto rain=byStart.find(origin-rainAge*3600-3600);
+            row.precipitation_valid=false;
+            if(rain!=byStart.end()){
+                row.precipitation_mm_per_hour=rain->second->precipitation_mm_per_hour;
+                row.precipitation_valid=rain->second->precipitation_valid;
+            }
+        }
         // Use ONLY the most recent complete provider day whose release time is no
         // later than origin. Never distribute the current day's eventual total.
         const auto availableBefore=origin-policy.daily_pet_delay_hours*3600;
@@ -96,8 +116,8 @@ inline std::vector<HourlyRow> adaptCausalNativeIntervals(
     }
     auto adapted=adaptNativeHourlyRows(shifted,shiftedEvidence,endpointContext);
     for(auto& row:adapted){
-        row.rainfall_release_x=static_cast<int64_t>(row.x);
-        row.rainfall_valid_end_x=row.rainfall_release_x-policy.hourly_forcing_delay_hours;
+        row.rainfall_valid_end_x=static_cast<int64_t>(row.x)-rainAge;
+        row.rainfall_release_x=row.rainfall_valid_end_x+rainRelease;
     }
     return adapted;
 }

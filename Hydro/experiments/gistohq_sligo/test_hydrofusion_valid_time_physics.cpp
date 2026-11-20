@@ -36,5 +36,14 @@ int main(){
  auto zero=makeSyntheticFixtureRow(30,0);zero.precipitation_mm_per_hour=10;zero.pet_mm_per_hour=0;
  ReservoirLedger z;stepCausalReservoirHourMean(z,10,p);check(causalPhysicalValidTimeDryForecasts({zero},p).at(30)==stepCausalReservoirHourMean(z,0,p));
  check(std::abs(z.inputVolume-z.outflowVolume-z.fastStorage-z.slowStorage)<1e-12);
+ // An already released interval remains causal when used a later hour.
+ // Numeric routing depends on valid time, not an invented fresh release stamp.
+ changed=rows;for(auto& r:changed)--r.rainfall_release_x;
+ check(result==causalPhysicalValidTimeDryForecasts(changed,p));
+ changed=rows;changed[7].rainfall_release_x=changed[7].rainfall_valid_end_x-1;
+ rejects([&]{causalPhysicalValidTimeDryForecasts(changed,p);});
+ // Bound total age, not just delivery delay, before dry-projection iteration.
+ auto stale=makeSyntheticFixtureRow(300,0);stale.rainfall_valid_end_x=0;stale.rainfall_release_x=1;
+ rejects([&]{causalPhysicalValidTimeDryForecasts({stale},p);});
  std::cout<<"PASS valid-time physics checks="<<checks<<'\n';
 }

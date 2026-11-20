@@ -18,7 +18,8 @@ inline std::vector<HourlyRow> loadPreparedNativePackage(const std::string& path,
     auto text=[&](const char* key){if(!m[key].isString()||m[key].toString().isEmpty())throw std::invalid_argument("Missing native manifest string.");return m[key].toString().toStdString();};
     auto integer=[&](const char* key){if(!m[key].isDouble())throw std::invalid_argument("Missing native manifest integer.");const double n=m[key].toDouble();if(!std::isfinite(n)||n!=std::floor(n)||n<0||n>2000000000)throw std::invalid_argument("Invalid native manifest integer.");return static_cast<int64_t>(n);};
     const auto schema=text("schema");
-    const bool referenceEt=schema=="HydroFusionPreparedNative-v2";
+    const bool independentRain=schema=="HydroFusionPreparedNative-v3";
+    const bool referenceEt=schema=="HydroFusionPreparedNative-v2" || independentRain;
     if((schema!="HydroFusionPreparedNative-v1" && !referenceEt) || text("time_label")!="interval_end" ||
        text("study_type")!="idealized_retrospective_causal_hindcast")throw std::invalid_argument("Unsupported native package semantics.");
     const auto csvName=text("interval_csv");if(csvName!="intervals.csv")throw std::invalid_argument("Native CSV must be local intervals.csv.");
@@ -30,6 +31,22 @@ inline std::vector<HourlyRow> loadPreparedNativePackage(const std::string& path,
     // Existing adapter validates area/coverage; raw CSV first-pass validates ALL timestamps.
     auto inputs=loadDevelopmentHourlyInputs(csv,context);
     CausalNativePolicy policy{integer("discharge_delay_hours"),integer("hourly_forcing_delay_hours"),integer("daily_pet_delay_hours"),text("availability_evidence")};
+    const char* rainKeys[]={"rainfall_delay_hours","rainfall_release_delay_hours","rainfall_product","rainfall_availability_basis","rainfall_availability_evidence"};
+    if(independentRain){
+        policy.rainfall_delay_hours=integer("rainfall_delay_hours");
+        policy.rainfall_release_delay_hours=integer("rainfall_release_delay_hours");
+        const auto product=text("rainfall_product");
+        if(product!="MRMS_RadarOnly_QPE_01H" && product!="AORC_hourly" && product!="fabricated_verification")
+            throw std::invalid_argument("Unsupported independent rainfall product; mixed fallback forbidden.");
+        if(text("rainfall_availability_basis")!="assumed_fixed_hourly_delay")
+            throw std::invalid_argument("Native v3 is a retrospective assumed-delay scenario, not operational certification.");
+        text("rainfall_availability_evidence");
+        if(product=="MRMS_RadarOnly_QPE_01H" && policy.rainfall_release_delay_hours<1)
+            throw std::invalid_argument("Hourly radar policy cannot assert publication at the valid interval end.");
+    }else{
+        for(const auto key:rainKeys)if(m.contains(key))
+            throw std::invalid_argument("Versioned native rainfall semantics required.");
+    }
     if(referenceEt){
         policy.daily_pet_utc_start_hour=integer("daily_pet_utc_start_hour");
         if(text("pet_input_semantics")!="short_grass_reference_et")
