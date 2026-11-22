@@ -4,6 +4,14 @@
 namespace hydrofusion {
 struct CausalPhysicsParams { double fast=1, slow=0.1, fraction=0.7, gain=1; };
 struct ReservoirLedger { double fastStorage=0,slowStorage=0,inputVolume=0,outflowVolume=0; };
+// Model context at the forecast issue time, not a future observation. Current
+// flow is the model mean for [origin-1,origin), next flow for [origin,origin+1).
+// The ledger is the uncommitted dry-projection copy AT origin, before next hour.
+struct CausalPhysicalOriginContext {
+    int64_t origin_x=0,rainfall_valid_end_x=0,rainfall_release_x=0,segment_age_hours=0;
+    double current_hour_mean=0,next_hour_mean=0;
+    ReservoirLedger ledger_at_origin;
+};
 inline void validateCausalPhysics(const CausalPhysicsParams& p) {
     if(!std::isfinite(p.fast)||p.fast<=0||!std::isfinite(p.slow)||p.slow<=0||
        !std::isfinite(p.fraction)||p.fraction<0||p.fraction>1||!std::isfinite(p.gain)||p.gain<0)
@@ -85,8 +93,10 @@ inline std::map<int64_t,double> causalPhysicalHourlyMeans(const std::vector<Hour
 // Missing rainfall between the latest known interval and target is explicitly
 // assumed zero, NOT asserted observed dry. PET is the estimate available at
 // origin, not future/current-day realized ET. No Q assimilation or calibration.
-inline std::map<int64_t,double> causalPhysicalValidTimeDryForecasts(
-    const std::vector<HourlyRow>& rows,const CausalPhysicsParams& params){
+inline std::map<int64_t,double> causalPhysicalValidTimeDryForecastsWithContext(
+    const std::vector<HourlyRow>& rows,const CausalPhysicsParams& params,
+    std::map<int64_t,CausalPhysicalOriginContext>* contexts){
+    if(contexts && !contexts->empty())throw std::invalid_argument("Physical context output must be empty.");
     validateCausalPhysics(params);HourlyIndex checked(rows);(void)checked;
     // Validate the complete identity domain before any forcing is inspected.
     for(const auto& row:rows){
@@ -97,7 +107,7 @@ inline std::map<int64_t,double> causalPhysicalValidTimeDryForecasts(
             throw std::invalid_argument("v3 requires explicit bounded valid-time/release provenance.");
     }
     std::map<int64_t,double> output;ReservoirLedger state;
-    int64_t previousOrigin=-2,previousValidEnd=-2;
+    int64_t previousOrigin=-2,previousValidEnd=-2,segmentStart=-2;
     for(const auto& row:rows){
         const auto origin=static_cast<int64_t>(row.x);
         if(!row.all_forcings_valid){state={};previousOrigin=previousValidEnd=-2;continue;}
@@ -109,14 +119,43 @@ inline std::map<int64_t,double> causalPhysicalValidTimeDryForecasts(
         // forcing. Reject within a segment rather than silently revising state.
         if(origin==previousOrigin+1 && validEnd!=previousValidEnd+1)
             throw std::invalid_argument("v3 release stream must advance valid time hourly.");
-        if(origin!=previousOrigin+1)state={};
-        stepCausalReservoirHourMean(state,std::max(0.,row.precipitation_mm_per_hour-row.pet_mm_per_hour),params);
+        if(origin!=previousOrigin+1){state={};segmentStart=origin;}
+        double currentMean=stepCausalReservoirHourMean(state,std::max(0.,row.precipitation_mm_per_hour-row.pet_mm_per_hour),params);
         auto forecast=state;
         // state is at validEnd. Advance to origin, then forecast [origin,origin+1).
-        for(int64_t hour=validEnd;hour<origin;++hour)stepCausalReservoirHourMean(forecast,0.,params);
-        output.emplace(origin,stepCausalReservoirHourMean(forecast,0.,params));
+        // With age0 the committed step itself is the current-hour mean.
+        for(int64_t hour=validEnd;hour<origin;++hour)currentMean=stepCausalReservoirHourMean(forecast,0.,params);
+        const auto atOrigin=forecast;
+        const double nextMean=stepCausalReservoirHourMean(forecast,0.,params);
+        output.emplace(origin,nextMean);
+        if(contexts)contexts->emplace(origin,CausalPhysicalOriginContext{origin,validEnd,row.rainfall_release_x,origin-segmentStart,currentMean,nextMean,atOrigin});
         previousOrigin=origin;previousValidEnd=validEnd;
     }
     return output;
+}
+// Preserve the original two-argument source interface and default behavior.
+inline std::map<int64_t,double> causalPhysicalValidTimeDryForecasts(
+    const std::vector<HourlyRow>& rows,const CausalPhysicsParams& params){
+    return causalPhysicalValidTimeDryForecastsWithContext(rows,params,nullptr);
+}
+inline std::map<int64_t,CausalPhysicalOriginContext> causalPhysicalOriginContexts(
+    const std::vector<HourlyRow>& rows,const CausalPhysicsParams& params){
+    std::map<int64_t,CausalPhysicalOriginContext> contexts;
+    causalPhysicalValidTimeDryForecastsWithContext(rows,params,&contexts);
+    return contexts;
+}
+// Proposed observed-Q anchor, NOT assimilation into reservoir storage. A flat
+// physical increment gives persistence. This alone does not close a water budget.
+inline double dischargeAnchoredPhysicalReference(double observedOriginQ,const CausalPhysicalOriginContext& c){
+    if(c.origin_x<0 || c.origin_x>=kSealStartX-1 || c.rainfall_valid_end_x<0 ||
+       c.rainfall_valid_end_x>c.rainfall_release_x || c.rainfall_release_x>c.origin_x ||
+       c.origin_x-c.rainfall_valid_end_x>168 || c.segment_age_hours<0 ||
+       !std::isfinite(observedOriginQ) || observedOriginQ<0 ||
+       !std::isfinite(c.current_hour_mean) || c.current_hour_mean<0 ||
+       !std::isfinite(c.next_hour_mean) || c.next_hour_mean<0)
+        throw std::invalid_argument("Invalid causal discharge-anchor context.");
+    const double value=observedOriginQ+(c.next_hour_mean-c.current_hour_mean);
+    if(!std::isfinite(value))throw std::overflow_error("Discharge-anchor reconstruction overflow.");
+    return std::max(0.,value);
 }
 } // namespace hydrofusion
