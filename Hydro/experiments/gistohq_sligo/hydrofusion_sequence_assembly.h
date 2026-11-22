@@ -7,8 +7,14 @@ namespace hydrofusion {
 // Additive LSTM assembly. Scales MUST be fitted on the returned Train tensors;
 // q_ref is recomputed on final sequence-eligible training TARGET timestamps.
 inline PreparedData prepareHydroFusionSequenceData(const std::vector<HourlyRow>& rows,
-    TargetMode mode,const SplitCutoffs& cutoffs,int64_t length) {
+    TargetMode mode,const SplitCutoffs& cutoffs,int64_t length,bool developmentOnly=false) {
     validateTargetMode(mode);
+    validateSplitCutoffs(cutoffs);
+    // Reject later identities BEFORE sequence construction can inspect any Q.
+    if(developmentOnly){
+        HourlyIndex identities(rows);(void)identities;
+        for(const auto& row:rows)if(row.x>cutoffs.validation_end_x)throw std::invalid_argument("Development assembly refuses rows after validation before reading values.");
+    }
     const auto sequences=buildForecastSequences(rows,cutoffs,length);
     HourlyIndex index(rows);
     auto records=runPersistenceBenchmark(index,rows,cutoffs);
@@ -38,7 +44,7 @@ inline PreparedData prepareHydroFusionSequenceData(const std::vector<HourlyRow>&
         DatasetSplit out;out.x=torch::stack(inputs[partition]);out.y=torch::stack(targets[partition]);
         out.originQ=torch::stack(origins[partition]);out.originX=originX[partition];out.targetX=targetX[partition];out.observedTargetQ=observed[partition];return out;
     };
-    data.train=split(SplitPartition::Train);data.validation=split(SplitPartition::Validation);data.test=split(SplitPartition::Test);
+    data.train=split(SplitPartition::Train);data.validation=split(SplitPartition::Validation);if(!developmentOnly)data.test=split(SplitPartition::Test);
     return data;
 }
 } // namespace hydrofusion

@@ -7,17 +7,24 @@
 
 HydroRunResult HydroFusionForecastWrapper::train(const HydroRunConfig& c,const std::string& approach){
     using namespace hydrofusion;validateForecastConfig(c,approach);
-    const auto rows=c.hydrofusion_synthetic_verification?buildSyntheticFixture():loadPreparedNativePackage(c.hydrofusion_native_manifest_path,c.hydrofusion_native_manifest_sha256);const auto mode=forecastTargetMode(c);
-    auto data=prepareHydroFusionSequenceData(rows,mode,{c.train_end_x,c.validation_end_x,c.test_end_x},24);
+    const auto rows=c.hydrofusion_synthetic_verification?buildSyntheticFixture(c.hydrofusion_development_only?std::min<int64_t>(299,c.validation_end_x):299):loadPreparedNativePackage(c.hydrofusion_native_manifest_path,c.hydrofusion_native_manifest_sha256,c.hydrofusion_development_only?c.validation_end_x:kSealStartX-1);const auto mode=forecastTargetMode(c);
+    auto data=prepareHydroFusionSequenceData(rows,mode,{c.train_end_x,c.validation_end_x,c.test_end_x},c.lstm_sequence_length,c.hydrofusion_development_only);
     std::map<int64_t,double> physics;if(isPhysicalForecast(approach))physics=forecastPhysicalSeries(rows,c);
-    const auto trainRef=forecastReference(data.train,physics,isPhysicalForecast(approach));
-    const auto valRef=forecastReference(data.validation,physics,isPhysicalForecast(approach));
-    const auto testRef=forecastReference(data.test,physics,isPhysicalForecast(approach));
+    std::map<int64_t,CausalPhysicalOriginContext> contexts;
+    if(forecastRecipeV4(c)){
+        contexts=causalPhysicalOriginContexts(rows,forecastPhysics(c));
+        addForecastContext(data.train,contexts,c,data.qRef);addForecastContext(data.validation,contexts,c,data.qRef);
+        if(!c.hydrofusion_development_only)addForecastContext(data.test,contexts,c,data.qRef);
+    }
+    const auto trainRef=forecastRecipeV4(c)?contextReferences(data.train,contexts,c):forecastReference(data.train,physics,isPhysicalForecast(approach));
+    const auto valRef=forecastRecipeV4(c)?contextReferences(data.validation,contexts,c):forecastReference(data.validation,physics,isPhysicalForecast(approach));
+    const auto& evaluation=c.hydrofusion_development_only?data.validation:data.test;
+    const auto testRef=forecastRecipeV4(c)?contextReferences(evaluation,contexts,c):forecastReference(evaluation,physics,isPhysicalForecast(approach));
     const bool physicalOnly=approach=="pinn_causal_forecast";
     const double qref=physicalOnly?1.0:data.qRef;
     auto trainY=forecastTargets(data.train,mode,qref,trainRef),valY=forecastTargets(data.validation,mode,qref,valRef);
     TensorScaler xs,ys;ForecastNet net{nullptr};HydroRunResult result;
-    const double flowScale=c.hydrofusion_objective=="log_flow_mse_v2"?forecastFlowScale(data.train,{c.train_end_x,c.validation_end_x,c.test_end_x}):1.;
+    const double flowScale=c.hydrofusion_objective=="log_flow_mse_v2"?forecastFlowScale(data.train,{c.train_end_x,c.validation_end_x,c.test_end_x},c.lstm_sequence_length):1.;
     torch::Tensor trainObserved,validationObserved;
     if(c.hydrofusion_objective=="log_flow_mse_v2"){
         trainObserved=torch::tensor(data.train.observedTargetQ,torch::kFloat64).reshape({-1,1});
@@ -25,7 +32,7 @@ HydroRunResult HydroFusionForecastWrapper::train(const HydroRunConfig& c,const s
     }
     if(!physicalOnly){
         xs.fit(data.train.x,"standardize");ys.fit(trainY,"standardize");
-        torch::manual_seed(static_cast<uint64_t>(std::max(0,c.random_seed)));net=ForecastNet(isRecurrentForecast(approach),forecastHidden(c),c.hydrofusion_ffn_activation=="silu");
+        torch::manual_seed(static_cast<uint64_t>(std::max(0,c.random_seed)));net=ForecastNet(isRecurrentForecast(approach),forecastHidden(c),c.hydrofusion_ffn_activation=="silu",forecastRecipeV4(c)?25:20,parseForecastHistory(c.hydrofusion_history_hours,c.lstm_sequence_length));
         torch::optim::Adam optimizer(net->parameters(),torch::optim::AdamOptions(c.learning_rate));
         double best=std::numeric_limits<double>::infinity();std::string bestBytes;
         for(int epoch=1;epoch<=c.epochs;++epoch){
@@ -55,14 +62,14 @@ HydroRunResult HydroFusionForecastWrapper::train(const HydroRunConfig& c,const s
     std::ostringstream saved;checkpoint.save_to(saved);const auto raw=saved.str();result.model_checkpoint.assign(raw.begin(),raw.end());result.model_checkpoint_format=forecastCheckpointFormat(c);
     torch::NoGradGuard guard;
     if(physicalOnly){auto values=testRef.contiguous();result.y_pred.assign(values.data_ptr<double>(),values.data_ptr<double>()+values.numel());}
-    else result.y_pred=forecastReconstruct(mode,ys.inverseTransform(net->forward(xs.transform(data.test.x))),testRef,qref);
+    else result.y_pred=forecastReconstruct(mode,ys.inverseTransform(net->forward(xs.transform(evaluation.x))),testRef,qref);
     std::vector<double> valPred;
     if(physicalOnly){auto values=valRef.contiguous();valPred.assign(values.data_ptr<double>(),values.data_ptr<double>()+values.numel());}
     else valPred=forecastReconstruct(mode,ys.inverseTransform(net->forward(xs.transform(data.validation.x))),valRef,qref);
     result.validation_mse=0;for(size_t i=0;i<valPred.size();++i){const auto e=valPred[i]-data.validation.observedTargetQ[i];result.validation_mse+=e*e;}result.validation_mse/=valPred.size();
-    result.y_true=data.test.observedTargetQ;result.split.assign(result.y_pred.size(),"test");
-    for(auto x:data.test.targetX)result.x.push_back(static_cast<double>(x));
-    result.success=true;populateHydroMetrics(result,result.y_true,result.y_pred);populateHydroPeakMetrics(result);
-    result.hydrofusion_target_mode=c.hydrofusion_target_mode;result.hydrofusion_q_ref=qref;result.hydrofusion_train_end_x=c.train_end_x;result.hydrofusion_validation_end_x=c.validation_end_x;result.hydrofusion_test_end_x=c.test_end_x;result.hydrofusion_test_origin_x=data.test.originX;
+    result.y_true=evaluation.observedTargetQ;result.split.assign(result.y_pred.size(),c.hydrofusion_development_only?"validation":"test");
+    for(auto x:evaluation.targetX)result.x.push_back(static_cast<double>(x));
+    result.success=true;populateHydroMetrics(result,result.y_true,result.y_pred);populateHydroPeakMetrics(result,c.hydrofusion_development_only?"validation":"test");
+    result.hydrofusion_target_mode=c.hydrofusion_target_mode;result.hydrofusion_q_ref=qref;result.hydrofusion_train_end_x=c.train_end_x;result.hydrofusion_validation_end_x=c.validation_end_x;result.hydrofusion_test_end_x=c.test_end_x;result.hydrofusion_test_origin_x=evaluation.originX;
     return result;
 }

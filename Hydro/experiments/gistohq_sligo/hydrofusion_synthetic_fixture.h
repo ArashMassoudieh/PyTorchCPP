@@ -32,10 +32,11 @@ inline HourlyRow makeSyntheticFixtureRow(int64_t hour, double q) {
     return row;
 }
 
-inline std::vector<HourlyRow> buildSyntheticFixture() {
+inline std::vector<HourlyRow> buildSyntheticFixture(int64_t maximumHour=299) {
+    if(maximumHour<0||maximumHour>299)throw std::invalid_argument("Synthetic fixture hour out of bounds.");
     std::vector<HourlyRow> rows;
     rows.reserve(300);
-    for (int64_t h = 0; h < 300; ++h) {
+    for (int64_t h = 0; h <= maximumHour; ++h) {
         const double baseflow = 0.5 + 0.002 * static_cast<double>(h);
         const double stormPhase = static_cast<double>(h % 60);
         const double storm = stormPhase < 10 ? 2.0 * std::exp(-stormPhase / 4.0) : 0.0;

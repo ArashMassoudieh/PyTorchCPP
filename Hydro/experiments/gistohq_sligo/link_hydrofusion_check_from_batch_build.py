@@ -40,7 +40,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('batch_binary')
     p.add_argument('output')
-    p.add_argument('--check', choices=['reload','integration','legacy_inference','exporter','five_forecast'], default='reload')
+    p.add_argument('--check', choices=['reload','integration','legacy_inference','exporter','five_forecast','native_forecast','context_network'], default='reload')
     p.add_argument('--integration-test-source', help='Copy an updated test main; all production headers remain frozen')
     args = p.parse_args()
     binary, output = Path(args.batch_binary).absolute(), Path(args.output).absolute()
@@ -64,7 +64,9 @@ def main():
         'integration': 'Hydro/experiments/gistohq_sligo/hydrofusion_ffn_engine_integration_test.cpp',
         'legacy_inference': 'Hydro/tests/inference_runner_test.cpp',
         'exporter': 'Hydro/tests/experiment_exporter_test.cpp',
-        'five_forecast': 'Hydro/experiments/gistohq_sligo/hydrofusion_five_forecast_reload_check.cpp'}
+        'five_forecast': 'Hydro/experiments/gistohq_sligo/hydrofusion_five_forecast_reload_check.cpp',
+        'native_forecast': 'Hydro/experiments/gistohq_sligo/hydrofusion_native_family_reproduction.cpp',
+        'context_network': 'Hydro/experiments/gistohq_sligo/test_hydrofusion_context_network.cpp'}
     main_source = frozen/sources[args.check]
     extra_includes = []
     if args.integration_test_source:

@@ -191,7 +191,7 @@ std::map<std::string, HydroModelArtifact> HydroArtifactLoader::loadModels(
         if (fields.size() != 5 || fields[0].empty()) throw std::runtime_error("Invalid models.csv row " + std::to_string(row) + ".");
         if (!safeRelativePath(fields[1])) throw std::runtime_error("Model artifact path escapes the experiment directory.");
         if (fields[2] != "neuralnetworkwrapper-v1" && fields[2] != "torch-module-v1" &&
-            fields[2] != "torch-module-v1-multiscale" && fields[2] != "hydrofusion-forecast-v1" && fields[2] != "hydrofusion-forecast-v2" && fields[2] != "hydrofusion-forecast-v3") {
+            fields[2] != "torch-module-v1-multiscale" && fields[2] != "hydrofusion-forecast-v1" && fields[2] != "hydrofusion-forecast-v2" && fields[2] != "hydrofusion-forecast-v3" && fields[2] != "hydrofusion-forecast-v4") {
             throw std::runtime_error("Unsupported model checkpoint format: " + fields[2]);
         }
         std::size_t expectedSize = 0;
@@ -304,6 +304,12 @@ std::map<std::string, HydroArtifactScalers> HydroArtifactLoader::loadScalers(
 
 std::map<std::string, HydroRunResult> HydroArtifactLoader::loadPredictions(
     const std::string& experimentDirectory) const {
+    HydroRunConfig predictionConfig;
+    const auto configPath=std::filesystem::path(experimentDirectory)/"experiment_config.json";
+    if(std::filesystem::exists(configPath))predictionConfig=HydroExperimentLoader().loadConfig(configPath.string()).config;
+    const bool developmentOnly=predictionConfig.hydrofusion_development_only;
+    if(developmentOnly&&!hydrofusion::forecastRecipeV4(predictionConfig))throw std::runtime_error("Development predictions require explicit v4 context recipe.");
+    const std::string evaluationSplit=developmentOnly?"validation":"test";
     std::ifstream input(std::filesystem::path(experimentDirectory) / "predictions.csv");
     if (!input) throw std::runtime_error("Experiment is missing predictions.csv.");
     std::string line;
@@ -335,6 +341,7 @@ std::map<std::string, HydroRunResult> HydroArtifactLoader::loadPredictions(
             throw std::runtime_error("Prediction indices are not contiguous in row " + std::to_string(row) + ".");
         }
         const double x = parseFiniteDouble(fields[3], "x", row);
+        if(developmentOnly&&(!hydrofusion::isExtendedForecast(fields[0])||fields[2]!="validation"||x!=std::floor(x)||x<=predictionConfig.train_end_x||x>predictionConfig.validation_end_x||x>=77016))throw std::runtime_error("Development predictions refuse non-validation identities before observation parsing.");
         const double observed = parseFiniteDouble(fields[4], "observed", row);
         const double predicted = parseFiniteDouble(fields[5], "predicted", row);
         const double residual = parseFiniteDouble(fields[6], "residual", row);
@@ -355,15 +362,15 @@ std::map<std::string, HydroRunResult> HydroArtifactLoader::loadPredictions(
         std::vector<double> observedTest;
         std::vector<double> predictedTest;
         for (std::size_t i = 0; i < entry.second.split.size(); ++i) {
-            if (entry.second.split[i] != "test") continue;
+            if (entry.second.split[i] != evaluationSplit) continue;
             observedTest.push_back(entry.second.y_true[i]);
             predictedTest.push_back(entry.second.y_pred[i]);
         }
         if (observedTest.empty()) {
-            throw std::runtime_error("Exported predictions contain no test partition for approach: " + entry.first);
+            throw std::runtime_error("Exported predictions contain no " + evaluationSplit + " partition for approach: " + entry.first);
         }
         populateHydroMetrics(entry.second, observedTest, predictedTest);
-        populateHydroPeakMetrics(entry.second);
+        populateHydroPeakMetrics(entry.second,evaluationSplit);
     }
     return results;
 }

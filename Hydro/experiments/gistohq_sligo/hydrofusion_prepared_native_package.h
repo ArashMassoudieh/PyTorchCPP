@@ -9,7 +9,7 @@
 namespace hydrofusion {
 // Prepared package is a NEW pinned interchange, not a permissive replacement for
 // GIStoOHQ's legacy loader. Python preparation independently checks the producer.
-inline std::vector<HourlyRow> loadPreparedNativePackage(const std::string& path,const std::string& digest){
+inline std::vector<HourlyRow> loadPreparedNativePackage(const std::string& path,const std::string& digest,int64_t maximumTargetX=kSealStartX-1){
     if(digest.size()!=64 || sha256File(path)!=digest)throw std::invalid_argument("Native manifest hash mismatch.");
     std::ifstream f(path,std::ios::binary);std::string bytes((std::istreambuf_iterator<char>(f)),{});
     QJsonParseError error;auto document=QJsonDocument::fromJson(QByteArray::fromStdString(bytes),&error);
@@ -28,6 +28,7 @@ inline std::vector<HourlyRow> loadPreparedNativePackage(const std::string& path,
     NativeAdapterContext context;context.first_x=integer("first_interval_x");context.end_x_exclusive=integer("end_interval_x_exclusive");
     if(!m["catchment_area_m2"].isDouble()||!m["minimum_native_coverage"].isDouble())throw std::invalid_argument("Native area/coverage required.");
     context.catchment_area_m2=m["catchment_area_m2"].toDouble();context.minimum_native_coverage=m["minimum_native_coverage"].toDouble();context.expected_source_id=text("source_id");
+    if(maximumTargetX<1||maximumTargetX>=kSealStartX||context.end_x_exclusive>maximumTargetX)throw std::invalid_argument("Native package exceeds authorized target cutoff before observation parsing.");
     // Existing adapter validates area/coverage; raw CSV first-pass validates ALL timestamps.
     const bool independentMasks=m.contains("interval_mask_schema");
     if(independentMasks && (!independentRain || text("interval_mask_schema")!="independent_rain_and_common_origin_v1"))

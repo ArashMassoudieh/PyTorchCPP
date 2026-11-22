@@ -294,6 +294,14 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.hydrofusion_synthetic_verification = optionalBoolValue(json, "hydrofusion_synthetic_verification", false);
     c.hydrofusion_native_manifest_path = optionalStringValue(json, "hydrofusion_native_manifest_path", "");
     c.hydrofusion_native_manifest_sha256 = optionalStringValue(json, "hydrofusion_native_manifest_sha256", "");
+    // Scope/recipe controls must never silently fall back on a wrong JSON type.
+    const auto hasForecastField=[&](const std::string& key){
+        rejectDuplicateField(json,key);
+        return std::regex_search(json,std::regex("\\\""+key+"\\\"\\s*:"));
+    };
+    c.hydrofusion_development_only = hasForecastField("hydrofusion_development_only") ? boolValue(json, "hydrofusion_development_only") : false;
+    c.hydrofusion_context_recipe = hasForecastField("hydrofusion_context_recipe") ? stringValue(json, "hydrofusion_context_recipe") : "legacy20";
+    c.hydrofusion_history_hours = hasForecastField("hydrofusion_history_hours") ? stringValue(json, "hydrofusion_history_hours") : "0";
     c.hydrofusion_objective = optionalStringValue(json, "hydrofusion_objective", "log_mse_v1");
     c.hydrofusion_ffn_activation = optionalStringValue(json, "hydrofusion_ffn_activation", "tanh");
     if(c.hydrofusion_objective!="log_mse_v1" && c.hydrofusion_objective!="log_flow_mse_v2") throw std::runtime_error("Unknown hydrofusion_objective.");

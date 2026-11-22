@@ -158,7 +158,7 @@ bool supportedApproach(const std::string& approach) {
 }
 
 bool checkpointFormatMatchesApproach(const std::string& approach, const std::string& format) {
-    if (hydrofusion::isExtendedForecast(approach)) return format == "hydrofusion-forecast-v1" || format == "hydrofusion-forecast-v2" || format == "hydrofusion-forecast-v3";
+    if (hydrofusion::isExtendedForecast(approach)) return format == "hydrofusion-forecast-v1" || format == "hydrofusion-forecast-v2" || format == "hydrofusion-forecast-v3" || format == "hydrofusion-forecast-v4";
     // Opt-in HydroFusion forecasting mode: reuses NeuralNetworkWrapper
     // exactly like plain "ffn", so the same checkpoint-format rule
     // applies -- see Hydro/models/ffn_hydrofusion_wrapper.cpp.
@@ -249,17 +249,22 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     if (results.empty()) throw std::invalid_argument("Hydro experiment export requires at least one result.");
     for (const auto& entry : results) validateExportResult(entry.first, entry.second);
     auto exportResults = results;
+    const std::string evaluationSplit=config.hydrofusion_development_only?"validation":"test";
     for (auto& entry : exportResults) {
+        if(config.hydrofusion_development_only){
+            if(!hydrofusion::isExtendedForecast(entry.first)||!hydrofusion::forecastRecipeV4(config)||entry.second.model_checkpoint_format!=hydrofusion::forecastCheckpointFormat(config))throw std::invalid_argument("Development export requires explicit v4 forecast.");
+            for(size_t i=0;i<entry.second.x.size();++i)if(entry.second.split[i]!="validation"||entry.second.x[i]<=config.train_end_x||entry.second.x[i]>config.validation_end_x)throw std::invalid_argument("Development export refuses non-validation support.");
+        }
         std::vector<double> observedTest;
         std::vector<double> predictedTest;
         for (std::size_t i = 0; i < entry.second.split.size(); ++i) {
-            if (entry.second.split[i] != "test") continue;
+            if (entry.second.split[i] != evaluationSplit) continue;
             observedTest.push_back(entry.second.y_true[i]);
             predictedTest.push_back(entry.second.y_pred[i]);
         }
-        if (observedTest.empty()) throw std::invalid_argument("Hydro export requires held-out test samples for: " + entry.first);
+        if (observedTest.empty()) throw std::invalid_argument("Hydro export requires " + evaluationSplit + " samples for: " + entry.first);
         populateHydroMetrics(entry.second, observedTest, predictedTest);
-        populateHydroPeakMetrics(entry.second);
+        populateHydroPeakMetrics(entry.second,evaluationSplit);
         if (!entry.second.physics_residual.empty()) populateHydroPhysicsResidualMetrics(entry.second);
     }
     StagedExperimentDirectory staged(std::filesystem::path(outputDirectory) / experimentId);
@@ -323,6 +328,9 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
               << "  \"hydrofusion_native_manifest_sha256\": \"" << escapeJson(config.hydrofusion_native_manifest_sha256) << "\",\n"
               << "  \"hydrofusion_objective\": \"" << escapeJson(config.hydrofusion_objective) << "\",\n"
               << "  \"hydrofusion_ffn_activation\": \"" << escapeJson(config.hydrofusion_ffn_activation) << "\",\n"
+              << "  \"hydrofusion_context_recipe\": \"" << escapeJson(config.hydrofusion_context_recipe) << "\",\n"
+              << "  \"hydrofusion_development_only\": " << (config.hydrofusion_development_only ? "true" : "false") << ",\n"
+              << "  \"hydrofusion_history_hours\": \"" << escapeJson(config.hydrofusion_history_hours) << "\",\n"
               << "  \"hydrofusion_target_mode\": \"" << escapeJson(config.hydrofusion_target_mode) << "\",\n"
               << "  \"normalization\": \"" << escapeJson(config.normalization) << "\",\n"
               << "  \"hidden_layers\": \"" << escapeJson(config.hidden_layers_csv) << "\",\n"
