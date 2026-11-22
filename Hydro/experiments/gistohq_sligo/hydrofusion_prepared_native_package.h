@@ -29,7 +29,10 @@ inline std::vector<HourlyRow> loadPreparedNativePackage(const std::string& path,
     if(!m["catchment_area_m2"].isDouble()||!m["minimum_native_coverage"].isDouble())throw std::invalid_argument("Native area/coverage required.");
     context.catchment_area_m2=m["catchment_area_m2"].toDouble();context.minimum_native_coverage=m["minimum_native_coverage"].toDouble();context.expected_source_id=text("source_id");
     // Existing adapter validates area/coverage; raw CSV first-pass validates ALL timestamps.
-    auto inputs=loadDevelopmentHourlyInputs(csv,context);
+    const bool independentMasks=m.contains("interval_mask_schema");
+    if(independentMasks && (!independentRain || text("interval_mask_schema")!="independent_rain_and_common_origin_v1"))
+        throw std::invalid_argument("Versioned independent native interval masks required.");
+    auto inputs=loadDevelopmentHourlyInputs(csv,context,independentMasks);
     CausalNativePolicy policy{integer("discharge_delay_hours"),integer("hourly_forcing_delay_hours"),integer("daily_pet_delay_hours"),text("availability_evidence")};
     const char* rainKeys[]={"rainfall_delay_hours","rainfall_release_delay_hours","rainfall_product","rainfall_availability_basis","rainfall_availability_evidence"};
     if(independentRain){
@@ -70,6 +73,13 @@ inline std::vector<HourlyRow> loadPreparedNativePackage(const std::string& path,
     context.first_x+=1;context.end_x_exclusive+=1;
     auto result=adaptCausalNativeIntervals(inputs.rows,inputs.evidence,pet,context,policy);
     if(static_cast<int64_t>(result.size())!=integer("row_count"))throw std::invalid_argument("Native row count mismatch.");
+    // Study mask describes forcing availability AT this origin, after the
+    // independent rain/met delays. Never alter Q/native-support evidence.
+    // This removes sample eligibility, not physical forcing/state evolution.
+    if(independentMasks){
+        if(inputs.common_origin_forcing_available.size()!=result.size())throw std::invalid_argument("Native common-origin mask size mismatch.");
+        for(size_t i=0;i<result.size();++i)result[i].study_predictor_available=inputs.common_origin_forcing_available[i];
+    }
     return result;
 }
 } // namespace hydrofusion

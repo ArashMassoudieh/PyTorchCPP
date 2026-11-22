@@ -8,20 +8,22 @@ namespace hydrofusion {
 // Deliberately new DEVELOPMENT interchange, NOT a GIStoOHQ manifest parser.
 // Row schema fixes all units in the header; context supplies epoch/area/source.
 // No real-source path is wired into model training by this reader.
-struct NativeHourlyInputs { std::vector<GisToOhqHourlyRow> rows; std::vector<NativeSupportEvidence> evidence; };
+struct NativeHourlyInputs { std::vector<GisToOhqHourlyRow> rows; std::vector<NativeSupportEvidence> evidence; std::vector<bool> common_origin_forcing_available; };
 inline NativeHourlyInputs loadDevelopmentHourlyInputs(
-    const std::filesystem::path& csv, const NativeAdapterContext& context) {
+    const std::filesystem::path& csv, const NativeAdapterContext& context, bool independentMasks=false) {
     std::ifstream stream(csv);
     if (!stream) throw std::invalid_argument("Cannot open development hourly package.");
     std::string line;
-    if (!std::getline(stream,line) || line != "epoch_seconds,q_m3_s,p_mm_h,t_c,rh_pct,wind_m_s,solar_mj_m2_h,pet_mm_h,forcing_valid,discharge_valid,native,interpolated,native_coverage,source_id")
+    const std::string header="epoch_seconds,q_m3_s,p_mm_h,t_c,rh_pct,wind_m_s,solar_mj_m2_h,pet_mm_h,forcing_valid,discharge_valid,native,interpolated,native_coverage,source_id";
+    if (!std::getline(stream,line) || line != header+(independentMasks?",rainfall_valid,common_origin_forcing_available":""))
         throw std::invalid_argument("Unexpected development package schema/units.");
     std::vector<GisToOhqHourlyRow> rows;
     std::vector<NativeSupportEvidence> support;
-    auto fields=[](const std::string& row) {
+    std::vector<bool> commonOrigin;
+    auto fields=[&](const std::string& row) {
         std::vector<std::string> out; size_t start=0;
         for (;;) {const auto end=row.find(',',start);out.push_back(row.substr(start,end-start));if(end==std::string::npos)break;start=end+1;}
-        if(out.size()!=14)throw std::invalid_argument("Development package requires exactly fourteen fields.");
+        if(out.size()!=(independentMasks?16u:14u))throw std::invalid_argument("Development package field count mismatch.");
         return out;
     };
     auto integer=[](const std::string& token) {
@@ -67,9 +69,10 @@ inline NativeHourlyInputs loadDevelopmentHourlyInputs(
         r.all_forcings_valid=flag(f[8]);r.precipitation_valid=r.temperature_valid=r.relative_humidity_valid=
             r.wind_valid=r.solar_valid=r.pet_valid=r.all_forcings_valid;
         r.discharge_valid=flag(f[9]);
+        if(independentMasks){r.precipitation_valid=flag(f[14]);commonOrigin.push_back(flag(f[15]));}
         support.push_back({r.epoch_seconds,flag(f[10]),flag(f[11]),number(f[12]),f[13]});rows.push_back(r);
     }
-    return {std::move(rows),std::move(support)};
+    return {std::move(rows),std::move(support),std::move(commonOrigin)};
 }
 inline std::vector<HourlyRow> loadDevelopmentHourlyPackage(
     const std::filesystem::path& csv, const NativeAdapterContext& context) {

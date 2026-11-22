@@ -30,6 +30,22 @@ int main(int argc,char** argv){try{
     if(!physicalOnly){xs.importState(artifacts.scalers.at(approach).input);ys.importState(artifacts.scalers.at(approach).target);}
     std::map<int64_t,double> physics;
     if(isPhysicalForecast(approach))physics=forecastPhysicalSeries(rows,c);
+    // Recompute transform statistics from the eligible TRAIN tensors only;
+    // archive integrity alone cannot prove how a scaler was fitted.
+    if(!physicalOnly){
+        TensorScaler expectedX,expectedY;
+        expectedX.fit(data.train.x,"standardize");
+        const auto reference=forecastReference(data.train,physics,isPhysicalForecast(approach));
+        expectedY.fit(forecastTargets(data.train,forecastTargetMode(c),metadata.qRef,reference),"standardize");
+        auto same=[](const HydroScalerState& a,const HydroScalerState& b){return a.method==b.method && a.shape==b.shape && a.offset==b.offset && a.scale==b.scale;};
+        if(!same(expectedX.exportState(),artifacts.scalers.at(approach).input) || !same(expectedY.exportState(),artifacts.scalers.at(approach).target))
+            throw std::runtime_error("Archived scalers differ from training-only eligible support.");
+        if(c.hydrofusion_objective=="log_flow_mse_v2"){
+            torch::Tensor scale;archive.read("training_flow_scale",scale);
+            if(scale.scalar_type()!=torch::kFloat64 || scale.numel()!=1 || scale.item<double>()!=forecastFlowScale(data.train,{c.train_end_x,c.validation_end_x,c.test_end_x}))
+                throw std::runtime_error("Archived flow scale differs from training-only eligible support.");
+        }
+    }
     torch::NoGradGuard guard;
     auto predict=[&](const DatasetSplit& split){
         auto reference=forecastReference(split,physics,isPhysicalForecast(approach)).contiguous();

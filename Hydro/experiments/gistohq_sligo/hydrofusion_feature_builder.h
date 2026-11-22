@@ -52,6 +52,9 @@ struct HourlyRow {
     // Rainfall interval end and declared release hour; absent on legacy rows.
     int64_t rainfall_valid_end_x = -1;
     int64_t rainfall_release_x = -1;
+    // Optional matched-study support, separate from actual met availability so
+    // it never resets/replaces the physical model's own forcing/state stream.
+    bool study_predictor_available = true;
 };
 
 // Twenty-feature allowlist from the frozen contract, section 4. Field
@@ -325,7 +328,7 @@ inline std::optional<Sample> buildSample(const HourlyIndex& idx, const std::vect
         }
     }
 
-    const bool metGroupComplete = originRow.all_forcings_valid && detail::metRowIsNumericallySound(originRow);
+    const bool metGroupComplete = originRow.study_predictor_available && originRow.all_forcings_valid && detail::metRowIsNumericallySound(originRow);
     if (metGroupComplete) {
         f.met_precip_mm_per_h = originRow.precipitation_mm_per_hour;
         f.met_temperature_c = originRow.temperature_c;

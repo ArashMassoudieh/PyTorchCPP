@@ -61,3 +61,43 @@ Freeze identical eligible timestamps across both arms. If coverage changes,
 old baseline scores are not a matched comparison. Preserve existing packages,
 frozen outputs and reserved observations. A four-hour spatial pilot is not a
 full-period input acceptance, and none of these tests predicts a score gain.
+
+## Independent missingness and matched study support
+
+Native-v3 optionally declares
+`interval_mask_schema: independent_rain_and_common_origin_v1`. Its LF CSV adds
+`rainfall_valid,common_origin_forcing_available` after `source_id`.
+The first mask belongs to the raw rainfall interval, independently of the
+legacy met-group validity. The second belongs to the corresponding **output
+origin** (raw interval end), after the declared delays. Both accept only0/1.
+Legacy packages retain their original fourteen-field schema and behavior.
+
+The origin mask restricts feature/sample eligibility only. It does not rewrite
+native discharge flags, zero-fill rainfall, or reset physical state. Physical
+routing continues on each package's actual forcing stream. Each sequence must
+pass the common origin mask at all24steps, and still satisfy its own native
+Q/history, split and forcing checks. A true study mask cannot override a missing
+predictor. Managed bundles already hash/copy the entire interval CSV, so both
+masks remain bound to the archived input manifest.
+
+`prepare_hydrofusion_radar_comparison.py` preserves all raw non-rain fields,
+uses independently audited radar basin coverage>=75%, and compares AORC age24h
+against radar-only age1h. The common causal mask intersects availability at
+those two ages. This is a **source-and-age input-package comparison**, not an
+isolated timing experiment or certified real-time forecast. One-hour radar
+publication is an explicit retrospective assumption. Missing hours remain
+excluded rather than replaced with dry weather or another product.
+
+`audit_hydrofusion_radar_support.cpp` verifies identical eligible sequence
+identities and observations across arms, plus unchanged adapted non-rain inputs.
+`verify_hydrofusion_native_masks_cli.py` exercises all five families and both
+nonphysical target modes, including managed reload and corruption rejection.
+The native-family reproduction checker also recomputes archived input/target
+scalers and the optional physical-loss scale from eligible training tensors.
+
+`run_hydrofusion_radar_batch.py` freezes a26-job inventory:24neural fits
+(4families ×2packages ×3seeds) and2fixed physical runs. It refuses duplicate
+launches, changed inputs, support drift, extra jobs or expanded resource limits.
+Each neural fit has50epochs,8hours,2CPUthreads,noGPU,12GiB and250MB ceilings;
+checkpoint selection and advancement use validation only. No retries, automatic
+expansion, universal improvement claim or manuscript promotion are implied.
