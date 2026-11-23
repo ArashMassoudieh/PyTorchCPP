@@ -9,6 +9,10 @@ class IsolationTests(unittest.TestCase):
    ref=r/(recipe+'_old');ref.write_text(json.dumps(c));c.update(experiment_id='new',hydrofusion_ffn_activation='silu',hydrofusion_native_manifest_path=str(m));f=r/recipe;f.write_text(json.dumps(c));jobs.append(dict(config=str(f),reference_config=str(ref),family=s.FAMILY,recipe=recipe,seed=42))
   self.p=dict(limits=copy.deepcopy(s.LIMITS),jobs=jobs,pins={str(m):s.digest(m)},manifest=str(m))
  def test_allowed(self):s.verify(self.p)
+ def test_legacy_default_tanh(self):
+  for j in self.p['jobs']:
+   f=Path(j['reference_config']);c=json.loads(f.read_text());del c['hydrofusion_ffn_activation'];f.write_text(json.dumps(c))
+  s.verify(self.p)
  def test_loss_change(self):
   f=Path(self.p['jobs'][0]['config']);c=json.loads(f.read_text());c['objective']='changed';f.write_text(json.dumps(c))
   with self.assertRaisesRegex(ValueError,'isolation'):s.verify(self.p)

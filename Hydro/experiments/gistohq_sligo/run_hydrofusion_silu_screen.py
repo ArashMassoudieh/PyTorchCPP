@@ -18,7 +18,7 @@ def verify(p):
   if digest(f)!=h:raise ValueError('Pinned input changed: '+f)
  for j in p['jobs']:
   c=json.loads(Path(j['config']).read_text());a=json.loads(Path(j['reference_config']).read_text())
-  if c['hydrofusion_ffn_activation']!='silu' or a['hydrofusion_ffn_activation']!='tanh' or canonical(a)!=canonical(c):raise ValueError('Activation-only isolation failed')
+  if c['hydrofusion_ffn_activation']!='silu' or a.get('hydrofusion_ffn_activation','tanh')!='tanh' or canonical(a)!=canonical(c):raise ValueError('Activation-only isolation failed')
   if c['hydrofusion_native_manifest_path']!=p['manifest'] or c['hydrofusion_native_manifest_sha256']!=digest(p['manifest']):raise ValueError('Native input mismatch')
   if c['hydrofusion_context_recipe']!=j['recipe']:raise ValueError('Recipe/config identity mismatch')
   if c['epochs']!=50 or c['random_seed']!=42 or c['hidden_layers']!='32' or not c['hydrofusion_development_only']:raise ValueError('Frozen training settings changed')
