@@ -13,7 +13,7 @@ def hourly_candidates(html,day):
   except ValueError:raise ValueError('Invalid archive timestamp')
   if valid.minute!=50 or valid.second:continue
   origin=valid+dt.timedelta(minutes=10);target=origin+dt.timedelta(hours=1);x=(target-EPOCH).total_seconds()/3600
-  if x.is_integer() and 0<=x<=26303:names[name]=dict(name=name,valid_utc=valid.isoformat(),origin_utc=origin.isoformat(),target_x=int(x))
+  if x.is_integer() and 1<=x<=26303:names[name]=dict(name=name,valid_utc=valid.isoformat(),origin_utc=origin.isoformat(),target_x=int(x))
  return list(sorted(names.values(),key=lambda v:v['target_x']))
 
 def run(root):
