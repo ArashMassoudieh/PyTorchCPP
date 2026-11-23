@@ -225,11 +225,14 @@ HydroRunResult runJob(const std::string& mode, const HydroRunConfig& config) {
     throw std::runtime_error("Unsupported Hydro batch mode: " + mode);
 }
 
+const std::string& actualActivation(const std::string& mode,const HydroRunConfig& config){
+    return hydrofusion::isExtendedForecast(mode)&&!hydrofusion::isRecurrentForecast(mode)&&mode!="pinn_causal_forecast"?config.hydrofusion_ffn_activation:config.activation;
+}
 void printHyperparameters(const std::string& mode, const HydroRunConfig& config) {
     if (mode == "lstm" || mode == "lstm_pinn") std::cout << " sequence_length=" << config.lstm_sequence_length;
     else if (mode == "ffn" || mode == "ffn_pinn") std::cout << " input_lags=" << config.input_lags_csv;
     std::cout << " hidden_layers=" << config.hidden_layers_csv
-              << " activation=" << config.activation
+              << " activation=" << actualActivation(mode,config)
               << " learning_rate=" << config.learning_rate
               << " batch_size=" << config.batch_size
               << " seed=" << config.random_seed
@@ -257,7 +260,7 @@ void printMetrics(const std::string& experiment_id, const std::string& mode,
               << " mode=" << mode
               << " success=" << (result.success ? "yes" : "no");
     printHyperparameters(mode, config);
-    std::cout << " test_mse=" << result.mse
+    std::cout << (config.hydrofusion_development_only?" validation_mse=":" test_mse=") << result.mse
               << " rmse=" << result.rmse
               << " mae=" << result.mae
               << " r2=" << result.r2
@@ -297,7 +300,7 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
     out << std::setprecision(12)
         << csvCell(experiment_id) << ',' << csvCell(mode) << ','
         << config.lstm_sequence_length << ',' << csvCell(config.input_lags_csv) << ','
-        << csvCell(config.hidden_layers_csv) << ',' << csvCell(config.activation) << ','
+        << csvCell(config.hidden_layers_csv) << ',' << csvCell(actualActivation(mode,config)) << ','
         << config.learning_rate << ',' << config.batch_size << ',' << config.random_seed << ','
         << csvCell(config.normalization) << ',' << csvCell(config.pinn_physics_profile) << ','
         << config.storage_coeff << ',' << config.lambda_decay << ',' << config.runoff_coeff << ','
@@ -309,7 +312,7 @@ void appendSummary(const fs::path& summary_path, const std::string& experiment_i
         << config.data_weight << ',' << config.physics_weight << ','
         << (config.use_latent_storage_physics ? "true" : "false") << ','
         << config.latent_storage_recession_per_hour << ',' << (r.success ? "true" : "false") << ','
-        << r.final_loss << ',' << r.validation_mse << ',' << r.mse << ',' << r.rmse << ',' << r.mae << ','
+        << r.final_loss << ',' << r.validation_mse << ',' << (config.hydrofusion_development_only?std::numeric_limits<double>::quiet_NaN():r.mse) << ',' << r.rmse << ',' << r.mae << ','
         << r.r2 << ',' << r.nse << ',' << r.kge << ',' << r.correlation << ',' << r.pbias << ','
         << r.volume_error_percent << ',' << r.peak_timing_error << ',' << r.peak_magnitude_error_percent << ','
         << r.high_flow_rmse << ',' << r.low_flow_rmse << ',' << r.physics_loss << ','
