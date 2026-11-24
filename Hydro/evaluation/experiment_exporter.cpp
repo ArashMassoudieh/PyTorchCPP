@@ -158,7 +158,7 @@ bool supportedApproach(const std::string& approach) {
 }
 
 bool checkpointFormatMatchesApproach(const std::string& approach, const std::string& format) {
-    if (hydrofusion::isExtendedForecast(approach)) return format == "hydrofusion-forecast-v1" || format == "hydrofusion-forecast-v2" || format == "hydrofusion-forecast-v3" || format == "hydrofusion-forecast-v4";
+    if (hydrofusion::isExtendedForecast(approach)) return format == "hydrofusion-forecast-v1" || format == "hydrofusion-forecast-v2" || format == "hydrofusion-forecast-v3" || format == "hydrofusion-forecast-v4" || format == "hydrofusion-forecast-v5";
     // Opt-in HydroFusion forecasting mode: reuses NeuralNetworkWrapper
     // exactly like plain "ffn", so the same checkpoint-format rule
     // applies -- see Hydro/models/ffn_hydrofusion_wrapper.cpp.
@@ -252,7 +252,7 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
     const std::string evaluationSplit=config.hydrofusion_development_only?"validation":"test";
     for (auto& entry : exportResults) {
         if(config.hydrofusion_development_only){
-            if(!hydrofusion::isExtendedForecast(entry.first)||!hydrofusion::forecastRecipeV4(config)||entry.second.model_checkpoint_format!=hydrofusion::forecastCheckpointFormat(config))throw std::invalid_argument("Development export requires explicit v4 forecast.");
+            if(!hydrofusion::isExtendedForecast(entry.first)||(!hydrofusion::forecastRecipeV4(config)&&!hydrofusion::forecastRecipeV5(config))||entry.second.model_checkpoint_format!=hydrofusion::forecastCheckpointFormat(config))throw std::invalid_argument("Development export requires explicit v4/v5 forecast.");
             for(size_t i=0;i<entry.second.x.size();++i)if(entry.second.split[i]!="validation"||entry.second.x[i]<=config.train_end_x||entry.second.x[i]>config.validation_end_x)throw std::invalid_argument("Development export refuses non-validation support.");
         }
         std::vector<double> observedTest;
@@ -331,6 +331,10 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
               << "  \"hydrofusion_context_recipe\": \"" << escapeJson(config.hydrofusion_context_recipe) << "\",\n"
               << "  \"hydrofusion_development_only\": " << (config.hydrofusion_development_only ? "true" : "false") << ",\n"
               << "  \"hydrofusion_history_hours\": \"" << escapeJson(config.hydrofusion_history_hours) << "\",\n"
+              << "  \"hydrofusion_preissue_rain_recipe\": \"" << escapeJson(config.hydrofusion_preissue_rain_recipe) << "\",\n"
+              << "  \"hydrofusion_preissue_rain_path\": \"" << escapeJson(config.hydrofusion_preissue_rain_path) << "\",\n"
+              << "  \"hydrofusion_preissue_rain_sha256\": \"" << escapeJson(config.hydrofusion_preissue_rain_sha256) << "\",\n"
+              << "  \"hydrofusion_preissue_rain_provenance_sha256\": \"" << escapeJson(config.hydrofusion_preissue_rain_provenance_sha256) << "\",\n"
               << "  \"hydrofusion_target_mode\": \"" << escapeJson(config.hydrofusion_target_mode) << "\",\n"
               << "  \"normalization\": \"" << escapeJson(config.normalization) << "\",\n"
               << "  \"hidden_layers\": \"" << escapeJson(config.hidden_layers_csv) << "\",\n"

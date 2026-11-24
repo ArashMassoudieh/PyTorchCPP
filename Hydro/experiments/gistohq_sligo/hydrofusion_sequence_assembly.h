@@ -2,12 +2,13 @@
 #include "hydrofusion_sequence_builder.h"
 #include "hydrofusion_dataset_assembly.h"
 #include <set>
+#include <algorithm>
 
 namespace hydrofusion {
 // Additive LSTM assembly. Scales MUST be fitted on the returned Train tensors;
 // q_ref is recomputed on final sequence-eligible training TARGET timestamps.
 inline PreparedData prepareHydroFusionSequenceData(const std::vector<HourlyRow>& rows,
-    TargetMode mode,const SplitCutoffs& cutoffs,int64_t length,bool developmentOnly=false) {
+    TargetMode mode,const SplitCutoffs& cutoffs,int64_t length,bool developmentOnly=false,const std::set<int64_t>* targetMask=nullptr) {
     validateTargetMode(mode);
     validateSplitCutoffs(cutoffs);
     // Reject later identities BEFORE sequence construction can inspect any Q.
@@ -15,7 +16,8 @@ inline PreparedData prepareHydroFusionSequenceData(const std::vector<HourlyRow>&
         HourlyIndex identities(rows);(void)identities;
         for(const auto& row:rows)if(row.x>cutoffs.validation_end_x)throw std::invalid_argument("Development assembly refuses rows after validation before reading values.");
     }
-    const auto sequences=buildForecastSequences(rows,cutoffs,length);
+    auto sequences=buildForecastSequences(rows,cutoffs,length);
+    if(targetMask)sequences.erase(std::remove_if(sequences.begin(),sequences.end(),[&](const auto& sample){return targetMask->count(sample.target_x)==0;}),sequences.end());
     HourlyIndex index(rows);
     auto records=runPersistenceBenchmark(index,rows,cutoffs);
     std::set<int64_t> eligible;

@@ -8,14 +8,17 @@
 HydroRunResult HydroFusionForecastWrapper::train(const HydroRunConfig& c,const std::string& approach){
     using namespace hydrofusion;validateForecastConfig(c,approach);
     const auto rows=c.hydrofusion_synthetic_verification?buildSyntheticFixture(c.hydrofusion_development_only?std::min<int64_t>(299,c.validation_end_x):299):loadPreparedNativePackage(c.hydrofusion_native_manifest_path,c.hydrofusion_native_manifest_sha256,c.hydrofusion_development_only?c.validation_end_x:kSealStartX-1);const auto mode=forecastTargetMode(c);
-    auto data=prepareHydroFusionSequenceData(rows,mode,{c.train_end_x,c.validation_end_x,c.test_end_x},c.lstm_sequence_length,c.hydrofusion_development_only);
+    const auto rain=loadBoundPreissueRain(c);const auto targetMask=rainEligibleTargets(c,rain);
+    auto data=prepareHydroFusionSequenceData(rows,mode,{c.train_end_x,c.validation_end_x,c.test_end_x},c.lstm_sequence_length,c.hydrofusion_development_only,forecastRecipeV5(c)?&targetMask:nullptr);
     std::map<int64_t,double> physics;if(isPhysicalForecast(approach))physics=forecastPhysicalSeries(rows,c);
     std::map<int64_t,CausalPhysicalOriginContext> contexts;
-    if(forecastRecipeV4(c)){
-        contexts=causalPhysicalOriginContexts(rows,forecastPhysics(c));
+    if(forecastRecipeV4(c)||forecastRecipeV5(c)){
+        contexts=forecastRecipeV5(c)?preissueRainContexts(rows,forecastPhysics(c),rain,rainHold(c)):causalPhysicalOriginContexts(rows,forecastPhysics(c));
+        if(forecastRecipeV5(c)&&isPhysicalForecast(approach)){physics.clear();for(const auto& row:contexts)physics.emplace(row.first,row.second.next_hour_mean);}
         addForecastContext(data.train,contexts,c,data.qRef);addForecastContext(data.validation,contexts,c,data.qRef);
         if(!c.hydrofusion_development_only)addForecastContext(data.test,contexts,c,data.qRef);
     }
+    if(forecastRecipeV5(c)){addPreissueRainChannel(data.train,c,rain);addPreissueRainChannel(data.validation,c,rain);}
     const auto trainRef=forecastRecipeV4(c)?contextReferences(data.train,contexts,c):forecastReference(data.train,physics,isPhysicalForecast(approach));
     const auto valRef=forecastRecipeV4(c)?contextReferences(data.validation,contexts,c):forecastReference(data.validation,physics,isPhysicalForecast(approach));
     const auto& evaluation=c.hydrofusion_development_only?data.validation:data.test;
@@ -32,7 +35,7 @@ HydroRunResult HydroFusionForecastWrapper::train(const HydroRunConfig& c,const s
     }
     if(!physicalOnly){
         xs.fit(data.train.x,"standardize");ys.fit(trainY,"standardize");
-        torch::manual_seed(static_cast<uint64_t>(std::max(0,c.random_seed)));net=ForecastNet(isRecurrentForecast(approach),forecastHidden(c),c.hydrofusion_ffn_activation=="silu",forecastRecipeV4(c)?25:20,parseForecastHistory(c.hydrofusion_history_hours,c.lstm_sequence_length));
+        torch::manual_seed(static_cast<uint64_t>(std::max(0,c.random_seed)));net=ForecastNet(isRecurrentForecast(approach),forecastHidden(c),c.hydrofusion_ffn_activation=="silu",forecastChannels(c),parseForecastHistory(c.hydrofusion_history_hours,c.lstm_sequence_length));
         torch::optim::Adam optimizer(net->parameters(),torch::optim::AdamOptions(c.learning_rate));
         double best=std::numeric_limits<double>::infinity();std::string bestBytes;
         for(int epoch=1;epoch<=c.epochs;++epoch){

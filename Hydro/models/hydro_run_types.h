@@ -328,6 +328,10 @@ struct HydroRunConfig {
     bool hydrofusion_development_only = false;
     std::string hydrofusion_context_recipe = "legacy20";
     std::string hydrofusion_history_hours = "0";
+    std::string hydrofusion_preissue_rain_recipe = "disabled";
+    std::string hydrofusion_preissue_rain_path;
+    std::string hydrofusion_preissue_rain_sha256;
+    std::string hydrofusion_preissue_rain_provenance_sha256;
 };
 
 struct HydroRunResult {

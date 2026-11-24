@@ -191,7 +191,7 @@ std::map<std::string, HydroModelArtifact> HydroArtifactLoader::loadModels(
         if (fields.size() != 5 || fields[0].empty()) throw std::runtime_error("Invalid models.csv row " + std::to_string(row) + ".");
         if (!safeRelativePath(fields[1])) throw std::runtime_error("Model artifact path escapes the experiment directory.");
         if (fields[2] != "neuralnetworkwrapper-v1" && fields[2] != "torch-module-v1" &&
-            fields[2] != "torch-module-v1-multiscale" && fields[2] != "hydrofusion-forecast-v1" && fields[2] != "hydrofusion-forecast-v2" && fields[2] != "hydrofusion-forecast-v3" && fields[2] != "hydrofusion-forecast-v4") {
+            fields[2] != "torch-module-v1-multiscale" && fields[2] != "hydrofusion-forecast-v1" && fields[2] != "hydrofusion-forecast-v2" && fields[2] != "hydrofusion-forecast-v3" && fields[2] != "hydrofusion-forecast-v4" && fields[2] != "hydrofusion-forecast-v5") {
             throw std::runtime_error("Unsupported model checkpoint format: " + fields[2]);
         }
         std::size_t expectedSize = 0;
@@ -308,7 +308,7 @@ std::map<std::string, HydroRunResult> HydroArtifactLoader::loadPredictions(
     const auto configPath=std::filesystem::path(experimentDirectory)/"experiment_config.json";
     if(std::filesystem::exists(configPath))predictionConfig=HydroExperimentLoader().loadConfig(configPath.string()).config;
     const bool developmentOnly=predictionConfig.hydrofusion_development_only;
-    if(developmentOnly&&!hydrofusion::forecastRecipeV4(predictionConfig))throw std::runtime_error("Development predictions require explicit v4 context recipe.");
+    if(developmentOnly&&!hydrofusion::forecastRecipeV4(predictionConfig)&&!hydrofusion::forecastRecipeV5(predictionConfig))throw std::runtime_error("Development predictions require explicit v4/v5 recipe.");
     const std::string evaluationSplit=developmentOnly?"validation":"test";
     std::ifstream input(std::filesystem::path(experimentDirectory) / "predictions.csv");
     if (!input) throw std::runtime_error("Experiment is missing predictions.csv.");

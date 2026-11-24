@@ -13,6 +13,7 @@
 #include "../models/hydrofusion_forecast_modes.h"
 #include "../experiments/gistohq_sligo/hydrofusion_metadata_sidecar.h"
 #include "../models/hydrofusion_context_schema.h"
+#include "../models/hydrofusion_preissue_rain_runtime.h"
 #include "../dataset/hydro_checksum.h"
 
 #include <torch/torch.h>
@@ -212,7 +213,7 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
 }
 
 HydroRunResult runJob(const std::string& mode, const HydroRunConfig& config) {
-    if(!hydrofusion::isExtendedForecast(mode)&&(config.hydrofusion_development_only||config.hydrofusion_context_recipe!="legacy20"||config.hydrofusion_history_hours!="0"||config.hydrofusion_objective!="log_mse_v1"||config.hydrofusion_ffn_activation!="tanh"||config.pinn_physics_profile=="causal_two_reservoir_mean_v2"))
+    if(!hydrofusion::isExtendedForecast(mode)&&(config.hydrofusion_preissue_rain_recipe!="disabled"||!config.hydrofusion_preissue_rain_path.empty()||!config.hydrofusion_preissue_rain_sha256.empty()||!config.hydrofusion_preissue_rain_provenance_sha256.empty()||config.hydrofusion_development_only||config.hydrofusion_context_recipe!="legacy20"||config.hydrofusion_history_hours!="0"||config.hydrofusion_objective!="log_mse_v1"||config.hydrofusion_ffn_activation!="tanh"||config.pinn_physics_profile=="causal_two_reservoir_mean_v2"))
         throw std::invalid_argument("Forecast v2 options require an extended forecast approach.");
     if (mode == "ffn") { FFNWrapper runner; return runner.train(config); }
     if (mode == "ffn_pinn") { FFNReservoirPINNWrapper runner; return runner.train(config); }
@@ -361,6 +362,12 @@ void exportHydroFusionSidecarForBatchJob(const fs::path& output_root, const std:
         schema<<hydrofusion::forecastContextSchema(config);schema.close();
         if(!schema)throw std::runtime_error("Could not export context schema.");
         managedPaths.push_back(path);
+    }
+    if(hydrofusion::forecastRecipeV5(config)){
+        (void)hydrofusion::loadBoundPreissueRain(config);
+        const fs::path source(config.hydrofusion_preissue_rain_path);
+        for(const auto& pair:std::vector<std::pair<fs::path,fs::path>>{{source,bundleDir/"preissue_rain.csv"},{source.parent_path()/"preissue_rain_provenance.json",bundleDir/"preissue_rain_provenance.json"}}){fs::copy_file(pair.first,pair.second,fs::copy_options::none);managedPaths.push_back(pair.second);}
+        const auto path=bundleDir/"hydrofusion_preissue_rain_schema.txt";std::ofstream schema(path);schema<<hydrofusion::rainSchema(config);schema.close();if(!schema)throw std::runtime_error("Could not export preissue rain schema.");managedPaths.push_back(path);
     }
     if(!config.hydrofusion_synthetic_verification && !config.hydrofusion_native_manifest_path.empty()){
         const fs::path source(config.hydrofusion_native_manifest_path);

@@ -18,24 +18,26 @@ int main(int argc,char** argv){try{
     HydroFusionForecastInference predictor(artifacts,directory,approach);
     const auto& c=artifacts.experiment.config;
     const auto rows=loadPreparedNativePackage((std::filesystem::path(directory)/"native_input_manifest.json").string(),c.hydrofusion_native_manifest_sha256,c.hydrofusion_development_only?c.validation_end_x:kSealStartX-1);
-    auto data=prepareHydroFusionSequenceData(rows,forecastTargetMode(c),{c.train_end_x,c.validation_end_x,c.test_end_x},c.lstm_sequence_length,c.hydrofusion_development_only);
+    const auto rain=loadBoundPreissueRain(c,std::filesystem::path(directory)/"preissue_rain.csv");const auto targetMask=rainEligibleTargets(c,rain);
+    auto data=prepareHydroFusionSequenceData(rows,forecastTargetMode(c),{c.train_end_x,c.validation_end_x,c.test_end_x},c.lstm_sequence_length,c.hydrofusion_development_only,forecastRecipeV5(c)?&targetMask:nullptr);
     std::map<int64_t,CausalPhysicalOriginContext> contexts;
-    if(forecastRecipeV4(c)){
-        contexts=causalPhysicalOriginContexts(rows,forecastPhysics(c));
+    if(forecastRecipeV4(c)||forecastRecipeV5(c)){
+        contexts=forecastRecipeV5(c)?preissueRainContexts(rows,forecastPhysics(c),rain,rainHold(c)):causalPhysicalOriginContexts(rows,forecastPhysics(c));
         addForecastContext(data.train,contexts,c,data.qRef);addForecastContext(data.validation,contexts,c,data.qRef);
         if(!c.hydrofusion_development_only)addForecastContext(data.test,contexts,c,data.qRef);
     }
+    if(forecastRecipeV5(c)){addPreissueRainChannel(data.train,c,rain);addPreissueRainChannel(data.validation,c,rain);}
     auto metadata=reloadHydroFusionMetadata((std::filesystem::path(directory)/"hydrofusion_metadata.txt").string());
     const bool physicalOnly=approach=="pinn_causal_forecast";
     if((physicalOnly?1.0:data.qRef)!=metadata.qRef)throw std::runtime_error("Training-only q_ref identity mismatch.");
     const auto& model=artifacts.models.at(approach);std::string raw(model.bytes.begin(),model.bytes.end());std::istringstream bytes(raw);
     torch::serialize::InputArchive archive,weights;archive.load_from(bytes);
     ForecastNet net{nullptr};
-    if(!physicalOnly){archive.read("weights",weights);net=ForecastNet(isRecurrentForecast(approach),forecastHidden(c),c.hydrofusion_ffn_activation=="silu",forecastRecipeV4(c)?25:20,parseForecastHistory(c.hydrofusion_history_hours,c.lstm_sequence_length));net->load(weights);net->eval();}
+    if(!physicalOnly){archive.read("weights",weights);net=ForecastNet(isRecurrentForecast(approach),forecastHidden(c),c.hydrofusion_ffn_activation=="silu",forecastChannels(c),parseForecastHistory(c.hydrofusion_history_hours,c.lstm_sequence_length));net->load(weights);net->eval();}
     TensorScaler xs,ys;
     if(!physicalOnly){xs.importState(artifacts.scalers.at(approach).input);ys.importState(artifacts.scalers.at(approach).target);}
     std::map<int64_t,double> physics;
-    if(isPhysicalForecast(approach))physics=forecastPhysicalSeries(rows,c);
+    if(isPhysicalForecast(approach)){physics=forecastPhysicalSeries(rows,c);if(forecastRecipeV5(c)){physics.clear();for(const auto& row:contexts)physics.emplace(row.first,row.second.next_hour_mean);}}
     // Recompute transform statistics from the eligible TRAIN tensors only;
     // archive integrity alone cannot prove how a scaler was fitted.
     if(!physicalOnly){

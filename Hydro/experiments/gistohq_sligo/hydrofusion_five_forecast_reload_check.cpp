@@ -15,7 +15,12 @@ int main(int argc,char** argv){
         if(!genericRejected)throw std::runtime_error("Generic forecast output not rejected.");
         const auto& c=artifacts.experiment.config;
         const auto rows=c.hydrofusion_synthetic_verification?buildSyntheticFixture(c.hydrofusion_development_only?std::min<int64_t>(299,c.validation_end_x):299):loadPreparedNativePackage((std::filesystem::path(directory)/"native_input_manifest.json").string(),c.hydrofusion_native_manifest_sha256,c.hydrofusion_development_only?c.validation_end_x:kSealStartX-1);
-        const auto eligible=buildForecastSequences(rows,{c.train_end_x,c.validation_end_x,c.test_end_x},c.lstm_sequence_length);
+        auto eligible=buildForecastSequences(rows,{c.train_end_x,c.validation_end_x,c.test_end_x},c.lstm_sequence_length);
+        if(forecastRecipeV5(c)){
+            const auto rain=loadBoundPreissueRain(c,std::filesystem::path(directory)/"preissue_rain.csv");
+            const auto mask=rainEligibleTargets(c,rain);
+            eligible.erase(std::remove_if(eligible.begin(),eligible.end(),[&](const auto& sample){return !mask.count(sample.target_x);}),eligible.end());
+        }
         std::vector<ForecastSequence> expectedSupport;for(const auto& s:eligible)if(s.split==(c.hydrofusion_development_only?SplitPartition::Validation:SplitPartition::Test))expectedSupport.push_back(s);
         const auto map=readOriginTargetMapCsv(std::filesystem::path(directory)/"hydrofusion_origin_target_map.csv");
         validateOriginTargetMap(map,1);const auto& result=artifacts.results.at(approach);

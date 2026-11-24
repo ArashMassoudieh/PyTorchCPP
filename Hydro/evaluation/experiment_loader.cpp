@@ -302,6 +302,10 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.hydrofusion_development_only = hasForecastField("hydrofusion_development_only") ? boolValue(json, "hydrofusion_development_only") : false;
     c.hydrofusion_context_recipe = hasForecastField("hydrofusion_context_recipe") ? stringValue(json, "hydrofusion_context_recipe") : "legacy20";
     c.hydrofusion_history_hours = hasForecastField("hydrofusion_history_hours") ? stringValue(json, "hydrofusion_history_hours") : "0";
+    c.hydrofusion_preissue_rain_recipe = hasForecastField("hydrofusion_preissue_rain_recipe") ? stringValue(json, "hydrofusion_preissue_rain_recipe") : "disabled";
+    c.hydrofusion_preissue_rain_path = hasForecastField("hydrofusion_preissue_rain_path") ? stringValue(json, "hydrofusion_preissue_rain_path") : "";
+    c.hydrofusion_preissue_rain_sha256 = hasForecastField("hydrofusion_preissue_rain_sha256") ? stringValue(json, "hydrofusion_preissue_rain_sha256") : "";
+    c.hydrofusion_preissue_rain_provenance_sha256 = hasForecastField("hydrofusion_preissue_rain_provenance_sha256") ? stringValue(json, "hydrofusion_preissue_rain_provenance_sha256") : "";
     c.hydrofusion_objective = optionalStringValue(json, "hydrofusion_objective", "log_mse_v1");
     c.hydrofusion_ffn_activation = optionalStringValue(json, "hydrofusion_ffn_activation", "tanh");
     if(c.hydrofusion_objective!="log_mse_v1" && c.hydrofusion_objective!="log_flow_mse_v2") throw std::runtime_error("Unknown hydrofusion_objective.");

@@ -1,6 +1,7 @@
 #pragma once
 #include "hydro_run_types.h"
 #include "hydrofusion_forecast_modes.h"
+#include "hydrofusion_preissue_rain_runtime.h"
 #include "hydro_lstm_module.h"
 #include "../experiments/gistohq_sligo/hydrofusion_sequence_assembly.h"
 #include "../experiments/gistohq_sligo/hydrofusion_causal_physics.h"
@@ -33,8 +34,8 @@ inline void validateForecastConfig(const HydroRunConfig& c,const std::string& na
        (!native && (!c.hydrofusion_native_manifest_path.empty()||!c.hydrofusion_native_manifest_sha256.empty())))
         throw std::invalid_argument("Extended forecasts require explicit synthetic verification OR a pinned prepared native manifest, and reject legacy package/CSV training.");
     validateSplitCutoffs({c.train_end_x,c.validation_end_x,c.test_end_x});forecastTargetMode(c);
-    const bool context=forecastRecipeV4(c);
-    if(c.hydrofusion_development_only&&!context)throw std::invalid_argument("Development-only scope requires explicit v4 recipe.");
+    const bool context=forecastRecipeV4(c);validateRainConfig(c);
+    if(c.hydrofusion_development_only&&!context&&!forecastRecipeV5(c))throw std::invalid_argument("Development-only scope requires explicit v4 recipe.");
     if(context){
         if(!validContextRecipe(c.hydrofusion_context_recipe)||name=="pinn_causal_forecast"||!forecastRecipeV3(c)||c.hydrofusion_target_mode!="log_residual")throw std::invalid_argument("Context recipes require neural valid-time physical profile and log-residual target.");
         validateCausalPhysics(forecastPhysics(c));
@@ -51,7 +52,7 @@ inline void validateForecastConfig(const HydroRunConfig& c,const std::string& na
     if(c.hydrofusion_ffn_activation!="tanh"&&c.hydrofusion_ffn_activation!="silu")throw std::invalid_argument("Unknown forecast FFN activation.");
     if((isRecurrentForecast(name)||name=="pinn_causal_forecast")&&c.hydrofusion_ffn_activation!="tanh")throw std::invalid_argument("SiLU option requires a forecast FFN.");
     if(name=="pinn_causal_forecast"&&c.hydrofusion_objective!="log_mse_v1")throw std::invalid_argument("Physical-only reference has no learned objective.");
-    if(!context&&!isPhysicalForecast(name)&&(c.pinn_physics_profile=="causal_two_reservoir_mean_v2"||forecastRecipeV3(c)))throw std::invalid_argument("Hourly-mean profile requires a physical forecast.");
+    if(!context&&!forecastRecipeV5(c)&&!isPhysicalForecast(name)&&(c.pinn_physics_profile=="causal_two_reservoir_mean_v2"||forecastRecipeV3(c)))throw std::invalid_argument("Hourly-mean profile requires a physical forecast.");
     if(c.data_weight!=1||c.lstm_bias_weight!=0||c.shared_scale_volume_weight!=0||c.lstm_bias_weight_adaptive||
        c.physical_error_weight!=0||c.high_flow_loss_weight!=0||c.lstm_dropout!=0||
        c.use_mrms_spatial_cv_feature||c.multiscale_daily_history_days!=0||c.multiscale_matched_control||c.pinn_flow_exponent!=0)
@@ -65,7 +66,7 @@ inline void validateForecastConfig(const HydroRunConfig& c,const std::string& na
 struct ForecastNetImpl:torch::nn::Module {
     bool recurrent;int channels;std::vector<int64_t> history;HydroLSTM lstm{nullptr};torch::nn::Sequential ffn;
     ForecastNetImpl(bool sequence,int hidden,bool silu=false,int width=20,std::vector<int64_t> offsets={0}):recurrent(sequence),channels(width),history(std::move(offsets)){
-        if((width!=20&&width!=25)||history.empty())throw std::invalid_argument("Invalid forecast network layout.");
+        if((width!=20&&width!=21&&width!=25&&width!=26)||history.empty())throw std::invalid_argument("Invalid forecast network layout.");
         if(sequence&&silu)throw std::invalid_argument("FFN activation cannot change LSTM semantics.");
         if(sequence){lstm=HydroLSTM(width,hidden,1,1);register_module("lstm",lstm);}
         else{
@@ -103,6 +104,16 @@ inline void addForecastContext(DatasetSplit& split,const std::map<int64_t,Causal
     auto extra=torch::tensor(added,torch::kFloat64).to(torch::kFloat32).reshape({split.x.size(0),split.x.size(1),5});
     if(!torch::isfinite(extra).all().item<bool>())throw std::overflow_error("Context feature float32 overflow.");
     split.x=torch::cat({split.x,extra},2);
+}
+inline void addPreissueRainChannel(DatasetSplit& split,const HydroRunConfig& c,const std::map<int64_t,PreissueRain>& rain){
+    if(!forecastRecipeV5(c))return;
+    if(split.x.dim()!=3||split.x.size(2)!=forecastChannels(c)-1)throw std::invalid_argument("Preissue rain tensor layout mismatch.");
+    std::vector<double> values;
+    for(auto origin:split.originX)for(int64_t h=origin-split.x.size(1)+1;h<=origin;++h){
+        const auto found=rain.find(h);if(found==rain.end())throw std::invalid_argument("Missing preissue rain history.");values.push_back(rainHold(c)?found->second.rate:0.);
+    }
+    auto channel=torch::tensor(values,torch::kFloat64).to(torch::kFloat32).reshape({split.x.size(0),split.x.size(1),1});
+    if(!torch::isfinite(channel).all().item<bool>())throw std::overflow_error("Rain channel float32 overflow.");split.x=torch::cat({split.x,channel},2);
 }
 inline torch::Tensor contextReferences(const DatasetSplit& split,const std::map<int64_t,CausalPhysicalOriginContext>& contexts,const HydroRunConfig& c){
     std::vector<double> values;auto origin=split.originQ.contiguous();
@@ -160,6 +171,12 @@ inline torch::Tensor forecastObjective(const HydroRunConfig& c,const torch::Tens
     return .5*logLoss.to(torch::kFloat64)+.5*error.square().mean();
 }
 inline torch::Tensor recipeTensor(const HydroRunConfig& c,const std::string& name){
+    if(forecastRecipeV5(c)){
+        validateRainConfig(c);auto old=c;old.hydrofusion_preissue_rain_recipe="disabled";old.hydrofusion_preissue_rain_path.clear();old.hydrofusion_preissue_rain_sha256.clear();old.hydrofusion_preissue_rain_provenance_sha256.clear();
+        auto base=recipeTensor(old,name);base[0]=5.;std::vector<double> bind{static_cast<double>(rainHold(c)),static_cast<double>(forecastChannels(c)),600.,.75,static_cast<double>(c.hydrofusion_development_only)};
+        for(char value:c.hydrofusion_preissue_rain_sha256+c.hydrofusion_preissue_rain_provenance_sha256)bind.push_back(static_cast<unsigned char>(value));
+        return torch::cat({base,torch::tensor(bind,torch::kFloat64)});
+    }
     auto legacy=torch::tensor({1.0,static_cast<double>(isRecurrentForecast(name)),static_cast<double>(isPhysicalForecast(name)),
         static_cast<double>(name=="pinn_causal_forecast"),static_cast<double>(forecastHidden(c)),24.0,
         static_cast<double>(forecastTargetMode(c)==TargetMode::LogResidual),c.storage_coeff,c.lambda_decay,c.runoff_coeff,c.forcing_gain,c.pinn_initial_flow,c.physics_dt},torch::kFloat64);
