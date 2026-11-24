@@ -53,7 +53,7 @@ HydroRunResult HydroFusionForecastWrapper::train(const HydroRunConfig& c,const s
                 forecastObjective(c,standardized,ys.transform(valY),ys,valRef,validationObserved,qref,flowScale)).item<double>();
             if(!std::isfinite(validation))throw std::runtime_error("Nonfinite forecast validation loss.");
             result.training_loss_history.push_back(sum/n);result.validation_loss_history.push_back(validation);
-            if(validation<best){best=validation;result.best_epoch=epoch;torch::serialize::OutputArchive weights;net->save(weights);std::ostringstream bytes;weights.save_to(bytes);bestBytes=bytes.str();}
+            if(selectForecastCheckpoint(c.hydrofusion_checkpoint_selection,epoch,c.epochs,validation,best)){best=validation;result.best_epoch=epoch;torch::serialize::OutputArchive weights;net->save(weights);std::ostringstream bytes;weights.save_to(bytes);bestBytes=bytes.str();}
         }
         if(bestBytes.empty())throw std::runtime_error("No selected forecast checkpoint.");
         std::istringstream bytes(bestBytes);torch::serialize::InputArchive selected;selected.load_from(bytes);net->load(selected);net->eval();

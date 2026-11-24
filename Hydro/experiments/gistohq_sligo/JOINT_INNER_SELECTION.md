@@ -45,6 +45,25 @@ A better internal score is not a verified improvement on2017or a paper finding.
 Preserve old seed42results, previous bias/timing failures, all scripts and inputs.
 Later cross-seed confirmation and a proper prospective holdout remain necessary.
 
+## Fixed-epoch refit policy
+
+The opt-in `hydrofusion_checkpoint_selection=fixed_last_epoch_v1` saves only
+that run's final epoch. The internally selected epoch becomes the new run's
+`epochs`; outer validation losses are diagnostics and cannot select weights.
+The default `best_validation_v1` preserves historical checkpoint selection.
+The fixed policy is exported in config and bound into the model recipe, so
+managed reload rejects a changed policy even after public file hashes are updated.
+Unknown, duplicated, non-string or inapplicable policy fields fail closed.
+
+`verify_hydrofusion_fixed_epoch_cli.py` runs all four forecast families on a
+fabricated native fixture, changing only validation discharge and checking exact
+weight/scaler equality, fresh reload and policy-tamper rejection. The separate
+`run_hydrofusion_joint_fixed_epoch_refits.py` prepares four new fixed-policy
+fits and one physical observer replay only after this acceptance. It freezes
+internal width/epoch/shape decisions, refits physical gain using full TRAIN only,
+and reports reused 2017 validation without test scoring or automatic expansion.
+These are research refits, not ten-year evaluation or a general skill claim.
+
 ## Ten-year audit
 
 `audit_joint_study_readiness.py` opens only three explicit JSON metadata files,

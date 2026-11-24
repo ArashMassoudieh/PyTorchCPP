@@ -213,7 +213,7 @@ std::vector<BatchJob> readBatchFile(const fs::path& path) {
 }
 
 HydroRunResult runJob(const std::string& mode, const HydroRunConfig& config) {
-    if(!hydrofusion::isExtendedForecast(mode)&&(config.hydrofusion_preissue_rain_recipe!="disabled"||!config.hydrofusion_preissue_rain_path.empty()||!config.hydrofusion_preissue_rain_sha256.empty()||!config.hydrofusion_preissue_rain_provenance_sha256.empty()||config.hydrofusion_development_only||config.hydrofusion_context_recipe!="legacy20"||config.hydrofusion_history_hours!="0"||config.hydrofusion_objective!="log_mse_v1"||config.hydrofusion_ffn_activation!="tanh"||config.pinn_physics_profile=="causal_two_reservoir_mean_v2"))
+    if(!hydrofusion::isExtendedForecast(mode)&&(config.hydrofusion_preissue_rain_recipe!="disabled"||!config.hydrofusion_preissue_rain_path.empty()||!config.hydrofusion_preissue_rain_sha256.empty()||!config.hydrofusion_preissue_rain_provenance_sha256.empty()||config.hydrofusion_development_only||config.hydrofusion_context_recipe!="legacy20"||config.hydrofusion_history_hours!="0"||config.hydrofusion_objective!="log_mse_v1"||config.hydrofusion_ffn_activation!="tanh"||config.hydrofusion_checkpoint_selection!="best_validation_v1"||config.pinn_physics_profile=="causal_two_reservoir_mean_v2"))
         throw std::invalid_argument("Forecast v2 options require an extended forecast approach.");
     if (mode == "ffn") { FFNWrapper runner; return runner.train(config); }
     if (mode == "ffn_pinn") { FFNReservoirPINNWrapper runner; return runner.train(config); }

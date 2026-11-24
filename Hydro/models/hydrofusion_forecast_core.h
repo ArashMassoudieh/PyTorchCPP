@@ -1,5 +1,6 @@
 #pragma once
 #include "hydro_run_types.h"
+#include "hydrofusion_checkpoint_policy.h"
 #include "hydrofusion_forecast_modes.h"
 #include "hydrofusion_preissue_rain_runtime.h"
 #include "hydro_lstm_module.h"
@@ -28,6 +29,8 @@ inline TargetMode forecastTargetMode(const HydroRunConfig& c){
     throw std::invalid_argument("Unknown forecast target mode.");
 }
 inline void validateForecastConfig(const HydroRunConfig& c,const std::string& name){
+    validateForecastCheckpointPolicy(c.hydrofusion_checkpoint_selection);
+    if(name=="pinn_causal_forecast"&&c.hydrofusion_checkpoint_selection!="best_validation_v1")throw std::invalid_argument("Fixed checkpoint selection requires a neural forecast.");
     const bool native=!c.hydrofusion_native_manifest_path.empty() && c.hydrofusion_native_manifest_sha256.size()==64;
     if(!isExtendedForecast(name)||c.use_hydro_package||c.use_csv_data||
        (c.hydrofusion_synthetic_verification==native) ||
@@ -171,6 +174,12 @@ inline torch::Tensor forecastObjective(const HydroRunConfig& c,const torch::Tens
     return .5*logLoss.to(torch::kFloat64)+.5*error.square().mean();
 }
 inline torch::Tensor recipeTensor(const HydroRunConfig& c,const std::string& name){
+    validateForecastCheckpointPolicy(c.hydrofusion_checkpoint_selection);
+    if(c.hydrofusion_checkpoint_selection=="fixed_last_epoch_v1"){
+        auto legacy=c;legacy.hydrofusion_checkpoint_selection="best_validation_v1";
+        // Additive training-policy binding, input recipe/old checkpoints unchanged.
+        return torch::cat({recipeTensor(legacy,name),torch::tensor({6.,1.},torch::kFloat64)});
+    }
     if(forecastRecipeV5(c)){
         validateRainConfig(c);auto old=c;old.hydrofusion_preissue_rain_recipe="disabled";old.hydrofusion_preissue_rain_path.clear();old.hydrofusion_preissue_rain_sha256.clear();old.hydrofusion_preissue_rain_provenance_sha256.clear();
         auto base=recipeTensor(old,name);base[0]=5.;std::vector<double> bind{static_cast<double>(rainHold(c)),static_cast<double>(forecastChannels(c)),600.,.75,static_cast<double>(c.hydrofusion_development_only)};

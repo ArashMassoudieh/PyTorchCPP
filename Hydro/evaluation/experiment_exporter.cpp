@@ -328,6 +328,7 @@ void HydroExperimentExporter::exportRun(const std::string& outputDirectory,
               << "  \"hydrofusion_native_manifest_sha256\": \"" << escapeJson(config.hydrofusion_native_manifest_sha256) << "\",\n"
               << "  \"hydrofusion_objective\": \"" << escapeJson(config.hydrofusion_objective) << "\",\n"
               << "  \"hydrofusion_ffn_activation\": \"" << escapeJson(config.hydrofusion_ffn_activation) << "\",\n"
+              << "  \"hydrofusion_checkpoint_selection\": \"" << escapeJson(config.hydrofusion_checkpoint_selection) << "\",\n"
               << "  \"hydrofusion_context_recipe\": \"" << escapeJson(config.hydrofusion_context_recipe) << "\",\n"
               << "  \"hydrofusion_development_only\": " << (config.hydrofusion_development_only ? "true" : "false") << ",\n"
               << "  \"hydrofusion_history_hours\": \"" << escapeJson(config.hydrofusion_history_hours) << "\",\n"

@@ -325,6 +325,7 @@ struct HydroRunConfig {
     // Defaults preserve every forecast-v1 checkpoint and its training recipe.
     std::string hydrofusion_objective = "log_mse_v1";
     std::string hydrofusion_ffn_activation = "tanh";
+    std::string hydrofusion_checkpoint_selection = "best_validation_v1";
     bool hydrofusion_development_only = false;
     std::string hydrofusion_context_recipe = "legacy20";
     std::string hydrofusion_history_hours = "0";

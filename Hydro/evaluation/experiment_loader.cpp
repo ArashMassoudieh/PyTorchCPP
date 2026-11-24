@@ -1,4 +1,5 @@
 #include "experiment_loader.h"
+#include "../models/hydrofusion_checkpoint_policy.h"
 
 #include <cstdint>
 #include <cmath>
@@ -308,6 +309,8 @@ LoadedHydroExperiment HydroExperimentLoader::loadConfig(const std::string& confi
     c.hydrofusion_preissue_rain_provenance_sha256 = hasForecastField("hydrofusion_preissue_rain_provenance_sha256") ? stringValue(json, "hydrofusion_preissue_rain_provenance_sha256") : "";
     c.hydrofusion_objective = optionalStringValue(json, "hydrofusion_objective", "log_mse_v1");
     c.hydrofusion_ffn_activation = optionalStringValue(json, "hydrofusion_ffn_activation", "tanh");
+    c.hydrofusion_checkpoint_selection = hasForecastField("hydrofusion_checkpoint_selection") ? stringValue(json, "hydrofusion_checkpoint_selection") : "best_validation_v1";
+    hydrofusion::validateForecastCheckpointPolicy(c.hydrofusion_checkpoint_selection);
     if(c.hydrofusion_objective!="log_mse_v1" && c.hydrofusion_objective!="log_flow_mse_v2") throw std::runtime_error("Unknown hydrofusion_objective.");
     if(c.hydrofusion_ffn_activation!="tanh" && c.hydrofusion_ffn_activation!="silu") throw std::runtime_error("Unknown hydrofusion_ffn_activation.");
     c.hydrofusion_target_mode = optionalStringValue(json, "hydrofusion_target_mode", "log_residual");
