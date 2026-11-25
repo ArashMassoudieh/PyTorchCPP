@@ -76,6 +76,27 @@ def evaluate(path,family,c,s):
  q=sorted(v[0] for v in s['train'].values());pos=.9*(len(q)-1);i=int(pos);q90=q[i]+(q[min(i+1,len(q)-1)]-q[i])*(pos-i)
  return dict(model=scores(rows,q90),persistence=scores(s['validation'],q90),rows=len(rows),training_q90=q90)
 
+def compare_predictions(exported,fresh):
+ """Match native verifier float32 tolerance; identity/truth remain exact."""
+ def read(path):
+  out={}
+  with Path(path).open() as f:
+   for r in csv.DictReader(f):
+    x=identity(r['x'])
+    if r['split']!='validation' or x in out:raise ValueError('Reload row identity mismatch')
+    y,p=float(r['observed']),float(r['predicted'])
+    if not math.isfinite(y) or not math.isfinite(p) or min(y,p)<0:raise ValueError('Nonfinite/negative reload row')
+    out[x]=(r['approach'],y,p)
+  return out
+ a,b=read(exported),read(fresh)
+ if not a or set(a)!=set(b):raise ValueError('Reload row support mismatch')
+ maximum=0.
+ for x in a:
+  if a[x][:2]!=b[x][:2]:raise ValueError('Reload row truth/family mismatch')
+  delta=abs(a[x][2]-b[x][2]);maximum=max(maximum,delta)
+  if delta>1e-5+1e-5*abs(a[x][2]):raise ValueError('Reload row prediction mismatch')
+ return dict(rows=len(a),max_abs=maximum,absolute_tolerance=1e-5,relative_tolerance=1e-5)
+
 def validate_request(r):
  goals(r['goals']);limits=r['limits']
  if set(limits)!={'epochs','wall_seconds_per_fit','rss_bytes','threads','gpu','artifact_bytes_per_fit','max_fits'}:raise ValueError('Explicit finite resource limits required')
@@ -217,9 +238,9 @@ def run(root):
     with (d/'reload.log').open('x') as log:subprocess.run([p['verifier'],str(bundle),str(d/'validation_predictions.csv')],stdout=log,stderr=subprocess.STDOUT,env=env,check=True,timeout=3600)
     if 'production_target_free_checks=12' not in (d/'reload.log').read_text():raise ValueError('Missing semantic target-free verification')
     c=load(j['config']);value=evaluate(d/'validation_predictions.csv',j['family'],c,support(j['support'],c));exported=evaluate(bundle/'predictions.csv',j['family'],c,support(j['support'],c))
-    if value!=exported:raise ValueError('Fresh reload/exported metrics differ')
+    parity=compare_predictions(bundle/'predictions.csv',d/'validation_predictions.csv')
     if directory_bytes(d)>p['limits']['artifact_bytes_per_fit']:raise ValueError('Artifact budget exceeded')
-    hashes={str(q.relative_to(d)):sha(q) for q in d.rglob('*') if q.is_file()};write(d/'verified.json',dict(scores=value,hashes=hashes),True)
+    hashes={str(q.relative_to(d)):sha(q) for q in d.rglob('*') if q.is_file()};write(d/'verified.json',dict(scores=value,hashes=hashes,reload_parity=parity),True)
    except BaseException as e:
     state['status']='CANCELLED_DURING_FIT' if 'CANCELLED_DURING_FIT' in str(e) else 'RESOURCE_BUDGET_EXHAUSTED' if 'RESOURCE_BUDGET_EXHAUSTED' in str(e) else 'FAILED';state['error']=str(e);write(root/'state.json',state);raise
    out=report(root,p);print(json.dumps(out),flush=True)

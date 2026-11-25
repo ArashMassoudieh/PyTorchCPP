@@ -113,3 +113,14 @@ This creates cropped copies, common support, configs, a finite request and a
 preflight record. It does not launch fitting or acquire missing inputs. Existing
 packages and closed campaigns are preserved. Rainfall release timestamps remain
 retrospective archive proxies, not proof of operational availability.
+
+
+Reload/export parity requires exact target identities, split, family and truth,
+and finite nonnegative predictions with the native verifier tolerance
+`abs(error) <= 1e-5 + 1e-5*abs(exported_prediction)`. Metrics are calculated from
+fresh reload predictions. Identical floating-point metrics are not required.
+`recover_roundoff_stop.py` is a narrowly scoped migration for the original
+first-fit exact-metric guard failure: it validates the original hashes and
+completed history, imports that fit into a new immutable continuation, preserves
+the original failure and charges the imported fit against the unchanged total
+budget. It cannot recover arbitrary training failures or retry an incomplete fit.

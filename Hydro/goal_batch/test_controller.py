@@ -112,4 +112,12 @@ class ControllerTests(unittest.TestCase):
  def test_real_watchdog_timeout(self):
   d=self.d/'timeout';d.mkdir();limits=dict(self.limits,wall_seconds_per_fit=1)
   with self.assertRaisesRegex(RuntimeError,'BUDGET'):m.execute([sys.executable,'-c','import time;time.sleep(10)'],d,os.environ,limits,self.d/'cancel')
+ def test_native_float_roundoff_is_not_failure(self):
+  a=self.d/'a.csv';b=self.d/'b.csv';self.write_predictions(a,'ffn_causal_forecast');b.write_text(a.read_text().replace(',1,1',',1,1.0000000004'));self.assertEqual(m.compare_predictions(a,b)['rows'],3)
+ def test_native_large_difference_rejected(self):
+  a=self.d/'a.csv';b=self.d/'b.csv';self.write_predictions(a,'ffn_causal_forecast');b.write_text(a.read_text().replace(',1,1',',1,1.1'))
+  with self.assertRaisesRegex(ValueError,'prediction mismatch'):m.compare_predictions(a,b)
+ def test_native_nan_rejected(self):
+  a=self.d/'a.csv';b=self.d/'b.csv';self.write_predictions(a,'ffn_causal_forecast');b.write_text(a.read_text().replace(',1,1',',1,nan'))
+  with self.assertRaisesRegex(ValueError,'Nonfinite'):m.compare_predictions(a,b)
 if __name__=='__main__':unittest.main()
