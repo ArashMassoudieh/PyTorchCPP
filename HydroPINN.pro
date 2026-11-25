@@ -98,6 +98,7 @@ SOURCES += \
     Hydro/sweep_manager.cpp \
     Hydro/quick_sweep.cpp \
     Hydro/full_tuning_pipeline.cpp \
+    Hydro/goal_batch_actions.cpp \
     Hydro/ui_cleanup.cpp \
     Hydro/batch_results_summary.cpp \
     Hydro/batch_results_auto_view.cpp \
