@@ -82,3 +82,31 @@ Evidence: Dropbox HydroPINN paper/results/
 `hydrofusion_joint_inner_selection_20261124/` and audits/
 `joint_ten_year_readiness_20261124/review.json`. The12-hour supervisor remains
 active until explicit human stop; Codex work must not become fakeClaudecheckpoints.
+
+
+## Opt-in seeded TRAIN-window order
+
+The forecast path can opt in with the existing `shuffle_training=true` field
+and nonnegative `random_seed`. Accepted chronological configurations retain
+`shuffle_training=false`; the global configuration defaults are unchanged.
+Physical-only forecasts reject this option. A local RNG keyed by seed and epoch
+permutes complete eligible TRAIN sample rows; it does not consume torch model
+initialization RNG or reorder timestamps inside a window. Inputs, transformed
+targets, physical references and observed-discharge loss terms share one index.
+Scalers/q_ref/flow scale are fitted on canonical eligible TRAIN data before this
+permutation. Physical contexts remain chronologically assembled.
+
+The model recipe binds seeded training order (marker7,version1) and seed; fixed
+checkpoint-policy binding remains distinct. Exported booleans/seed are managed
+config fields. Rehashing public inventory after relabelling order or seed must
+not permit reload. Reproducibility is checked within the pinned build/runtime;
+std-library permutation portability across environments is not asserted.
+
+This is an optimization-mode change, not a new input signal or physical method.
+The four neural forecast families may use it; physical-only skill is unaffected.
+Production acceptance requires synthetic full/partial-batch alignment, local-RNG
+isolation, deterministic same-seed training, validation-Q counterfactual weight
+isolation, native fresh reload, tamper rejection and disabled-path legacy byte
+compatibility. Acceptance of these checks does not authorize reuse of a closed
+research campaign or establish a performance gain. Any new chronological-fold
+comparison needs a separate finite frozen plan, with no automatic expansion.

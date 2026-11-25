@@ -1,6 +1,7 @@
 #pragma once
 #include "hydro_run_types.h"
 #include "hydrofusion_checkpoint_policy.h"
+#include "hydrofusion_training_order.h"
 #include "hydrofusion_forecast_modes.h"
 #include "hydrofusion_preissue_rain_runtime.h"
 #include "hydro_lstm_module.h"
@@ -30,6 +31,7 @@ inline TargetMode forecastTargetMode(const HydroRunConfig& c){
 }
 inline void validateForecastConfig(const HydroRunConfig& c,const std::string& name){
     validateForecastCheckpointPolicy(c.hydrofusion_checkpoint_selection);
+    if(c.shuffle_training&&(name=="pinn_causal_forecast"||c.random_seed<0))throw std::invalid_argument("Seeded window order requires a neural forecast and nonnegative seed.");
     if(name=="pinn_causal_forecast"&&c.hydrofusion_checkpoint_selection!="best_validation_v1")throw std::invalid_argument("Fixed checkpoint selection requires a neural forecast.");
     const bool native=!c.hydrofusion_native_manifest_path.empty() && c.hydrofusion_native_manifest_sha256.size()==64;
     if(!isExtendedForecast(name)||c.use_hydro_package||c.use_csv_data||
@@ -48,7 +50,7 @@ inline void validateForecastConfig(const HydroRunConfig& c,const std::string& na
     }else if(c.hydrofusion_history_hours!="0")throw std::invalid_argument("History selection requires explicit v4 context recipe.");
     if(c.use_time_lagged_ffn||c.input_lags_csv!="1")throw std::invalid_argument("Legacy FFN lag settings do not apply to forecast recipes; use hydrofusion_history_hours.");
     if((!context&&c.lstm_sequence_length!=24)||c.activation!="tanh"||c.normalization!="standardize"||c.optimizer!="adam"||
-       c.shuffle_training||c.weight_decay!=0||c.physics_weight!=0||c.epochs<1||c.batch_size<1||!std::isfinite(c.learning_rate)||c.learning_rate<=0)
+       c.weight_decay!=0||c.physics_weight!=0||c.epochs<1||c.batch_size<1||!std::isfinite(c.learning_rate)||c.learning_rate<=0)
         throw std::invalid_argument("Forecast prototype requires 24 steps, tanh, standardize, Adam and positive training settings.");
     forecastHidden(c);
     if(c.hydrofusion_objective!="log_mse_v1"&&c.hydrofusion_objective!="log_flow_mse_v2")throw std::invalid_argument("Unknown forecast objective.");
@@ -175,6 +177,12 @@ inline torch::Tensor forecastObjective(const HydroRunConfig& c,const torch::Tens
 }
 inline torch::Tensor recipeTensor(const HydroRunConfig& c,const std::string& name){
     validateForecastCheckpointPolicy(c.hydrofusion_checkpoint_selection);
+    if(c.shuffle_training){
+        if(name=="pinn_causal_forecast"||c.random_seed<0)throw std::invalid_argument("Invalid seeded window recipe.");
+        auto chronological=c;chronological.shuffle_training=false;
+        // Versioned training-order/seed binding; disabled legacy recipe unchanged.
+        return torch::cat({recipeTensor(chronological,name),torch::tensor({7.,1.,static_cast<double>(c.random_seed)},torch::kFloat64)});
+    }
     if(c.hydrofusion_checkpoint_selection=="fixed_last_epoch_v1"){
         auto legacy=c;legacy.hydrofusion_checkpoint_selection="best_validation_v1";
         // Additive training-policy binding, input recipe/old checkpoints unchanged.

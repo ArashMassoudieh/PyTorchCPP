@@ -40,11 +40,15 @@ HydroRunResult HydroFusionForecastWrapper::train(const HydroRunConfig& c,const s
         double best=std::numeric_limits<double>::infinity();std::string bestBytes;
         for(int epoch=1;epoch<=c.epochs;++epoch){
             net->train();double sum=0;const auto n=data.train.x.size(0);
+            torch::Tensor order;
+            if(c.shuffle_training)order=torch::tensor(seededForecastWindowOrder(n,c.random_seed,epoch),torch::kLong);
             for(int64_t start=0;start<n;start+=c.batch_size){const auto end=std::min(n,start+c.batch_size);
-                optimizer.zero_grad();auto standardized=net->forward(xs.transform(data.train.x.slice(0,start,end)));
-                auto loss=c.hydrofusion_objective=="log_mse_v1"?torch::mse_loss(standardized,ys.transform(trainY.slice(0,start,end))):
-                    forecastObjective(c,standardized,ys.transform(trainY.slice(0,start,end)),ys,trainRef.slice(0,start,end),
-                        trainObserved.slice(0,start,end),qref,flowScale);
+                const auto indices=c.shuffle_training?order.slice(0,start,end):torch::Tensor{};
+                const auto batch=[&](const torch::Tensor& tensor){return c.shuffle_training?tensor.index_select(0,indices):tensor.slice(0,start,end);};
+                optimizer.zero_grad();auto standardized=net->forward(xs.transform(batch(data.train.x)));
+                auto loss=c.hydrofusion_objective=="log_mse_v1"?torch::mse_loss(standardized,ys.transform(batch(trainY))):
+                    forecastObjective(c,standardized,ys.transform(batch(trainY)),ys,batch(trainRef),
+                        batch(trainObserved),qref,flowScale);
                 if(!std::isfinite(loss.item<double>()))throw std::runtime_error("Nonfinite forecast training loss.");
                 loss.backward();optimizer.step();sum+=loss.item<double>()*(end-start);
             }
