@@ -83,9 +83,33 @@ research observations. It checks only integration, never scientific skill.
 
 ## Current limits
 
-A reviewed request with a finite candidate inventory is required; automatic
-candidate generation from an arbitrary dataset, calendar-year package building,
-ten-year source acceptance, calibration proposal generation, final holdout
-promotion, plotting and adaptive/futility pruning are not implemented here.
-The GUI is a bounded-request launcher and monitor, not yet a full dataset wizard.
+The calendar-study wizard now builds a finite inventory from a supported native
+package and pre-issue weather sidecar. Choose methods, one year, baseline width32
+or comparison widths32/64, epoch cap and goals; it derives chronological support
+with the actual feature preflight tool and writes a launchable request. The
+physical reference is included once, not retrained for each width. The GUI
+prepares only; use Goal-driven training to review/launch the generated request.
+This wizard currently uses the fixed2015origin, one seed42, first9months TRAIN
+and remaining months validation. CLI also supports a two-year prefix with the
+same first9months TRAIN. It does not certify coverage from date labels alone.
+Ten-year selection is visibly blocked before any observation access: corrected
+input/weather coverage and reserved-data permission remain unresolved. Engine,
+native verifier and feature-preflight executables must be selected; installation
+packaging/discovery is not complete. Automatic calibration proposals, terminal
+holdout promotion, plotting and adaptive/futility pruning are not implemented.
 Existing original/frozen campaigns and reserved observations remain untouched.
+
+
+## Calendar builder CLI
+
+```bash
+python3 Hydro/goal_batch/study_builder.py /new/study \
+  --manifest /verified/native_input_manifest.json --weather /verified/preissue_rain.csv \
+  --binary /tools/HydroBatch --verifier /tools/native_reload --probe /tools/fold_preflight \
+  --years 1 --epochs 200 --widths 32,64 --nse .7 --r-squared .8
+```
+
+This creates cropped copies, common support, configs, a finite request and a
+preflight record. It does not launch fitting or acquire missing inputs. Existing
+packages and closed campaigns are preserved. Rainfall release timestamps remain
+retrospective archive proxies, not proof of operational availability.
